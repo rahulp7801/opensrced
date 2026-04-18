@@ -35,6 +35,17 @@ function isPublic(pathname: string): boolean {
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
+  // Logged-in users hitting /login should be redirected to the dashboard.
+  // The privacy/security terms are viewable on the public landing page (/).
+  if (pathname === "/login" && !AUTH_DISABLED) {
+    const res = NextResponse.next();
+    const session = await getSession(req, res);
+    if (session?.user) {
+      return NextResponse.redirect(new URL("/discover", req.url));
+    }
+    return res;
+  }
+
   if (isPublic(pathname)) return NextResponse.next();
 
   if (AUTH_DISABLED) {

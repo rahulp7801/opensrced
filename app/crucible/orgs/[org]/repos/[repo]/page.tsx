@@ -108,8 +108,15 @@ export default async function RepoFindingsPage({
       )}
 
       <section className="mt-6">
-        <div className="mono-label text-paper-muted">
-          security findings ({findings.length})
+        <div className="flex items-center gap-3">
+          <span className="mono-label text-paper-muted">
+            security findings ({findings.length})
+          </span>
+          {findings.length > 0 && (
+            <span className="text-[10px] tabular-nums text-paper-dim border border-border-soft px-1.5 py-0.5">
+              {findings.filter(f => f.severity === "critical").length} critical · {findings.filter(f => f.severity === "high").length} high
+            </span>
+          )}
         </div>
         {findings.length === 0 ? (
           <div className="mt-2 border border-border bg-surface/40 p-4 text-[12px] text-paper-dim">

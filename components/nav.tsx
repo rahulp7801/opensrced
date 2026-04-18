@@ -17,6 +17,7 @@ import {
 const ITEMS = [
   { href: "/", label: "Overview", Icon: IconOverview },
   { href: "/discover", label: "Discover", Icon: IconSearch },
+  { href: "/explore", label: "Explore", Icon: IconRepos },
   { href: "/issues", label: "Issues", Icon: IconTrigger },
   { href: "/prs", label: "PRs", Icon: IconPrs },
   { href: "/repos", label: "Repos", Icon: IconRepos },

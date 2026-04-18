@@ -1,33 +1,8 @@
 import { hashCode } from "./utils";
 import type { PullRequest, RepoEntry, RunEntry } from "./types";
 
-// Maps well-known repos to their language + star count so the UI can render
-// cleanly even when proxying a Rust backend whose DB only stores (repo, pr_number, …).
-const REPO_META: Record<string, { language: string; stars: number }> = {
-  "sherlock-project/sherlock": { language: "python", stars: 58200 },
-  "astral-sh/ruff": { language: "rust", stars: 32100 },
-  "soimort/you-get": { language: "python", stars: 52800 },
-  "pola-rs/polars": { language: "rust", stars: 31400 },
-  "tokio-rs/tokio": { language: "rust", stars: 28000 },
-  "huggingface/transformers": { language: "python", stars: 132000 },
-  "denoland/deno": { language: "rust", stars: 97200 },
-  "vuejs/core": { language: "typescript", stars: 48800 },
-  "vercel/next.js": { language: "typescript", stars: 126000 },
-  "facebook/react": { language: "javascript", stars: 232000 },
-  "soulteary/maigret": { language: "python", stars: 19400 },
-  "worldmonitor/worldmonitor": { language: "typescript", stars: 45300 },
-  "robusta-dev/holmesgpt": { language: "python", stars: 2800 },
-  "amanusk/s-tui": { language: "python", stars: 5100 },
-  "dalgona-dev/kairos": { language: "go", stars: 1450 },
-  "signal-k/lantern": { language: "typescript", stars: 8800 },
-  "aptos-labs/aptos-core": { language: "rust", stars: 6200 },
-  "openobserve/openobserve": { language: "rust", stars: 12900 },
-  "surrealdb/surrealdb": { language: "rust", stars: 27600 },
-  "bevyengine/bevy": { language: "rust", stars: 36800 },
-  "ggerganov/llama.cpp": { language: "c++", stars: 67000 },
-  "chartjs/Chart.js": { language: "javascript", stars: 64500 },
-  "withastro/astro": { language: "typescript", stars: 45100 },
-};
+// Runtime cache for repo metadata fetched from the GitHub API.
+const repoMetaCache = new Map<string, { language: string; stars: number }>();
 
 function langFromName(repo: string): string {
   const name = repo.toLowerCase();
@@ -38,10 +13,32 @@ function langFromName(repo: string): string {
   return "polyglot";
 }
 
+const fetchInflight = new Set<string>();
+function fetchRepoMetaAsync(repo: string): void {
+  if (fetchInflight.has(repo)) return;
+  fetchInflight.add(repo);
+  fetch(`https://api.github.com/repos/${repo}`, {
+    headers: { Accept: "application/vnd.github+json" },
+    signal: AbortSignal.timeout(5000),
+  })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((json: { language?: string; stargazers_count?: number } | null) => {
+      if (json) {
+        repoMetaCache.set(repo, {
+          language: (json.language ?? langFromName(repo)).toLowerCase(),
+          stars: json.stargazers_count ?? 0,
+        });
+      }
+    })
+    .catch(() => {})
+    .finally(() => fetchInflight.delete(repo));
+}
+
 function meta(repo: string) {
-  if (REPO_META[repo]) return REPO_META[repo];
-  const h = hashCode(repo);
-  return { language: langFromName(repo), stars: 200 + (h % 9800) };
+  const cached = repoMetaCache.get(repo);
+  if (cached) return cached;
+  fetchRepoMetaAsync(repo);
+  return { language: langFromName(repo), stars: 0 };
 }
 
 const MODELS = [

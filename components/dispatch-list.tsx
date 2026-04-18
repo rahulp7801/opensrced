@@ -273,9 +273,16 @@ export function DispatchList() {
                   {detail.status === "running" && (
                     <CancelButton dispatchId={detail.id} />
                   )}
+                  <RetryButton dispatch={detail} />
                 </div>
               </div>
             </div>
+            {/* Pipeline milestone badges */}
+            {detail.status !== "running" && detail.log && (
+              <div className="border-b border-border px-4 py-2.5">
+                <StatusSummary log={detail.log} />
+              </div>
+            )}
             {/* Auto-PR failure banner — appears when Claude succeeded but
                 the post-hook auto-PR step didn't open a PR. Explains the
                 reason so the user can see whether to retry or fix manually. */}
@@ -366,6 +373,104 @@ export function DispatchList() {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+// ── Retry button ────────────────────────────────────────────────────
+function RetryButton({ dispatch }: { dispatch: DispatchWithLog }) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (dispatch.status !== "failed" && dispatch.status !== "killed") return null;
+  if (!dispatch.issue_number && !dispatch.repo_url) return null;
+
+  async function retry() {
+    setPending(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/run/agentic", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          repo_url: dispatch.repo_url,
+          issue_number: dispatch.issue_number,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { dispatch_id?: string };
+      if (json.dispatch_id) {
+        window.location.href = `/dispatches?dispatch=${json.dispatch_id}`;
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        onClick={retry}
+        disabled={pending}
+        className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] disabled:opacity-50"
+      >
+        {pending ? "retrying…" : "retry"}
+      </button>
+      {error && <span className="text-[10px] text-alert">{error}</span>}
+    </div>
+  );
+}
+
+// ── Status summary badges ─────────────────────────────────────────────
+function StatusSummary({ log }: { log: string }) {
+  if (!log) return null;
+
+  const hasDiff = /```(?:diff|patch)/m.test(log);
+  const testsRan = /\[crucible-tests\]/.test(log);
+  const testsPassed = /\[crucible-tests\] status=passed/.test(log);
+  const testsFailed = /\[crucible-tests\] status=(?:failed|error)/.test(log);
+  const prOpened = /github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+/.test(log);
+  const geminiReviewed = /\[gemini-review\]/.test(log);
+
+  const costMatch = /(?:Total cost|cost)[=:]\s*\$?([\d.]+)/i.exec(log);
+  const cost = costMatch ? parseFloat(costMatch[1]) : null;
+
+  const badges: Array<{ label: string; tone: "ok" | "alert" | "muted" | "info" | "signal" }> = [];
+
+  if (hasDiff) badges.push({ label: "patch", tone: "ok" });
+  if (geminiReviewed) badges.push({ label: "reviewed", tone: "info" });
+  if (testsRan) {
+    if (testsPassed) badges.push({ label: "tests passed", tone: "ok" });
+    else if (testsFailed) badges.push({ label: "tests failed", tone: "alert" });
+    else badges.push({ label: "tests ran", tone: "signal" });
+  }
+  if (prOpened) badges.push({ label: "PR opened", tone: "ok" });
+
+  if (badges.length === 0 && !cost) return null;
+
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {badges.map((b) => (
+        <span
+          key={b.label}
+          className={cn(
+            "text-[9px] tracking-[0.1em] uppercase px-1.5 py-px border leading-none",
+            b.tone === "ok" && "border-ok/40 text-ok",
+            b.tone === "alert" && "border-alert/40 text-alert",
+            b.tone === "info" && "border-info/40 text-info",
+            b.tone === "signal" && "border-signal/40 text-signal",
+            b.tone === "muted" && "border-border text-paper-muted",
+          )}
+        >
+          {b.label}
+        </span>
+      ))}
+      {cost !== null && cost > 0 && (
+        <span className="text-[9px] tracking-[0.1em] text-paper-muted tabular-nums">
+          ${cost.toFixed(2)}
+        </span>
+      )}
     </div>
   );
 }

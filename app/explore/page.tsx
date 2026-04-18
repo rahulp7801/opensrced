@@ -22,7 +22,7 @@ type ExploreResult = {
 export default function ExplorePage() {
   const [repoUrl, setRepoUrl] = useState("");
   const [query, setQuery] = useState("");
-  // Budget no longer needed — explore uses MCP tools directly + Gemini Flash
+  const [budget, setBudget] = useState("0.10");
   const [results, setResults] = useState<ExploreResult[]>([]);
   const resultRef = useRef<HTMLDivElement>(null);
 
@@ -50,7 +50,7 @@ export default function ExplorePage() {
       const res = await fetch("/api/explore", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ repo_url: repoUrl.trim(), query: currentQuery }),
+        body: JSON.stringify({ repo_url: repoUrl.trim(), query: currentQuery, budget: parseFloat(budget) || 0.15 }),
       });
 
       if (!res.ok) {
@@ -155,15 +155,30 @@ export default function ExplorePage() {
         description="Ask plain-English questions about any GitHub codebase. Claude navigates the repo with tree-sitter indexing, grep, and AST tools to find and show you the relevant code."
       />
 
-      {/* Repo input */}
-      <div className="mt-4">
+      {/* Repo input + budget */}
+      <div className="mt-4 flex items-center gap-3">
         <input
           type="text"
           value={repoUrl}
           onChange={(e) => setRepoUrl(e.target.value)}
           placeholder="github.com/owner/repo or owner/repo"
-          className="w-full max-w-xl bg-surface border border-border px-3 py-2 text-[13px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50"
+          className="flex-1 max-w-xl bg-surface border border-border px-3 py-2 text-[13px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50"
         />
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-paper-muted uppercase tracking-[0.1em]">budget</span>
+          <select
+            value={budget}
+            onChange={(e) => setBudget(e.target.value)}
+            className="bg-surface border border-border px-2 py-2 text-[12px] text-paper tabular-nums focus:outline-none focus:border-signal/50"
+          >
+            <option value="0.05">$0.05</option>
+            <option value="0.10">$0.10</option>
+            <option value="0.15">$0.15</option>
+            <option value="0.25">$0.25</option>
+            <option value="0.50">$0.50</option>
+            <option value="1.00">$1.00</option>
+          </select>
+        </div>
       </div>
 
       {/* Results area */}

@@ -22,7 +22,7 @@ type ExploreResult = {
 export default function ExplorePage() {
   const [repoUrl, setRepoUrl] = useState("");
   const [query, setQuery] = useState("");
-  const [budget, setBudget] = useState("0.15");
+  const [budget, setBudget] = useState("0.10");
   const [results, setResults] = useState<ExploreResult[]>([]);
   const resultRef = useRef<HTMLDivElement>(null);
 

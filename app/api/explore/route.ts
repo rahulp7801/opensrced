@@ -15,36 +15,11 @@ export const dynamic = "force-dynamic";
 const MCP_CONFIG = join(process.cwd(), ".mcp.json");
 
 function buildExplorePrompt(repoFull: string, query: string): string {
-  return [
-    `You are a codebase navigator. The user is asking about the repository \`${repoFull}\`.`,
-    ``,
-    `## User's question`,
-    ``,
-    query,
-    ``,
-    `## Your tools`,
-    ``,
-    `The MCP server \`opensrcer-repo-tools\` is configured. Every tool takes \`repo: "${repoFull}"\`.`,
-    ``,
-    `- \`repo_info\` — get an overview of the repo structure.`,
-    `- \`list_files\` — directory/glob listing.`,
-    `- \`read_file\` — read a specific file (pass \`line_start\`/\`line_end\` for large files).`,
-    `- \`grep\` — regex search across the codebase.`,
-    `- \`find_definition\` — find where a symbol is defined (uses tree-sitter AST index).`,
-    `- \`find_references\` — find every usage of a symbol.`,
-    ``,
-    `## How to respond`,
-    ``,
-    `1. Use the tools to find the answer. Start broad (repo_info, list_files) then drill into specific files.`,
-    `2. Structure your response clearly:`,
-    `   - **Answer the question directly** in 2-4 sentences at the top.`,
-    `   - **Show the relevant files** with their paths.`,
-    `   - **Include key code snippets** — copy the actual lines from read_file output. Use fenced code blocks with the language and file path as a comment on the first line.`,
-    `   - If the answer spans multiple files, show each one with context.`,
-    `3. Be precise about line numbers — always cite \`file:line\` so the user can jump directly there.`,
-    `4. Keep it concise. Don't dump entire files — show the 5-30 most relevant lines per file.`,
-    `5. If you can't find what the user is asking about, say so clearly and suggest what to search for instead.`,
-  ].join("\n");
+  return `You are a codebase navigator for \`${repoFull}\`. All MCP tools take repo: "${repoFull}".
+
+Question: ${query}
+
+Use grep/find_definition/read_file to locate the answer. Answer directly in 2-4 sentences, then show relevant file:line references with key code snippets (5-30 lines each, fenced). Be concise.`;
 }
 
 export async function POST(req: NextRequest) {
@@ -104,6 +79,8 @@ export async function POST(req: NextRequest) {
     "--output-format",
     "stream-json",
     "--verbose",
+    "--model",
+    "claude-sonnet-4-5",
     "--max-budget-usd",
     String(Math.min(Math.max(body.budget ?? 0.15, 0.01), 2)),
   ];

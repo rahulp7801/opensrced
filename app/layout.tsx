@@ -1,0 +1,50 @@
+import type { Metadata } from "next";
+import { Instrument_Serif, JetBrains_Mono } from "next/font/google";
+import "./globals.css";
+import { SiteHeader } from "@/components/header";
+import { SiteFooter } from "@/components/footer";
+import { UserProvider } from "@auth0/nextjs-auth0/client";
+
+const serif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: ["400"],
+  variable: "--font-serif-next",
+  display: "swap",
+});
+
+const mono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600"],
+  variable: "--font-mono-next",
+  display: "swap",
+});
+
+export const metadata: Metadata = {
+  title: "opensrcer / Observatory",
+  description:
+    "Mission-control dashboard for the opensrcer autonomous contribution agent. Live PRs, repos, runs, and signal telemetry.",
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en" className={`${serif.variable} ${mono.variable}`}>
+      <body
+        style={
+          {
+            // Bind next/font CSS vars to the theme vars used in globals.css
+            "--font-serif": `var(--font-serif-next), "Instrument Serif", ui-serif, Georgia, serif`,
+            "--font-mono": `var(--font-mono-next), ui-monospace, SFMono-Regular, Menlo, monospace`,
+          } as React.CSSProperties
+        }
+      >
+        <UserProvider>
+          <div className="flex min-h-svh flex-col">
+            <SiteHeader />
+            <main className="flex-1">{children}</main>
+            <SiteFooter />
+          </div>
+        </UserProvider>
+      </body>
+    </html>
+  );
+}

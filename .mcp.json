@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "opensrcer-repo-tools": {
+      "command": "node",
+      "args": ["./mcp-server/dist/server.js"]
+    }
+  }
+}

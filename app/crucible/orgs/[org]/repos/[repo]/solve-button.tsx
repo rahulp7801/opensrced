@@ -12,34 +12,52 @@ export function SolveButton({
   kind,
   findingId,
   githubOrg,
+  findingSummary,
+  findingDescription,
+  cveId,
+  affectedPackage,
+  affectedVersions,
 }: {
   repoFull: string;
   kind: "advisory" | "dependabot" | "issue";
   findingId: string;
   githubOrg: string;
+  findingSummary?: string;
+  findingDescription?: string;
+  cveId?: string;
+  affectedPackage?: string;
+  affectedVersions?: string;
 }) {
   const router = useRouter();
   const [state, setState] = useState<"idle" | "pending" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
 
-  // Only `issue` kind currently has a numeric #N we can pass to the agentic
-  // dispatcher. Advisories / dependabot alerts need a different prompt
-  // strategy (not yet wired — flag as coming-soon for MVP).
-  const supported = kind === "issue";
-
   async function onClick() {
-    if (!supported) return;
     setState("pending");
     setError(null);
     try {
+      const payload: Record<string, unknown> = {
+        repo_url: `https://github.com/${repoFull}`,
+        github_org: githubOrg,
+        kind,
+      };
+      if (kind === "issue") {
+        payload.issue_number = Number(findingId);
+      } else {
+        payload.finding = {
+          id: findingId,
+          kind,
+          summary: findingSummary,
+          description: findingDescription,
+          cve_id: cveId,
+          affected_package: affectedPackage,
+          affected_versions: affectedVersions,
+        };
+      }
       const res = await fetch("/api/crucible/run/agentic", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          repo_url: `https://github.com/${repoFull}`,
-          issue_number: Number(findingId),
-          github_org: githubOrg,
-        }),
+        body: JSON.stringify(payload),
       });
       const json = (await res.json().catch(() => ({}))) as {
         status?: string;
@@ -54,14 +72,6 @@ export function SolveButton({
       setError(e instanceof Error ? e.message : String(e));
       setState("error");
     }
-  }
-
-  if (!supported) {
-    return (
-      <span className="text-[11px] text-paper-muted border border-border-soft px-2 py-1">
-        solve (coming soon)
-      </span>
-    );
   }
 
   return (

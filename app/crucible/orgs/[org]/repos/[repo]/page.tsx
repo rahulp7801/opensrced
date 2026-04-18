@@ -153,6 +153,11 @@ export default async function RepoFindingsPage({
                       kind={f.kind}
                       findingId={f.id}
                       githubOrg={org}
+                      findingSummary={f.summary}
+                      findingDescription={f.description}
+                      cveId={f.cveId}
+                      affectedPackage={f.affectedPackage}
+                      affectedVersions={f.affectedVersions}
                     />
                   </div>
                 </div>

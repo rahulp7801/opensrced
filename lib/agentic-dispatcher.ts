@@ -70,6 +70,67 @@ function fetchIssueBody(repoFull: string, issueNumber: number): string {
   }
 }
 
+export type FindingInput = {
+  id: string;
+  kind: string;
+  summary?: string;
+  description?: string;
+  cve_id?: string;
+  affected_package?: string;
+  affected_versions?: string;
+};
+
+function buildFindingPrompt(repoFull: string, finding: FindingInput): string {
+  const parts = [
+    `You are remediating a security vulnerability in the GitHub repository \`${repoFull}\`.`,
+    ``,
+    `## The vulnerability`,
+    ``,
+    `**Type:** ${finding.kind}`,
+    finding.id ? `**ID:** ${finding.id}` : null,
+    finding.cve_id ? `**CVE:** ${finding.cve_id}` : null,
+    finding.affected_package ? `**Affected package:** ${finding.affected_package}` : null,
+    finding.affected_versions ? `**Vulnerable versions:** ${finding.affected_versions}` : null,
+    ``,
+    `**Summary:** ${finding.summary ?? "(no summary)"}`,
+    ``,
+    finding.description ? `**Details:**\n\n${finding.description}` : null,
+    ``,
+    `## Your tools`,
+    ``,
+    `The MCP server \`opensrcer-repo-tools\` is configured. Every tool takes \`repo: "${repoFull}"\`. Use them to explore the codebase; the repo is shallow-cloned and cached locally.`,
+    ``,
+    `- \`repo_info\` — orient on an unfamiliar repo first.`,
+    `- \`list_files\` — directory/glob listing.`,
+    `- \`read_file\` — read a specific file (pass \`line_start\`/\`line_end\` for large files).`,
+    `- \`grep\` — regex search.`,
+    `- \`find_definition\` — heuristic def-site lookup for a symbol.`,
+    `- \`find_references\` — every mention of a symbol, with per-file counts.`,
+    ``,
+    `## Your task`,
+    ``,
+    `1. Find the dependency or code path affected by this vulnerability.`,
+    `2. Determine the fix — usually a version bump in a manifest file (package.json, Cargo.toml, requirements.txt, go.mod, etc.), but may require a code change if the vulnerable API is used directly.`,
+    `3. Check that the fix doesn't break compatibility — read how the package is imported/used.`,
+    ``,
+    `## What to produce`,
+    ``,
+    `Structure your final response with these section headings **exactly**:`,
+    ``,
+    `1. \`## Diagnosis\` — what the vulnerability is, which file/line is affected, and what the fix is.`,
+    `2. A fenced \`\`\`diff block with the patch. Use standard \`--- a/path\` / \`+++ b/path\` headers.`,
+    `3. \`## Risk / Test\` — what could break, what the user should verify.`,
+    `4. \`## PR title\` — one line, under 72 chars. E.g. "fix: bump lodash to 4.17.21 (CVE-2021-23337)"`,
+    `5. \`## PR body\` — markdown body for the PR. Include a summary, what changed and why, and \`Fixes ${finding.cve_id ?? finding.id}\`.`,
+    ``,
+    `Rules:`,
+    `- Do not fabricate file paths. Verify every path via \`list_files\` or \`read_file\` first.`,
+    `- Prefer the smallest change that fixes the vulnerability.`,
+    `- If the fix requires a major version bump that would break the codebase, say so and stop.`,
+  ];
+  return parts.filter((l) => l !== null).join("\n");
+}
+
 function buildPrompt(repoFull: string, issueNumber: number, issueBody: string): string {
   // The system/user prompt drives the agent through the MCP tools. We lean
   // on Claude's own judgment for exploration depth rather than prescribing a
@@ -310,6 +371,160 @@ export function startAgenticDispatch(
             logPath,
             dispatchId: id,
             orgCtx: opts.orgCtx,
+          });
+          const line = result.ok
+            ? `[agentic-pr] opened draft PR: ${result.url}\n` +
+              `[agentic-pr] head: ${result.branch}  →  base: ${result.base.branch} (${result.base.confidence} confidence — ${result.base.reason})\n`
+            : `[agentic-pr] skipped: ${result.reason}\n`;
+          await appendFile(logPath, line).catch(() => {});
+        } catch (e) {
+          const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+          await appendFile(logPath, `[agentic-pr] unexpected error: ${msg}\n`).catch(() => {});
+        }
+      })();
+    }
+  });
+  child.on("error", (err) => {
+    dispatch.ended_at = new Date().toISOString();
+    dispatch.status = "failed";
+    out.write(`\n[agentic-dispatcher] spawn error: ${err.message}\n`);
+    out.end();
+  });
+
+  return dispatch;
+}
+
+// ── Security-finding dispatch ─────────────────────────────────────────
+// Same spawn mechanics as startAgenticDispatch but takes a FindingInput
+// (advisory / dependabot alert) instead of an issue number. The prompt
+// is tailored for vulnerability remediation rather than bug fixing.
+
+export function startFindingDispatch(
+  repoUrl: string,
+  finding: FindingInput,
+  opts: StartAgenticOpts = {},
+): Dispatch {
+  if (!existsSync(MCP_CONFIG)) {
+    throw new Error(`Missing ${MCP_CONFIG} — build the MCP server first (cd mcp-server && npm run build).`);
+  }
+
+  const m = /github\.com[:/]+([^/]+)\/([^/?#\s.]+)|^([^/\s]+)\/([^/\s]+)$/.exec(
+    repoUrl.trim().replace(/\.git$/i, ""),
+  );
+  const owner = m?.[1] ?? m?.[3];
+  const name = m?.[2] ?? m?.[4];
+  if (!owner || !name) throw new Error(`Unrecognized repo URL: ${repoUrl}`);
+  const repoFull = `${owner}/${name}`;
+
+  ensureDir();
+  const id = `d_${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}_${randomUUID().slice(0, 6)}`;
+  const logPath = join(DISPATCH_DIR, `${id}.log`);
+  const out = createWriteStream(logPath);
+
+  const prompt = buildFindingPrompt(repoFull, finding);
+
+  const budgetUsd = opts.maxSpendUsd ?? Number(process.env.OPENSRCER_AGENTIC_BUDGET_USD ?? "2");
+  const timeoutMs = Number(process.env.OPENSRCER_AGENTIC_TIMEOUT_MS ?? String(30 * 60 * 1000));
+
+  const args = [
+    "-p",
+    prompt,
+    "--mcp-config",
+    MCP_CONFIG,
+    "--strict-mcp-config",
+    "--permission-mode",
+    "bypassPermissions",
+    "--no-session-persistence",
+    "--output-format",
+    "text",
+    "--max-budget-usd",
+    String(budgetUsd),
+  ];
+
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  const token = opts.token ?? fetchGithubToken();
+  if (token) env.GITHUB_TOKEN = token;
+  if (opts.anthropicKey) env.ANTHROPIC_API_KEY = opts.anthropicKey;
+  if (opts.geminiKey) env.GEMINI_API_KEY = opts.geminiKey;
+
+  const findingLabel = finding.cve_id ?? finding.id;
+  out.write(
+    `[agentic-dispatcher] ${new Date().toISOString()}\n` +
+      `[agentic-dispatcher] repo: ${repoFull}  finding: ${findingLabel} (${finding.kind})\n` +
+      `[agentic-dispatcher] bin: claude (-p headless, MCP: ${MCP_CONFIG})\n` +
+      `[agentic-dispatcher] guardrails: --max-budget-usd=${budgetUsd} · timeout=${Math.round(timeoutMs / 1000)}s\n` +
+      `[agentic-dispatcher] ─────────────────────────────\n`,
+  );
+
+  const child = spawn("claude", args, { env, windowsHide: true });
+
+  let killedByTimeout = false;
+  const timeoutHandle = setTimeout(() => {
+    if (!child.killed && child.pid) {
+      killedByTimeout = true;
+      try {
+        out.write(
+          `\n[agentic-dispatcher] ─────────────────────────────\n` +
+            `[agentic-dispatcher] wall-clock timeout (${Math.round(timeoutMs / 1000)}s) hit at ${new Date().toISOString()}\n`,
+        );
+      } catch { /* stream may be half-closed */ }
+      if (process.platform === "win32") {
+        try {
+          execFileSync("taskkill", ["/F", "/T", "/PID", String(child.pid)], { stdio: "pipe" });
+        } catch {
+          child.kill("SIGKILL");
+        }
+      } else {
+        child.kill("SIGKILL");
+      }
+    }
+  }, timeoutMs);
+
+  // Use a synthetic issue number of 0 for findings — the PR pipeline
+  // uses the finding ID in the branch name instead.
+  const dispatch: Dispatch = {
+    id,
+    repo_url: repoUrl,
+    mode: "agentic",
+    dry_run: true,
+    issue_number: 0,
+    started_at: new Date().toISOString(),
+    status: "running",
+    pid: child.pid,
+    log_path: logPath,
+  };
+
+  child.stdout.pipe(out, { end: false });
+  child.stderr.pipe(out, { end: false });
+  child.on("close", (code, signal) => {
+    clearTimeout(timeoutHandle);
+    dispatch.ended_at = new Date().toISOString();
+    dispatch.exit_code = code ?? undefined;
+    const wasKilled = signal === "SIGKILL" || signal === "SIGTERM" || killedByTimeout;
+    dispatch.status = wasKilled ? "killed" : code === 0 ? "succeeded" : "failed";
+    out.write(
+      `\n[agentic-dispatcher] ─────────────────────────────\n` +
+        `[agentic-dispatcher] exited at ${dispatch.ended_at} · status=${dispatch.status} · exit=${code ?? "n/a"}` +
+        (killedByTimeout ? " (killed by wall-clock timeout)" : "") +
+        `\n`,
+    );
+    out.end();
+
+    if (!wasKilled && code === 0 && process.env.OPENSRCER_AGENTIC_AUTO_PR !== "0") {
+      void (async () => {
+        await new Promise((r) => setTimeout(r, 250));
+        await appendFile(logPath,
+          `\n[agentic-pr] ─────────────────────────────\n` +
+          `[agentic-pr] starting auto-PR at ${new Date().toISOString()}\n`,
+        ).catch(() => {});
+        try {
+          const result = await createDraftPrFromLog({
+            repoFull,
+            issueNumber: 0,
+            logPath,
+            dispatchId: id,
+            orgCtx: opts.orgCtx,
+            findingId: findingLabel,
           });
           const line = result.ok
             ? `[agentic-pr] opened draft PR: ${result.url}\n` +

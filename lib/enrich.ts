@@ -45,10 +45,8 @@ function meta(repo: string) {
 }
 
 const MODELS = [
-  "gemini-3-flash-preview",
-  "gemini-3-pro",
-  "gpt-4.1-mini",
   "claude-sonnet-4-5",
+  "gemini-2.0-flash",
 ];
 
 /** Enrich a Rust-backed PR row (subset fields) to the full UI shape. */

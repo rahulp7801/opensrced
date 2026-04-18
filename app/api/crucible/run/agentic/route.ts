@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@auth0/nextjs-auth0";
-import { startAgenticDispatch } from "@/lib/agentic-dispatcher";
+import { startAgenticDispatch, startFindingDispatch } from "@/lib/agentic-dispatcher";
 import { mappingForOrg } from "@/lib/crucible/orgs";
 import { resolveGithubToken } from "@/lib/crucible/tokens";
 import { resolveAnthropicKey, resolveGeminiKey, resolveMaxSpendUsd } from "@/lib/api-keys";
@@ -23,11 +23,34 @@ export async function POST(req: NextRequest) {
     repo_url?: string;
     issue_number?: number;
     github_org?: string;
+    kind?: "issue" | "advisory" | "dependabot";
+    finding?: {
+      id: string;
+      kind: string;
+      summary?: string;
+      description?: string;
+      cve_id?: string;
+      affected_package?: string;
+      affected_versions?: string;
+    };
   };
-  const { repo_url, issue_number, github_org } = body;
-  if (!repo_url || !issue_number || !github_org) {
+  const { repo_url, issue_number, github_org, kind, finding } = body;
+  if (!repo_url || !github_org) {
     return NextResponse.json(
-      { status: "error", message: "Missing required fields: repo_url, issue_number, github_org" },
+      { status: "error", message: "Missing required fields: repo_url, github_org" },
+      { status: 400 },
+    );
+  }
+  const isSecurityFinding = kind === "advisory" || kind === "dependabot";
+  if (!isSecurityFinding && !issue_number) {
+    return NextResponse.json(
+      { status: "error", message: "Missing issue_number for issue-type dispatch" },
+      { status: 400 },
+    );
+  }
+  if (isSecurityFinding && !finding) {
+    return NextResponse.json(
+      { status: "error", message: "Missing finding details for advisory/dependabot dispatch" },
       { status: 400 },
     );
   }
@@ -55,20 +78,27 @@ export async function POST(req: NextRequest) {
     }
     const geminiKey = (await resolveGeminiKey()) ?? undefined;
     const maxSpendUsd = await resolveMaxSpendUsd();
-    const d = startAgenticDispatch(repo_url, issue_number, {
+    const sharedOpts = {
       token: resolved.token,
       orgCtx: { auth0UserId: sub, githubOrg: github_org },
       anthropicKey,
       geminiKey,
       maxSpendUsd,
-    });
+    };
+    const d = isSecurityFinding
+      ? startFindingDispatch(repo_url, finding!, sharedOpts)
+      : startAgenticDispatch(repo_url, issue_number!, sharedOpts);
+    const label = isSecurityFinding
+      ? `${finding!.kind} ${finding!.id}`
+      : `issue #${issue_number}`;
     return NextResponse.json(
       {
         status: "running",
-        message: `Crucible agentic solve spawned for ${repo_url} issue #${issue_number} (dispatch ${d.id}).`,
+        message: `Crucible agentic solve spawned for ${repo_url} ${label} (dispatch ${d.id}).`,
         dispatch_id: d.id,
         mode: "agentic",
-        issue_number,
+        issue_number: issue_number ?? null,
+        finding_id: finding?.id ?? null,
         queued_at: d.started_at,
         watch_url: `/api/dispatches/${d.id}`,
       },

@@ -32,6 +32,9 @@ const PUBLIC_PATHS = [
   "/stats",
   "/explore",
   "/trigger",
+  "/prs",
+  "/repos",
+  "/runs",
 ];
 
 function isPublic(pathname: string): boolean {

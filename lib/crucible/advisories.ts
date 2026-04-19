@@ -12,6 +12,20 @@
 
 import { installationFetch } from "./github-app";
 
+// In-memory cache for GitHub API responses. TTL keeps data fresh enough
+// while avoiding redundant API calls during rapid navigation.
+type CacheEntry<T> = { data: T; expiresAt: number };
+const cache = new Map<string, CacheEntry<unknown>>();
+
+function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
+  const hit = cache.get(key) as CacheEntry<T> | undefined;
+  if (hit && Date.now() < hit.expiresAt) return Promise.resolve(hit.data);
+  return fn().then((data) => {
+    cache.set(key, { data, expiresAt: Date.now() + ttlMs });
+    return data;
+  });
+}
+
 export type SecuritySeverity = "low" | "medium" | "high" | "critical" | "unknown";
 
 export type SecurityFinding = {
@@ -74,6 +88,14 @@ export async function listAdvisories(
   owner: string,
   repo: string,
 ): Promise<SecurityFinding[]> {
+  return cached(`advisories:${owner}/${repo}`, 60_000, () => listAdvisoriesUncached(installationId, owner, repo));
+}
+
+async function listAdvisoriesUncached(
+  installationId: number,
+  owner: string,
+  repo: string,
+): Promise<SecurityFinding[]> {
   const url = `https://api.github.com/repos/${owner}/${repo}/security-advisories?per_page=100`;
   const res = await installationFetch(installationId, url);
   if (!res.ok) {
@@ -97,6 +119,14 @@ export async function listAdvisories(
 }
 
 export async function listDependabotAlerts(
+  installationId: number,
+  owner: string,
+  repo: string,
+): Promise<SecurityFinding[]> {
+  return cached(`dependabot:${owner}/${repo}`, 60_000, () => listDependabotUncached(installationId, owner, repo));
+}
+
+async function listDependabotUncached(
   installationId: number,
   owner: string,
   repo: string,
@@ -140,7 +170,14 @@ export async function listInstallationIssues(
   owner: string,
   repo: string,
 ): Promise<RepoIssue[]> {
-  // Exclude PRs (GitHub's issues endpoint conflates them; filter after).
+  return cached(`issues:${owner}/${repo}`, 60_000, () => listIssuesUncached(installationId, owner, repo));
+}
+
+async function listIssuesUncached(
+  installationId: number,
+  owner: string,
+  repo: string,
+): Promise<RepoIssue[]> {
   const url = `https://api.github.com/repos/${owner}/${repo}/issues?state=open&per_page=100`;
   const res = await installationFetch(installationId, url);
   if (!res.ok) {
@@ -183,6 +220,12 @@ export type InstallationRepo = {
 };
 
 export async function listInstallationRepos(
+  installationId: number,
+): Promise<InstallationRepo[]> {
+  return cached(`repos:${installationId}`, 120_000, () => listReposUncached(installationId));
+}
+
+async function listReposUncached(
   installationId: number,
 ): Promise<InstallationRepo[]> {
   const out: InstallationRepo[] = [];

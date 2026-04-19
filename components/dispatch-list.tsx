@@ -767,6 +767,7 @@ function IssuePreview({ log }: { log: string }) {
 function LogViewer({ log, isRunning, logRef }: { log: string; isRunning: boolean; logRef: React.RefObject<HTMLPreElement | null> }) {
   const [search, setSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
+  const [rawMode, setRawMode] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const clean = stripAnsi(log);
 
@@ -825,20 +826,73 @@ function LogViewer({ log, isRunning, logRef }: { log: string; isRunning: boolean
         </div>
       )}
       {!showSearch && !isRunning && (
-        <button
-          onClick={() => { setShowSearch(true); setTimeout(() => searchRef.current?.focus(), 50); }}
-          className="absolute top-2 right-3 z-10 flex items-center gap-1 border border-border bg-ink/80 hover:border-signal/50 hover:text-signal px-2 py-1 text-[10px] text-paper-muted transition"
-          title="Search log (Ctrl+F)"
-        >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7" cy="7" r="4" /><path d="m13 13-3.5-3.5" /></svg>
-          search
-        </button>
+        <div className="absolute top-2 right-3 z-10 flex items-center gap-1.5">
+          <button
+            onClick={() => setRawMode(!rawMode)}
+            className={cn(
+              "border bg-ink/80 px-2 py-1 text-[10px] transition",
+              rawMode ? "border-signal/50 text-signal" : "border-border text-paper-faint hover:text-paper-muted"
+            )}
+            title="Toggle terminal colors"
+          >
+            {rawMode ? "colored" : "plain"}
+          </button>
+          <button
+            onClick={() => { setShowSearch(true); setTimeout(() => searchRef.current?.focus(), 50); }}
+            className="flex items-center gap-1 border border-border bg-ink/80 hover:border-signal/50 hover:text-signal px-2 py-1 text-[10px] text-paper-muted transition"
+            title="Search log (Ctrl+F)"
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7" cy="7" r="4" /><path d="m13 13-3.5-3.5" /></svg>
+            search
+          </button>
+        </div>
       )}
       <pre ref={logRef} className="h-[50vh] overflow-auto p-4 text-[11.5px] leading-relaxed text-paper-dim bg-ink/70 font-mono whitespace-pre-wrap">
-        {renderLog()}
+        {search.length >= 2 ? renderLog() : rawMode ? <AnsiLog text={log} /> : (clean || "(log empty — waiting for first write)")}
       </pre>
     </div>
   );
+}
+
+// ANSI color renderer — converts escape sequences to styled spans
+const ANSI_COLORS: Record<number, string> = {
+  30: "color: #6b6557", 31: "color: #ff5c5c", 32: "color: #7fe83f",
+  33: "color: #ff9d2e", 34: "color: #5ec8ff", 35: "color: #d898ff",
+  36: "color: #5ec8ff", 37: "color: #ece5d1",
+  90: "color: #6b6557", 91: "color: #ff5c5c", 92: "color: #7fe83f",
+  93: "color: #ffb866", 94: "color: #5ec8ff", 95: "color: #d898ff",
+  96: "color: #5ec8ff", 97: "color: #ece5d1",
+};
+
+function AnsiLog({ text }: { text: string }) {
+  const parts: React.ReactNode[] = [];
+  const re = /\x1b\[([0-9;]*)m/g;
+  let last = 0;
+  let style = "";
+  let bold = false;
+  let ki = 0;
+
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > last) {
+      parts.push(
+        <span key={ki++} style={style || bold ? { ...(style ? { cssText: style } : {}), ...(bold ? { fontWeight: 600 } : {}) } as React.CSSProperties : undefined}>
+          {text.slice(last, match.index)}
+        </span>
+      );
+    }
+    const codes = match[1].split(";").map(Number);
+    for (const c of codes) {
+      if (c === 0) { style = ""; bold = false; }
+      else if (c === 1) bold = true;
+      else if (ANSI_COLORS[c]) style = ANSI_COLORS[c];
+    }
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) {
+    parts.push(<span key={ki++}>{text.slice(last)}</span>);
+  }
+  return <>{parts}</>;
 }
 
 function ExportButton({ dispatch }: { dispatch: DispatchWithLog }) {
@@ -1085,6 +1139,7 @@ function extractLogSection(log: string, headingAlt: string): string | null {
 function DiffPreviewFromLog({ log, prOpened }: { log: string; prOpened: boolean }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [splitView, setSplitView] = useState(false);
 
   const diff = extractFirstDiff(log);
   if (!diff) return null;
@@ -1173,12 +1228,32 @@ function DiffPreviewFromLog({ log, prOpened }: { log: string; prOpened: boolean 
               ))}
             </div>
 
+            {/* Diff view toggle */}
+            <div className="px-6 py-2 border-b border-border-soft flex items-center gap-2">
+              <button
+                onClick={() => setSplitView(false)}
+                className={cn("text-[10px] px-2 py-0.5 border transition", !splitView ? "border-signal/50 text-signal" : "border-border text-paper-faint hover:text-paper-muted")}
+              >
+                unified
+              </button>
+              <button
+                onClick={() => setSplitView(true)}
+                className={cn("text-[10px] px-2 py-0.5 border transition", splitView ? "border-signal/50 text-signal" : "border-border text-paper-faint hover:text-paper-muted")}
+              >
+                split
+              </button>
+            </div>
+
             {/* Diff */}
-            <pre className="max-h-[50vh] overflow-auto text-[11.5px] leading-snug font-mono bg-ink/70">
-              {diff.body.split(/\r?\n/).map((line, i) => (
-                <DiffLine key={i} line={line} />
-              ))}
-            </pre>
+            {splitView ? (
+              <SplitDiffView body={diff.body} />
+            ) : (
+              <pre className="max-h-[50vh] overflow-auto text-[11.5px] leading-snug font-mono bg-ink/70">
+                {diff.body.split(/\r?\n/).map((line, i) => (
+                  <DiffLine key={i} line={line} />
+                ))}
+              </pre>
+            )}
 
             {/* Actions */}
             <div className="px-6 py-4 border-t border-border flex items-center justify-between gap-4 flex-wrap">
@@ -1189,6 +1264,11 @@ function DiffPreviewFromLog({ log, prOpened }: { log: string; prOpened: boolean 
                 >
                   {copied ? "Copied ✓" : "Copy diff"}
                 </button>
+                <CommitMsgButton
+                  title={prTitle?.split("\n")[0]?.replace(/^[#>*\-`\s]+/, "") ?? null}
+                  diagnosis={diagnosis}
+                  files={diff.files}
+                />
                 <button
                   onClick={() => setModalOpen(false)}
                   className="px-3 py-2 text-[12px] text-paper-muted hover:text-paper transition"
@@ -1218,6 +1298,109 @@ function DiffPreviewFromLog({ log, prOpened }: { log: string; prOpened: boolean 
         </div>
       )}
     </>
+  );
+}
+
+function CommitMsgButton({
+  title,
+  diagnosis,
+  files,
+}: {
+  title: string | null;
+  diagnosis: string | null;
+  files: string[];
+}) {
+  const [copied, setCopied] = useState(false);
+
+  function generate() {
+    const subject = title || "fix: apply patch";
+    const body = diagnosis
+      ? `\n\n${diagnosis.split("\n").slice(0, 5).join("\n").trim()}`
+      : "";
+    const fileList = files.length > 0
+      ? `\n\nFiles: ${files.join(", ")}`
+      : "";
+    const msg = `${subject}${body}${fileList}`;
+    navigator.clipboard.writeText(msg).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    }).catch(() => {});
+  }
+
+  return (
+    <button
+      onClick={generate}
+      className="inline-flex items-center gap-1.5 border border-border hover:border-border-strong px-3 py-2 text-[12px] text-paper-dim hover:text-paper transition"
+    >
+      {copied ? "Copied ✓" : "Commit msg"}
+    </button>
+  );
+}
+
+function SplitDiffView({ body }: { body: string }) {
+  // Parse hunks into before/after line pairs
+  const lines = body.split(/\r?\n/);
+  const hunks: Array<{ file: string; before: string[]; after: string[] }> = [];
+  let currentFile = "";
+  let before: string[] = [];
+  let after: string[] = [];
+
+  for (const line of lines) {
+    if (line.startsWith("--- a/")) continue;
+    if (line.startsWith("+++ b/")) {
+      if (currentFile && (before.length || after.length)) {
+        hunks.push({ file: currentFile, before: [...before], after: [...after] });
+      }
+      currentFile = line.slice(6);
+      before = [];
+      after = [];
+      continue;
+    }
+    if (line.startsWith("@@")) {
+      if (before.length || after.length) {
+        hunks.push({ file: currentFile, before: [...before], after: [...after] });
+        before = [];
+        after = [];
+      }
+      continue;
+    }
+    if (line.startsWith("-")) {
+      before.push(line.slice(1));
+    } else if (line.startsWith("+")) {
+      after.push(line.slice(1));
+    } else {
+      // Context line — add to both
+      const ctx = line.startsWith(" ") ? line.slice(1) : line;
+      before.push(ctx);
+      after.push(ctx);
+    }
+  }
+  if (currentFile && (before.length || after.length)) {
+    hunks.push({ file: currentFile, before, after });
+  }
+
+  return (
+    <div className="max-h-[50vh] overflow-auto">
+      {hunks.map((h, hi) => (
+        <div key={hi}>
+          <div className="px-4 py-1.5 text-[10px] text-paper-muted bg-surface/30 border-b border-border-soft font-mono">
+            {h.file}
+          </div>
+          <div className="grid grid-cols-2 divide-x divide-border-soft">
+            <pre className="p-3 text-[11px] leading-snug font-mono bg-alert/5 overflow-x-auto">
+              {h.before.map((l, i) => (
+                <div key={i} className="whitespace-pre text-paper-dim">{l || "\u00a0"}</div>
+              ))}
+            </pre>
+            <pre className="p-3 text-[11px] leading-snug font-mono bg-ok/5 overflow-x-auto">
+              {h.after.map((l, i) => (
+                <div key={i} className="whitespace-pre text-paper-dim">{l || "\u00a0"}</div>
+              ))}
+            </pre>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 

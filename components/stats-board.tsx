@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { IconExternal } from "./icons";
+import { useSwrFetch } from "@/lib/use-swr-fetch";
 
 type Contribution = {
   prUrl: string;
@@ -36,34 +36,10 @@ type StatsData = {
 };
 
 export function StatsBoard() {
-  const [data, setData] = useState<StatsData | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const res = await fetch("/api/activity", { cache: "no-store" });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json?.error ?? `HTTP ${res.status}`);
-        if (!cancelled) setData(json);
-      } catch (e) {
-        if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
-    // Light polling — stats change when the user triggers something, and
-    // if a background dispatch closes we want the PR count to tick up
-    // without a manual refresh.
-    const t = setInterval(load, 15_000);
-    return () => {
-      cancelled = true;
-      clearInterval(t);
-    };
-  }, []);
+  const { data, error: err, isLoading: loading } = useSwrFetch<StatsData>(
+    "/api/activity",
+    { refreshInterval: 15_000 },
+  );
 
   if (loading && !data) {
     return (

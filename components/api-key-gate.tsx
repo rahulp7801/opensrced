@@ -10,20 +10,40 @@ export function ApiKeyGate() {
 
   useEffect(() => {
     if (!user) return;
-    // Check sessionStorage cache first to avoid API call on every navigation
-    const cached = sessionStorage.getItem("opensrcer-has-key");
-    if (cached !== null) {
-      setHasKey(cached === "1");
-      return;
+
+    function check() {
+      const cached = sessionStorage.getItem("opensrcer-has-key");
+      if (cached !== null) {
+        setHasKey(cached === "1");
+        return;
+      }
+      fetch("/api/settings/keys")
+        .then((r) => r.json())
+        .then((d: { anthropic?: boolean; gemini?: boolean }) => {
+          const has = Boolean(d.anthropic) && Boolean(d.gemini);
+          setHasKey(has);
+          sessionStorage.setItem("opensrcer-has-key", has ? "1" : "0");
+        })
+        .catch(() => setHasKey(null));
     }
-    fetch("/api/settings/keys")
-      .then((r) => r.json())
-      .then((d: { anthropic?: boolean; gemini?: boolean }) => {
-        const has = Boolean(d.anthropic) && Boolean(d.gemini);
-        setHasKey(has);
-        sessionStorage.setItem("opensrcer-has-key", has ? "1" : "0");
-      })
-      .catch(() => setHasKey(null));
+
+    check();
+
+    // Re-check when sessionStorage is cleared (key saved/removed on Crucible page)
+    function onStorage(e: StorageEvent) {
+      if (e.key === "opensrcer-has-key" || e.key === null) check();
+    }
+    // StorageEvent only fires cross-tab. For same-tab, poll sessionStorage.
+    const poll = setInterval(() => {
+      const cached = sessionStorage.getItem("opensrcer-has-key");
+      if (cached === null) check(); // cache was cleared — re-fetch
+    }, 1000);
+
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      clearInterval(poll);
+    };
   }, [user]);
 
   // Don't show if not logged in, still loading, or key is set

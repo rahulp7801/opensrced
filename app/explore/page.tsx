@@ -270,6 +270,7 @@ export default function ExplorePage() {
             <option value="0.50">$0.50</option>
             <option value="1.00">$1.00</option>
           </select>
+          <span className="text-[9px] text-paper-faint">max cost per query</span>
         </div>
       </div>
 

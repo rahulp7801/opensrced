@@ -90,11 +90,14 @@ export function SolveButton({
         type="button"
         onClick={onClick}
         disabled={state === "pending" || !hasKey}
-        title={!hasKey ? "Add an Anthropic API key in Crucible → API Keys" : undefined}
+        title={!hasKey ? "Add API keys in Crucible → API Keys" : "Estimated cost: ~$0.05–$0.15"}
         className="text-[12px] text-paper border border-border bg-surface/60 hover:bg-surface px-2.5 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {!hasKey ? "no API key" : state === "pending" ? "dispatching…" : "deep solve"}
       </button>
+      {hasKey && state === "idle" && (
+        <span className="text-[9px] text-paper-faint tabular-nums">est. ~$0.05–$0.15</span>
+      )}
       {state === "error" && error && (
         <span className="text-[10.5px] text-red-300 max-w-[220px] text-right">
           {error}

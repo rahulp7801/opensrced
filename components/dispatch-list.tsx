@@ -348,7 +348,9 @@ function RetryButton({ dispatch }: { dispatch: DispatchWithLog }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (dispatch.status !== "failed" && dispatch.status !== "killed") return null;
+  const showRetry = dispatch.status === "failed" || dispatch.status === "killed" ||
+    dispatch.pr_status === "failed" || dispatch.pr_status === "tests_failed";
+  if (!showRetry) return null;
   if (!dispatch.issue_number && !dispatch.repo_url) return null;
 
   async function retry() {

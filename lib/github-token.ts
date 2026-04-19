@@ -30,23 +30,9 @@ export async function getGitHubTokenFromSession(): Promise<string | null> {
   return null;
 }
 
-export function getGitHubTokenFromEnv(): string | null {
-  if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN;
-  const gh = process.env.GH_CLI;
-  if (!gh || !existsSync(gh)) return null;
-  try {
-    const out = execFileSync(gh, ["auth", "token"], {
-      encoding: "utf8",
-      timeout: 4000,
-    }).trim();
-    return out || null;
-  } catch {
-    return null;
-  }
-}
-
 // For use in API route handlers / server components where we have
-// request context (getSession works).
+// request context (getSession works). No env fallback — the token
+// must come from the authenticated user's Auth0 session.
 export async function resolveGitHubToken(): Promise<string | null> {
-  return (await getGitHubTokenFromSession()) ?? getGitHubTokenFromEnv();
+  return await getGitHubTokenFromSession();
 }

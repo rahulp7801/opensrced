@@ -91,9 +91,10 @@ export async function POST(req: NextRequest) {
 
   const env: NodeJS.ProcessEnv = { ...process.env };
   delete env.ANTHROPIC_API_KEY;
+  delete env.GITHUB_TOKEN;
   env.ANTHROPIC_API_KEY = anthropicKey;
 
-  // #6: Private repo support — use installation token if org is specified
+  // Private repo support — use installation token if org is specified
   if (body.github_org) {
     const session = await getSession();
     const sub = session?.user?.sub;
@@ -105,6 +106,7 @@ export async function POST(req: NextRequest) {
       }
     }
   }
+  // Public repos — use the user's GitHub OAuth token from Auth0
   if (!env.GITHUB_TOKEN) {
     const token = await resolveGitHubToken();
     if (token) env.GITHUB_TOKEN = token;

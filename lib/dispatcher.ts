@@ -201,16 +201,10 @@ export function canDispatchLocally(): boolean {
   return Boolean(process.env.CONTRIBAI_BIN);
 }
 
+// No env/CLI fallback — token must be passed explicitly via opts.token,
+// resolved from the user's authenticated session.
 function fetchGithubToken(): string | undefined {
-  if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN;
-  const gh = process.env.GH_CLI;
-  if (!gh || !existsSync(gh)) return undefined;
-  try {
-    const out = execFileSync(gh, ["auth", "token"], { encoding: "utf8", timeout: 4000 }).trim();
-    return out || undefined;
-  } catch {
-    return undefined;
-  }
+  return undefined;
 }
 
 export type StartDispatchOpts = {
@@ -245,10 +239,12 @@ export function startDispatch(
   if (config) args.push("--config", config);
 
   const env: NodeJS.ProcessEnv = { ...process.env };
+  delete env.GITHUB_TOKEN;
+  delete env.ANTHROPIC_API_KEY;
+  delete env.GEMINI_API_KEY;
   const token = opts.token ?? fetchGithubToken();
   if (token) env.GITHUB_TOKEN = token;
   if (opts.anthropicKey) env.ANTHROPIC_API_KEY = opts.anthropicKey;
-  // GEMINI_API_KEY is already inherited from process.env
 
   // On dry-run solves, tell contribai to dump each generated contribution as JSON
   // to .dispatches/<id>/draft-*.json so the UI can preview it before going live.

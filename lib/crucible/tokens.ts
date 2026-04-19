@@ -18,19 +18,10 @@ export type ResolvedToken = {
   source: "installation" | "pat" | "gh-cli" | "none";
 };
 
+// No env/CLI fallback — tokens must come from the authenticated user's
+// session or from an installation token for connected orgs.
 function patOrGhCli(): ResolvedToken {
-  if (process.env.GITHUB_TOKEN) {
-    return { token: process.env.GITHUB_TOKEN, source: "pat" };
-  }
-  const gh = process.env.GH_CLI;
-  if (!gh || !existsSync(gh)) return { token: undefined, source: "none" };
-  try {
-    const opts: ExecFileSyncOptions = { encoding: "utf8", timeout: 4000 };
-    const out = execFileSync(gh, ["auth", "token"], opts).toString().trim();
-    return out ? { token: out, source: "gh-cli" } : { token: undefined, source: "none" };
-  } catch {
-    return { token: undefined, source: "none" };
-  }
+  return { token: undefined, source: "none" };
 }
 
 export async function resolveGithubToken(

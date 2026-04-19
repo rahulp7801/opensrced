@@ -69,18 +69,10 @@ function ensureDir() {
   if (!existsSync(DISPATCH_DIR)) mkdirSync(DISPATCH_DIR, { recursive: true });
 }
 
+// No env/CLI fallback — token must be passed explicitly from the
+// caller (resolved from the user's Auth0 session or installation token).
 function fetchGithubToken(): string | undefined {
-  if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN;
-  const gh = process.env.GH_CLI;
-  if (!gh || !existsSync(gh)) return undefined;
-  try {
-    return (
-      execFileSync(gh, ["auth", "token"], { encoding: "utf8", timeout: 4000 }).trim() ||
-      undefined
-    );
-  } catch {
-    return undefined;
-  }
+  return undefined;
 }
 
 function fetchIssueBody(repoFull: string, issueNumber: number): string {
@@ -298,11 +290,13 @@ export function startAgenticDispatch(
   ];
 
   const env: NodeJS.ProcessEnv = { ...process.env };
+  // Clear all sensitive env vars — only use keys the user explicitly
+  // provided via their authenticated session / encrypted cookie.
+  delete env.GITHUB_TOKEN;
+  delete env.ANTHROPIC_API_KEY;
+  delete env.GEMINI_API_KEY;
   const token = opts.token ?? fetchGithubToken();
   if (token) env.GITHUB_TOKEN = token;
-  // Only use the key the user explicitly provided via cookie — don't
-  // inherit from the server's own ANTHROPIC_API_KEY env var.
-  delete env.ANTHROPIC_API_KEY;
   if (opts.anthropicKey) env.ANTHROPIC_API_KEY = opts.anthropicKey;
   if (opts.geminiKey) env.GEMINI_API_KEY = opts.geminiKey;
 
@@ -484,11 +478,13 @@ export function startFindingDispatch(
   ];
 
   const env: NodeJS.ProcessEnv = { ...process.env };
+  // Clear all sensitive env vars — only use keys the user explicitly
+  // provided via their authenticated session / encrypted cookie.
+  delete env.GITHUB_TOKEN;
+  delete env.ANTHROPIC_API_KEY;
+  delete env.GEMINI_API_KEY;
   const token = opts.token ?? fetchGithubToken();
   if (token) env.GITHUB_TOKEN = token;
-  // Only use the key the user explicitly provided via cookie — don't
-  // inherit from the server's own ANTHROPIC_API_KEY env var.
-  delete env.ANTHROPIC_API_KEY;
   if (opts.anthropicKey) env.ANTHROPIC_API_KEY = opts.anthropicKey;
   if (opts.geminiKey) env.GEMINI_API_KEY = opts.geminiKey;
 

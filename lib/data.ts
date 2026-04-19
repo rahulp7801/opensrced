@@ -31,7 +31,7 @@ export async function loadAllPRs(): Promise<PullRequest[]> {
     const up = await proxy<Array<Record<string, unknown>>>("/api/prs?limit=500");
     if (up) return up.map(enrichPR);
   }
-  return seed.getAllPRs();
+  return [];
 }
 
 export async function loadPRs(status: string | undefined, limit: number): Promise<PullRequest[]> {
@@ -41,7 +41,7 @@ export async function loadPRs(status: string | undefined, limit: number): Promis
     const up = await proxy<Array<Record<string, unknown>>>(`/api/prs?${qs.toString()}`);
     if (up) return up.map(enrichPR);
   }
-  return seed.getPRs(status, limit);
+  return [];
 }
 
 export async function loadRepos(limit: number): Promise<RepoEntry[]> {
@@ -52,7 +52,7 @@ export async function loadRepos(limit: number): Promise<RepoEntry[]> {
       return repos.map((r) => enrichRepo(r, prs));
     }
   }
-  return seed.getRepos(limit);
+  return [];
 }
 
 export async function loadRuns(limit: number): Promise<RunEntry[]> {
@@ -60,7 +60,7 @@ export async function loadRuns(limit: number): Promise<RunEntry[]> {
     const up = await proxy<Array<Record<string, unknown>>>(`/api/runs?limit=${limit}`);
     if (up) return up.map((r, i) => enrichRun(r, i));
   }
-  return seed.getRuns(limit);
+  return [];
 }
 
 export async function loadSessions(): Promise<Session[]> {

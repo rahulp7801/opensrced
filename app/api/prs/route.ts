@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { proxy } from "@/lib/api";
 import { enrichPR } from "@/lib/enrich";
-import { getPRs } from "@/lib/seed";
 
 export async function GET(req: NextRequest) {
   const status = req.nextUrl.searchParams.get("status") ?? undefined;
@@ -14,5 +13,5 @@ export async function GET(req: NextRequest) {
   if (upstream && Array.isArray(upstream)) {
     return NextResponse.json(upstream.map(enrichPR));
   }
-  return NextResponse.json(getPRs(status, limit));
+  return NextResponse.json([]);
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { PageHeading } from "@/components/page-heading";
 import { cn } from "@/lib/utils";
 
@@ -27,11 +28,18 @@ export default function ExplorePage() {
   const resultRef = useRef<HTMLDivElement>(null);
   const queryInputRef = useRef<HTMLInputElement>(null);
 
-  // #1: Persist repo URL to localStorage
+  const searchParams = useSearchParams();
+
+  // #1: Persist repo URL to localStorage, or read from ?repo= query param
   useEffect(() => {
-    const saved = localStorage.getItem("opensrcer-explore-repo");
-    if (saved) setRepoUrl(saved);
-  }, []);
+    const fromUrl = searchParams.get("repo");
+    if (fromUrl) {
+      setRepoUrl(fromUrl);
+    } else {
+      const saved = localStorage.getItem("opensrcer-explore-repo");
+      if (saved) setRepoUrl(saved);
+    }
+  }, [searchParams]);
   useEffect(() => {
     if (repoUrl.trim()) localStorage.setItem("opensrcer-explore-repo", repoUrl.trim());
   }, [repoUrl]);

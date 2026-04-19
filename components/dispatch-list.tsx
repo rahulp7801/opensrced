@@ -349,13 +349,15 @@ export function DispatchList() {
                     <CancelButton dispatchId={detail.id} />
                   )}
                   <RetryButton dispatch={detail} />
+                  {detail.status !== "running" && <ExportButton dispatch={detail} />}
                 </div>
               </div>
             </div>
-            {/* Pipeline milestone badges */}
-            {detail.status !== "running" && detail.log && (
-              <div className="border-b border-border px-4 py-2.5">
-                <StatusSummary log={detail.log} />
+            {/* Pipeline milestone badges + timeline */}
+            {detail.log && (
+              <div className="border-b border-border px-4 py-2.5 space-y-2">
+                <PipelineTimeline log={detail.log} status={detail.status} />
+                {detail.status !== "running" && <StatusSummary log={detail.log} />}
               </div>
             )}
             {/* Auto-PR failure banner — appears when Claude succeeded but
@@ -430,19 +432,7 @@ export function DispatchList() {
                 URL to click through to). */}
             <DiffPreviewFromLog log={detail.log} prOpened={!!extractPrInfo(detail.log)} />
 
-            <div className="relative">
-              {detail.status === "running" && (
-                <div className="absolute top-2 right-3 z-10 flex items-center gap-1.5 text-[10px] text-signal">
-                  <StatusDot tone="signal" /> streaming · auto-scroll
-                </div>
-              )}
-              <pre
-                ref={logRef}
-                className="h-[50vh] overflow-auto p-4 text-[11.5px] leading-relaxed text-paper-dim bg-ink/70 font-mono whitespace-pre-wrap"
-              >
-                {stripAnsi(detail.log) || "(log empty — waiting for first write)"}
-              </pre>
-            </div>
+            <LogViewer log={detail.log} isRunning={detail.status === "running"} logRef={logRef} />
             <DraftPreview dispatchId={detail.id} repoUrl={detail.repo_url} />
           </div>
         ) : (
@@ -674,6 +664,162 @@ function Confetti() {
         </span>
       ))}
     </span>
+  );
+}
+
+function LogViewer({ log, isRunning, logRef }: { log: string; isRunning: boolean; logRef: React.RefObject<HTMLPreElement | null> }) {
+  const [search, setSearch] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const clean = stripAnsi(log);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "f" && logRef.current) {
+        e.preventDefault();
+        setShowSearch(true);
+        setTimeout(() => searchRef.current?.focus(), 50);
+      }
+      if (e.key === "Escape" && showSearch) {
+        setShowSearch(false);
+        setSearch("");
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showSearch, logRef]);
+
+  const matchCount = search.length >= 2
+    ? (clean.match(new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi")) ?? []).length
+    : 0;
+
+  function renderLog(): React.ReactNode {
+    if (!search || search.length < 2) return clean || "(log empty — waiting for first write)";
+    const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const parts = clean.split(new RegExp(`(${escaped})`, "gi"));
+    return parts.map((part, i) =>
+      part.toLowerCase() === search.toLowerCase()
+        ? <mark key={i} className="bg-signal/30 text-signal">{part}</mark>
+        : part
+    );
+  }
+
+  return (
+    <div className="relative">
+      {isRunning && !showSearch && (
+        <div className="absolute top-2 right-3 z-10 flex items-center gap-1.5 text-[10px] text-signal">
+          <StatusDot tone="signal" /> streaming
+        </div>
+      )}
+      {showSearch && (
+        <div className="absolute top-2 right-3 z-10 flex items-center gap-1.5">
+          <input
+            ref={searchRef}
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="search log..."
+            className="bg-ink/90 border border-border px-2 py-1 text-[11px] text-paper w-48 focus:outline-none focus:border-signal/50"
+          />
+          {search.length >= 2 && (
+            <span className="text-[10px] text-paper-muted tabular-nums">{matchCount}</span>
+          )}
+          <button onClick={() => { setShowSearch(false); setSearch(""); }} className="text-[11px] text-paper-muted hover:text-paper">×</button>
+        </div>
+      )}
+      {!showSearch && !isRunning && (
+        <button
+          onClick={() => { setShowSearch(true); setTimeout(() => searchRef.current?.focus(), 50); }}
+          className="absolute top-2 right-3 z-10 flex items-center gap-1 border border-border bg-ink/80 hover:border-signal/50 hover:text-signal px-2 py-1 text-[10px] text-paper-muted transition"
+          title="Search log (Ctrl+F)"
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7" cy="7" r="4" /><path d="m13 13-3.5-3.5" /></svg>
+          search
+        </button>
+      )}
+      <pre ref={logRef} className="h-[50vh] overflow-auto p-4 text-[11.5px] leading-relaxed text-paper-dim bg-ink/70 font-mono whitespace-pre-wrap">
+        {renderLog()}
+      </pre>
+    </div>
+  );
+}
+
+function ExportButton({ dispatch }: { dispatch: DispatchWithLog }) {
+  function download() {
+    const repo = shortRepo(dispatch.repo_url);
+    const prInfo = extractPrInfo(dispatch.log);
+    const diff = extractFirstDiff(dispatch.log);
+    const costMatch = /total_cost_usd=([\d.]+)/.exec(dispatch.log);
+    const cost = costMatch ? parseFloat(costMatch[1]) : null;
+
+    const parts = [
+      `# Dispatch Report`,
+      ``,
+      `- **Repo:** ${repo}`,
+      dispatch.issue_number !== undefined ? `- **Issue:** #${dispatch.issue_number}` : null,
+      `- **Status:** ${dispatch.status}`,
+      `- **Started:** ${dispatch.started_at}`,
+      dispatch.ended_at ? `- **Ended:** ${dispatch.ended_at}` : null,
+      dispatch.ended_at ? `- **Duration:** ${formatDuration(dispatch.started_at, dispatch.ended_at)}` : null,
+      cost !== null ? `- **Cost:** $${cost.toFixed(4)}` : null,
+      prInfo ? `- **PR:** [#${prInfo.prNumber}](${prInfo.url})` : null,
+      ``,
+    ].filter(Boolean);
+
+    if (diff) {
+      parts.push(`## Patch`, ``, "```diff", diff.body, "```", ``);
+    }
+
+    parts.push(`## Full Log`, ``, "```", stripAnsi(dispatch.log), "```");
+
+    const blob = new Blob([parts.join("\n")], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${dispatch.id}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <button
+      onClick={download}
+      className="border border-border text-paper-muted hover:text-paper hover:border-border-strong px-2 py-0.5 text-[10px] uppercase tracking-[0.12em]"
+      title="Download dispatch report as .md"
+    >
+      export
+    </button>
+  );
+}
+
+function PipelineTimeline({ log, status }: { log: string; status: string }) {
+  const phases = [
+    { label: "clone", done: /\[agentic-dispatcher\].*repo:/.test(log), active: status === "running" && !/grep|read_file|find_definition/.test(log), failed: false },
+    { label: "explore", done: /find_definition|read_file|grep|list_files|repo_info/.test(log), active: status === "running" && /find_definition|read_file|grep/.test(log) && !/```diff/.test(log), failed: false },
+    { label: "patch", done: /```(?:diff|patch)/.test(log), active: status === "running" && /## Diagnosis/.test(log) && !/```diff/.test(log), failed: status !== "running" && !/```(?:diff|patch)/.test(log) && /exited at/.test(log) },
+    { label: "test", done: /\[crucible-tests\]/.test(log), active: /\[agentic-pr\] starting/.test(log) && !/\[crucible-tests\]/.test(log), failed: /\[crucible-tests\] status=(?:failed|error)/.test(log) },
+    { label: "PR", done: /github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+/.test(log), active: /\[agentic-pr\] starting/.test(log) && !/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+/.test(log) && !/skipped:/.test(log), failed: /\[agentic-pr\] skipped:/.test(log) },
+  ];
+
+  return (
+    <div className="flex items-center gap-1">
+      {phases.map((p, i) => (
+        <div key={p.label} className="flex items-center gap-1">
+          {i > 0 && <div className={cn("w-4 h-px", p.done || p.active ? "bg-signal/40" : "bg-border")} />}
+          <span
+            className={cn(
+              "flex items-center gap-1 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em] border leading-none",
+              p.failed ? "border-alert/40 text-alert" :
+              p.done ? "border-ok/40 text-ok" :
+              p.active ? "border-signal/40 text-signal" :
+              "border-border-soft text-paper-faint",
+            )}
+          >
+            {p.failed ? "×" : p.done ? "✓" : p.active ? "●" : "○"} {p.label}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
 

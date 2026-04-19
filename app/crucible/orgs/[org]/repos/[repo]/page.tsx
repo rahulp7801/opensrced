@@ -95,9 +95,18 @@ export default async function RepoFindingsPage({
         }
       />
 
-      <div className="mt-4 text-[12px] text-paper-muted">
-        <Link href={`/crucible/orgs/${org}`} className="hover:text-paper">
-          ← repos in {org}
+      <div className="mt-4 flex items-center justify-between">
+        <div className="text-[12px] text-paper-muted">
+          <Link href={`/crucible/orgs/${org}`} className="hover:text-paper">
+            ← repos in {org}
+          </Link>
+        </div>
+        <Link
+          href={`/explore?repo=${encodeURIComponent(repoFull)}`}
+          className="flex items-center gap-1.5 border border-border hover:border-signal/50 hover:text-signal px-2.5 py-1 text-[11px] text-paper-muted transition"
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7" cy="7" r="4" /><path d="m13 13-3.5-3.5" /></svg>
+          explore codebase
         </Link>
       </div>
 

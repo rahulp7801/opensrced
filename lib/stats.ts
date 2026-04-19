@@ -96,6 +96,8 @@ type LogRecord = {
   prUrl: string | null;
   status: "running" | "succeeded" | "failed" | "killed" | "unknown";
   startedAt: string | null;
+  costUsd: number | null;
+  hasDiff: boolean;
 };
 
 // Regexes for the markers we drop into the log.
@@ -106,6 +108,7 @@ const REPO_RE = /repo:\s*(\S+)\s/;
 const ISSUE_RE = /issue:\s*#?(\d+)/;
 const EXIT_RE = /exited at\s+(\S+)\s+·\s+status=(\w+)/;
 const STARTED_RE = /^\[(?:agentic-)?dispatcher\]\s+(\d{4}-\d{2}-\d{2}T[^\s]+)/;
+const COST_RE = /total_cost_usd=([\d.]+)/;
 
 async function scanLogs(): Promise<LogRecord[]> {
   if (!existsSync(DISPATCH_DIR)) return [];
@@ -130,6 +133,7 @@ async function scanLogs(): Promise<LogRecord[]> {
         if (s === "succeeded" || s === "failed" || s === "killed") status = s;
       }
       if (!exitM) status = "running";
+      const costM = COST_RE.exec(text);
       return {
         id,
         repoFull: repoM ? repoM[1].replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "") : null,
@@ -137,6 +141,8 @@ async function scanLogs(): Promise<LogRecord[]> {
         prUrl: prM ? `https://github.com/${prM[1]}/pull/${prM[2]}` : null,
         status,
         startedAt: startM ? startM[1] : null,
+        costUsd: costM ? parseFloat(costM[1]) : null,
+        hasDiff: /```(?:diff|patch)/.test(text),
       };
     }),
   );
@@ -209,7 +215,11 @@ export type StatsSummary = {
   discoverRuns: number;
   dispatches: number;
   prsCreated: number;
-  bugsSquashed: number;      // = prsCreated for now; hook for future merged-tracking
+  bugsSquashed: number;
+  totalCostUsd: number;
+  patchesGenerated: number;
+  successRate: number;
+  prRate: number;
   biggestContributions: Array<{
     prUrl: string;
     repoFull: string;
@@ -235,6 +245,11 @@ export async function getStatsSummary(): Promise<StatsSummary> {
   const prLogs = logs.filter((l) => l.prUrl);
   const prsCreated = prLogs.length;
   const bugsSquashed = prsCreated;
+  const totalCostUsd = logs.reduce((sum, l) => sum + (l.costUsd ?? 0), 0);
+  const patchesGenerated = logs.filter((l) => l.hasDiff).length;
+  const completed = logs.filter((l) => l.status === "succeeded" || l.status === "failed").length;
+  const successRate = completed > 0 ? patchesGenerated / completed : 0;
+  const prRate = completed > 0 ? prsCreated / completed : 0;
 
   // Gather unique repos that produced a PR, look up stars, then pick the
   // ones clearing the 1000★ bar. Sort desc by stars.
@@ -278,6 +293,10 @@ export async function getStatsSummary(): Promise<StatsSummary> {
     dispatches,
     prsCreated,
     bugsSquashed,
+    totalCostUsd,
+    patchesGenerated,
+    successRate,
+    prRate,
     biggestContributions,
     recentActivity,
   };

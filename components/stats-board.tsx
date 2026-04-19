@@ -27,6 +27,10 @@ type StatsData = {
   dispatches: number;
   prsCreated: number;
   bugsSquashed: number;
+  totalCostUsd: number;
+  patchesGenerated: number;
+  successRate: number;
+  prRate: number;
   biggestContributions: Contribution[];
   recentActivity: ActivityItem[];
 };
@@ -62,7 +66,31 @@ export function StatsBoard() {
   }, []);
 
   if (loading && !data) {
-    return <div className="text-paper-muted text-[12px]">Loading stats…</div>;
+    return (
+      <div className="space-y-10">
+        <div className="grid grid-cols-2 lg:grid-cols-5 border-t border-b border-border">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="flex flex-col gap-2 p-5 border-l border-border first:border-l-0">
+              <div className="h-2.5 w-16 bg-surface-3 animate-pulse" />
+              <div className="h-10 w-20 bg-surface-2 animate-pulse" />
+              <div className="h-2 w-24 bg-surface-2 animate-pulse" />
+            </div>
+          ))}
+        </div>
+        <div className="space-y-3">
+          <div className="h-6 w-48 bg-surface-3 animate-pulse" />
+          <div className="border border-border bg-surface/40 p-6 space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex gap-4">
+                <div className="h-4 w-8 bg-surface-2 animate-pulse" />
+                <div className="h-4 flex-1 bg-surface-2 animate-pulse" />
+                <div className="h-4 w-12 bg-surface-2 animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
   if (err) {
     return <div className="border border-alert/40 bg-alert/5 p-3 text-[12px] text-alert">{err}</div>;
@@ -73,16 +101,11 @@ export function StatsBoard() {
     <div className="space-y-10">
       {/* Big counter strip */}
       <div className="grid grid-cols-2 lg:grid-cols-5 border-t border-b border-border">
-        <Counter label="scans" value={data.scans} tone="paper" sub={`${data.discoverRuns} via Discover`} />
         <Counter label="dispatches" value={data.dispatches} tone="info" sub="all time" />
-        <Counter label="PRs opened" value={data.prsCreated} tone="signal" />
-        <Counter label="bugs squashed" value={data.bugsSquashed} tone="ok" sub="= PRs for now" />
-        <Counter
-          label="1k★ contributions"
-          value={data.biggestContributions.length}
-          tone="paper"
-          sub="repos with >1000 stars"
-        />
+        <Counter label="patches" value={data.patchesGenerated} tone="signal" sub={`${Math.round(data.successRate * 100)}% success rate`} />
+        <Counter label="PRs opened" value={data.prsCreated} tone="ok" sub={`${Math.round(data.prRate * 100)}% of dispatches`} />
+        <Counter label="total spend" value={data.totalCostUsd} tone="signal" format="currency" sub="Anthropic API" />
+        <Counter label="scans" value={data.scans} tone="paper" sub={`${data.discoverRuns} via Discover`} />
       </div>
 
       {/* Biggest contributions */}
@@ -200,11 +223,13 @@ function Counter({
   value,
   tone,
   sub,
+  format,
 }: {
   label: string;
   value: number;
   tone: "paper" | "ok" | "signal" | "info";
   sub?: string;
+  format?: "currency";
 }) {
   const color = {
     paper: "text-paper",
@@ -212,10 +237,11 @@ function Counter({
     signal: "text-signal",
     info: "text-info",
   }[tone];
+  const display = format === "currency" ? `$${value.toFixed(2)}` : String(value);
   return (
     <div className="relative flex flex-col gap-1.5 p-5 border-l border-border first:border-l-0 hover:bg-surface-2/40 transition">
       <div className="mono-label text-paper-muted">{label}</div>
-      <div className={cn("serif text-[48px] leading-none num-tabular", color)}>{value}</div>
+      <div className={cn("serif leading-none num-tabular", color, format === "currency" ? "text-[36px]" : "text-[48px]")}>{display}</div>
       {sub && <div className="text-[11px] text-paper-dim mt-1">{sub}</div>}
     </div>
   );

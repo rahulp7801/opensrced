@@ -26,13 +26,10 @@ export async function loadHealth() {
   return seed.getHealth();
 }
 
-export async function loadAllPRs(): Promise<PullRequest[]> {
-  if (hasUpstream()) {
-    const up = await proxy<Array<Record<string, unknown>>>("/api/prs?limit=500");
-    if (up) return up.map(enrichPR);
-  }
-  return [];
-}
+import { loadPRsFromLogs } from "./pr-loader";
+
+export const loadAllPRs = loadPRsFromLogs;
+
 
 export async function loadPRs(status: string | undefined, limit: number): Promise<PullRequest[]> {
   if (hasUpstream()) {

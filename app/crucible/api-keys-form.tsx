@@ -211,7 +211,7 @@ export function ApiKeysForm() {
           )}
         </div>
         <div className="text-[10.5px] text-paper-faint">
-          Optional — used for advisory pre-analysis. Get one at{" "}
+          Required for patch review and advisory analysis. Get one at{" "}
           <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="underline hover:text-paper-muted">
             aistudio.google.com
           </a>

@@ -10,6 +10,7 @@ const DEMOS = [
   { key: "dispatch", label: "Bug fix pipeline" },
   { key: "explore", label: "Codebase explorer" },
   { key: "security", label: "Security scan" },
+  { key: "crucible", label: "Private repo flow" },
 ] as const;
 
 type DemoKey = (typeof DEMOS)[number]["key"];
@@ -194,6 +195,7 @@ export default function DemoPage() {
       {activeDemo === "dispatch" && <DispatchDemo />}
       {activeDemo === "explore" && <ExploreDemo />}
       {activeDemo === "security" && <SecurityDemo />}
+      {activeDemo === "crucible" && <CrucibleDemo />}
 
       {/* CTA */}
       <div className="mt-8 text-center">
@@ -498,6 +500,283 @@ function SecurityDemo() {
         </>
       ) : (
         <PlayButton onClick={startScan} label="Start security scan demo" />
+      )}
+    </div>
+  );
+}
+
+// ── Crucible demo ─────────────────────────────────────────────────────
+
+type CrucibleStep = "start" | "connect" | "install" | "connected" | "repos" | "repo" | "solving" | "done";
+
+const MOCK_REPOS = [
+  { name: "web-app", lang: "TypeScript", stars: 12, issues: 8, updated: "2d ago", sizeKb: 4200 },
+  { name: "api-gateway", lang: "Go", stars: 3, issues: 14, updated: "5h ago", sizeKb: 8900 },
+  { name: "ml-pipeline", lang: "Python", stars: 1, issues: 6, updated: "1w ago", sizeKb: 34000 },
+  { name: "mobile-sdk", lang: "Kotlin", stars: 0, issues: 3, updated: "3d ago", sizeKb: 2100 },
+];
+
+const MOCK_ISSUES = [
+  { num: 14, title: "Race condition in rate limiter middleware", labels: ["bug", "p1"] },
+  { num: 12, title: "API key rotation doesn't invalidate old tokens", labels: ["security"] },
+  { num: 9, title: "GraphQL N+1 query on user.posts resolver", labels: ["performance"] },
+  { num: 7, title: "Missing CORS headers on preflight requests", labels: ["bug"] },
+  { num: 3, title: "Add request ID to all log entries", labels: ["enhancement"] },
+];
+
+function CrucibleDemo() {
+  const [step, setStep] = useState<CrucibleStep>("start");
+  const [solveLines, setSolveLines] = useState<string[]>([]);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const logRef = useRef<HTMLPreElement>(null);
+
+  useEffect(() => {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [solveLines]);
+
+  function reset() {
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
+    setStep("start");
+    setSolveLines([]);
+  }
+
+  function startSolve() {
+    setStep("solving");
+    setSolveLines([]);
+    const lines = [
+      { text: "[agentic-dispatcher] repo: acme-corp/api-gateway  issue: #12", delay: 200 },
+      { text: "[agentic-dispatcher] ─────────────────────────────", delay: 400 },
+      { text: "", delay: 600 },
+      { text: "> repo_info: 89 files, top-level: cmd/, internal/, pkg/", delay: 1000 },
+      { text: "> grep /apiKey|rotation|invalidat/ — 12 matches", delay: 1600 },
+      { text: "> read_file internal/auth/keys.go (lines 1-60)", delay: 2200 },
+      { text: "> find_definition RotateKey — internal/auth/keys.go:34", delay: 2800 },
+      { text: "> read_file internal/auth/cache.go (lines 20-55)", delay: 3400 },
+      { text: "", delay: 3600 },
+      { text: "## Diagnosis", delay: 3800 },
+      { text: "", delay: 3900 },
+      { text: "RotateKey() at internal/auth/keys.go:34 generates a new key", delay: 4000 },
+      { text: "but doesn't add the old key hash to the revocation set in", delay: 4200 },
+      { text: "cache.go. Old tokens remain valid until natural TTL expiry.", delay: 4400 },
+      { text: "", delay: 4600 },
+      { text: "```diff", delay: 4800 },
+      { text: "--- a/internal/auth/keys.go", delay: 4900 },
+      { text: "+++ b/internal/auth/keys.go", delay: 5000 },
+      { text: "@@ -34,6 +34,9 @@ func RotateKey(ctx context.Context) error {", delay: 5100 },
+      { text: "   newKey := generateKey()", delay: 5200 },
+      { text: "   store.Set(ctx, newKey)", delay: 5300 },
+      { text: "+  // Revoke the old key immediately", delay: 5400 },
+      { text: "+  oldHash := hashKey(store.Current())", delay: 5500 },
+      { text: "+  cache.AddRevoked(ctx, oldHash, store.TTL())", delay: 5600 },
+      { text: "   return nil", delay: 5700 },
+      { text: "```", delay: 5800 },
+      { text: "", delay: 6000 },
+      { text: "[gemini-review] Fix correctly revokes old key on rotation.", delay: 6200 },
+      { text: "[crucible-tests] status=passed", delay: 6600 },
+      { text: "[crucible-tests] 83 tests passed, 0 failed", delay: 6800 },
+      { text: "[agentic-pr] token: orgCtx=acme-corp source=installation prefix=ghs_", delay: 7200 },
+      { text: "[agentic-pr] opened draft PR: https://github.com/acme-corp/api-gateway/pull/15", delay: 7600 },
+    ];
+    for (const l of lines) {
+      timers.current.push(setTimeout(() => setSolveLines((p) => [...p, l.text]), l.delay));
+    }
+    timers.current.push(setTimeout(() => setStep("done"), lines[lines.length - 1].delay + 400));
+  }
+
+  return (
+    <div className="border border-border border-t-0 bg-surface/40">
+      {/* Step: start */}
+      {step === "start" && (
+        <div className="p-6 text-center space-y-4">
+          <div className="text-[14px] text-paper">Connect a private GitHub org</div>
+          <p className="text-[12px] text-paper-dim max-w-md mx-auto">
+            This walkthrough simulates connecting a GitHub Organization, browsing private repos, and dispatching a security fix — all using short-lived installation tokens.
+          </p>
+          <button onClick={() => setStep("connect")} className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-2 text-[12px] transition">
+            Connect GitHub Org
+          </button>
+        </div>
+      )}
+
+      {/* Step: connect */}
+      {step === "connect" && (
+        <div className="p-6 space-y-4">
+          <div className="mono-label text-paper-muted">step 1 — install the github app</div>
+          <div className="border border-border p-4 space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-surface-3 rounded-full flex items-center justify-center text-[16px] text-paper-muted">A</div>
+              <div>
+                <div className="text-[13px] text-paper">acme-corp</div>
+                <div className="text-[11px] text-paper-muted">Organization · 4 repositories</div>
+              </div>
+            </div>
+            <div className="text-[11.5px] text-paper-dim space-y-1.5">
+              <div className="flex items-center gap-2"><span className="text-ok">+</span> Repository contents — read & write</div>
+              <div className="flex items-center gap-2"><span className="text-ok">+</span> Pull requests — read & write</div>
+              <div className="flex items-center gap-2"><span className="text-ok">+</span> Issues — read</div>
+              <div className="flex items-center gap-2"><span className="text-ok">+</span> Dependabot alerts — read</div>
+              <div className="flex items-center gap-2"><span className="text-ok">+</span> Security advisories — read</div>
+            </div>
+            <button onClick={() => setStep("install")} className="w-full border border-ok/50 bg-ok/10 text-ok hover:bg-ok/20 py-2 text-[12px] transition">
+              Install & Authorize
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step: install redirect */}
+      {step === "install" && (
+        <div className="p-6 text-center space-y-3">
+          <div className="inline-block w-8 h-8 border-2 border-signal/30 border-t-signal rounded-full animate-spin" />
+          <div className="text-[12px] text-paper-muted">Redirecting from GitHub...</div>
+          {(() => { setTimeout(() => setStep("connected"), 1200); return null; })()}
+        </div>
+      )}
+
+      {/* Step: connected */}
+      {step === "connected" && (
+        <div className="p-6 space-y-4">
+          <div className="mono-label text-paper-muted">step 2 — org connected</div>
+          <div className="border border-ok/40 bg-ok/5 px-4 py-3 flex items-center gap-3">
+            <span className="text-ok text-[14px]">✓</span>
+            <div>
+              <div className="text-[13px] text-ok">acme-corp connected</div>
+              <div className="text-[11px] text-paper-muted">Installation #48291 · short-lived tokens · revocable anytime</div>
+            </div>
+          </div>
+          <div className="text-[12px] text-paper-dim">
+            opensrcer can now scan acme-corp&apos;s private repos using 60-minute installation tokens. No long-lived credentials stored.
+          </div>
+          <button onClick={() => setStep("repos")} className="border border-border bg-surface/60 hover:bg-surface text-paper px-4 py-2 text-[12px] transition">
+            Browse repos →
+          </button>
+        </div>
+      )}
+
+      {/* Step: repos list */}
+      {step === "repos" && (
+        <div>
+          <div className="px-4 py-3 border-b border-border">
+            <div className="mono-label text-paper-muted">step 3 — choose a repo</div>
+            <div className="mt-1 text-[13px] text-paper">acme-corp · {MOCK_REPOS.length} repositories</div>
+          </div>
+          <ul className="divide-y divide-border-soft">
+            {MOCK_REPOS.map((r) => (
+              <li key={r.name}>
+                <button
+                  onClick={() => setStep("repo")}
+                  className="w-full text-left px-4 py-3 hover:bg-surface-2/40 transition flex items-center gap-4"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] text-paper">acme-corp/{r.name}</div>
+                    <div className="mt-0.5 text-[11px] text-paper-muted">
+                      {r.lang} · {r.issues} open issues · updated {r.updated}
+                    </div>
+                  </div>
+                  <span className="text-[11px] text-paper-faint">→</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Step: repo issues */}
+      {step === "repo" && (
+        <div>
+          <div className="px-4 py-3 border-b border-border">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="mono-label text-paper-muted">step 4 — pick an issue to solve</div>
+                <div className="mt-1 text-[13px] text-paper">acme-corp/api-gateway</div>
+              </div>
+              <button onClick={() => setStep("repos")} className="text-[11px] text-paper-muted hover:text-paper">← back</button>
+            </div>
+          </div>
+          <ul className="divide-y divide-border-soft">
+            {MOCK_ISSUES.map((iss) => (
+              <li key={iss.num} className="px-4 py-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[13px] text-paper">
+                    <span className="text-paper-muted">#{iss.num}</span> {iss.title}
+                  </div>
+                  <div className="mt-1 flex gap-1">
+                    {iss.labels.map((l) => (
+                      <span key={l} className={cn(
+                        "text-[10px] font-mono border px-1.5",
+                        l === "security" ? "border-red-700/40 text-red-300" :
+                        l === "bug" || l === "p1" ? "border-orange-700/40 text-orange-300" :
+                        "border-border-soft text-paper-muted",
+                      )}>{l}</span>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  onClick={iss.num === 12 ? startSolve : undefined}
+                  className={cn(
+                    "shrink-0 text-[11px] border px-2.5 py-1",
+                    iss.num === 12
+                      ? "text-paper border-border bg-surface/60 hover:bg-surface"
+                      : "text-paper-faint border-border-soft cursor-default",
+                  )}
+                >
+                  deep solve
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="px-4 py-2 border-t border-border-soft text-[10px] text-paper-faint">
+            Click &quot;deep solve&quot; on issue #12 to watch the agent fix it
+          </div>
+        </div>
+      )}
+
+      {/* Step: solving */}
+      {step === "solving" && (
+        <div>
+          <div className="px-4 py-3 border-b border-border">
+            <div className="text-[13px] text-paper-muted">acme-corp/api-gateway</div>
+            <div className="mt-1 text-[15px] text-paper">#12 — API key rotation doesn&apos;t invalidate old tokens</div>
+          </div>
+          <pre ref={logRef} className="h-[35vh] overflow-auto p-4 text-[11.5px] leading-relaxed font-mono bg-ink/70 whitespace-pre-wrap">
+            {solveLines.map((l, i) => <LogLine key={i} text={l} />)}
+          </pre>
+        </div>
+      )}
+
+      {/* Step: done */}
+      {step === "done" && (
+        <div>
+          <div className="px-4 py-3 border-b border-border">
+            <div className="text-[13px] text-paper-muted">acme-corp/api-gateway</div>
+            <div className="mt-1 text-[15px] text-paper">#12 — API key rotation doesn&apos;t invalidate old tokens</div>
+          </div>
+          <div className="border-b border-ok/40 bg-ok/5 px-4 py-2.5 flex items-center gap-3">
+            <span className="text-[13px] text-ok">PR #15 opened — security fix verified</span>
+            <span className="ml-auto flex items-center gap-3">
+              <span className="text-[12px] text-paper-muted tabular-nums">$0.0923 · 2m 18s</span>
+              <button onClick={reset} className="flex items-center gap-1 border border-border hover:border-signal/50 hover:text-signal px-2 py-0.5 text-[10px] text-paper-muted transition">
+                replay
+              </button>
+            </span>
+          </div>
+          <div className="px-4 py-4 space-y-3 text-[12px] text-paper-dim">
+            <div className="text-[13px] text-paper font-medium">What just happened</div>
+            <div className="space-y-2">
+              <div className="flex gap-2"><span className="text-ok shrink-0">1.</span> Connected acme-corp via GitHub App (installation token, 60-min TTL)</div>
+              <div className="flex gap-2"><span className="text-ok shrink-0">2.</span> Browsed private repos — saw 5 open issues on api-gateway</div>
+              <div className="flex gap-2"><span className="text-ok shrink-0">3.</span> Dispatched deep solve on a security issue (#12)</div>
+              <div className="flex gap-2"><span className="text-ok shrink-0">4.</span> Agent explored the Go codebase via MCP tools (grep, find_definition, read_file)</div>
+              <div className="flex gap-2"><span className="text-ok shrink-0">5.</span> Diagnosed the root cause — missing revocation on key rotation</div>
+              <div className="flex gap-2"><span className="text-ok shrink-0">6.</span> Generated a 3-line fix, Gemini reviewed it, 83 tests passed</div>
+              <div className="flex gap-2"><span className="text-ok shrink-0">7.</span> Opened draft PR #15 using the installation token (not your personal PAT)</div>
+            </div>
+            <div className="text-[11px] text-paper-faint mt-3">
+              Total cost: $0.09 · No long-lived credentials stored · Token expired after 60 minutes
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

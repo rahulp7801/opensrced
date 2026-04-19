@@ -55,8 +55,11 @@ export function ApiKeysForm() {
     }
   }
 
+  const [confirmClear, setConfirmClear] = useState<"anthropic" | "gemini" | null>(null);
+
   async function clearKey(key: "anthropic" | "gemini") {
     setSaving(true);
+    setConfirmClear(null);
     try {
       const res = await fetch("/api/settings/keys", {
         method: "POST",
@@ -110,14 +113,34 @@ export function ApiKeysForm() {
             spellCheck={false}
           />
           {status?.anthropic && (
-            <button
-              type="button"
-              onClick={() => clearKey("anthropic")}
-              disabled={saving}
-              className="text-[11px] text-paper-muted hover:text-red-300 border border-border px-2.5 py-1.5 disabled:opacity-50"
-            >
-              Clear
-            </button>
+            confirmClear === "anthropic" ? (
+              <span className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => clearKey("anthropic")}
+                  disabled={saving}
+                  className="text-[11px] text-red-300 border border-red-700 bg-red-950/30 px-2.5 py-1.5 disabled:opacity-50"
+                >
+                  {saving ? "..." : "confirm"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmClear(null)}
+                  className="text-[11px] text-paper-muted hover:text-paper px-1.5 py-1.5"
+                >
+                  cancel
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmClear("anthropic")}
+                disabled={saving}
+                className="text-[11px] text-paper-muted hover:text-red-300 border border-border px-2.5 py-1.5 disabled:opacity-50"
+              >
+                Clear
+              </button>
+            )
           )}
         </div>
         <div className="text-[10.5px] text-paper-faint">
@@ -151,14 +174,34 @@ export function ApiKeysForm() {
             spellCheck={false}
           />
           {status?.gemini && (
-            <button
-              type="button"
-              onClick={() => clearKey("gemini")}
-              disabled={saving}
-              className="text-[11px] text-paper-muted hover:text-red-300 border border-border px-2.5 py-1.5 disabled:opacity-50"
-            >
-              Clear
-            </button>
+            confirmClear === "gemini" ? (
+              <span className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => clearKey("gemini")}
+                  disabled={saving}
+                  className="text-[11px] text-red-300 border border-red-700 bg-red-950/30 px-2.5 py-1.5 disabled:opacity-50"
+                >
+                  {saving ? "..." : "confirm"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmClear(null)}
+                  className="text-[11px] text-paper-muted hover:text-paper px-1.5 py-1.5"
+                >
+                  cancel
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmClear("gemini")}
+                disabled={saving}
+                className="text-[11px] text-paper-muted hover:text-red-300 border border-border px-2.5 py-1.5 disabled:opacity-50"
+              >
+                Clear
+              </button>
+            )
           )}
         </div>
         <div className="text-[10.5px] text-paper-faint">

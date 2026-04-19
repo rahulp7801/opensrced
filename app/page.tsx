@@ -30,6 +30,13 @@ export default function LandingPage() {
             </svg>
             Get started with GitHub
           </Link>
+          <Link
+            href="/demo"
+            className="inline-flex items-center gap-2 border border-border px-6 py-3 text-[14px] text-paper-muted hover:text-paper hover:border-border-strong transition"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" className="text-signal"><path d="M4 2.5v11l9-5.5z" /></svg>
+            Watch demo
+          </Link>
         </div>
       </section>
 

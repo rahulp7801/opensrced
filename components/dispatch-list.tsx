@@ -32,8 +32,6 @@ export function DispatchList() {
   const [items, setItems] = useState<Dispatch[] | null>(null);
   const [selected, setSelected] = useState<string | null>(initialDispatch);
   const [detail, setDetail] = useState<DispatchWithLog | null>(null);
-  const [compareId, setCompareId] = useState<string | null>(null);
-  const [compareDetail, setCompareDetail] = useState<DispatchWithLog | null>(null);
   const logRef = useRef<HTMLPreElement>(null);
   const notifiedRef = useRef(new Set<string>());
   const prevRunningRef = useRef(new Set<string>());
@@ -118,20 +116,6 @@ export function DispatchList() {
       clearInterval(id);
     };
   }, [selected]);
-
-  // Fetch compare dispatch
-  useEffect(() => {
-    if (!compareId) { setCompareDetail(null); return; }
-    let live = true;
-    async function tick() {
-      try {
-        const res = await fetch(`/api/dispatches/${compareId}`, { cache: "no-store" });
-        if (res.ok && live) setCompareDetail(await res.json());
-      } catch { /* ignore */ }
-    }
-    tick();
-    return () => { live = false; };
-  }, [compareId]);
 
   // Auto-scroll log to bottom when it grows
   useEffect(() => {
@@ -273,236 +257,80 @@ export function DispatchList() {
       <section className="col-span-12 md:col-span-7 lg:col-span-8">
         {detail ? (
           <div className="border border-border bg-surface/40">
+            {/* Header */}
             <div className="border-b border-border px-4 py-3">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <IconTrigger className="text-signal" />
-                    <a
-                      href={detail.repo_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[13px] text-paper-muted hover:text-signal truncate"
-                    >
+                    <a href={detail.repo_url} target="_blank" rel="noreferrer" className="text-[13px] text-paper-muted hover:text-signal truncate">
                       {shortRepo(detail.repo_url)}
                     </a>
                     {detail.issue_number !== undefined && (
-                      <a
-                        href={`${detail.repo_url.replace(/\/$/, "")}/issues/${detail.issue_number}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[12px] text-info hover:text-signal border border-info/40 px-1.5 py-0.5 leading-none"
-                        title="Open the GitHub issue"
-                      >
+                      <a href={`${detail.repo_url.replace(/\/$/, "")}/issues/${detail.issue_number}`} target="_blank" rel="noreferrer" className="text-[12px] text-info hover:text-signal border border-info/40 px-1.5 py-0.5 leading-none">
                         #{detail.issue_number}
                       </a>
                     )}
                   </div>
-                  {/* Full issue title as the visual headline. Falls back
-                      to the dispatch id if we couldn't resolve one. */}
                   <div className="mt-1.5 text-[17px] text-paper leading-snug truncate">
                     {detail.issue_title ??
                       (detail.issue_number !== undefined
                         ? <span className="italic text-paper-faint">loading title…</span>
                         : <span className="text-paper-muted">Dispatch {detail.id.slice(-8)}</span>)}
                   </div>
-                  <IssuePreview log={detail.log} />
                   <div className="mt-1 flex items-center gap-2 text-[11px] text-paper-muted">
-                    <span className="tabular-nums" title={detail.started_at}>
-                      started {formatAbsoluteOrRelative(detail.started_at)}
-                    </span>
+                    <span className="tabular-nums">{formatAbsoluteOrRelative(detail.started_at)}</span>
                     {detail.ended_at && (
-                      <>
-                        <span className="text-paper-faint">·</span>
-                        <span className="tabular-nums">{formatDuration(detail.started_at, detail.ended_at)}</span>
-                      </>
+                      <><span className="text-paper-faint">·</span><span className="tabular-nums">{formatDuration(detail.started_at, detail.ended_at)}</span></>
                     )}
-                    {(() => {
-                      const cost = extractCost(detail.log);
-                      if (cost === null) return null;
-                      return (
-                        <>
-                          <span className="text-paper-faint">·</span>
-                          <span className="tabular-nums text-signal">${cost.toFixed(4)}</span>
-                        </>
-                      );
-                    })()}
-                    <span className="text-paper-faint">·</span>
-                    <span className="mono-label text-paper-faint truncate">{detail.id}</span>
+                    {(() => { const c = extractCost(detail.log); return c !== null ? <><span className="text-paper-faint">·</span><span className="tabular-nums text-signal">${c.toFixed(4)}</span></> : null; })()}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {(() => {
-                    // Server now computes pr_status from the log on every
-                    // /api/dispatches call (see lib/dispatcher.ts::
-                    // enrichWithPrStatus). Chip reflects the combined
-                    // lifecycle truth — a dispatch that exit=0 but whose
-                    // auto-PR failed shows red "PR failed", not green
-                    // "succeeded".
-                    if (detail.status === "succeeded" && detail.pr_status === "tests_failed") {
-                      return (
-                        <span title={detail.pr_failure_reason ?? ""}>
-                          <StatusChip tone="alert">tests failed</StatusChip>
-                        </span>
-                      );
-                    }
-                    if (detail.status === "succeeded" && detail.pr_status === "tests_passed") {
-                      return <StatusChip tone="ok">✓ verified</StatusChip>;
-                    }
-                    if (detail.status === "succeeded" && detail.pr_status === "failed") {
-                      return (
-                        <span title={detail.pr_failure_reason ?? ""}>
-                          <StatusChip tone="alert">PR failed</StatusChip>
-                        </span>
-                      );
-                    }
-                    if (detail.status === "succeeded" && detail.pr_status === "pending") {
-                      return <StatusChip tone="signal">opening PR…</StatusChip>;
-                    }
-                    if (detail.status === "succeeded" && detail.pr_status === "opened") {
-                      return <StatusChip tone="ok">PR opened</StatusChip>;
-                    }
-                    return (
-                      <StatusChip tone={toneFor(detail.status)}>
-                        {detail.status === "running" ? "live" : detail.status}
-                      </StatusChip>
-                    );
-                  })()}
-                  <span className="text-[11px] text-paper-muted tabular-nums">
-                    {detail.dry_run ? "dry-run" : "live"}
-                  </span>
-                  {detail.status === "running" && (
-                    <CancelButton dispatchId={detail.id} />
-                  )}
+                  <StatusChip tone={detail.status === "running" ? "signal" : detail.pr_status === "opened" ? "ok" : (detail.pr_status === "failed" || detail.pr_status === "tests_failed") ? "alert" : toneFor(detail.status)}>
+                    {detail.status === "running" ? "live" : detail.pr_status === "opened" ? "PR opened" : detail.pr_status === "tests_failed" ? "tests failed" : detail.status}
+                  </StatusChip>
+                  {detail.status === "running" && <CancelButton dispatchId={detail.id} />}
                   <RetryButton dispatch={detail} />
                   {detail.status !== "running" && <ExportButton dispatch={detail} />}
-                  {detail.status !== "running" && items && items.length > 1 && (
-                    compareId ? (
-                      <button
-                        onClick={() => setCompareId(null)}
-                        className="border border-info/50 bg-info/10 text-info px-2 py-0.5 text-[10px] uppercase tracking-[0.12em]"
-                      >
-                        exit compare
-                      </button>
-                    ) : (
-                      <select
-                        onChange={(e) => setCompareId(e.target.value || null)}
-                        value=""
-                        className="bg-surface border border-border text-paper-muted px-2 py-0.5 text-[10px] max-w-[140px]"
-                      >
-                        <option value="">compare...</option>
-                        {items.filter((d) => d.id !== detail.id && d.status !== "running").map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {shortRepo(d.repo_url)} {d.issue_number !== undefined ? `#${d.issue_number}` : d.id.slice(-8)}
-                          </option>
-                        ))}
-                      </select>
-                    )
-                  )}
                 </div>
               </div>
             </div>
-            {/* Pipeline milestone badges + timeline */}
+
+            {/* Pipeline timeline */}
             {detail.log && (
-              <div className="border-b border-border px-4 py-2.5 space-y-2">
+              <div className="border-b border-border px-4 py-2">
                 <PipelineTimeline log={detail.log} status={detail.status} />
-                {detail.status !== "running" && <StatusSummary log={detail.log} />}
-              </div>
-            )}
-            {/* Auto-PR failure banner — appears when Claude succeeded but
-                the post-hook auto-PR step didn't open a PR. Explains the
-                reason so the user can see whether to retry or fix manually. */}
-            {detail.pr_status === "failed" && (
-              <div className="border-t border-b border-alert/40 bg-alert/5 px-4 py-3 flex items-start gap-3 flex-wrap">
-                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-alert/60 bg-alert/15 text-alert text-[12px] shrink-0">!</span>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[13px] text-alert">Auto-PR step failed</div>
-                  <div className="mt-0.5 text-[11.5px] text-paper-muted leading-snug break-words">
-                    {detail.pr_failure_reason ?? "No failure reason captured."}
-                  </div>
-                  <div className="mt-1.5 text-[10.5px] text-paper-faint leading-snug">
-                    Claude&apos;s output is still intact in the log below — use <span className="text-paper-dim">copy diff</span> on the patch preview to apply it by hand, or retry the dispatch.
-                  </div>
-                </div>
-              </div>
-            )}
-            {detail.pr_status === "tests_failed" && (
-              <div className="border-t border-b border-alert/40 bg-alert/5 px-4 py-3 flex items-start gap-3 flex-wrap">
-                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-alert/60 bg-alert/15 text-alert text-[12px] shrink-0">!</span>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[13px] text-alert">Tests failed — PR not opened</div>
-                  <div className="mt-0.5 text-[11.5px] text-paper-muted leading-snug break-words">
-                    {detail.pr_failure_reason ?? "Sandbox test run failed. See [crucible-tests] block in the log below."}
-                  </div>
-                  <div className="mt-1.5 text-[10.5px] text-paper-faint leading-snug">
-                    The patch was rejected because the repo&apos;s own test suite didn&apos;t pass. Review the failures below, then retry or copy the diff and refine by hand.
-                  </div>
-                </div>
               </div>
             )}
 
-            {/* PR banner — surfaces the moment a PR URL lands in the log.
-                Works for both the deterministic contribai path (prints
-                'PR created  url=...') and the agentic path (writes
-                '[agentic-pr] opened draft PR: ...'). Any github.com/<o>/<r>/pull/<n>
-                URL is recognised. */}
+            {/* Failure banner (compact) */}
+            {(detail.pr_status === "failed" || detail.pr_status === "tests_failed") && (
+              <div className="border-b border-alert/40 bg-alert/5 px-4 py-2.5 text-[12px] text-alert">
+                {detail.pr_status === "tests_failed" ? "Tests failed — PR not opened" : "Auto-PR failed"}
+                {detail.pr_failure_reason && <span className="text-paper-muted ml-2">— {detail.pr_failure_reason.slice(0, 120)}</span>}
+              </div>
+            )}
+
+            {/* PR banner */}
             {(() => {
               const info = extractPrInfo(detail.log);
               if (!info) return null;
               return (
-                <div className="border-t border-b border-ok/40 bg-ok/5 px-4 py-3 flex items-center gap-3 flex-wrap">
-                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-ok/60 bg-ok/15 text-ok text-[12px]">✓</span>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[13px] text-ok flex items-center gap-2">
-                      Draft PR opened <Confetti />
-                    </div>
-                    <div className="mt-0.5 text-[11px] text-paper-muted truncate">
-                      {info.repoFull} · #{info.prNumber}
-                    </div>
-                  </div>
-                  <CopyPrUrl url={info.url} />
-                  <a
-                    href={info.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 border border-ok/50 bg-ok/10 text-ok hover:bg-ok/20 px-3 py-1.5 text-[12px]"
-                  >
-                    Open PR #{info.prNumber}
-                    <IconExternal />
+                <div className="border-b border-ok/40 bg-ok/5 px-4 py-2.5 flex items-center gap-3">
+                  <span className="text-[13px] text-ok">PR #{info.prNumber} opened</span>
+                  <a href={info.url} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1.5 border border-ok/50 bg-ok/10 text-ok hover:bg-ok/20 px-3 py-1 text-[12px]">
+                    Open on GitHub <IconExternal />
                   </a>
                 </div>
               );
             })()}
 
-            {/* Agentic diff preview — if a fenced ```diff block is in the
-                log, render a collapsible colorised view. Lets the user
-                eyeball the patch without leaving the dashboard (and
-                especially useful when auto-PR failed so there's no GitHub
-                URL to click through to). */}
+            {/* Diff preview */}
             <DiffPreviewFromLog log={detail.log} prOpened={!!extractPrInfo(detail.log)} />
 
-            {compareDetail ? (
-              <div className="grid grid-cols-2 divide-x divide-border">
-                <div>
-                  <div className="px-3 py-1.5 text-[10px] text-paper-muted border-b border-border-soft bg-surface/30">
-                    current: {shortRepo(detail.repo_url)} {detail.issue_number !== undefined && `#${detail.issue_number}`}
-                  </div>
-                  <pre className="h-[40vh] overflow-auto p-3 text-[10.5px] leading-relaxed text-paper-dim bg-ink/70 font-mono whitespace-pre-wrap">
-                    {stripAnsi(detail.log) || "(empty)"}
-                  </pre>
-                </div>
-                <div>
-                  <div className="px-3 py-1.5 text-[10px] text-info border-b border-border-soft bg-info/5">
-                    compare: {shortRepo(compareDetail.repo_url)} {compareDetail.issue_number !== undefined && `#${compareDetail.issue_number}`}
-                  </div>
-                  <pre className="h-[40vh] overflow-auto p-3 text-[10.5px] leading-relaxed text-paper-dim bg-ink/70 font-mono whitespace-pre-wrap">
-                    {stripAnsi(compareDetail.log) || "(empty)"}
-                  </pre>
-                </div>
-              </div>
-            ) : (
-              <LogViewer log={detail.log} isRunning={detail.status === "running"} logRef={logRef} />
-            )}
+            {/* Log */}
+            <LogViewer log={detail.log} isRunning={detail.status === "running"} logRef={logRef} />
             <DraftPreview dispatchId={detail.id} repoUrl={detail.repo_url} />
           </div>
         ) : (
@@ -1139,7 +967,6 @@ function extractLogSection(log: string, headingAlt: string): string | null {
 function DiffPreviewFromLog({ log, prOpened }: { log: string; prOpened: boolean }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [splitView, setSplitView] = useState(false);
 
   const diff = extractFirstDiff(log);
   if (!diff) return null;
@@ -1228,32 +1055,8 @@ function DiffPreviewFromLog({ log, prOpened }: { log: string; prOpened: boolean 
               ))}
             </div>
 
-            {/* Diff view toggle */}
-            <div className="px-6 py-2 border-b border-border-soft flex items-center gap-2">
-              <button
-                onClick={() => setSplitView(false)}
-                className={cn("text-[10px] px-2 py-0.5 border transition", !splitView ? "border-signal/50 text-signal" : "border-border text-paper-faint hover:text-paper-muted")}
-              >
-                unified
-              </button>
-              <button
-                onClick={() => setSplitView(true)}
-                className={cn("text-[10px] px-2 py-0.5 border transition", splitView ? "border-signal/50 text-signal" : "border-border text-paper-faint hover:text-paper-muted")}
-              >
-                split
-              </button>
-            </div>
-
-            {/* Diff */}
-            {splitView ? (
-              <SplitDiffView body={diff.body} />
-            ) : (
-              <pre className="max-h-[50vh] overflow-auto text-[11.5px] leading-snug font-mono bg-ink/70">
-                {diff.body.split(/\r?\n/).map((line, i) => (
-                  <DiffLine key={i} line={line} />
-                ))}
-              </pre>
-            )}
+            {/* Split diff */}
+            <SplitDiffView body={diff.body} />
 
             {/* Actions */}
             <div className="px-6 py-4 border-t border-border flex items-center justify-between gap-4 flex-wrap">

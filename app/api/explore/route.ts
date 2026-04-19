@@ -9,6 +9,9 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { resolveAnthropicKey } from "@/lib/api-keys";
 import { resolveGitHubToken } from "@/lib/github-token";
+import { getSession } from "@auth0/nextjs-auth0";
+import { mappingForOrg } from "@/lib/crucible/orgs";
+import { resolveGithubToken } from "@/lib/crucible/tokens";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +30,7 @@ export async function POST(req: NextRequest) {
     repo_url?: string;
     query?: string;
     budget?: number;
+    github_org?: string;
   };
 
   if (!body.repo_url || !body.query) {
@@ -87,8 +91,23 @@ export async function POST(req: NextRequest) {
 
   const env: NodeJS.ProcessEnv = { ...process.env };
   env.ANTHROPIC_API_KEY = anthropicKey;
-  const token = await resolveGitHubToken();
-  if (token) env.GITHUB_TOKEN = token;
+
+  // #6: Private repo support — use installation token if org is specified
+  if (body.github_org) {
+    const session = await getSession();
+    const sub = session?.user?.sub;
+    if (sub) {
+      const mapping = mappingForOrg(sub, body.github_org);
+      if (mapping) {
+        const resolved = await resolveGithubToken({ auth0UserId: sub, githubOrg: body.github_org });
+        if (resolved.token) env.GITHUB_TOKEN = resolved.token;
+      }
+    }
+  }
+  if (!env.GITHUB_TOKEN) {
+    const token = await resolveGitHubToken();
+    if (token) env.GITHUB_TOKEN = token;
+  }
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({

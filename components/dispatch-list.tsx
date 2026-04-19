@@ -33,6 +33,15 @@ export function DispatchList() {
   const [selected, setSelected] = useState<string | null>(initialDispatch);
   const [detail, setDetail] = useState<DispatchWithLog | null>(null);
   const logRef = useRef<HTMLPreElement>(null);
+  // #7: Track which dispatches we've already notified about
+  const notifiedRef = useRef(new Set<string>());
+
+  // #7: Request notification permission on mount
+  useEffect(() => {
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
 
   // Poll dispatch list
   useEffect(() => {
@@ -42,8 +51,28 @@ export function DispatchList() {
         const res = await fetch("/api/dispatches", { cache: "no-store" });
         const data = await res.json();
         if (live) {
-          setItems(data.dispatches ?? []);
-          if (!selected && data.dispatches?.[0]) setSelected(data.dispatches[0].id);
+          const dispatches: Dispatch[] = data.dispatches ?? [];
+          // #7: Notify on completion
+          for (const d of dispatches) {
+            if (
+              (d.status === "succeeded" || d.status === "failed") &&
+              !notifiedRef.current.has(d.id) &&
+              typeof Notification !== "undefined" &&
+              Notification.permission === "granted" &&
+              document.hidden
+            ) {
+              notifiedRef.current.add(d.id);
+              const repo = shortRepo(d.repo_url);
+              const body = d.status === "succeeded" && d.pr_status === "opened"
+                ? "PR opened successfully"
+                : d.status === "succeeded" ? "Completed" : "Failed";
+              new Notification(`opensrcer · ${repo}`, { body, icon: "/favicon.ico" });
+            }
+            // Track running ones so we don't notify on initial load
+            if (d.status === "running") notifiedRef.current.add(d.id);
+          }
+          setItems(dispatches);
+          if (!selected && dispatches[0]) setSelected(dispatches[0].id);
         }
       } catch {
         /* ignore */
@@ -84,8 +113,31 @@ export function DispatchList() {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [detail?.log]);
 
+  // #10: Loading skeleton
   if (items === null) {
-    return <div className="text-[12px] text-paper-muted">Loading dispatches…</div>;
+    return (
+      <div className="grid grid-cols-12 gap-6">
+        <aside className="col-span-12 md:col-span-5 lg:col-span-4">
+          <div className="border border-border bg-surface/40">
+            <div className="border-b border-border px-4 py-2.5">
+              <div className="h-4 w-20 bg-surface-3 animate-pulse" />
+            </div>
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="px-4 py-3 border-b border-border-soft last:border-0 space-y-2">
+                <div className="h-3 w-3/4 bg-surface-3 animate-pulse" />
+                <div className="h-2.5 w-1/2 bg-surface-2 animate-pulse" />
+                <div className="h-2 w-1/3 bg-surface-2 animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </aside>
+        <section className="col-span-12 md:col-span-7 lg:col-span-8">
+          <div className="border border-border bg-surface/40 p-10 text-center text-[12px] text-paper-muted">
+            Loading dispatches...
+          </div>
+        </section>
+      </div>
+    );
   }
   if (items.length === 0) {
     return (
@@ -152,6 +204,19 @@ export function DispatchList() {
                     <span className="tabular-nums" title={d.started_at}>
                       {formatAbsoluteOrRelative(d.started_at)}
                     </span>
+                    {/* #2: Duration display */}
+                    {d.ended_at && (
+                      <>
+                        <span className="text-paper-faint">·</span>
+                        <span className="tabular-nums">{formatDuration(d.started_at, d.ended_at)}</span>
+                      </>
+                    )}
+                    {d.status === "running" && (
+                      <>
+                        <span className="text-paper-faint">·</span>
+                        <span className="tabular-nums text-signal">{formatDuration(d.started_at)}</span>
+                      </>
+                    )}
                     <span className="text-paper-faint">·</span>
                     <span>
                       {d.status === "succeeded" && d.pr_status === "tests_failed" ? (
@@ -168,12 +233,6 @@ export function DispatchList() {
                         d.status
                       )}
                     </span>
-                    {d.exit_code !== undefined && (
-                      <>
-                        <span className="text-paper-faint">·</span>
-                        <span className="tabular-nums">exit {d.exit_code}</span>
-                      </>
-                    )}
                   </div>
                   <div className="mt-0.5 mono-label text-paper-faint tabular-nums truncate">
                     {d.id}
@@ -226,6 +285,22 @@ export function DispatchList() {
                     <span className="tabular-nums" title={detail.started_at}>
                       started {formatAbsoluteOrRelative(detail.started_at)}
                     </span>
+                    {detail.ended_at && (
+                      <>
+                        <span className="text-paper-faint">·</span>
+                        <span className="tabular-nums">{formatDuration(detail.started_at, detail.ended_at)}</span>
+                      </>
+                    )}
+                    {(() => {
+                      const cost = extractCost(detail.log);
+                      if (cost === null) return null;
+                      return (
+                        <>
+                          <span className="text-paper-faint">·</span>
+                          <span className="tabular-nums text-signal">${cost.toFixed(4)}</span>
+                        </>
+                      );
+                    })()}
                     <span className="text-paper-faint">·</span>
                     <span className="mono-label text-paper-faint truncate">{detail.id}</span>
                   </div>
@@ -327,11 +402,14 @@ export function DispatchList() {
                 <div className="border-t border-b border-ok/40 bg-ok/5 px-4 py-3 flex items-center gap-3 flex-wrap">
                   <span className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-ok/60 bg-ok/15 text-ok text-[12px]">✓</span>
                   <div className="min-w-0 flex-1">
-                    <div className="text-[13px] text-ok">Draft PR opened</div>
+                    <div className="text-[13px] text-ok flex items-center gap-2">
+                      Draft PR opened <Confetti />
+                    </div>
                     <div className="mt-0.5 text-[11px] text-paper-muted truncate">
                       {info.repoFull} · #{info.prNumber}
                     </div>
                   </div>
+                  <CopyPrUrl url={info.url} />
                   <a
                     href={info.url}
                     target="_blank"
@@ -514,6 +592,88 @@ function CancelButton({ dispatchId }: { dispatchId: string }) {
     >
       ■ stop
     </button>
+  );
+}
+
+// #2: Format duration between two ISO timestamps (or from start to now)
+function formatDuration(start: string, end?: string): string {
+  const s = Date.parse(start);
+  const e = end ? Date.parse(end) : Date.now();
+  if (!Number.isFinite(s) || !Number.isFinite(e)) return "";
+  const ms = Math.max(0, e - s);
+  const secs = Math.floor(ms / 1000);
+  if (secs < 60) return `${secs}s`;
+  const mins = Math.floor(secs / 60);
+  const remSecs = secs % 60;
+  return `${mins}m ${remSecs.toString().padStart(2, "0")}s`;
+}
+
+// #3: Copy button for PR URL
+function CopyPrUrl({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch { /* clipboard denied */ }
+  }
+  return (
+    <button
+      onClick={copy}
+      className="inline-flex items-center gap-1 border border-border hover:border-border-strong px-2 py-1.5 text-[11px] text-paper-dim hover:text-paper transition"
+    >
+      {copied ? "copied" : "copy url"}
+    </button>
+  );
+}
+
+// Parse total cost from dispatch log. Claude Code outputs "total_cost_usd":N
+// in stream-json mode, and the agentic dispatcher may echo it.
+function extractCost(log: string): number | null {
+  if (!log) return null;
+  // Match our dispatcher's cost line: total_cost_usd=0.123456
+  const dispatcherMatch = /total_cost_usd=([\d.]+)/.exec(log);
+  if (dispatcherMatch) return parseFloat(dispatcherMatch[1]);
+  // Match Claude Code's JSON output
+  const jsonMatch = /"total_cost_usd"\s*:\s*([\d.]+)/.exec(log);
+  if (jsonMatch) return parseFloat(jsonMatch[1]);
+  // Match budget exceeded message which tells us the cap
+  const budgetMatch = /Exceeded USD budget \(([\d.]+)\)/.exec(log);
+  if (budgetMatch) return parseFloat(budgetMatch[1]);
+  return null;
+}
+
+// Celebration effect on PR opened
+function Confetti() {
+  const particles = Array.from({ length: 12 }, (_, i) => {
+    const angle = (i / 12) * 360;
+    const distance = 8 + Math.random() * 12;
+    const x = Math.cos((angle * Math.PI) / 180) * distance;
+    const y = Math.sin((angle * Math.PI) / 180) * distance;
+    const colors = ["text-ok", "text-signal", "text-info", "text-alert"];
+    const shapes = ["\u2022", "\u2726", "\u2727", "\u25CF"];
+    return { x, y, color: colors[i % colors.length], shape: shapes[i % shapes.length], delay: i * 30 };
+  });
+
+  return (
+    <span className="relative inline-block w-5 h-5">
+      {particles.map((p, i) => (
+        <span
+          key={i}
+          className={`absolute left-1/2 top-1/2 ${p.color}`}
+          style={{
+            fontSize: "6px",
+            opacity: 0,
+            animation: `confetti-burst 0.8s ease-out ${p.delay}ms forwards`,
+            ["--tx" as string]: `${p.x}px`,
+            ["--ty" as string]: `${p.y}px`,
+          }}
+        >
+          {p.shape}
+        </span>
+      ))}
+    </span>
   );
 }
 

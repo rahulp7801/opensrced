@@ -383,6 +383,23 @@ export function DiscoverScanner() {
             Set a star floor and (optionally) a language, then pick through the results by
             age, difficulty, and scope. Click any row to scan that repo&apos;s full issue list.
           </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
+            {[
+              { name: "astral-sh/ruff", lang: "rust" },
+              { name: "withastro/astro", lang: "ts" },
+              { name: "fastapi/fastapi", lang: "python" },
+              { name: "denoland/deno", lang: "rust" },
+              { name: "chartjs/Chart.js", lang: "js" },
+            ].map((s) => (
+              <Link
+                key={s.name}
+                href={`/issues?repo=${encodeURIComponent(`https://github.com/${s.name}`)}`}
+                className="text-[11px] text-paper-dim border border-border-soft hover:border-signal/40 hover:text-signal px-2.5 py-1.5 transition"
+              >
+                {s.name} <span className="text-paper-faint">{s.lang}</span>
+              </Link>
+            ))}
+          </div>
         </div>
       )}
     </div>

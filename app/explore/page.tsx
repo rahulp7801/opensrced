@@ -22,9 +22,24 @@ type ExploreResult = {
 export default function ExplorePage() {
   const [repoUrl, setRepoUrl] = useState("");
   const [query, setQuery] = useState("");
-  const [budget, setBudget] = useState("0.10");
+  const [budget, setBudget] = useState("0.50");
   const [results, setResults] = useState<ExploreResult[]>([]);
   const resultRef = useRef<HTMLDivElement>(null);
+  const queryInputRef = useRef<HTMLInputElement>(null);
+
+  // #1: Persist repo URL to localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("opensrcer-explore-repo");
+    if (saved) setRepoUrl(saved);
+  }, []);
+  useEffect(() => {
+    if (repoUrl.trim()) localStorage.setItem("opensrcer-explore-repo", repoUrl.trim());
+  }, [repoUrl]);
+
+  // #5: Auto-focus query input
+  useEffect(() => {
+    queryInputRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     if (resultRef.current) {
@@ -50,7 +65,11 @@ export default function ExplorePage() {
       const res = await fetch("/api/explore", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ repo_url: repoUrl.trim(), query: currentQuery, budget: parseFloat(budget) || 0.15 }),
+        body: JSON.stringify({
+          repo_url: repoUrl.trim(),
+          query: buildQueryWithContext(currentQuery, results),
+          budget: parseFloat(budget) || 0.15,
+        }),
       });
 
       if (!res.ok) {
@@ -253,9 +272,11 @@ export default function ExplorePage() {
       <form onSubmit={handleSubmit} className="mt-4 shrink-0 pb-2">
         <div className="flex gap-2">
           <input
+            ref={queryInputRef}
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") { setQuery(""); e.currentTarget.blur(); } }}
             placeholder={repoUrl ? "Ask about this codebase..." : "Enter a repo URL above first"}
             disabled={!repoUrl.trim() || isStreaming}
             className="flex-1 bg-surface border border-border px-3 py-2.5 text-[13px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50 disabled:opacity-50"
@@ -460,6 +481,17 @@ function HighlightedCode({ text }: { text: string }) {
   }
   if (last < text.length) parts.push(<span key={ki++} className="text-paper-dim">{text.slice(last)}</span>);
   return <>{parts}</>;
+}
+
+// #9: Build query with previous Q&A context for follow-ups
+function buildQueryWithContext(query: string, results: ExploreResult[]): string {
+  const prev = results
+    .filter((r) => r.status === "done" && r.response)
+    .slice(-2)
+    .map((r) => `Q: ${r.query}\nA: ${r.response.slice(0, 500)}`)
+    .join("\n\n");
+  if (!prev) return query;
+  return `Previous context:\n${prev}\n\nNew question: ${query}`;
 }
 
 function ToolIcon({ tool }: { tool: string }) {

@@ -26,6 +26,43 @@ import type { Dispatch } from "./dispatcher";
 import { createDraftPrFromLog } from "./agentic-pr";
 
 const DISPATCH_DIR = join(process.cwd(), ".dispatches");
+
+// Parse stream-json output from Claude, write readable text to the log,
+// and return the total cost when the result event arrives.
+function pipeStreamJson(
+  stdout: import("node:stream").Readable,
+  out: import("node:fs").WriteStream,
+): void {
+  let buf = "";
+  stdout.on("data", (chunk: Buffer) => {
+    buf += chunk.toString();
+    const lines = buf.split("\n");
+    buf = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const evt = JSON.parse(line);
+        // Assistant text content
+        if (evt.type === "assistant" && evt.message?.content) {
+          for (const block of evt.message.content) {
+            if (block.type === "text" && block.text) {
+              out.write(block.text);
+            }
+          }
+        }
+        // Final result — write cost to log
+        if (evt.type === "result") {
+          if (typeof evt.total_cost_usd === "number") {
+            out.write(`\n[agentic-dispatcher] total_cost_usd=${evt.total_cost_usd.toFixed(6)}\n`);
+          }
+        }
+      } catch {
+        // Not JSON — write raw (shouldn't happen with stream-json)
+        out.write(line + "\n");
+      }
+    }
+  });
+}
 const MCP_CONFIG = join(process.cwd(), ".mcp.json");
 
 function ensureDir() {
@@ -254,7 +291,8 @@ export function startAgenticDispatch(
     "bypassPermissions",
     "--no-session-persistence",
     "--output-format",
-    "text",
+    "stream-json",
+    "--verbose",
     "--max-budget-usd",
     String(budgetUsd),
   ];
@@ -328,8 +366,8 @@ export function startAgenticDispatch(
     log_path: logPath,
   };
 
-  child.stdout.pipe(out, { end: false });
-  child.stderr.pipe(out, { end: false });
+  pipeStreamJson(child.stdout, out);
+  child.stderr.on("data", () => {}); // swallow stderr (MCP startup noise)
   child.on("close", (code, signal) => {
     clearTimeout(timeoutHandle);
     dispatch.ended_at = new Date().toISOString();
@@ -436,7 +474,8 @@ export function startFindingDispatch(
     "bypassPermissions",
     "--no-session-persistence",
     "--output-format",
-    "text",
+    "stream-json",
+    "--verbose",
     "--max-budget-usd",
     String(budgetUsd),
   ];
@@ -494,8 +533,8 @@ export function startFindingDispatch(
     log_path: logPath,
   };
 
-  child.stdout.pipe(out, { end: false });
-  child.stderr.pipe(out, { end: false });
+  pipeStreamJson(child.stdout, out);
+  child.stderr.on("data", () => {}); // swallow stderr (MCP startup noise)
   child.on("close", (code, signal) => {
     clearTimeout(timeoutHandle);
     dispatch.ended_at = new Date().toISOString();

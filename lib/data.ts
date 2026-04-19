@@ -49,7 +49,26 @@ export async function loadRepos(limit: number): Promise<RepoEntry[]> {
       return repos.map((r) => enrichRepo(r, prs));
     }
   }
-  return [];
+  // Derive repos from dispatch logs
+  const prs = await loadAllPRs();
+  const repoMap = new Map<string, { count: number; merged: number }>();
+  for (const pr of prs) {
+    const entry = repoMap.get(pr.repo) ?? { count: 0, merged: 0 };
+    entry.count++;
+    if (pr.status === "merged") entry.merged++;
+    repoMap.set(pr.repo, entry);
+  }
+  return [...repoMap.entries()]
+    .map(([repo, { count, merged }]) => ({
+      repo,
+      pr_count: count,
+      merged,
+      language: "",
+      stars: 0,
+      merge_rate: count > 0 ? merged / count : 0,
+    }))
+    .sort((a, b) => b.pr_count - a.pr_count)
+    .slice(0, limit);
 }
 
 export async function loadRuns(limit: number): Promise<RunEntry[]> {

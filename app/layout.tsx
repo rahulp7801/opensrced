@@ -4,6 +4,7 @@ import "./globals.css";
 import { SiteHeader } from "@/components/header";
 import { SiteFooter } from "@/components/footer";
 import { ApiKeyGate } from "@/components/api-key-gate";
+import { Onboarding } from "@/components/onboarding";
 import { ToastProvider } from "@/components/toast";
 import { UserProvider } from "@auth0/nextjs-auth0/client";
 
@@ -44,6 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="flex min-h-svh flex-col">
               <SiteHeader />
               <ApiKeyGate />
+              <Onboarding />
               <main className="flex-1">{children}</main>
               <SiteFooter />
             </div>

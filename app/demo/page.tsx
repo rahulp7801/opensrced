@@ -163,7 +163,16 @@ export default function DemoPage() {
         {done && (
           <div className="border-b border-ok/40 bg-ok/5 px-4 py-2.5 flex items-center gap-3">
             <span className="text-[13px] text-ok">PR #48 opened</span>
-            <span className="ml-auto text-[12px] text-paper-muted tabular-nums">$0.0847 · 3m 42s</span>
+            <span className="ml-auto flex items-center gap-3">
+              <span className="text-[12px] text-paper-muted tabular-nums">$0.0847 · 3m 42s</span>
+              <button
+                onClick={start}
+                className="flex items-center gap-1 border border-border hover:border-signal/50 hover:text-signal px-2 py-0.5 text-[10px] text-paper-muted transition"
+              >
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z" /></svg>
+                replay
+              </button>
+            </span>
           </div>
         )}
 

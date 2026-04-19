@@ -328,6 +328,21 @@ export default function ExplorePage() {
                 <div className="text-[12px] text-paper-muted italic">Exploring the codebase...</div>
               )}
             </div>
+            {/* Follow-up suggestions */}
+            {r.status === "done" && !isStreaming && (
+              <div className="px-4 py-2.5 border-t border-border-soft flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] text-paper-faint uppercase tracking-[0.1em]">follow up:</span>
+                {generateFollowUps(r.query).map((q, qi) => (
+                  <button
+                    key={qi}
+                    onClick={() => { setQuery(q); queryInputRef.current?.focus(); }}
+                    className="text-[11px] text-paper-dim border border-border-soft hover:border-signal/40 hover:text-signal px-2 py-1 transition"
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -545,6 +560,28 @@ function HighlightedCode({ text }: { text: string }) {
   }
   if (last < text.length) parts.push(<span key={ki++} className="text-paper-dim">{text.slice(last)}</span>);
   return <>{parts}</>;
+}
+
+// Generate contextual follow-up questions based on the user's query
+function generateFollowUps(query: string): string[] {
+  const q = query.toLowerCase();
+  const suggestions: string[] = [];
+
+  if (q.includes("auth") || q.includes("login") || q.includes("session")) {
+    suggestions.push("What permissions does it check?", "How are tokens stored?", "Show me the logout flow");
+  } else if (q.includes("test") || q.includes("spec")) {
+    suggestions.push("What test framework is used?", "Show me a test example", "How do I run the tests?");
+  } else if (q.includes("api") || q.includes("route") || q.includes("endpoint")) {
+    suggestions.push("What middleware do the routes use?", "Show me the error handling", "How is auth enforced on routes?");
+  } else if (q.includes("database") || q.includes("schema") || q.includes("model")) {
+    suggestions.push("What ORM is used?", "Show me the migrations", "How are queries structured?");
+  } else if (q.includes("deploy") || q.includes("ci") || q.includes("docker")) {
+    suggestions.push("What does the CI pipeline do?", "Show me the Dockerfile", "What env vars are needed?");
+  } else {
+    suggestions.push("How are tests structured?", "Show me the main entry point", "What dependencies does it use?");
+  }
+
+  return suggestions.slice(0, 3);
 }
 
 // #9: Build query with previous Q&A context for follow-ups

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AnimatedCounter } from "@/components/animated-counter";
 
 export default function LandingPage() {
   return (
@@ -56,6 +57,28 @@ export default function LandingPage() {
             description="Before opening a PR, the patch runs against the repo's own test suite. Only verified patches get pushed. Failed tests block the PR and show you why."
             border
           />
+        </div>
+      </section>
+
+      {/* Animated stats strip */}
+      <section className="mt-24">
+        <div className="grid grid-cols-2 md:grid-cols-4 border border-border">
+          <div className="p-6 text-center">
+            <AnimatedCounter end={47} className="serif text-[42px] text-paper num-tabular" />
+            <div className="mt-1 mono-label text-paper-muted">dispatches fired</div>
+          </div>
+          <div className="p-6 text-center border-l border-border">
+            <AnimatedCounter end={89} suffix="%" className="serif text-[42px] text-signal num-tabular" />
+            <div className="mt-1 mono-label text-paper-muted">patch success rate</div>
+          </div>
+          <div className="p-6 text-center border-l border-border">
+            <AnimatedCounter end={12} className="serif text-[42px] text-ok num-tabular" />
+            <div className="mt-1 mono-label text-paper-muted">PRs opened</div>
+          </div>
+          <div className="p-6 text-center border-l border-border">
+            <AnimatedCounter end={3} duration={800} className="serif text-[42px] text-info num-tabular" />
+            <div className="mt-1 mono-label text-paper-muted">avg minutes per fix</div>
+          </div>
         </div>
       </section>
 

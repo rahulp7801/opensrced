@@ -3,6 +3,7 @@ import { Instrument_Serif, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { SiteHeader } from "@/components/header";
 import { SiteFooter } from "@/components/footer";
+import { ApiKeyGate } from "@/components/api-key-gate";
 import { UserProvider } from "@auth0/nextjs-auth0/client";
 
 const serif = Instrument_Serif({
@@ -40,6 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <UserProvider>
           <div className="flex min-h-svh flex-col">
             <SiteHeader />
+            <ApiKeyGate />
             <main className="flex-1">{children}</main>
             <SiteFooter />
           </div>

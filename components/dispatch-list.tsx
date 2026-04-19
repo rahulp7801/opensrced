@@ -33,8 +33,8 @@ export function DispatchList() {
   const [selected, setSelected] = useState<string | null>(initialDispatch);
   const [detail, setDetail] = useState<DispatchWithLog | null>(null);
   const logRef = useRef<HTMLPreElement>(null);
-  // #7: Track which dispatches we've already notified about
   const notifiedRef = useRef(new Set<string>());
+  const prevRunningRef = useRef(new Set<string>());
 
   // #7: Request notification permission on mount
   useEffect(() => {
@@ -68,8 +68,17 @@ export function DispatchList() {
                 : d.status === "succeeded" ? "Completed" : "Failed";
               new Notification(`opensrcer · ${repo}`, { body, icon: "/favicon.ico" });
             }
-            // Track running ones so we don't notify on initial load
             if (d.status === "running") notifiedRef.current.add(d.id);
+            // Track running dispatches for auto-select on complete
+            if (d.status === "running") prevRunningRef.current.add(d.id);
+            // Auto-select dispatch that just finished
+            if (
+              (d.status === "succeeded" || d.status === "failed") &&
+              prevRunningRef.current.has(d.id)
+            ) {
+              prevRunningRef.current.delete(d.id);
+              setSelected(d.id);
+            }
           }
           setItems(dispatches);
           if (!selected && dispatches[0]) setSelected(dispatches[0].id);

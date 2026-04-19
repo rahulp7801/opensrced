@@ -25,6 +25,8 @@ export default function ExplorePage() {
   const [query, setQuery] = useState("");
   const [budget, setBudget] = useState("0.50");
   const [results, setResults] = useState<ExploreResult[]>([]);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
   const queryInputRef = useRef<HTMLInputElement>(null);
 
@@ -43,6 +45,25 @@ export default function ExplorePage() {
   useEffect(() => {
     if (repoUrl.trim()) localStorage.setItem("opensrcer-explore-repo", repoUrl.trim());
   }, [repoUrl]);
+
+  // Fetch connected org repos for suggestions
+  useEffect(() => {
+    fetch("/api/crucible/orgs")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data: Array<{ github_org: string }> | null) => {
+        if (!data || data.length === 0) return;
+        const orgFetches = data.map((o) =>
+          fetch(`/api/crucible/orgs/${o.github_org}/repos`)
+            .then((r) => r.ok ? r.json() : { repos: [] })
+            .then((d: { repos?: Array<{ fullName: string }> }) =>
+              (d.repos ?? []).map((r) => r.fullName)
+            )
+            .catch(() => [] as string[])
+        );
+        Promise.all(orgFetches).then((lists) => setSuggestions(lists.flat()));
+      })
+      .catch(() => {});
+  }, []);
 
   // #5: Auto-focus query input
   useEffect(() => {
@@ -184,13 +205,35 @@ export default function ExplorePage() {
 
       {/* Repo input + budget */}
       <div className="mt-4 flex items-center gap-3">
-        <input
-          type="text"
-          value={repoUrl}
-          onChange={(e) => setRepoUrl(e.target.value)}
-          placeholder="github.com/owner/repo or owner/repo"
-          className="flex-1 max-w-xl bg-surface border border-border px-3 py-2 text-[13px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50"
-        />
+        <div className="flex-1 max-w-xl relative">
+          <input
+            type="text"
+            value={repoUrl}
+            onChange={(e) => { setRepoUrl(e.target.value); setShowSuggestions(true); }}
+            onFocus={() => setShowSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+            placeholder="github.com/owner/repo or owner/repo"
+            className="w-full bg-surface border border-border px-3 py-2 text-[13px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50"
+          />
+          {showSuggestions && suggestions.length > 0 && (
+            <ul className="absolute z-20 top-full left-0 right-0 mt-1 border border-border bg-ink max-h-48 overflow-y-auto">
+              {suggestions
+                .filter((s) => !repoUrl || s.toLowerCase().includes(repoUrl.toLowerCase()))
+                .slice(0, 8)
+                .map((s) => (
+                  <li key={s}>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => { e.preventDefault(); setRepoUrl(s); setShowSuggestions(false); }}
+                      className="w-full text-left px-3 py-2 text-[12px] text-paper-dim hover:bg-surface-2/60 hover:text-paper"
+                    >
+                      {s}
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          )}
+        </div>
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] text-paper-muted uppercase tracking-[0.1em]">budget</span>
           <select

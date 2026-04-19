@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useToast } from "@/components/toast";
 
 type KeyStatus = { anthropic: boolean; gemini: boolean; maxSpendUsd: number };
 
@@ -19,6 +20,7 @@ export function ApiKeysForm() {
   const [maxSpend, setMaxSpend] = useState(2);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     fetch("/api/settings/keys")
@@ -48,6 +50,7 @@ export function ApiKeysForm() {
       setAnthropicInput("");
       setGeminiInput("");
       setMessage({ text: "Settings saved.", ok: true });
+      toast("Settings saved", "ok");
     } catch {
       setMessage({ text: "Failed to save.", ok: false });
     } finally {
@@ -69,6 +72,7 @@ export function ApiKeysForm() {
       const data = (await res.json()) as KeyStatus;
       setStatus(data);
       setMessage({ text: `${key} key cleared.`, ok: true });
+      toast(`${key} key cleared`, "signal");
     } catch {
       setMessage({ text: "Failed to clear.", ok: false });
     } finally {

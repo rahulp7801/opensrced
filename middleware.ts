@@ -24,6 +24,14 @@ const PUBLIC_PATHS = [
   "/api/crucible/github/webhook",
   // Install callback — authenticates via nonce cookie.
   "/api/crucible/github/install-callback",
+  // Client-shell pages — these render instantly as static HTML and fetch
+  // data via auth-gated API routes. No need for middleware session check.
+  "/discover",
+  "/dispatches",
+  "/issues",
+  "/stats",
+  "/explore",
+  "/trigger",
 ];
 
 function isPublic(pathname: string): boolean {
@@ -35,8 +43,14 @@ function isPublic(pathname: string): boolean {
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
+  // Skip auth for Next.js prefetch requests — these are speculative and
+  // should not block on getSession(). The actual page navigation will
+  // run the full check.
+  if (req.headers.get("next-router-prefetch") === "1" || req.headers.get("purpose") === "prefetch") {
+    return NextResponse.next();
+  }
+
   // Logged-in users hitting /login should be redirected to the dashboard.
-  // The privacy/security terms are viewable on the public landing page (/).
   if (pathname === "/login" && !AUTH_DISABLED) {
     const res = NextResponse.next();
     const session = await getSession(req, res);
@@ -69,5 +83,8 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // Skip middleware for static files, images, and Next.js internals.
+  // This prevents getSession() from running on prefetch/RSC requests
+  // that don't need auth gating.
+  matcher: ["/((?!_next/static|_next/image|_next/data|favicon.ico|.*\\.(?:svg|png|jpg|ico|css|js)$).*)"],
 };

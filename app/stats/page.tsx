@@ -1,8 +1,6 @@
 import { PageHeading } from "@/components/page-heading";
 import { StatsBoard } from "@/components/stats-board";
 
-export const dynamic = "force-dynamic";
-
 export default function StatsPage() {
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 py-6">

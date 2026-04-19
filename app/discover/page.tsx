@@ -2,8 +2,6 @@ import { Suspense } from "react";
 import { PageHeading } from "@/components/page-heading";
 import { DiscoverScanner } from "@/components/discover-scanner";
 
-export const dynamic = "force-dynamic";
-
 export default function DiscoverPage() {
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 py-6">

@@ -70,15 +70,16 @@ export async function clearStoredKeys(): Promise<void> {
   jar.delete(COOKIE_NAME);
 }
 
-// Resolve ANTHROPIC_API_KEY: user's cookie key > env fallback.
+// Resolve API keys from the user's encrypted cookie ONLY.
+// No env fallback — keys must be explicitly set by the user.
 export async function resolveAnthropicKey(): Promise<string | null> {
   const keys = await getStoredKeys();
-  return keys.anthropic || process.env.ANTHROPIC_API_KEY || null;
+  return keys.anthropic || null;
 }
 
 export async function resolveGeminiKey(): Promise<string | null> {
   const keys = await getStoredKeys();
-  return keys.gemini || process.env.GEMINI_API_KEY || null;
+  return keys.gemini || null;
 }
 
 export async function resolveMaxSpendUsd(): Promise<number> {

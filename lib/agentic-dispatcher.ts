@@ -300,6 +300,9 @@ export function startAgenticDispatch(
   const env: NodeJS.ProcessEnv = { ...process.env };
   const token = opts.token ?? fetchGithubToken();
   if (token) env.GITHUB_TOKEN = token;
+  // Only use the key the user explicitly provided via cookie — don't
+  // inherit from the server's own ANTHROPIC_API_KEY env var.
+  delete env.ANTHROPIC_API_KEY;
   if (opts.anthropicKey) env.ANTHROPIC_API_KEY = opts.anthropicKey;
   if (opts.geminiKey) env.GEMINI_API_KEY = opts.geminiKey;
 
@@ -483,6 +486,9 @@ export function startFindingDispatch(
   const env: NodeJS.ProcessEnv = { ...process.env };
   const token = opts.token ?? fetchGithubToken();
   if (token) env.GITHUB_TOKEN = token;
+  // Only use the key the user explicitly provided via cookie — don't
+  // inherit from the server's own ANTHROPIC_API_KEY env var.
+  delete env.ANTHROPIC_API_KEY;
   if (opts.anthropicKey) env.ANTHROPIC_API_KEY = opts.anthropicKey;
   if (opts.geminiKey) env.GEMINI_API_KEY = opts.geminiKey;
 

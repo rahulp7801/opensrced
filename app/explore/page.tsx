@@ -27,6 +27,7 @@ export default function ExplorePage() {
   const [results, setResults] = useState<ExploreResult[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [hasKey, setHasKey] = useState(true); // assume true until checked
   const resultRef = useRef<HTMLDivElement>(null);
   const queryInputRef = useRef<HTMLInputElement>(null);
 
@@ -77,6 +78,14 @@ export default function ExplorePage() {
       })
       .catch(() => {});
   }
+
+  // Check if API key is set
+  useEffect(() => {
+    fetch("/api/settings/keys")
+      .then((r) => r.json())
+      .then((d: { anthropic?: boolean }) => setHasKey(Boolean(d.anthropic)))
+      .catch(() => {});
+  }, []);
 
   // #5: Auto-focus query input
   useEffect(() => {
@@ -362,10 +371,10 @@ export default function ExplorePage() {
           />
           <button
             type="submit"
-            disabled={!repoUrl.trim() || !query.trim() || isStreaming}
+            disabled={!repoUrl.trim() || !query.trim() || isStreaming || !hasKey}
             className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-2.5 text-[12px] uppercase tracking-[0.12em] disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
           >
-            {isStreaming ? "exploring..." : "explore"}
+            {!hasKey ? "no API key" : isStreaming ? "exploring..." : "explore"}
           </button>
         </div>
       </form>

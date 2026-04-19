@@ -90,6 +90,7 @@ export async function POST(req: NextRequest) {
   ];
 
   const env: NodeJS.ProcessEnv = { ...process.env };
+  delete env.ANTHROPIC_API_KEY;
   env.ANTHROPIC_API_KEY = anthropicKey;
 
   // #6: Private repo support — use installation token if org is specified

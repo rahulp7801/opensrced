@@ -4,7 +4,7 @@
 // with orgCtx so the dispatcher uses the installation token. Redirects to
 // /dispatches/<id> on success so the user can watch the stream.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export function SolveButton({
@@ -31,6 +31,16 @@ export function SolveButton({
   const router = useRouter();
   const [state, setState] = useState<"idle" | "pending" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [hasKey, setHasKey] = useState(true);
+
+  useEffect(() => {
+    const cached = sessionStorage.getItem("opensrcer-has-key");
+    if (cached !== null) { setHasKey(cached === "1"); return; }
+    fetch("/api/settings/keys")
+      .then((r) => r.json())
+      .then((d: { anthropic?: boolean }) => setHasKey(Boolean(d.anthropic)))
+      .catch(() => {});
+  }, []);
 
   async function onClick() {
     setState("pending");
@@ -79,10 +89,11 @@ export function SolveButton({
       <button
         type="button"
         onClick={onClick}
-        disabled={state === "pending"}
+        disabled={state === "pending" || !hasKey}
+        title={!hasKey ? "Add an Anthropic API key in Crucible → API Keys" : undefined}
         className="text-[12px] text-paper border border-border bg-surface/60 hover:bg-surface px-2.5 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {state === "pending" ? "dispatching…" : "deep solve"}
+        {!hasKey ? "no API key" : state === "pending" ? "dispatching…" : "deep solve"}
       </button>
       {state === "error" && error && (
         <span className="text-[10.5px] text-red-300 max-w-[220px] text-right">

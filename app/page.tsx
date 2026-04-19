@@ -59,6 +59,161 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Dispatch demo */}
+      <section className="mt-24">
+        <div className="text-center mb-8">
+          <h2 className="serif text-[28px] text-paper tracking-tight">Watch it solve a real issue</h2>
+          <p className="mt-2 text-[13px] text-paper-dim">
+            From issue to verified PR in under 5 minutes. Here&apos;s what a dispatch looks like.
+          </p>
+        </div>
+        <div className="border border-border bg-surface/40">
+          {/* Dispatch header */}
+          <div className="px-4 py-3 border-b border-border">
+            <div className="flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" className="text-signal"><path d="M9 2 3 9h4l-1 5 6-7H8l1-5z" /></svg>
+              <span className="text-[13px] text-paper-muted">acme-corp/web-app</span>
+              <span className="text-[12px] text-info border border-info/40 px-1.5 py-0.5 leading-none">#47</span>
+              <span className="ml-auto text-[9px] tracking-[0.12em] uppercase text-info border border-info/40 px-1 py-px leading-none">deep</span>
+            </div>
+            <div className="mt-1.5 text-[17px] text-paper">Fix: SQL injection in user search endpoint</div>
+            <div className="mt-1 text-[11px] text-paper-muted">3m 42s · $0.0847</div>
+          </div>
+
+          {/* Pipeline timeline */}
+          <div className="px-4 py-2.5 border-b border-border-soft">
+            <div className="flex items-center gap-1">
+              {[
+                { label: "clone", done: true },
+                { label: "explore", done: true },
+                { label: "patch", done: true },
+                { label: "test", done: true },
+                { label: "PR", done: true },
+              ].map((p, i) => (
+                <div key={p.label} className="flex items-center gap-1">
+                  {i > 0 && <div className="w-4 h-px bg-ok/40" />}
+                  <span className="flex items-center gap-1 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em] border border-ok/40 text-ok leading-none">
+                    ✓ {p.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* PR banner */}
+          <div className="border-b border-ok/40 bg-ok/5 px-4 py-3 flex items-center gap-3">
+            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-ok/60 bg-ok/15 text-ok text-[12px]">✓</span>
+            <div className="flex-1">
+              <div className="text-[13px] text-ok">Draft PR opened</div>
+              <div className="mt-0.5 text-[11px] text-paper-muted">acme-corp/web-app · #48</div>
+            </div>
+            <span className="border border-ok/50 bg-ok/10 text-ok px-3 py-1.5 text-[12px]">
+              View PR #48
+            </span>
+          </div>
+
+          {/* Diff preview */}
+          <div className="border-b border-border">
+            <div className="px-4 py-2 flex items-center gap-3 text-[11px] text-paper-muted bg-surface/30">
+              <span className="font-medium text-paper-dim">Review patch</span>
+              <span>2 files</span>
+              <span className="text-ok">+14</span>
+              <span className="text-alert">-3</span>
+            </div>
+            <pre className="text-[11.5px] leading-snug font-mono">
+              <div className="px-4 whitespace-pre text-paper font-semibold">--- a/src/routes/users.ts</div>
+              <div className="px-4 whitespace-pre text-paper font-semibold">+++ b/src/routes/users.ts</div>
+              <div className="px-4 whitespace-pre text-info bg-info/10">{"@@ -23,7 +23,11 @@ export async function searchUsers(req, res) {"}</div>
+              <div className="px-4 whitespace-pre text-paper-dim">{"   const query = req.query.q;"}</div>
+              <div className="px-4 whitespace-pre text-alert bg-alert/10">{`-  const results = await db.query(\`SELECT * FROM users WHERE name LIKE '%\${query}%'\`);`}</div>
+              <div className="px-4 whitespace-pre text-ok bg-ok/10">{`+  const results = await db.query(`}</div>
+              <div className="px-4 whitespace-pre text-ok bg-ok/10">{`+    "SELECT * FROM users WHERE name LIKE $1",`}</div>
+              <div className="px-4 whitespace-pre text-ok bg-ok/10">{`+    [\`%\${query}%\`]`}</div>
+              <div className="px-4 whitespace-pre text-ok bg-ok/10">{`+  );`}</div>
+              <div className="px-4 whitespace-pre text-paper-dim">   return res.json(results.rows);</div>
+            </pre>
+          </div>
+
+          {/* Diagnosis */}
+          <div className="px-4 py-4 text-[12.5px] text-paper-dim leading-relaxed space-y-2">
+            <div className="text-[13px] text-paper font-medium">Diagnosis</div>
+            <p>
+              The <code className="text-signal bg-signal/10 px-1 py-0.5 text-[11.5px]">searchUsers</code> handler
+              at <strong className="text-paper">src/routes/users.ts:25</strong> interpolates user input directly into
+              a SQL string. Parameterized queries prevent injection.
+            </p>
+            <div className="text-[13px] text-paper font-medium mt-3">Tests</div>
+            <p>
+              <span className="text-ok">✓</span> 47 tests passed · <span className="text-ok">✓</span> new test added for injection vector ·
+              <span className="text-paper-muted">0 failures</span>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Explore demo */}
+      <section className="mt-24">
+        <div className="text-center mb-8">
+          <h2 className="serif text-[28px] text-paper tracking-tight">Explore any codebase</h2>
+          <p className="mt-2 text-[13px] text-paper-dim">
+            Ask plain-English questions. Claude navigates with tree-sitter AST indexing and grep to find the answer.
+          </p>
+        </div>
+        <div className="border border-border bg-surface/40">
+          <div className="px-4 py-2.5 border-b border-border-soft flex items-center gap-2">
+            <span className="text-[10px] uppercase tracking-[0.15em] text-signal">Q</span>
+            <span className="text-[13px] text-paper">Where is the authentication middleware and how does it work?</span>
+          </div>
+          <div className="px-4 py-2 border-b border-border-soft bg-ink/30">
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { icon: "i", detail: "overview", color: "text-paper-muted border-border-soft" },
+                { icon: "/", detail: "/middleware/", color: "text-signal border-signal/30" },
+                { icon: "#", detail: "middleware.ts", color: "text-info border-info/30" },
+                { icon: "/", detail: "/getSession/", color: "text-signal border-signal/30" },
+                { icon: "#", detail: "lib/github-token.ts", color: "text-info border-info/30" },
+                { icon: "@", detail: "resolveGitHubToken", color: "text-ok border-ok/30" },
+              ].map((t, i) => (
+                <span key={i} className={`text-[9.5px] tracking-[0.05em] px-1.5 py-0.5 border leading-none ${t.color}`}>
+                  {t.icon} {t.detail}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="px-4 py-4 text-[12.5px] text-paper-dim leading-relaxed space-y-3">
+            <p>
+              The authentication middleware lives in <strong className="text-paper">middleware.ts</strong> at the project root.
+              It uses <code className="text-signal bg-signal/10 px-1 py-0.5 text-[11.5px]">@auth0/nextjs-auth0/edge</code> to
+              gate every route behind an Auth0 session check.
+            </p>
+            <div>
+              <div className="flex items-center justify-between px-3 py-1.5 bg-ink/80 border border-border-soft border-b-0 text-[10px] text-paper-muted">
+                <span className="font-mono">middleware.ts:36-58</span>
+              </div>
+              <pre className="overflow-x-auto px-3 py-3 bg-ink/60 border border-border-soft text-[11.5px] leading-snug font-mono text-paper-dim">
+{`export async function middleware(req) {
+  if (isPublic(pathname)) return NextResponse.next();
+  const session = await getSession(req, res);
+  if (session?.user) return res;
+  // API routes get 401; pages redirect to /login
+  if (pathname.startsWith("/api/"))
+    return NextResponse.json(
+      { error: "Not authenticated" },
+      { status: 401 }
+    );
+  return NextResponse.redirect(loginUrl);
+}`}</pre>
+            </div>
+            <p>
+              Public paths (<code className="text-signal bg-signal/10 px-1 py-0.5 text-[11.5px]">/</code>,{" "}
+              <code className="text-signal bg-signal/10 px-1 py-0.5 text-[11.5px]">/login</code>,{" "}
+              <code className="text-signal bg-signal/10 px-1 py-0.5 text-[11.5px]">/api/auth</code>) are
+              exempted. Everything else requires a valid session.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* Crucible */}
       <section className="mt-24">
         <div className="border border-border">

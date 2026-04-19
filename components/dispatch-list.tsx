@@ -32,6 +32,8 @@ export function DispatchList() {
   const [items, setItems] = useState<Dispatch[] | null>(null);
   const [selected, setSelected] = useState<string | null>(initialDispatch);
   const [detail, setDetail] = useState<DispatchWithLog | null>(null);
+  const [compareId, setCompareId] = useState<string | null>(null);
+  const [compareDetail, setCompareDetail] = useState<DispatchWithLog | null>(null);
   const logRef = useRef<HTMLPreElement>(null);
   const notifiedRef = useRef(new Set<string>());
   const prevRunningRef = useRef(new Set<string>());
@@ -116,6 +118,20 @@ export function DispatchList() {
       clearInterval(id);
     };
   }, [selected]);
+
+  // Fetch compare dispatch
+  useEffect(() => {
+    if (!compareId) { setCompareDetail(null); return; }
+    let live = true;
+    async function tick() {
+      try {
+        const res = await fetch(`/api/dispatches/${compareId}`, { cache: "no-store" });
+        if (res.ok && live) setCompareDetail(await res.json());
+      } catch { /* ignore */ }
+    }
+    tick();
+    return () => { live = false; };
+  }, [compareId]);
 
   // Auto-scroll log to bottom when it grows
   useEffect(() => {
@@ -290,6 +306,7 @@ export function DispatchList() {
                         ? <span className="italic text-paper-faint">loading title…</span>
                         : <span className="text-paper-muted">Dispatch {detail.id.slice(-8)}</span>)}
                   </div>
+                  <IssuePreview log={detail.log} />
                   <div className="mt-1 flex items-center gap-2 text-[11px] text-paper-muted">
                     <span className="tabular-nums" title={detail.started_at}>
                       started {formatAbsoluteOrRelative(detail.started_at)}
@@ -359,6 +376,29 @@ export function DispatchList() {
                   )}
                   <RetryButton dispatch={detail} />
                   {detail.status !== "running" && <ExportButton dispatch={detail} />}
+                  {detail.status !== "running" && items && items.length > 1 && (
+                    compareId ? (
+                      <button
+                        onClick={() => setCompareId(null)}
+                        className="border border-info/50 bg-info/10 text-info px-2 py-0.5 text-[10px] uppercase tracking-[0.12em]"
+                      >
+                        exit compare
+                      </button>
+                    ) : (
+                      <select
+                        onChange={(e) => setCompareId(e.target.value || null)}
+                        value=""
+                        className="bg-surface border border-border text-paper-muted px-2 py-0.5 text-[10px] max-w-[140px]"
+                      >
+                        <option value="">compare...</option>
+                        {items.filter((d) => d.id !== detail.id && d.status !== "running").map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {shortRepo(d.repo_url)} {d.issue_number !== undefined ? `#${d.issue_number}` : d.id.slice(-8)}
+                          </option>
+                        ))}
+                      </select>
+                    )
+                  )}
                 </div>
               </div>
             </div>
@@ -441,7 +481,28 @@ export function DispatchList() {
                 URL to click through to). */}
             <DiffPreviewFromLog log={detail.log} prOpened={!!extractPrInfo(detail.log)} />
 
-            <LogViewer log={detail.log} isRunning={detail.status === "running"} logRef={logRef} />
+            {compareDetail ? (
+              <div className="grid grid-cols-2 divide-x divide-border">
+                <div>
+                  <div className="px-3 py-1.5 text-[10px] text-paper-muted border-b border-border-soft bg-surface/30">
+                    current: {shortRepo(detail.repo_url)} {detail.issue_number !== undefined && `#${detail.issue_number}`}
+                  </div>
+                  <pre className="h-[40vh] overflow-auto p-3 text-[10.5px] leading-relaxed text-paper-dim bg-ink/70 font-mono whitespace-pre-wrap">
+                    {stripAnsi(detail.log) || "(empty)"}
+                  </pre>
+                </div>
+                <div>
+                  <div className="px-3 py-1.5 text-[10px] text-info border-b border-border-soft bg-info/5">
+                    compare: {shortRepo(compareDetail.repo_url)} {compareDetail.issue_number !== undefined && `#${compareDetail.issue_number}`}
+                  </div>
+                  <pre className="h-[40vh] overflow-auto p-3 text-[10.5px] leading-relaxed text-paper-dim bg-ink/70 font-mono whitespace-pre-wrap">
+                    {stripAnsi(compareDetail.log) || "(empty)"}
+                  </pre>
+                </div>
+              </div>
+            ) : (
+              <LogViewer log={detail.log} isRunning={detail.status === "running"} logRef={logRef} />
+            )}
             <DraftPreview dispatchId={detail.id} repoUrl={detail.repo_url} />
           </div>
         ) : (
@@ -673,6 +734,33 @@ function Confetti() {
         </span>
       ))}
     </span>
+  );
+}
+
+function IssuePreview({ log }: { log: string }) {
+  const [expanded, setExpanded] = useState(false);
+  // Extract issue body from the log — it appears between the issue title
+  // header and "## Your tools" or the dispatcher separator
+  const bodyMatch = /^# .+?\n\n(?:URL: .+\nLabels: .+\n\n)?([\s\S]+?)(?=\n## Your tools|\n## Required first step|\n\[agentic-dispatcher\])/m.exec(log);
+  if (!bodyMatch || !bodyMatch[1].trim()) return null;
+  const body = bodyMatch[1].trim();
+  if (body.length < 20) return null;
+
+  return (
+    <div className="mt-1">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="text-[10px] text-paper-faint hover:text-paper-muted"
+      >
+        {expanded ? "hide issue body" : "show issue body"}
+      </button>
+      {expanded && (
+        <div className="mt-1.5 text-[11.5px] text-paper-dim leading-relaxed border-l-2 border-border-soft pl-3 max-h-32 overflow-y-auto whitespace-pre-wrap">
+          {body.slice(0, 1000)}
+          {body.length > 1000 && "…"}
+        </div>
+      )}
+    </div>
   );
 }
 

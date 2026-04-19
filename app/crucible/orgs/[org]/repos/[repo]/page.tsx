@@ -12,6 +12,7 @@ import {
   listAdvisories,
   listDependabotAlerts,
   listInstallationIssues,
+  listInstallationRepos,
   type SecurityFinding,
   type RepoIssue,
 } from "@/lib/crucible/advisories";
@@ -61,15 +62,19 @@ export default async function RepoFindingsPage({
   let issues: RepoIssue[] = [];
   let loadError: string | null = null;
 
+  let repoSizeKb = 0;
   try {
-    const [a, d, i] = await Promise.all([
+    const [a, d, i, repos] = await Promise.all([
       listAdvisories(mapping.installation_id, org, repo),
       listDependabotAlerts(mapping.installation_id, org, repo),
       listInstallationIssues(mapping.installation_id, org, repo),
+      listInstallationRepos(mapping.installation_id),
     ]);
     advisories = a;
     dependabot = d;
     issues = i;
+    const thisRepo = repos.find((r) => r.name === repo);
+    if (thisRepo) repoSizeKb = thisRepo.sizeKb;
   } catch (e) {
     loadError = e instanceof Error ? e.message : String(e);
   }
@@ -169,6 +174,7 @@ export default async function RepoFindingsPage({
                       kind={f.kind}
                       findingId={f.id}
                       githubOrg={org}
+                      repoSizeKb={repoSizeKb}
                       findingSummary={f.summary}
                       findingDescription={f.description}
                       cveId={f.cveId}
@@ -225,6 +231,7 @@ export default async function RepoFindingsPage({
                     kind="issue"
                     findingId={String(i.number)}
                     githubOrg={org}
+                    repoSizeKb={repoSizeKb}
                   />
                 </div>
               </li>

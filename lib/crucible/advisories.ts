@@ -216,6 +216,7 @@ export type InstallationRepo = {
   description: string | null;
   language: string | null;
   stars: number;
+  sizeKb: number;
   updatedAt: string;
 };
 
@@ -247,6 +248,7 @@ async function listReposUncached(
         description: string | null;
         language: string | null;
         stargazers_count: number;
+        size: number;
         updated_at: string;
       }>;
     };
@@ -260,6 +262,7 @@ async function listReposUncached(
         description: r.description,
         language: r.language,
         stars: r.stargazers_count,
+        sizeKb: r.size ?? 0,
         updatedAt: r.updated_at,
       });
     }

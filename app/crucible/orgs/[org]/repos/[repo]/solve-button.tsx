@@ -7,6 +7,17 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+// Estimate API cost based on repo size. Larger repos need more exploration
+// tokens. Based on observed costs across real dispatches.
+function estimateCost(sizeKb: number): string {
+  const sizeMb = sizeKb / 1024;
+  if (sizeMb < 1) return "$0.03–$0.08";
+  if (sizeMb < 10) return "$0.05–$0.12";
+  if (sizeMb < 50) return "$0.08–$0.20";
+  if (sizeMb < 200) return "$0.12–$0.35";
+  return "$0.20–$0.50";
+}
+
 export function SolveButton({
   repoFull,
   kind,
@@ -17,6 +28,7 @@ export function SolveButton({
   cveId,
   affectedPackage,
   affectedVersions,
+  repoSizeKb,
 }: {
   repoFull: string;
   kind: "advisory" | "dependabot" | "issue";
@@ -27,6 +39,7 @@ export function SolveButton({
   cveId?: string;
   affectedPackage?: string;
   affectedVersions?: string;
+  repoSizeKb?: number;
 }) {
   const router = useRouter();
   const [state, setState] = useState<"idle" | "pending" | "error">("idle");
@@ -90,13 +103,13 @@ export function SolveButton({
         type="button"
         onClick={onClick}
         disabled={state === "pending" || !hasKey}
-        title={!hasKey ? "Add API keys in Crucible → API Keys" : "Estimated cost: ~$0.05–$0.15"}
+        title={!hasKey ? "Add API keys in Crucible → API Keys" : `Estimated cost: ~${estimateCost(repoSizeKb ?? 0)}`}
         className="text-[12px] text-paper border border-border bg-surface/60 hover:bg-surface px-2.5 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {!hasKey ? "no API key" : state === "pending" ? "dispatching…" : "deep solve"}
       </button>
       {hasKey && state === "idle" && (
-        <span className="text-[9px] text-paper-faint tabular-nums">est. ~$0.05–$0.15</span>
+        <span className="text-[9px] text-paper-faint tabular-nums">est. ~{estimateCost(repoSizeKb ?? 0)}</span>
       )}
       {state === "error" && error && (
         <span className="text-[10.5px] text-red-300 max-w-[220px] text-right">

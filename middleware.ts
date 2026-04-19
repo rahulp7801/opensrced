@@ -35,6 +35,7 @@ const PUBLIC_PATHS = [
   "/prs",
   "/repos",
   "/runs",
+  "/crucible",
 ];
 
 function isPublic(pathname: string): boolean {

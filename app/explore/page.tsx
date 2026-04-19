@@ -83,7 +83,7 @@ export default function ExplorePage() {
   useEffect(() => {
     fetch("/api/settings/keys")
       .then((r) => r.json())
-      .then((d: { anthropic?: boolean }) => setHasKey(Boolean(d.anthropic)))
+      .then((d: { anthropic?: boolean; gemini?: boolean }) => setHasKey(Boolean(d.anthropic) && Boolean(d.gemini)))
       .catch(() => {});
   }, []);
 

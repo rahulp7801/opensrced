@@ -18,8 +18,8 @@ export function ApiKeyGate() {
     }
     fetch("/api/settings/keys")
       .then((r) => r.json())
-      .then((d: { anthropic?: boolean }) => {
-        const has = Boolean(d.anthropic);
+      .then((d: { anthropic?: boolean; gemini?: boolean }) => {
+        const has = Boolean(d.anthropic) && Boolean(d.gemini);
         setHasKey(has);
         sessionStorage.setItem("opensrcer-has-key", has ? "1" : "0");
       })
@@ -31,9 +31,9 @@ export function ApiKeyGate() {
 
   return (
     <div className="border-b border-signal/40 bg-signal/5 px-4 py-2.5 flex items-center justify-center gap-3 text-[12px]">
-      <span className="text-signal font-medium">Anthropic API key required</span>
+      <span className="text-signal font-medium">API keys required</span>
       <span className="text-paper-muted">
-        — set one in
+        — add Anthropic + Gemini keys in
       </span>
       <Link
         href="/crucible"

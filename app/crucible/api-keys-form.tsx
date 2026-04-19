@@ -166,7 +166,7 @@ export function ApiKeysForm() {
           ) : status.gemini ? (
             <span className="text-[10.5px] text-ok border border-ok/30 px-1.5 py-0.5">configured</span>
           ) : (
-            <span className="text-[10.5px] text-paper-faint border border-border-soft px-1.5 py-0.5">optional</span>
+            <span className="text-[10.5px] text-alert border border-alert/30 px-1.5 py-0.5">required</span>
           )}
         </div>
         <div className="flex gap-2">

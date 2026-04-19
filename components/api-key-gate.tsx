@@ -10,9 +10,19 @@ export function ApiKeyGate() {
 
   useEffect(() => {
     if (!user) return;
+    // Check sessionStorage cache first to avoid API call on every navigation
+    const cached = sessionStorage.getItem("opensrcer-has-key");
+    if (cached !== null) {
+      setHasKey(cached === "1");
+      return;
+    }
     fetch("/api/settings/keys")
       .then((r) => r.json())
-      .then((d: { anthropic?: boolean }) => setHasKey(Boolean(d.anthropic)))
+      .then((d: { anthropic?: boolean }) => {
+        const has = Boolean(d.anthropic);
+        setHasKey(has);
+        sessionStorage.setItem("opensrcer-has-key", has ? "1" : "0");
+      })
       .catch(() => setHasKey(null));
   }, [user]);
 

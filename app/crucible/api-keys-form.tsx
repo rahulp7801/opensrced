@@ -51,6 +51,7 @@ export function ApiKeysForm() {
       setGeminiInput("");
       setMessage({ text: "Settings saved.", ok: true });
       toast("Settings saved", "ok");
+      sessionStorage.removeItem("opensrcer-has-key");
     } catch {
       setMessage({ text: "Failed to save.", ok: false });
     } finally {
@@ -73,6 +74,7 @@ export function ApiKeysForm() {
       setStatus(data);
       setMessage({ text: `${key} key cleared.`, ok: true });
       toast(`${key} key cleared`, "signal");
+      sessionStorage.removeItem("opensrcer-has-key");
     } catch {
       setMessage({ text: "Failed to clear.", ok: false });
     } finally {

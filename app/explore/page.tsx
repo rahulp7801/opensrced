@@ -46,13 +46,22 @@ export default function ExplorePage() {
     if (repoUrl.trim()) localStorage.setItem("opensrcer-explore-repo", repoUrl.trim());
   }, [repoUrl]);
 
-  // Fetch connected org repos for suggestions
-  useEffect(() => {
+  // Fetch connected org repos for suggestions — lazy, only on first focus
+  const suggestionsLoaded = useRef(false);
+  function loadSuggestions() {
+    if (suggestionsLoaded.current) return;
+    suggestionsLoaded.current = true;
+    // Check sessionStorage cache first
+    const cached = sessionStorage.getItem("opensrcer-explore-repos");
+    if (cached) {
+      try { setSuggestions(JSON.parse(cached)); return; } catch { /* ignore */ }
+    }
     fetch("/api/crucible/orgs")
       .then((r) => r.ok ? r.json() : null)
-      .then((data: Array<{ github_org: string }> | null) => {
-        if (!data || data.length === 0) return;
-        const orgFetches = data.map((o) =>
+      .then((data: { orgs?: Array<{ github_org: string }> } | null) => {
+        const orgs = data?.orgs ?? [];
+        if (orgs.length === 0) return;
+        const orgFetches = orgs.map((o) =>
           fetch(`/api/crucible/orgs/${o.github_org}/repos`)
             .then((r) => r.ok ? r.json() : { repos: [] })
             .then((d: { repos?: Array<{ fullName: string }> }) =>
@@ -60,10 +69,14 @@ export default function ExplorePage() {
             )
             .catch(() => [] as string[])
         );
-        Promise.all(orgFetches).then((lists) => setSuggestions(lists.flat()));
+        Promise.all(orgFetches).then((lists) => {
+          const all = lists.flat();
+          setSuggestions(all);
+          sessionStorage.setItem("opensrcer-explore-repos", JSON.stringify(all));
+        });
       })
       .catch(() => {});
-  }, []);
+  }
 
   // #5: Auto-focus query input
   useEffect(() => {
@@ -210,7 +223,7 @@ export default function ExplorePage() {
             type="text"
             value={repoUrl}
             onChange={(e) => { setRepoUrl(e.target.value); setShowSuggestions(true); }}
-            onFocus={() => setShowSuggestions(true)}
+            onFocus={() => { setShowSuggestions(true); loadSuggestions(); }}
             onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
             placeholder="github.com/owner/repo or owner/repo"
             className="w-full bg-surface border border-border px-3 py-2 text-[13px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50"

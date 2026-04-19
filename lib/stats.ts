@@ -208,6 +208,31 @@ async function starsForRepos(
   return out;
 }
 
+// Non-blocking star lookup — returns cached data immediately, triggers
+// background fetch for stale/missing repos. Never blocks the response.
+async function starsForReposCached(
+  repos: string[],
+): Promise<Record<string, number>> {
+  const cache = await loadStars();
+  const now = Date.now();
+  const out: Record<string, number> = {};
+  const stale: string[] = [];
+  for (const r of repos) {
+    const hit = cache[r];
+    if (hit) {
+      out[r] = hit.stars;
+      if (now - hit.checkedAt >= STARS_TTL_MS) stale.push(r);
+    } else {
+      stale.push(r);
+    }
+  }
+  // Fire-and-forget background fetch for stale/missing repos
+  if (stale.length > 0) {
+    starsForRepos(stale).catch(() => {});
+  }
+  return out;
+}
+
 // ── Public aggregator ───────────────────────────────────────────────────
 
 export type StatsSummary = {
@@ -251,10 +276,11 @@ export async function getStatsSummary(): Promise<StatsSummary> {
   const successRate = completed > 0 ? patchesGenerated / completed : 0;
   const prRate = completed > 0 ? prsCreated / completed : 0;
 
-  // Gather unique repos that produced a PR, look up stars, then pick the
-  // ones clearing the 1000★ bar. Sort desc by stars.
+  // Gather unique repos that produced a PR. Use cached stars only —
+  // never block the stats page on GitHub API calls. Stale/missing stars
+  // are fetched in the background for the next request.
   const prRepos = Array.from(new Set(prLogs.map((l) => l.repoFull).filter((r): r is string => !!r)));
-  const stars = prRepos.length > 0 ? await starsForRepos(prRepos) : {};
+  const stars = prRepos.length > 0 ? await starsForReposCached(prRepos) : {};
   const biggestContributions = prLogs
     .map((l) => ({
       prUrl: l.prUrl!,

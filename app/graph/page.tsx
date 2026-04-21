@@ -131,7 +131,7 @@ export default function GraphPage() {
     setResults([]);
 
     try {
-      const res = await fetch("/api/graph/build", {
+      const res = await fetch("/api/graph/generate", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ repo_url: repoUrl.trim(), force }),

@@ -23,6 +23,11 @@ import {
   readFileTool,
   repoInfo,
 } from "./tools.js";
+import {
+  traceFlowTool,
+  impactAnalysisTool,
+  explainAreaTool,
+} from "./graph.js";
 
 const server = new McpServer({
   name: "opensrcer-repo-tools",
@@ -144,6 +149,60 @@ server.tool(
   async (args) => {
     try {
       return textResult(await repoInfo(args));
+    } catch (e) {
+      return errorResult(e);
+    }
+  },
+);
+
+// ── Graph-powered tools (zero LLM cost) ───────────────────────────────
+// These query a graphify knowledge graph built via the /graph UI page.
+// They provide structural codebase understanding: call flows, blast
+// radius, and module overviews. The graph must be pre-built; if missing,
+// the tool returns an actionable error.
+
+server.tool(
+  "trace_flow",
+  "Trace execution flow from a function/symbol through its call chain. Uses the graphify knowledge graph (must be built first via the Graph page). Zero LLM cost.",
+  {
+    repo: repoArg,
+    symbol: z.string().describe("Function or symbol name to trace, e.g. 'handlePayment'."),
+  },
+  async (args) => {
+    try {
+      return textResult(await traceFlowTool(args.repo, args.symbol));
+    } catch (e) {
+      return errorResult(e);
+    }
+  },
+);
+
+server.tool(
+  "impact_analysis",
+  "Analyze the blast radius of changing a function/symbol — shows direct callers, indirect dependents, affected communities, and risk level. Zero LLM cost.",
+  {
+    repo: repoArg,
+    symbol: z.string().describe("Function or symbol to analyze impact for."),
+  },
+  async (args) => {
+    try {
+      return textResult(await impactAnalysisTool(args.repo, args.symbol));
+    } catch (e) {
+      return errorResult(e);
+    }
+  },
+);
+
+server.tool(
+  "explain_area",
+  "Explain a module/directory — shows key nodes, clusters, internal vs boundary edges, and relationship types. Zero LLM cost.",
+  {
+    repo: repoArg,
+    directory: z.string().describe("Directory or module path to explain, e.g. 'src/api' or 'lib'."),
+  },
+  async (args) => {
+    try {
+      return textResult(await explainAreaTool(args.repo, args.directory));
     } catch (e) {
       return errorResult(e);
     }

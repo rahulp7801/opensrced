@@ -1,5 +1,5 @@
 // POST /api/prs/reply
-// Posts a reply to a PR review comment or issue comment.
+// Posts a reply to a PR review comment or a general PR comment.
 
 import { NextRequest } from "next/server";
 import { execFile } from "node:child_process";
@@ -13,13 +13,17 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as {
     repo?: string;
+    pr_number?: number;
     comment_id?: number;
     body?: string;
     type?: "review" | "issue";
   };
 
-  if (!body.repo || !body.comment_id || !body.body) {
-    return Response.json({ error: "Missing repo, comment_id, or body" }, { status: 400 });
+  if (!body.repo || !body.body || !body.pr_number) {
+    return Response.json(
+      { error: "Missing repo, pr_number, or body" },
+      { status: 400 },
+    );
   }
 
   const token = await resolveGitHubToken();
@@ -29,31 +33,27 @@ export async function POST(req: NextRequest) {
   const env: NodeJS.ProcessEnv = { ...process.env, GH_TOKEN: token };
 
   try {
-    // Reply to a review comment (inline code comment)
-    if (body.type === "review") {
+    if (body.type === "review" && body.comment_id) {
+      // Reply to an inline review comment
       await execFileAsync(
         "gh",
         [
           "api",
           `repos/${body.repo}/pulls/comments/${body.comment_id}/replies`,
-          "-f", `body=${body.body}`,
+          "-f",
+          `body=${body.body}`,
         ],
         { env, maxBuffer: 1 * 1024 * 1024, windowsHide: true },
       );
     } else {
-      // Reply to an issue comment (general PR comment)
-      // We post a new issue comment since issue comments don't have threading
-      const prMatch = body.repo.match(/^([^/]+\/[^/]+)$/);
-      if (!prMatch) {
-        return Response.json({ error: "Invalid repo format" }, { status: 400 });
-      }
-      // Extract PR number from the original comment to post on the right issue
+      // Post a general comment on the PR (issue comment)
       await execFileAsync(
         "gh",
         [
           "api",
-          `repos/${body.repo}/issues/comments`,
-          "-f", `body=${body.body}`,
+          `repos/${body.repo}/issues/${body.pr_number}/comments`,
+          "-f",
+          `body=${body.body}`,
         ],
         { env, maxBuffer: 1 * 1024 * 1024, windowsHide: true },
       );

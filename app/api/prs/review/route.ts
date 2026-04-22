@@ -89,18 +89,19 @@ export async function GET(req: NextRequest) {
       created_at: string;
     }>;
 
-    // Filter out bots
-    const botLogins = new Set([
-      "azure-pipelines",
-      "github-actions",
-      "dependabot",
-      "copilot-pull-request-reviewer",
-      "coderabbitai",
-      "codecov",
-    ]);
+    // Filter out bots — match both exact names and [bot] suffix
+    function isBot(login: string): boolean {
+      if (login.endsWith("[bot]")) return true;
+      const botNames = new Set([
+        "azure-pipelines", "github-actions", "dependabot",
+        "copilot-pull-request-reviewer", "coderabbitai", "codecov",
+        "netlify", "vercel", "renovate", "sonarcloud",
+      ]);
+      return botNames.has(login.replace(/\[bot\]$/, ""));
+    }
 
     const reviewComments = rawComments
-      .filter((c) => !botLogins.has(c.user.login))
+      .filter((c) => !isBot(c.user.login))
       .map((c) => ({
         id: c.id,
         author: c.user.login,
@@ -113,12 +114,10 @@ export async function GET(req: NextRequest) {
         inReplyTo: c.in_reply_to_id ?? null,
       }));
 
+    // Show all non-bot issue comments (including from maintainers
+    // AND other contributors). Only filter out your own replies.
     const issueComments = rawIssueComments
-      .filter(
-        (c) =>
-          !botLogins.has(c.user.login) &&
-          c.user.login !== prData.author.login,
-      )
+      .filter((c) => !isBot(c.user.login))
       .map((c) => ({
         id: c.id,
         author: c.user.login,
@@ -129,6 +128,7 @@ export async function GET(req: NextRequest) {
         createdAt: c.created_at,
         type: "issue" as const,
         inReplyTo: null as number | null,
+        isOwnComment: c.user.login === prData.author.login,
       }));
 
     return Response.json({

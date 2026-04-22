@@ -15,6 +15,7 @@ type ReviewComment = {
   createdAt: string;
   type: "review" | "issue";
   inReplyTo: number | null;
+  isOwnComment?: boolean;
 };
 
 type PrInfo = {
@@ -292,6 +293,7 @@ export default function PrDetailPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           repo: repoFull,
+          pr_number: parseInt(prNumber),
           comment_id: comment.id,
           body: text,
           type: comment.type,
@@ -400,10 +402,11 @@ export default function PrDetailPage() {
             {comments.map((c) => {
               const replySt = replyStates.get(c.id);
               return (
-                <div key={c.id} className="border border-border bg-surface/40">
+                <div key={c.id} className={cn("border bg-surface/40", c.isOwnComment ? "border-border-soft opacity-60" : "border-border")}>
                   {/* Comment header */}
                   <div className="px-4 py-2 border-b border-border-soft flex items-center gap-2 flex-wrap">
                     <span className="text-[11px] text-paper font-medium">{c.author}</span>
+                    {c.isOwnComment && <span className="text-[9px] text-paper-faint border border-border px-1 py-0.5">you</span>}
                     <span className="text-[10px] text-paper-faint">
                       {new Date(c.createdAt).toLocaleDateString()} {new Date(c.createdAt).toLocaleTimeString()}
                     </span>

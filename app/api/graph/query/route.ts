@@ -266,7 +266,8 @@ async function tryCrgCommand(
 ): Promise<string | null> {
   const ql = query.toLowerCase().trim();
 
-  // Match: "impact <path>", "blast radius <path>", "what does <path> affect"
+  // Match any query that contains a file path (has a dot extension or slash separators).
+  // Commands like "impact X" are explicit; natural language like "what about X.cpp" also works.
   let filePath: string | null = null;
 
   if (ql.startsWith("impact ") || ql.startsWith("blast radius ")) {
@@ -276,8 +277,9 @@ async function tryCrgCommand(
   } else if (ql.startsWith("explain ")) {
     filePath = query.replace(/^explain\s+/i, "").trim();
   } else {
-    // Check for file path patterns in natural language
-    const pathMatch = query.match(/(?:impact|blast radius|affect|depends on|trace|explain)\s+(?:of\s+|for\s+)?[`"']?([^\s`"'?]+\.\w{1,5})[`"']?/i);
+    // Extract any file path from the query — anything with a file extension
+    // or directory separators (e.g. src/foo/bar.cpp, NativeLibrary.kt, utils.py)
+    const pathMatch = query.match(/[`"']?([^\s`"'?]*\/[^\s`"'?]+\.\w{1,5}|[A-Za-z_][\w.-]*\.\w{1,5})[`"']?/);
     if (pathMatch) filePath = pathMatch[1];
   }
 
@@ -445,9 +447,9 @@ async function getCrgSummary(owner: string, repo: string): Promise<string> {
       [scriptPath, repoDir],
       {
         env: { ...process.env, PYTHONPATH: pythonPath, PYTHONIOENCODING: "utf-8" },
-        maxBuffer: 5 * 1024 * 1024,
+        maxBuffer: 20 * 1024 * 1024,
         windowsHide: true,
-        timeout: 15_000,
+        timeout: 30_000,
       },
     );
 
@@ -455,7 +457,7 @@ async function getCrgSummary(owner: string, repo: string): Promise<string> {
       nodes?: number;
       edges?: number;
       files?: number;
-      top_files?: Array<{ file: string; nodes: number }>;
+      file_data?: Array<{ file: string; symbols: string[]; count: number }>;
       edge_kinds?: Record<string, number>;
       sample_edges?: string[];
       error?: string;
@@ -463,24 +465,36 @@ async function getCrgSummary(owner: string, repo: string): Promise<string> {
 
     if (data.error) return `Graph data unavailable: ${data.error}`;
 
-    const topFiles = (data.top_files ?? [])
-      .map((f) => `${f.file} (${f.nodes} symbols)`)
-      .join("; ");
+    const lines: string[] = [
+      `Codebase knowledge graph (code-review-graph): ${data.nodes ?? 0} nodes, ${data.edges ?? 0} edges, ${data.files ?? 0} files`,
+      "",
+      "ALL FILES AND SYMBOLS:",
+    ];
+
+    for (const fd of data.file_data ?? []) {
+      lines.push(`\n[${fd.file}] (${fd.count} nodes)`);
+      for (const sym of fd.symbols) {
+        lines.push(`  ${sym}`);
+      }
+    }
+
     const edgeKinds = Object.entries(data.edge_kinds ?? {})
       .map(([k, v]) => `${k}: ${v}`)
       .join(", ");
-    const edges = (data.sample_edges ?? []).join("\n");
+    lines.push("", `RELATIONSHIP TYPES: ${edgeKinds}`);
 
-    return [
-      `Codebase graph (code-review-graph): ${data.nodes ?? 0} nodes, ${data.edges ?? 0} edges, ${data.files ?? 0} files`,
-      "",
-      `Key files: ${topFiles}`,
-      "",
-      `Relationship types: ${edgeKinds}`,
-      "",
-      `Sample edges:\n${edges}`,
-    ].join("\n");
+    lines.push("", "EDGES:");
+    for (const e of data.sample_edges ?? []) {
+      lines.push(`  ${e}`);
+    }
+
+    // Cap at 100K chars
+    const full = lines.join("\n");
+    if (full.length > 100_000) {
+      return full.slice(0, 100_000) + "\n\n[... truncated, graph too large for full context]";
+    }
+    return full;
   } catch {
-    return "Graph summary unavailable";
+    return "Graph data unavailable";
   }
 }

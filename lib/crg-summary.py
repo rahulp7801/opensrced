@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Generate a compact summary of a code-review-graph database for LLM context.
+"""Generate a full context dump of a code-review-graph database for LLM.
 
 Usage: python crg-summary.py <repo_dir>
-Output: JSON with nodes, top files, relationships, communities.
+Output: JSON with all nodes grouped by file, all edge types, full structure.
 """
 import sys, os, json
 
@@ -20,55 +20,62 @@ def main():
     try:
         from code_review_graph.graph import GraphStore
         g = GraphStore(db_path)
-        stats = g.get_stats()
-        # get_stats returns a dataclass — try accessing fields
-        total_nodes = getattr(stats, 'nodes', 0) or getattr(stats, 'node_count', 0)
-        total_edges = getattr(stats, 'edges', 0) or getattr(stats, 'edge_count', 0)
-        if total_nodes == 0:
-            # Try counting directly
-            try:
-                all_nodes = g.get_all_nodes()
-                total_nodes = len(all_nodes)
-            except:
-                pass
-        if total_edges == 0:
-            all_edges_list = g.get_all_edges()
-            total_edges = len(all_edges_list) if hasattr(all_edges_list, '__len__') else 0
 
-        # Get top files by node count
         all_files = g.get_all_files()
-        file_node_counts = []
-        for f in all_files[:200]:  # cap for performance
+
+        # Build full node listing grouped by file
+        file_data = []
+        for f in all_files:
             nodes = g.get_nodes_by_file(f)
             rel_path = f
             if repo_dir in f:
-                rel_path = f[len(repo_dir):].lstrip("/\\")
-            file_node_counts.append({"file": rel_path, "nodes": len(nodes)})
-        file_node_counts.sort(key=lambda x: -x["nodes"])
+                rel_path = f[len(repo_dir):].lstrip("/\\").replace("\\", "/")
 
-        # Get some edges for relationship info
+            symbols = []
+            for n in nodes:
+                if n.kind != 'File':
+                    symbols.append(f"{n.name} ({n.kind})")
+
+            if symbols:
+                file_data.append({
+                    "file": rel_path,
+                    "symbols": symbols[:50],  # cap per file
+                    "count": len(nodes),
+                })
+
+        # Sort by symbol count descending
+        file_data.sort(key=lambda x: -x["count"])
+
+        # Get edge statistics
         all_edges = g.get_all_edges()
         edge_kinds = {}
         sample_edges = []
-        for e in all_edges[:500]:
-            kind = e.kind if hasattr(e, 'kind') else str(e)
+        for e in all_edges:
+            kind = e.kind if hasattr(e, 'kind') else "unknown"
             edge_kinds[kind] = edge_kinds.get(kind, 0) + 1
-            if len(sample_edges) < 20:
-                src = e.source_qualified if hasattr(e, 'source_qualified') else str(e)
-                tgt = e.target_qualified if hasattr(e, 'target_qualified') else str(e)
-                # Make paths relative
-                if repo_dir in src:
-                    src = src[len(repo_dir):].lstrip("/\\")
-                if repo_dir in tgt:
-                    tgt = tgt[len(repo_dir):].lstrip("/\\")
+
+        # Get sample edges with readable names
+        for e in all_edges[:200]:
+            src = getattr(e, 'source_qualified', '') or ''
+            tgt = getattr(e, 'target_qualified', '') or ''
+            kind = getattr(e, 'kind', '') or ''
+            # Make relative
+            if repo_dir in src:
+                src = src[len(repo_dir):].lstrip("/\\").replace("\\", "/")
+            if repo_dir in tgt:
+                tgt = tgt[len(repo_dir):].lstrip("/\\").replace("\\", "/")
+            if src and tgt:
                 sample_edges.append(f"{src} --[{kind}]--> {tgt}")
+
+        # Count totals
+        total_nodes = sum(fd["count"] for fd in file_data)
 
         json.dump({
             "nodes": total_nodes,
-            "edges": total_edges,
+            "edges": len(all_edges),
             "files": len(all_files),
-            "top_files": file_node_counts[:15],
-            "edge_kinds": dict(sorted(edge_kinds.items(), key=lambda x: -x[1])[:10]),
+            "file_data": file_data[:100],  # top 100 files
+            "edge_kinds": dict(sorted(edge_kinds.items(), key=lambda x: -x[1])),
             "sample_edges": sample_edges,
         }, sys.stdout)
 

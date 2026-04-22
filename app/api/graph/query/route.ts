@@ -72,7 +72,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // CRG-only or LLM fallback — all queries use AI
+    // CRG direct commands — handle blast radius / impact queries without LLM
+    if (hasCrgData) {
+      const crgResult = await tryCrgCommand(body.owner, body.repo, body.query);
+      if (crgResult) {
+        return Response.json({ result: crgResult, cost: 0, engine: "crg" });
+      }
+    }
+
+    // LLM fallback — all other queries use AI
     const apiKey = await resolveAnthropicKey();
     if (!apiKey) {
       const msg = engine === "crg"
@@ -245,6 +253,121 @@ ${summary}`;
       { error: err instanceof Error ? err.message : String(err) },
       { status: 500 },
     );
+  }
+}
+
+// ── CRG direct commands ───────────────────────────────────────────────
+// Handle impact/blast radius queries directly via CRG without LLM.
+
+async function tryCrgCommand(
+  owner: string,
+  repo: string,
+  query: string,
+): Promise<string | null> {
+  const ql = query.toLowerCase().trim();
+
+  // Match: "impact <path>", "blast radius <path>", "what does <path> affect"
+  let filePath: string | null = null;
+
+  if (ql.startsWith("impact ") || ql.startsWith("blast radius ")) {
+    filePath = query.replace(/^(?:impact|blast radius)\s+/i, "").trim();
+  } else if (ql.startsWith("trace ")) {
+    filePath = query.replace(/^trace\s+/i, "").trim();
+  } else if (ql.startsWith("explain ")) {
+    filePath = query.replace(/^explain\s+/i, "").trim();
+  } else {
+    // Check for file path patterns in natural language
+    const pathMatch = query.match(/(?:impact|blast radius|affect|depends on|trace|explain)\s+(?:of\s+|for\s+)?[`"']?([^\s`"'?]+\.\w{1,5})[`"']?/i);
+    if (pathMatch) filePath = pathMatch[1];
+  }
+
+  if (!filePath) return null;
+
+  // Clean up the path
+  filePath = filePath.replace(/[`"'?]/g, "").trim();
+  if (filePath.length < 3) return null;
+
+  const repoDir = graphCacheDir(owner, repo);
+  const scriptPath = join(process.cwd(), "lib", "crg-impact.py");
+  const pythonPath = process.env.CRG_PYTHONPATH ?? "C:/Users/rahul/crg-pkg";
+
+  try {
+    const { stdout } = await execFileAsync(
+      "python",
+      [scriptPath, repoDir, filePath],
+      {
+        env: { ...process.env, PYTHONPATH: pythonPath, PYTHONIOENCODING: "utf-8" },
+        maxBuffer: 5 * 1024 * 1024,
+        windowsHide: true,
+        timeout: 30_000,
+      },
+    );
+
+    const data = JSON.parse(stdout) as {
+      total_affected?: number;
+      changed_nodes?: number;
+      changed_labels?: string[];
+      affected_files?: string[];
+      affected_labels?: string[];
+      affected_file_count?: number;
+      truncated?: boolean;
+      detail?: string;
+      error?: string;
+    };
+
+    if (data.error) return null; // fall through to LLM
+
+    if (data.total_affected === 0) {
+      return `BLAST RADIUS: ${filePath}\n${"─".repeat(40)}\n${data.detail ?? "No downstream dependents found for this file."}\n\nThe file may be a leaf node with no callers, or it may not be indexed.`;
+    }
+
+    const lines: string[] = [
+      `BLAST RADIUS: ${filePath}`,
+      "─".repeat(40),
+      `Changed nodes: ${data.changed_nodes}`,
+      `Downstream dependents: ${data.total_affected}${data.truncated ? " (truncated)" : ""}`,
+      `Affected files: ${data.affected_file_count}`,
+      "",
+    ];
+
+    if (data.changed_labels && data.changed_labels.length > 0) {
+      lines.push("SYMBOLS IN THIS FILE:");
+      for (const l of data.changed_labels.slice(0, 10)) {
+        // Clean up absolute paths
+        const clean = l.replace(/C:\\[^(]+(\\[^(]+)/, (_, name) => name.replace(/\\/g, "/"));
+        lines.push(`  ${clean}`);
+      }
+      lines.push("");
+    }
+
+    if (data.affected_files && data.affected_files.length > 0) {
+      lines.push("AFFECTED FILES:");
+      for (const f of data.affected_files) {
+        // Make relative
+        const rel = f.replace(/.*graph-cache[/\\][^/\\]+[/\\]/, "").replace(/\\/g, "/");
+        lines.push(`  ${rel}`);
+      }
+      lines.push("");
+    }
+
+    if (data.affected_labels && data.affected_labels.length > 0) {
+      lines.push("AFFECTED SYMBOLS:");
+      for (const l of data.affected_labels.slice(0, 10)) {
+        lines.push(`  ${l}`);
+      }
+      if (data.affected_labels.length > 10) {
+        lines.push(`  ... and ${data.affected_labels.length - 10} more`);
+      }
+    }
+
+    const risk = (data.total_affected ?? 0) > 30 ? "HIGH" :
+      (data.total_affected ?? 0) > 10 ? "MEDIUM" : "LOW";
+    lines.push("", `RISK: ${risk}`);
+    lines.push("", "(code-review-graph, $0.00)");
+
+    return lines.join("\n");
+  } catch {
+    return null; // fall through to LLM
   }
 }
 

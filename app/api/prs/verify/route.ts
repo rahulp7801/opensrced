@@ -11,7 +11,8 @@
 
 import { NextRequest } from "next/server";
 import { existsSync } from "node:fs";
-import { graphJsonPath, loadGraph, impactAnalysis, type GraphData } from "@/lib/graph";
+import { graphJsonPath, loadGraph, type GraphData } from "@/lib/graph";
+import { ensureGraph } from "@/lib/graph-build";
 
 export const dynamic = "force-dynamic";
 
@@ -189,8 +190,36 @@ export async function POST(req: NextRequest) {
   if (body.repo) {
     const m = body.repo.match(/^([^/]+)\/([^/]+)$/);
     if (m) {
+      // Auto-build graph if it doesn't exist
       const gPath = graphJsonPath(m[1], m[2]);
-      if (existsSync(gPath)) {
+      if (!existsSync(gPath)) {
+        checks.push({
+          name: "Graph impact",
+          status: "warn",
+          detail: "Building knowledge graph for impact analysis (first time only)...",
+        });
+
+        const buildResult = await ensureGraph(m[1], m[2]);
+        // Remove the "building" placeholder
+        checks.pop();
+
+        if (buildResult.error) {
+          checks.push({
+            name: "Graph impact",
+            status: "warn",
+            detail: `Could not build graph: ${buildResult.error.slice(0, 150)}. Impact analysis skipped.`,
+          });
+        } else if (buildResult.built) {
+          checks.push({
+            name: "Graph build",
+            status: "pass",
+            detail: "Knowledge graph built automatically for this repo",
+          });
+        }
+      }
+
+      // Now try loading and analyzing
+      if (existsSync(graphJsonPath(m[1], m[2]))) {
         try {
           const graph = await loadGraph(m[1], m[2]);
           const impactResult = analyzeImpactFromDiff(graph, diff);
@@ -223,12 +252,6 @@ export async function POST(req: NextRequest) {
         } catch {
           // Graph load failed — skip silently
         }
-      } else {
-        checks.push({
-          name: "Graph impact",
-          status: "pass",
-          detail: "No knowledge graph cached for this repo. Build one on the Graph page for deeper analysis.",
-        });
       }
     }
   }

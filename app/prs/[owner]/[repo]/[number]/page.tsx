@@ -393,26 +393,39 @@ export default function PrDetailPage() {
         }),
       });
 
-      const reader = res.body?.getReader();
-      if (!reader) return;
-      const decoder = new TextDecoder();
-      let buffer = "";
+      const contentType = res.headers.get("content-type") ?? "";
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
+      // Cached response comes as JSON, not SSE
+      if (contentType.includes("application/json")) {
+        const data = (await res.json()) as { result?: string; error?: string };
+        setFixState((prev) => prev ? {
+          ...prev,
+          response: data.result ?? data.error ?? "",
+          status: data.error ? "error" : "done",
+        } : prev);
+      } else {
+        // Streaming SSE
+        const reader = res.body?.getReader();
+        if (!reader) return;
+        const decoder = new TextDecoder();
+        let buffer = "";
 
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const p = JSON.parse(line.slice(6)) as { text?: string; done?: boolean; error?: string };
-            if (p.text) setFixState((prev) => prev ? { ...prev, response: prev.response + p.text } : prev);
-            if (p.done) setFixState((prev) => prev ? { ...prev, status: "done" } : prev);
-            if (p.error) setFixState((prev) => prev ? { ...prev, response: p.error!, status: "error" } : prev);
-          } catch { /* skip */ }
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const p = JSON.parse(line.slice(6)) as { text?: string; done?: boolean; error?: string };
+              if (p.text) setFixState((prev) => prev ? { ...prev, response: prev.response + p.text } : prev);
+              if (p.done) setFixState((prev) => prev ? { ...prev, status: "done" } : prev);
+              if (p.error) setFixState((prev) => prev ? { ...prev, response: p.error!, status: "error" } : prev);
+            } catch { /* skip */ }
+          }
         }
       }
 

@@ -17,6 +17,7 @@ import {
   FALLBACK_SENTINEL,
 } from "@/lib/graph";
 import { resolveAnthropicKey } from "@/lib/api-keys";
+import { getCached, setCached } from "@/lib/llm-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -61,10 +62,21 @@ export async function POST(req: NextRequest) {
     }
 
     const summary = buildGraphSummary(graph);
+    const model = "claude-haiku-4-5-20251001";
     const systemPrompt = `You are a codebase analysis assistant. You have access to a knowledge graph of the ${body.owner}/${body.repo} GitHub repository. Answer the user's question using ONLY the graph data provided below. Be concise and specific — cite file paths and function names. If the graph data doesn't contain enough information to answer, say so honestly.
 
 GRAPH DATA:
 ${summary}`;
+
+    // Check cache first — return instant JSON if hit
+    const cached = await getCached(model, systemPrompt, body.query);
+    if (cached) {
+      return Response.json({
+        result: cached.response,
+        cost: 0,
+        cached: true,
+      });
+    }
 
     // Stream the response via SSE
     const encoder = new TextEncoder();
@@ -116,6 +128,7 @@ ${summary}`;
           let buf = "";
           let inputTokens = 0;
           let outputTokens = 0;
+          let fullResponse = "";
 
           while (true) {
             const { done, value } = await reader.read();
@@ -143,6 +156,7 @@ ${summary}`;
                   evt.delta?.type === "text_delta" &&
                   evt.delta.text
                 ) {
+                  fullResponse += evt.delta.text;
                   send({ text: evt.delta.text });
                 }
 
@@ -164,6 +178,11 @@ ${summary}`;
             (outputTokens * 4) / 1_000_000;
           send({ cost: Math.round(cost * 10000) / 10000 });
           send({ done: true, mode: "llm" });
+
+          // Cache the response for future identical queries
+          if (fullResponse) {
+            setCached(model, systemPrompt, body.query!, fullResponse, inputTokens, outputTokens).catch(() => {});
+          }
         } catch (err) {
           send({
             error:

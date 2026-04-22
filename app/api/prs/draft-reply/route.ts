@@ -4,6 +4,7 @@
 
 import { NextRequest } from "next/server";
 import { resolveAnthropicKey } from "@/lib/api-keys";
+import { getCached, setCached } from "@/lib/llm-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,15 @@ Rules:
 - Don't be defensive or overly apologetic
 - Don't use emojis`;
 
+  const model = "claude-haiku-4-5-20251001";
+  const userMsg = `Reviewer ${body.comment_author ?? "someone"} wrote:\n"${body.comment_body}"\n\nDraft a reply:`;
+
+  // Check cache first
+  const cached = await getCached(model, systemPrompt, userMsg);
+  if (cached) {
+    return Response.json({ result: cached.response, cached: true });
+  }
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
@@ -59,10 +69,7 @@ Rules:
             max_tokens: 300,
             system: systemPrompt,
             stream: true,
-            messages: [{
-              role: "user",
-              content: `Reviewer ${body.comment_author ?? "someone"} wrote:\n"${body.comment_body}"\n\nDraft a reply:`,
-            }],
+            messages: [{ role: "user", content: userMsg }],
           }),
         });
 
@@ -78,6 +85,7 @@ Rules:
 
         const decoder = new TextDecoder();
         let buf = "";
+        let fullResponse = "";
 
         while (true) {
           const { done, value } = await reader.read();
@@ -96,6 +104,7 @@ Rules:
                 delta?: { text?: string };
               };
               if (evt.type === "content_block_delta" && evt.delta?.text) {
+                fullResponse += evt.delta.text;
                 send({ text: evt.delta.text });
               }
             } catch { /* skip */ }
@@ -103,6 +112,11 @@ Rules:
         }
 
         send({ done: true });
+
+        // Cache for future identical queries
+        if (fullResponse) {
+          setCached(model, systemPrompt, userMsg, fullResponse, 0, 0).catch(() => {});
+        }
       } catch (err) {
         send({ error: err instanceof Error ? err.message : String(err) });
         send({ done: true });

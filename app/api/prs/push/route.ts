@@ -245,6 +245,9 @@ function normalizeDiff(raw: string): string {
     (_, path) => `+++ b/${path.replace(/^b\//, "")}`,
   );
 
+  // Ensure trailing newline — git apply requires it
+  if (!diff.endsWith("\n")) diff += "\n";
+
   return diff;
 }
 

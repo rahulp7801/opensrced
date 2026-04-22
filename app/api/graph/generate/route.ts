@@ -88,18 +88,65 @@ export async function POST(req: NextRequest) {
           send({ status: "cached", message: "Using cached clone." });
         }
 
-        // Step 2: Run graphify
+        // Step 2: Count files to decide which engine to use.
+        // Graphify works well up to ~800 files (produces HTML viz + query engine).
+        // Above that, it can crash or produce graphs too large for vis.js.
+        // code-review-graph handles any size via SQLite + capped traversal.
+        const FILE_CUTOFF = 800;
+        let fileCount = 0;
+        try {
+          const { execFileSync } = await import("node:child_process");
+          const out = execFileSync("git", ["-C", cacheDir, "ls-files"], {
+            maxBuffer: 50 * 1024 * 1024,
+            windowsHide: true,
+          }).toString();
+          fileCount = out.split("\n").filter(Boolean).length;
+        } catch {
+          // Can't count — default to graphify
+        }
+
+        send({
+          status: "progress",
+          message: `Detected ${fileCount} files. ${fileCount > FILE_CUTOFF ? `Using code-review-graph (large repo, >${FILE_CUTOFF} files).` : "Using graphify."}`,
+          phase: "detect",
+          percent: 5,
+        });
+
+        if (fileCount > FILE_CUTOFF) {
+          // Large repo — go straight to CRG, skip graphify entirely
+          send({
+            status: "progress",
+            message: "Building knowledge graph with code-review-graph (SQLite-backed, handles large repos)...",
+            phase: "crg",
+            percent: 10,
+          });
+
+          try {
+            const { buildCrg } = await import("@/lib/graph-build");
+            await buildCrg(cacheDir);
+            send({
+              status: "done",
+              message: `Knowledge graph built with code-review-graph (${fileCount} files).`,
+              owner,
+              repo: name,
+              engine: "crg",
+            });
+          } catch (crgErr) {
+            send({
+              error: `code-review-graph failed: ${crgErr instanceof Error ? crgErr.message : String(crgErr)}`,
+            });
+          }
+        } else {
+          // Small/medium repo — use graphify
         send({
           status: "graphifying",
           message:
-            "Building knowledge graph (AST analysis, zero LLM cost)...",
+            "Building knowledge graph with graphify (AST analysis, zero LLM cost)...",
+          phase: "ast",
+          percent: 10,
         });
 
         await new Promise<void>((resolve, reject) => {
-          // graphify's CLI command for building is `update <path>`.
-          // On Windows, use Python directly with a raised recursion limit
-          // (graphify's Leiden clustering exceeds Python's default 1000
-          // on repos with 500+ files).
           const useModule = process.platform === "win32";
           const cmd = useModule ? "python" : "graphify";
           const cmdArgs = useModule
@@ -242,6 +289,7 @@ export async function POST(req: NextRequest) {
             repo: name,
           });
         }
+        } // end else (small/medium repo — graphify path)
       } catch (err) {
         send({
           error: err instanceof Error ? err.message : String(err),

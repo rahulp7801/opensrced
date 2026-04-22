@@ -17,6 +17,7 @@ import {
   routeQuery,
   graphJsonPath,
   buildGraphSummary,
+  buildFullGraphContext,
   FALLBACK_SENTINEL,
 } from "@/lib/graph";
 import { hasCrg, graphCacheDir } from "@/lib/graph-build";
@@ -89,16 +90,21 @@ export async function POST(req: NextRequest) {
       return Response.json({ result: msg, cost: 0, engine });
     }
 
-    // Build a compact but useful summary for the LLM — not the full graph.
-    // File-specific queries are already handled by CRG/graphify commands
-    // above. The LLM only gets general questions, so it needs structure
-    // and key nodes, not every single edge.
+    // Decide whether the LLM needs the full graph or just a summary.
+    // Full graph: when the user asks about specific connections, dependencies,
+    //   data flow, specific functions/classes, or anything requiring precise
+    //   node/edge data to answer correctly.
+    // Summary: general architecture questions, "what does this repo do",
+    //   tech stack questions, high-level structure.
+    const needsFull = queryNeedsFullGraph(body.query);
+
     let graphContext: string;
     if (existsSync(jsonPath)) {
       const graph = await loadGraph(body.owner, body.repo);
-      graphContext = buildGraphSummary(graph);
+      graphContext = needsFull ? buildFullGraphContext(graph) : buildGraphSummary(graph);
     } else {
-      graphContext = await getCrgSummary(body.owner, body.repo);
+      // CRG — full dump is handled by getCrgSummary with a depth flag
+      graphContext = await getCrgSummary(body.owner, body.repo, needsFull);
     }
 
     // Compress the USER QUERY with LLMLingua-2 to reduce input tokens
@@ -257,6 +263,38 @@ ${graphContext}`;
       { status: 500 },
     );
   }
+}
+
+// ── Query depth classification ────────────────────────────────────────
+// Determines if a query needs full graph data or just a summary.
+
+function queryNeedsFullGraph(query: string): boolean {
+  const ql = query.toLowerCase();
+
+  // Needs full graph: questions about specific connections, dependencies,
+  // data flow, function relationships, "how does X connect to Y",
+  // "what calls X", "what depends on X", listing all of something
+  const fullPatterns = [
+    /\bconnect|relate|depend|import|call|reference|inherit/,
+    /\bdata flow|control flow|execution path/,
+    /\bhow does .+ (?:work|interact|communicate)/,
+    /\bwhat (?:calls|uses|imports|depends|references)/,
+    /\blist all|show all|every|all the/,
+    /\bspecific|exact|precise/,
+    /\bbetween .+ and/,
+    /\bwhere is .+ (?:used|called|defined|imported)/,
+    /\bwhich (?:files|functions|classes|modules) /,
+    /\bdependenc(?:y|ies)/,
+    /\bcoupling|cohesion/,
+    /\bentry point|main function|initialization/,
+    /\btest coverage|which tests/,
+  ];
+
+  for (const pat of fullPatterns) {
+    if (pat.test(ql)) return true;
+  }
+
+  return false;
 }
 
 // ── CRG direct commands ───────────────────────────────────────────────
@@ -439,7 +477,7 @@ with open(r'${inputPath.replace(/\\/g, "\\\\")}', 'r', encoding='utf-8') as f:
 
 // ── CRG summary for LLM context ──────────────────────────────────────
 
-async function getCrgSummary(owner: string, repo: string): Promise<string> {
+async function getCrgSummary(owner: string, repo: string, full = false): Promise<string> {
   const repoDir = graphCacheDir(owner, repo);
   const scriptPath = join(process.cwd(), "lib", "crg-summary.py");
   const pythonPath = process.env.CRG_PYTHONPATH ?? "C:/Users/rahul/crg-pkg";
@@ -447,7 +485,7 @@ async function getCrgSummary(owner: string, repo: string): Promise<string> {
   try {
     const { stdout } = await execFileAsync(
       "python",
-      [scriptPath, repoDir],
+      [scriptPath, repoDir, ...(full ? ["--full"] : [])],
       {
         env: { ...process.env, PYTHONPATH: pythonPath, PYTHONIOENCODING: "utf-8" },
         maxBuffer: 20 * 1024 * 1024,
@@ -468,10 +506,11 @@ async function getCrgSummary(owner: string, repo: string): Promise<string> {
 
     if (data.error) return `Graph data unavailable: ${data.error}`;
 
+    const heading = full ? "ALL FILES AND SYMBOLS" : "TOP FILES BY SYMBOL COUNT";
     const lines: string[] = [
-      `Codebase graph (code-review-graph): ${data.nodes ?? 0} nodes, ${data.edges ?? 0} edges, ${data.files ?? 0} files`,
+      `Codebase knowledge graph (code-review-graph): ${data.nodes ?? 0} nodes, ${data.edges ?? 0} edges, ${data.files ?? 0} files`,
       "",
-      "TOP FILES BY SYMBOL COUNT:",
+      `${heading}:`,
     ];
 
     for (const fd of data.top_files ?? []) {
@@ -486,12 +525,16 @@ async function getCrgSummary(owner: string, repo: string): Promise<string> {
       .join(", ");
     lines.push("", `RELATIONSHIP TYPES: ${edgeKinds}`);
 
-    lines.push("", "SAMPLE EDGES:");
+    lines.push("", `${full ? "ALL" : "SAMPLE"} EDGES:`);
     for (const e of data.sample_edges ?? []) {
       lines.push(`  ${e}`);
     }
 
-    return lines.join("\n");
+    const result = lines.join("\n");
+    if (result.length > 100_000) {
+      return result.slice(0, 100_000) + "\n\n[... truncated]";
+    }
+    return result;
   } catch {
     return "Graph data unavailable";
   }

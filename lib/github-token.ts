@@ -31,8 +31,28 @@ export async function getGitHubTokenFromSession(): Promise<string | null> {
 }
 
 // For use in API route handlers / server components where we have
-// request context (getSession works). No env fallback — the token
-// must come from the authenticated user's Auth0 session.
+// request context (getSession works). Falls back to GITHUB_TOKEN env
+// var and gh CLI keychain for local dev.
 export async function resolveGitHubToken(): Promise<string | null> {
-  return await getGitHubTokenFromSession();
+  // 1. Auth0 session
+  const sessionToken = await getGitHubTokenFromSession();
+  if (sessionToken) return sessionToken;
+
+  // 2. Environment variable
+  const envToken = process.env.GITHUB_TOKEN;
+  if (envToken && envToken.length > 0) return envToken;
+
+  // 3. gh CLI keychain
+  try {
+    const ghToken = execFileSync("gh", ["auth", "token"], {
+      stdio: "pipe",
+      timeout: 5000,
+      windowsHide: true,
+    }).toString().trim();
+    if (ghToken.length > 0) return ghToken;
+  } catch {
+    // gh not installed or not authenticated
+  }
+
+  return null;
 }

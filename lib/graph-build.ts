@@ -5,7 +5,9 @@
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { join } from "node:path";
 import { graphCacheDir, graphJsonPath } from "./graph";
+export { graphCacheDir };
 
 export async function ensureGraph(
   owner: string,
@@ -56,14 +58,23 @@ export async function ensureGraph(
 
     await execAsync(cmd, args, { cwd: cacheDir, timeout: 300_000 });
 
-    // Verify output was actually produced
+    // Verify graphify output was produced
     if (!existsSync(graphJsonPath(owner, repo))) {
-      return {
-        built: false,
-        cached: false,
-        error: "graphify completed but did not produce graph.json. Repo may be too large.",
-      };
+      // Graphify failed (large repo) — fall back to code-review-graph
+      try {
+        await buildCrg(cacheDir);
+        return { built: true, cached: false };
+      } catch {
+        return {
+          built: false,
+          cached: false,
+          error: "Both graphify and code-review-graph failed on this repo.",
+        };
+      }
     }
+
+    // Also build CRG for blast radius (it handles large repos better)
+    buildCrg(cacheDir).catch(() => {}); // best-effort, don't block
 
     return { built: true, cached: false };
   } catch (err) {
@@ -73,6 +84,23 @@ export async function ensureGraph(
       error: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+async function buildCrg(cwd: string): Promise<void> {
+  // code-review-graph build — uses SQLite, handles large repos
+  const pythonPath = process.env.CRG_PYTHONPATH ?? "C:/Users/rahul/crg-pkg";
+  await execAsync("python", [
+    "-c",
+    `import sys; sys.path.insert(0, r'${pythonPath}'); sys.argv=['code-review-graph','build']; from code_review_graph.cli import main; main()`,
+  ], { cwd, timeout: 300_000 });
+}
+
+export function crgDbPath(owner: string, repo: string): string {
+  return join(graphCacheDir(owner, repo), ".code-review-graph", "graph.db");
+}
+
+export function hasCrg(owner: string, repo: string): boolean {
+  return existsSync(crgDbPath(owner, repo));
 }
 
 function execAsync(

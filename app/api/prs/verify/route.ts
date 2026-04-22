@@ -12,7 +12,12 @@
 import { NextRequest } from "next/server";
 import { existsSync } from "node:fs";
 import { graphJsonPath, loadGraph, type GraphData } from "@/lib/graph";
-import { ensureGraph } from "@/lib/graph-build";
+import { ensureGraph, hasCrg, graphCacheDir } from "@/lib/graph-build";
+import { execFile } from "node:child_process";
+import { join } from "node:path";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 export const dynamic = "force-dynamic";
 
@@ -183,13 +188,56 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── 6. Graph impact analysis ─────────────────────────────────────────
-  // If a graphify knowledge graph exists for this repo, check what the
-  // changed functions connect to. Flags when a "small" diff touches a
-  // highly-connected node that has wide downstream impact.
+  // ── 6. Blast radius analysis ─────────────────────────────────────────
+  // Uses code-review-graph (preferred — defensive, capped traversal) or
+  // graphify (fallback) to check downstream impact of the change.
   if (body.repo) {
     const m = body.repo.match(/^([^/]+)\/([^/]+)$/);
     if (m) {
+      // Try code-review-graph first (handles large repos, SQLite-backed)
+      const crgAvailable = hasCrg(m[1], m[2]);
+      if (crgAvailable) {
+        try {
+          const crgResult = await runCrgImpact(m[1], m[2], diff);
+          if (crgResult.error === "no_graph") {
+            // CRG db exists but query failed — fall through to graphify
+          } else if (crgResult.error) {
+            checks.push({ name: "Blast radius", status: "warn", detail: `CRG error: ${crgResult.error}` });
+          } else if (crgResult.total_affected === 0) {
+            checks.push({
+              name: "Blast radius",
+              status: "pass",
+              detail: `No downstream dependents found for changed files (code-review-graph)`,
+            });
+          } else if (crgResult.total_affected <= 10) {
+            checks.push({
+              name: "Blast radius",
+              status: "pass",
+              detail: `${crgResult.total_affected} downstream dependent(s) across ${crgResult.affected_file_count} file(s): ${(crgResult.affected_labels ?? []).slice(0, 5).join(", ")} (code-review-graph)`,
+            });
+          } else if (crgResult.total_affected <= 30) {
+            checks.push({
+              name: "Blast radius",
+              status: "warn",
+              detail: `${crgResult.total_affected} downstream dependents across ${crgResult.affected_file_count} file(s). Top: ${(crgResult.affected_labels ?? []).slice(0, 5).join(", ")}. Review carefully. (code-review-graph)`,
+            });
+          } else {
+            checks.push({
+              name: "Blast radius",
+              status: "fail",
+              detail: `HIGH IMPACT: ${crgResult.total_affected} downstream dependents across ${crgResult.affected_file_count} file(s). This is a wide-reaching change. (code-review-graph)`,
+            });
+          }
+        } catch {
+          // CRG failed — fall through to graphify
+        }
+      }
+
+      // If CRG didn't produce a result, try graphify
+      const hasCrgCheck = checks.some((c) => c.name === "Blast radius");
+      if (hasCrgCheck) {
+        // Already have a result — skip graphify
+      } else {
       // Auto-build graph if it doesn't exist
       const gPath = graphJsonPath(m[1], m[2]);
       if (!existsSync(gPath)) {
@@ -253,6 +301,7 @@ export async function POST(req: NextRequest) {
           // Graph load failed — skip silently
         }
       }
+      } // close else (no CRG result)
     }
   }
 
@@ -276,7 +325,50 @@ export async function POST(req: NextRequest) {
   });
 }
 
-// ── Graph impact helpers ──────────────────────────────────────────────
+// ── CRG blast radius helper ───────────────────────────────────────────
+
+type CrgResult = {
+  total_affected: number;
+  changed_nodes: number;
+  affected_files: string[];
+  affected_labels: string[];
+  affected_file_count: number;
+  error?: string;
+  detail?: string;
+};
+
+async function runCrgImpact(
+  owner: string,
+  repo: string,
+  diff: string,
+): Promise<CrgResult> {
+  // Extract changed file paths from the diff
+  const changedFiles = [...diff.matchAll(/^\+\+\+ (?:b\/)?(\S+)/gm)]
+    .map((m) => m[1]);
+
+  if (changedFiles.length === 0) {
+    return { total_affected: 0, changed_nodes: 0, affected_files: [], affected_labels: [], affected_file_count: 0 };
+  }
+
+  const repoDir = graphCacheDir(owner, repo);
+  const scriptPath = join(process.cwd(), "lib", "crg-impact.py");
+  const pythonPath = process.env.CRG_PYTHONPATH ?? "C:/Users/rahul/crg-pkg";
+
+  const { stdout } = await execFileAsync(
+    "python",
+    [scriptPath, repoDir, ...changedFiles],
+    {
+      env: { ...process.env, PYTHONPATH: pythonPath, PYTHONIOENCODING: "utf-8" },
+      maxBuffer: 5 * 1024 * 1024,
+      windowsHide: true,
+      timeout: 30_000,
+    },
+  );
+
+  return JSON.parse(stdout) as CrgResult;
+}
+
+// ── Graphify impact helpers ──────────────────────────────────────────
 
 type ImpactResult = {
   totalAffected: number;

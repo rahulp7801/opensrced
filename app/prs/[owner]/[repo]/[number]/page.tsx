@@ -149,6 +149,7 @@ export default function PrDetailPage() {
         diff,
         comment_body: comment?.body ?? null,
         file_path: comment?.path ?? null,
+        repo: repoFull,
       }),
     })
       .then((r) => r.json())

@@ -43,8 +43,10 @@ export async function POST(req: NextRequest) {
 
   const jsonPath = graphJsonPath(body.owner, body.repo);
   const hasCrgData = hasCrg(body.owner, body.repo);
+  const hasGraphify = existsSync(jsonPath);
+  const engine = hasGraphify ? "graphify" : hasCrgData ? "crg" : null;
 
-  if (!existsSync(jsonPath) && !hasCrgData) {
+  if (!engine) {
     return Response.json(
       { error: "Graph not built yet. Click 'Build Graph' first." },
       { status: 404 },
@@ -52,23 +54,23 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // If graphify data exists, use it for command-based queries
-    if (existsSync(jsonPath)) {
+    // If graphify data exists, try free graph commands first
+    if (hasGraphify) {
       const graph = await loadGraph(body.owner, body.repo);
       const result = routeQuery(graph, body.query);
 
       if (!result.startsWith(FALLBACK_SENTINEL)) {
-        return Response.json({ result, cost: 0 });
+        return Response.json({ result, cost: 0, engine: "graphify" });
       }
     }
 
-    // LLM fallback — build context from whichever engine has data
+    // CRG-only or LLM fallback — all queries use AI
     const apiKey = await resolveAnthropicKey();
     if (!apiKey) {
-      return Response.json({
-        result: `${FALLBACK_SENTINEL} Type "help" for available commands, or configure an Anthropic API key for AI-powered answers.`,
-        cost: 0,
-      });
+      const msg = engine === "crg"
+        ? "This repo uses code-review-graph (large repo mode). All queries require an Anthropic API key since free graph commands are not available."
+        : `${FALLBACK_SENTINEL} Type "help" for available commands, or configure an Anthropic API key for AI-powered answers.`;
+      return Response.json({ result: msg, cost: 0, engine });
     }
 
     // Build summary from graphify (preferred) or CRG (fallback)

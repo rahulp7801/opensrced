@@ -15,6 +15,7 @@ type QueryResult = {
 };
 
 type BuildStatus = "idle" | "building" | "ready" | "error";
+type GraphEngine = "graphify" | "crg" | null;
 
 type BuildMessage = {
   text: string;
@@ -41,6 +42,7 @@ export default function GraphPage() {
   const [repo, setRepo] = useState("");
   const [buildStatus, setBuildStatus] = useState<BuildStatus>("idle");
   const [buildMessages, setBuildMessages] = useState<BuildMessage[]>([]);
+  const [engine, setEngine] = useState<GraphEngine>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<QueryResult[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -77,7 +79,10 @@ export default function GraphPage() {
     setRepo(m.name);
     fetch(`/api/graph/${m.owner}/${m.name}/viz`, { method: "HEAD" })
       .then((r) => {
-        if (r.ok) setBuildStatus("ready");
+        if (r.ok) {
+          setBuildStatus("ready");
+          setEngine((r.headers.get("X-Graph-Engine") as GraphEngine) ?? "graphify");
+        }
       })
       .catch(() => {});
   }, [repoUrl]);
@@ -165,6 +170,7 @@ export default function GraphPage() {
               error?: string;
               percent?: number;
               phase?: string;
+              engine?: string;
             };
             if (payload.message) {
               setBuildMessages((prev) => [
@@ -178,6 +184,7 @@ export default function GraphPage() {
             }
             if (payload.status === "done") {
               setBuildStatus("ready");
+              setEngine((payload.engine as GraphEngine) ?? "graphify");
             }
             if (payload.error) {
               setBuildMessages((prev) => [
@@ -500,7 +507,7 @@ export default function GraphPage() {
           <div className="xl:w-[55%] min-h-[300px] xl:min-h-0 border border-border bg-ink/30 relative flex flex-col">
             <div className="flex items-center justify-between px-3 py-1.5 border-b border-border-soft bg-ink/50">
               <span className="text-[10px] text-paper-faint uppercase tracking-[0.15em]">
-                interactive graph — {owner}/{repo}
+                {engine === "crg" ? "code-review-graph" : "interactive graph"} — {owner}/{repo}
               </span>
               <a
                 href={`/api/graph/${owner}/${repo}/viz`}
@@ -523,15 +530,12 @@ export default function GraphPage() {
             {/* Quick actions */}
             <div className="flex flex-wrap gap-1.5 mb-3">
               <span className="text-[10px] text-paper-faint uppercase tracking-[0.1em] self-center mr-1">
-                quick:
+                {engine === "crg" ? "ask:" : "quick:"}
               </span>
-              {[
-                "help",
-                "stats",
-                "god nodes",
-                "recent",
-                "explain src",
-              ].map((cmd) => (
+              {(engine === "crg"
+                ? ["what is the architecture?", "what are the main modules?", "how is this codebase structured?"]
+                : ["help", "stats", "god nodes", "recent", "explain src"]
+              ).map((cmd) => (
                 <button
                   key={cmd}
                   onClick={() => quickQuery(cmd)}
@@ -553,21 +557,35 @@ export default function GraphPage() {
                   <div className="serif text-[18px] text-paper">
                     Query the knowledge graph
                   </div>
-                  <p className="mt-2 text-[11px] text-paper-muted max-w-md mx-auto">
-                    Try: &quot;trace handlePayment&quot; or
-                    &quot;impact UserService&quot; or &quot;explain
-                    src/api&quot; or &quot;path auth to billing&quot;
-                  </p>
-                  <p className="mt-1.5 text-[10px] text-paper-faint">
-                    Type{" "}
-                    <button
-                      onClick={() => quickQuery("help")}
-                      className="text-signal hover:underline"
-                    >
-                      help
-                    </button>
-                    {" "}for all commands and examples (free). Plain English questions use AI (~$0.001).
-                  </p>
+                  {engine === "crg" ? (
+                    <>
+                      <p className="mt-2 text-[11px] text-paper-muted max-w-md mx-auto">
+                        This repo uses code-review-graph (large repo mode).
+                        Ask any question in plain English about the codebase.
+                      </p>
+                      <p className="mt-1.5 text-[10px] text-signal">
+                        All queries use AI (~$0.001 each). Free graph commands are not available for large repos.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="mt-2 text-[11px] text-paper-muted max-w-md mx-auto">
+                        Try: &quot;trace handlePayment&quot; or
+                        &quot;impact UserService&quot; or &quot;explain
+                        src/api&quot; or &quot;path auth to billing&quot;
+                      </p>
+                      <p className="mt-1.5 text-[10px] text-paper-faint">
+                        Type{" "}
+                        <button
+                          onClick={() => quickQuery("help")}
+                          className="text-signal hover:underline"
+                        >
+                          help
+                        </button>
+                        {" "}for all commands and examples (free). Plain English questions use AI (~$0.001).
+                      </p>
+                    </>
+                  )}
                 </div>
               )}
 

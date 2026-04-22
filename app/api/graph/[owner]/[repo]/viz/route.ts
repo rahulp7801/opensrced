@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { graphHtmlPath, graphJsonPath } from "@/lib/graph";
+import { hasCrg } from "@/lib/graph-build";
 
 export const dynamic = "force-dynamic";
 
@@ -61,8 +62,15 @@ export async function HEAD(
 ) {
   const { owner, repo } = await params;
 
-  if (existsSync(graphHtmlPath(owner, repo)) || existsSync(graphJsonPath(owner, repo))) {
-    return new Response(null, { status: 200 });
+  const hasGraphify = existsSync(graphHtmlPath(owner, repo)) || existsSync(graphJsonPath(owner, repo));
+  const hasCrgData = hasCrg(owner, repo);
+
+  if (hasGraphify || hasCrgData) {
+    const engine = hasGraphify ? "graphify" : "crg";
+    return new Response(null, {
+      status: 200,
+      headers: { "X-Graph-Engine": engine },
+    });
   }
 
   return new Response(null, { status: 404 });

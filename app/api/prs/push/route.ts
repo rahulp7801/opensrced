@@ -80,15 +80,17 @@ export async function POST(req: NextRequest) {
     let applied = false;
 
     // Strategy A: try as a git-apply unified diff
-    const diffPath = join(tmpDir, "__fix.patch");
+    // Write patch file OUTSIDE the repo to avoid it getting staged
+    const patchDir = await mkdtemp(join(tmpdir(), "opensrcer-patch-"));
+    const diffPath = join(patchDir, "fix.patch");
     const fixedDiff = normalizeDiff(body.diff);
     await writeFile(diffPath, fixedDiff);
 
     const gitApplyStrategies = [
-      ["apply", "__fix.patch"],
-      ["apply", "--ignore-whitespace", "__fix.patch"],
-      ["apply", "--3way", "__fix.patch"],
-      ["apply", "--3way", "--ignore-whitespace", "__fix.patch"],
+      ["apply", diffPath],
+      ["apply", "--ignore-whitespace", diffPath],
+      ["apply", "--3way", diffPath],
+      ["apply", "--3way", "--ignore-whitespace", diffPath],
     ];
 
     for (const args of gitApplyStrategies) {
@@ -104,7 +106,7 @@ export async function POST(req: NextRequest) {
     // Strategy B: if git apply failed, try GNU patch with fuzz
     if (!applied) {
       try {
-        await run("patch", ["-p1", "--fuzz=3", "-i", "__fix.patch"], {
+        await run("patch", ["-p1", "--fuzz=3", "--no-backup-if-mismatch", "-i", diffPath], {
           cwd: tmpDir,
           env,
         });
@@ -112,7 +114,7 @@ export async function POST(req: NextRequest) {
       } catch {
         // try without -p1
         try {
-          await run("patch", ["-p0", "--fuzz=3", "-i", "__fix.patch"], {
+          await run("patch", ["-p0", "--fuzz=3", "--no-backup-if-mismatch", "-i", diffPath], {
             cwd: tmpDir,
             env,
           });
@@ -138,6 +140,26 @@ export async function POST(req: NextRequest) {
         },
         { status: 422 },
       );
+    }
+
+    // Clean up patch dir
+    rm(patchDir, { recursive: true, force: true }).catch(() => {});
+
+    // Remove any junk files that may have been created by patch/apply
+    const junkPatterns = ["__fix.patch", "*.orig", "*.rej"];
+    for (const pattern of junkPatterns) {
+      try {
+        const { globSync } = await import("node:fs");
+        // Simple cleanup — delete known junk extensions
+        const { readdirSync, unlinkSync } = await import("node:fs");
+        const files = readdirSync(tmpDir, { recursive: true, encoding: "utf8" }) as string[];
+        for (const f of files) {
+          if (f.endsWith(".orig") || f.endsWith(".rej") || f === "__fix.patch") {
+            try { unlinkSync(join(tmpDir, f)); } catch { /* ignore */ }
+          }
+        }
+      } catch { /* ignore */ }
+      break; // only need to run once
     }
 
     // 3. Stage all changes

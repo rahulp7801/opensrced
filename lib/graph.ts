@@ -666,6 +666,43 @@ function nodeInfo(graph: GraphData, query: string): string {
 
 // ── Graph summary for LLM context ─────────────────────────────────────
 
+export function buildFullGraphContext(graph: GraphData): string {
+  const moduleNames = buildModuleMap(graph);
+  const lines: string[] = [
+    `Codebase knowledge graph: ${graph.nodes.length} nodes, ${graph.links.length} edges`,
+    "",
+    "ALL NODES:",
+  ];
+
+  // Group nodes by module for readability
+  const modGroups = new Map<number, GraphNode[]>();
+  for (const n of graph.nodes) {
+    const list = modGroups.get(n.community) ?? [];
+    list.push(n);
+    modGroups.set(n.community, list);
+  }
+
+  for (const [cid, nodes] of [...modGroups.entries()].sort((a, b) => b[1].length - a[1].length)) {
+    const name = moduleNames.get(cid) ?? `module-${cid}`;
+    lines.push(`\n[${name}]`);
+    for (const n of nodes) {
+      lines.push(`  ${n.label} | ${n.file_type} | ${n.source_file}${n.source_location ? `:${n.source_location}` : ""}`);
+    }
+  }
+
+  lines.push("", "ALL EDGES:");
+  for (const e of graph.links) {
+    lines.push(`  ${e.source} --[${e.relation}]--> ${e.target} (${e.confidence})`);
+  }
+
+  // Cap at 100K chars to stay within context limits
+  const full = lines.join("\n");
+  if (full.length > 100_000) {
+    return full.slice(0, 100_000) + "\n\n[... truncated, graph too large for full context]";
+  }
+  return full;
+}
+
 export function buildGraphSummary(graph: GraphData): string {
   const moduleNames = buildModuleMap(graph);
   const degrees = new Map<string, number>();

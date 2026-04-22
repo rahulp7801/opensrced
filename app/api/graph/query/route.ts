@@ -16,7 +16,7 @@ import {
   loadGraph,
   routeQuery,
   graphJsonPath,
-  buildGraphSummary,
+  buildFullGraphContext,
   FALLBACK_SENTINEL,
 } from "@/lib/graph";
 import { hasCrg, graphCacheDir } from "@/lib/graph-build";
@@ -89,13 +89,13 @@ export async function POST(req: NextRequest) {
       return Response.json({ result: msg, cost: 0, engine });
     }
 
-    // Build summary from graphify (preferred) or CRG (fallback)
-    let summary: string;
+    // Build full graph context from graphify (preferred) or CRG (fallback)
+    let graphContext: string;
     if (existsSync(jsonPath)) {
       const graph = await loadGraph(body.owner, body.repo);
-      summary = buildGraphSummary(graph);
+      graphContext = buildFullGraphContext(graph);
     } else {
-      summary = await getCrgSummary(body.owner, body.repo);
+      graphContext = await getCrgSummary(body.owner, body.repo);
     }
 
     // Compress the USER QUERY with LLMLingua-2 to reduce input tokens
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
     const systemPrompt = `You are a codebase analysis assistant. You have access to a knowledge graph of the ${body.owner}/${body.repo} GitHub repository. Answer the user's question using ONLY the graph data provided below. Be concise and specific — cite file paths and function names. If the graph data doesn't contain enough information to answer, say so honestly.
 
 GRAPH DATA:
-${summary}`;
+${graphContext}`;
 
     // Check cache first — return instant JSON if hit
     const cached = await getCached(model, systemPrompt, userQuery);

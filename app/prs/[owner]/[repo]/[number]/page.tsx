@@ -103,6 +103,9 @@ export default function PrDetailPage() {
   const [askInput, setAskInput] = useState("");
   const [askMessages, setAskMessages] = useState<Array<{ role: "user" | "ai"; text: string }>>([]);
   const [askLoading, setAskLoading] = useState(false);
+  const [followUpComment, setFollowUpComment] = useState("");
+  const [followUpGenerating, setFollowUpGenerating] = useState(false);
+  const [followUpSent, setFollowUpSent] = useState(false);
   const [replyStates, setReplyStates] = useState<Map<number, ReplyState>>(new Map());
   const [replyTexts, setReplyTexts] = useState<Map<number, string>>(new Map());
   const [showReplyFor, setShowReplyFor] = useState<number | null>(null);
@@ -446,6 +449,78 @@ export default function PrDetailPage() {
         prev ? { ...prev, response: err instanceof Error ? err.message : "Error", status: "error" } : prev,
       );
     }
+  }
+
+  // ── Generate follow-up comment ─────────────────────────────────────
+
+  async function handleGenerateFollowUp() {
+    if (!fixState?.response || followUpGenerating) return;
+    setFollowUpGenerating(true);
+    setFollowUpComment("");
+
+    try {
+      const res = await fetch("/api/prs/draft-reply", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          repo: repoFull,
+          pr_title: pr?.title,
+          comment_body: `I just pushed a follow-up commit to this PR. Here is the diff and explanation:\n\n${fixState.response.slice(0, 4000)}\n\nPlease write a detailed but concise PR comment I can post explaining:\n1. What this commit changes and why\n2. The technical reasoning behind the approach\n3. Any caveats or things the reviewer should know\n\nWrite it as if I'm the author explaining my own commit to the reviewer. Use first person. Do not mention AI or automation.`,
+          comment_author: "me",
+        }),
+      });
+
+      const contentType = res.headers.get("content-type") ?? "";
+      if (contentType.includes("application/json")) {
+        const data = (await res.json()) as { result?: string };
+        setFollowUpComment(data.result ?? "");
+      } else {
+        const reader = res.body?.getReader();
+        if (!reader) return;
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let text = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const p = JSON.parse(line.slice(6)) as { text?: string };
+              if (p.text) { text += p.text; setFollowUpComment(text); }
+            } catch { /* skip */ }
+          }
+        }
+      }
+    } catch {
+      setFollowUpComment("Failed to generate comment.");
+    } finally {
+      setFollowUpGenerating(false);
+    }
+  }
+
+  async function handleSendFollowUp() {
+    if (!followUpComment.trim()) return;
+    setFollowUpSent(false);
+
+    try {
+      const res = await fetch("/api/prs/reply", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          repo: repoFull,
+          pr_number: parseInt(prNumber),
+          body: followUpComment.trim(),
+          type: "issue",
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) setFollowUpSent(true);
+    } catch { /* failed */ }
   }
 
   // ── Ask about the change ───────────────────────────────────────────
@@ -891,6 +966,56 @@ export default function PrDetailPage() {
                   {pushMessage && (
                     <div className={cn("mt-2 text-[11px]", pushState === "error" ? "text-alert" : "text-ok")}>{pushMessage}</div>
                   )}
+
+                  {/* Follow-up comment */}
+                  <div className="mt-3 pt-3 border-t border-border-soft">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-[10px] text-paper-faint uppercase tracking-[0.1em]">
+                        follow-up comment
+                      </span>
+                      <button
+                        onClick={handleGenerateFollowUp}
+                        disabled={followUpGenerating || followUpSent}
+                        className="text-[10px] text-info border border-info/30 hover:bg-info/10 px-2 py-0.5 transition disabled:opacity-50"
+                      >
+                        {followUpGenerating ? "drafting..." : followUpComment ? "regenerate" : "draft with AI"}
+                      </button>
+                      <span className="text-[9px] text-paper-faint">
+                        Explains the commit reasoning to the reviewer
+                      </span>
+                    </div>
+
+                    {(followUpComment || followUpGenerating) && (
+                      <>
+                        <textarea
+                          value={followUpComment}
+                          onChange={(e) => setFollowUpComment(e.target.value)}
+                          disabled={followUpGenerating || followUpSent}
+                          rows={5}
+                          className="w-full bg-surface border border-border px-3 py-2 text-[12px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-info/50 disabled:opacity-50 resize-y"
+                          placeholder="Generating comment..."
+                        />
+                        <div className="mt-2 flex items-center gap-2">
+                          <button
+                            onClick={handleSendFollowUp}
+                            disabled={!followUpComment.trim() || followUpGenerating || followUpSent}
+                            className={cn(
+                              "px-3 py-1 text-[10px] uppercase tracking-[0.12em] transition",
+                              followUpSent
+                                ? "border border-ok/50 bg-ok/10 text-ok"
+                                : "border border-info/50 bg-info/10 text-info hover:bg-info/20",
+                              "disabled:opacity-50 disabled:cursor-not-allowed",
+                            )}
+                          >
+                            {followUpSent ? "sent" : "post comment to PR"}
+                          </button>
+                          <span className="text-[9px] text-paper-faint">
+                            {followUpSent ? "Comment posted on GitHub" : "Posts as a comment on the PR thread"}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

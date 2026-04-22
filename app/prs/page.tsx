@@ -166,7 +166,8 @@ export default function PRsPage() {
                   {githubPrs.map((pr) => (
                     <tr
                       key={`${pr.repo}#${pr.number}`}
-                      className="group border-b border-border-soft last:border-0 transition-colors hover:bg-surface-2/60"
+                      onClick={() => window.location.href = `/prs/${pr.repo}/${pr.number}`}
+                      className="group border-b border-border-soft last:border-0 transition-colors hover:bg-surface-2/60 cursor-pointer"
                     >
                       <td className="px-3 py-2.5 text-paper-dim max-w-[200px] truncate">
                         {pr.repo}
@@ -187,16 +188,11 @@ export default function PRsPage() {
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         <div className="flex items-center justify-end gap-3">
-                          <Link
-                            href={`/prs/${pr.repo}/${pr.number}`}
-                            className="text-[10px] text-signal border border-signal/30 hover:bg-signal/10 px-1.5 py-0.5 transition"
-                          >
-                            review
-                          </Link>
                           <a
                             href={pr.url}
                             target="_blank"
                             rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
                             className="text-paper-muted hover:text-signal text-[11px]"
                           >
                             #{pr.number} ↗

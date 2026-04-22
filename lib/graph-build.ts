@@ -4,8 +4,8 @@
 
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { graphCacheDir, graphJsonPath } from "./graph";
-import { resolveGitHubToken } from "./github-token";
 
 export async function ensureGraph(
   owner: string,
@@ -24,11 +24,15 @@ export async function ensureGraph(
     if (!existsSync(`${cacheDir}/.git`)) {
       mkdirSync(cacheDir, { recursive: true });
 
-      let token: string | null = null;
-      try {
-        token = await resolveGitHubToken();
-      } catch {
-        // No token — try anonymous clone
+      // Resolve token without cookies (this runs outside request context).
+      // Check env var first, then gh CLI.
+      let token: string | null = process.env.GITHUB_TOKEN ?? null;
+      if (!token) {
+        try {
+          token = execFileSync("gh", ["auth", "token"], {
+            stdio: "pipe", timeout: 5000, windowsHide: true,
+          }).toString().trim() || null;
+        } catch { /* no gh CLI */ }
       }
 
       const cloneUrl = token

@@ -99,6 +99,10 @@ export default function PrDetailPage() {
   const [commitMsg, setCommitMsg] = useState("address review feedback");
   const [verifyResult, setVerifyResult] = useState<VerifyResult>(null);
   const [verifying, setVerifying] = useState(false);
+  const [askOpen, setAskOpen] = useState(false);
+  const [askInput, setAskInput] = useState("");
+  const [askMessages, setAskMessages] = useState<Array<{ role: "user" | "ai"; text: string }>>([]);
+  const [askLoading, setAskLoading] = useState(false);
   const [replyStates, setReplyStates] = useState<Map<number, ReplyState>>(new Map());
   const [replyTexts, setReplyTexts] = useState<Map<number, string>>(new Map());
   const [showReplyFor, setShowReplyFor] = useState<number | null>(null);
@@ -444,6 +448,68 @@ export default function PrDetailPage() {
     }
   }
 
+  // ── Ask about the change ───────────────────────────────────────────
+
+  async function handleAsk() {
+    if (!askInput.trim() || !fixState?.response || askLoading) return;
+    const question = askInput.trim();
+    setAskInput("");
+    setAskMessages((prev) => [...prev, { role: "user", text: question }]);
+    setAskLoading(true);
+
+    try {
+      const res = await fetch("/api/prs/draft-reply", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          repo: repoFull,
+          pr_title: pr?.title,
+          comment_body: `Context — I generated this fix:\n\n${fixState.response.slice(0, 3000)}\n\nMy question: ${question}`,
+          comment_author: "me",
+        }),
+      });
+
+      const contentType = res.headers.get("content-type") ?? "";
+      if (contentType.includes("application/json")) {
+        const data = (await res.json()) as { result?: string; error?: string };
+        setAskMessages((prev) => [...prev, { role: "ai", text: data.result ?? data.error ?? "No response" }]);
+      } else {
+        const reader = res.body?.getReader();
+        if (!reader) return;
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let aiText = "";
+        setAskMessages((prev) => [...prev, { role: "ai", text: "" }]);
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const p = JSON.parse(line.slice(6)) as { text?: string };
+              if (p.text) {
+                aiText += p.text;
+                setAskMessages((prev) => {
+                  const copy = [...prev];
+                  copy[copy.length - 1] = { role: "ai", text: aiText };
+                  return copy;
+                });
+              }
+            } catch { /* skip */ }
+          }
+        }
+      }
+    } catch (err) {
+      setAskMessages((prev) => [...prev, { role: "ai", text: `Error: ${err instanceof Error ? err.message : "failed"}` }]);
+    } finally {
+      setAskLoading(false);
+    }
+  }
+
   const isFixing = fixState?.status === "generating";
   const actionableComments = comments.filter((c) => c.type === "review" || !c.inReplyTo);
 
@@ -736,8 +802,69 @@ export default function PrDetailPage() {
                 </div>
               )}
 
-              {/* Push controls — only show if verification didn't hard-block */}
-              {fixState.status === "done" && extractDiff(fixState.response) && verifyResult?.summary.verdict !== "blocked" && (
+              {/* Ask about this change */}
+              {fixState.status === "done" && fixState.response && (
+                <div className="px-4 py-2 border-t border-border-soft">
+                  <button
+                    onClick={() => { setAskOpen(!askOpen); if (!askOpen && askMessages.length === 0) setAskMessages([]); }}
+                    className="text-[11px] text-info border border-info/30 hover:bg-info/10 px-3 py-1 transition"
+                  >
+                    {askOpen ? "close chat" : "ask about this change"}
+                  </button>
+                  <span className="ml-2 text-[10px] text-paper-faint">
+                    Ask Claude to explain the reasoning, potential risks, or alternatives
+                  </span>
+
+                  {askOpen && (
+                    <div className="mt-3 border border-border bg-ink/30 max-h-[300px] flex flex-col">
+                      {/* Messages */}
+                      <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-[80px]">
+                        {askMessages.length === 0 && (
+                          <div className="text-[10px] text-paper-faint italic">
+                            Ask anything about the generated fix — why it chose this approach, what could go wrong, alternative approaches, etc.
+                          </div>
+                        )}
+                        {askMessages.map((msg, i) => (
+                          <div key={i} className={cn("text-[11px]", msg.role === "user" ? "text-paper" : "text-paper-dim")}>
+                            <span className={cn(
+                              "text-[9px] uppercase tracking-[0.1em] mr-1.5",
+                              msg.role === "user" ? "text-signal" : "text-info",
+                            )}>
+                              {msg.role === "user" ? "you" : "ai"}
+                            </span>
+                            <span className="whitespace-pre-wrap break-words">{msg.text}</span>
+                          </div>
+                        ))}
+                        {askLoading && (
+                          <div className="text-[10px] text-info animate-pulse-signal">thinking...</div>
+                        )}
+                      </div>
+                      {/* Input */}
+                      <div className="border-t border-border-soft p-2 flex gap-2">
+                        <input
+                          type="text"
+                          value={askInput}
+                          onChange={(e) => setAskInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAsk(); } }}
+                          placeholder="Why did you make this change?"
+                          disabled={askLoading}
+                          className="flex-1 bg-surface border border-border px-2.5 py-1.5 text-[11px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-info/50 disabled:opacity-50"
+                        />
+                        <button
+                          onClick={handleAsk}
+                          disabled={!askInput.trim() || askLoading}
+                          className="border border-info/50 bg-info/10 text-info hover:bg-info/20 px-3 py-1.5 text-[10px] uppercase tracking-[0.12em] disabled:opacity-50 shrink-0 transition"
+                        >
+                          ask
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Push controls */}
+              {fixState.status === "done" && extractDiff(fixState.response) && (
                 <div className="px-4 py-3 border-t border-border-soft bg-ink/20">
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="text-[10px] text-paper-faint uppercase tracking-[0.1em]">commit:</span>

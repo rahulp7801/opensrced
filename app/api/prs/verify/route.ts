@@ -233,8 +233,8 @@ export async function POST(req: NextRequest) {
           } else {
             checks.push({
               name: "Blast radius",
-              status: "fail",
-              detail: `HIGH IMPACT: ${crgResult.total_affected} downstream dependents across ${crgResult.affected_file_count} file(s). This is a wide-reaching change. (code-review-graph)`,
+              status: "warn",
+              detail: `HIGH IMPACT: ${crgResult.total_affected} downstream dependents across ${crgResult.affected_file_count} file(s). This is a wide-reaching change — review carefully before pushing. (code-review-graph)`,
             });
           }
         } catch {
@@ -302,8 +302,8 @@ export async function POST(req: NextRequest) {
           } else {
             checks.push({
               name: "Graph impact",
-              status: "fail",
-              detail: `HIGH IMPACT: ${impactResult.totalAffected} downstream dependents across ${impactResult.affectedModules} module(s). This change touches a critical node (${impactResult.topNode}). Review every dependent before pushing.`,
+              status: "warn",
+              detail: `HIGH IMPACT: ${impactResult.totalAffected} downstream dependents across ${impactResult.affectedModules} module(s). This change touches a critical node (${impactResult.topNode}). Review carefully before pushing.`,
             });
           }
         } catch {

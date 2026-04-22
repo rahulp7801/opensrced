@@ -181,13 +181,8 @@ CONSTRAINTS — these are hard rules, not suggestions:
             }
 
             if (evt.type === "result") {
-              if (evt.result) {
-                controller.enqueue(
-                  encoder.encode(
-                    `data: ${JSON.stringify({ text: evt.result })}\n\n`,
-                  ),
-                );
-              }
+              // Don't send evt.result as text — it duplicates what was
+              // already streamed via the "assistant" content blocks above.
               if (typeof evt.total_cost_usd === "number") {
                 controller.enqueue(
                   encoder.encode(

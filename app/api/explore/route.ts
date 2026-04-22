@@ -175,13 +175,8 @@ export async function POST(req: NextRequest) {
               }
             }
 
-            // Final result — includes cost
+            // Final result — cost only, text already streamed above
             if (evt.type === "result") {
-              if (evt.result) {
-                controller.enqueue(encoder.encode(
-                  `data: ${JSON.stringify({ text: evt.result })}\n\n`,
-                ));
-              }
               if (typeof evt.total_cost_usd === "number") {
                 controller.enqueue(encoder.encode(
                   `data: ${JSON.stringify({ cost: evt.total_cost_usd })}\n\n`,

@@ -112,21 +112,63 @@ export async function POST(req: NextRequest) {
           });
 
           let stderr = "";
-          proc.stderr.on("data", (chunk: Buffer) => {
-            stderr += chunk.toString();
-            // Forward progress lines
-            const lines = chunk.toString().split("\n").filter(Boolean);
-            for (const line of lines) {
-              send({ status: "progress", message: line.trim() });
-            }
-          });
+          function forwardProgress(chunk: Buffer) {
+            const text = chunk.toString();
+            stderr += text;
+            const lines = text.split("\n").filter(Boolean);
+            for (const rawLine of lines) {
+              const line = rawLine.trim();
+              if (!line) continue;
 
-          proc.stdout.on("data", (chunk: Buffer) => {
-            const lines = chunk.toString().split("\n").filter(Boolean);
-            for (const line of lines) {
-              send({ status: "progress", message: line.trim() });
+              // Parse graphify's progress output for structured updates
+              // e.g. "  AST extraction: 100/161 files (62%)"
+              const astMatch = line.match(
+                /AST extraction:\s*(\d+)\/(\d+)\s+files\s+\((\d+)%\)/,
+              );
+              if (astMatch) {
+                send({
+                  status: "progress",
+                  message: `Parsing files: ${astMatch[1]} of ${astMatch[2]} (${astMatch[3]}%)`,
+                  phase: "ast",
+                  current: parseInt(astMatch[1]),
+                  total: parseInt(astMatch[2]),
+                  percent: parseInt(astMatch[3]),
+                });
+                continue;
+              }
+
+              // e.g. "[graphify watch] Rebuilt: 219 nodes, 89 edges, 134 communities"
+              const builtMatch = line.match(
+                /Rebuilt:\s*(\d+)\s+nodes,\s*(\d+)\s+edges/,
+              );
+              if (builtMatch) {
+                send({
+                  status: "progress",
+                  message: `Graph complete: ${builtMatch[1]} nodes, ${builtMatch[2]} edges`,
+                  phase: "complete",
+                  percent: 100,
+                });
+                continue;
+              }
+
+              // e.g. "graph.json, graph.html and GRAPH_REPORT.md updated"
+              if (line.includes("graph.json") && line.includes("updated")) {
+                send({
+                  status: "progress",
+                  message: "Writing graph files (graph.json, graph.html, report)",
+                  phase: "writing",
+                  percent: 100,
+                });
+                continue;
+              }
+
+              // Default: forward raw line
+              send({ status: "progress", message: line });
             }
-          });
+          }
+
+          proc.stderr.on("data", forwardProgress);
+          proc.stdout.on("data", forwardProgress);
 
           const timeout = setTimeout(() => {
             if (!proc.killed && proc.pid) {

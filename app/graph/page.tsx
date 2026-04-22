@@ -8,11 +8,19 @@ import { cn } from "@/lib/utils";
 type QueryResult = {
   query: string;
   response: string;
-  status: "loading" | "done" | "error";
+  status: "loading" | "streaming" | "done" | "error";
+  cost: number | null;
+  mode: "graph" | "llm" | null;
   _id: number;
 };
 
 type BuildStatus = "idle" | "building" | "ready" | "error";
+
+type BuildMessage = {
+  text: string;
+  percent?: number;
+  phase?: string;
+};
 
 function parseRepo(
   url: string,
@@ -32,7 +40,7 @@ export default function GraphPage() {
   const [owner, setOwner] = useState("");
   const [repo, setRepo] = useState("");
   const [buildStatus, setBuildStatus] = useState<BuildStatus>("idle");
-  const [buildMessages, setBuildMessages] = useState<string[]>([]);
+  const [buildMessages, setBuildMessages] = useState<BuildMessage[]>([]);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<QueryResult[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -155,9 +163,18 @@ export default function GraphPage() {
               status?: string;
               message?: string;
               error?: string;
+              percent?: number;
+              phase?: string;
             };
             if (payload.message) {
-              setBuildMessages((prev) => [...prev, payload.message!]);
+              setBuildMessages((prev) => [
+                ...prev,
+                {
+                  text: payload.message!,
+                  percent: payload.percent,
+                  phase: payload.phase,
+                },
+              ]);
             }
             if (payload.status === "done") {
               setBuildStatus("ready");
@@ -165,7 +182,7 @@ export default function GraphPage() {
             if (payload.error) {
               setBuildMessages((prev) => [
                 ...prev,
-                `Error: ${payload.error}`,
+                { text: `Error: ${payload.error}` },
               ]);
               setBuildStatus("error");
             }
@@ -177,7 +194,7 @@ export default function GraphPage() {
     } catch (err) {
       setBuildMessages((prev) => [
         ...prev,
-        `Error: ${err instanceof Error ? err.message : "Network error"}`,
+        { text: `Error: ${err instanceof Error ? err.message : "Network error"}` },
       ]);
       setBuildStatus("error");
     }
@@ -196,6 +213,8 @@ export default function GraphPage() {
           query: q.trim(),
           response: "",
           status: "loading" as const,
+          cost: null,
+          mode: null,
           _id: qid,
         },
       ]);
@@ -206,24 +225,119 @@ export default function GraphPage() {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ owner, repo, query: q.trim() }),
         });
-        const data = (await res.json()) as {
-          result?: string;
-          error?: string;
-        };
-        setResults((prev) =>
-          prev.map((r) =>
-            r._id === qid
-              ? {
-                  ...r,
-                  response:
-                    data.result ?? data.error ?? "No response",
-                  status: (data.error ? "error" : "done") as
-                    | "error"
-                    | "done",
+
+        const contentType = res.headers.get("content-type") ?? "";
+
+        if (contentType.includes("application/json")) {
+          // Instant graph response
+          const data = (await res.json()) as {
+            result?: string;
+            error?: string;
+            cost?: number;
+          };
+          setResults((prev) =>
+            prev.map((r) =>
+              r._id === qid
+                ? {
+                    ...r,
+                    response:
+                      data.result ?? data.error ?? "No response",
+                    status: (data.error ? "error" : "done") as
+                      | "error"
+                      | "done",
+                    cost: data.cost ?? 0,
+                    mode: "graph" as const,
+                  }
+                : r,
+            ),
+          );
+        } else {
+          // SSE stream from LLM fallback
+          setResults((prev) =>
+            prev.map((r) =>
+              r._id === qid
+                ? { ...r, status: "streaming" as const, mode: "llm" as const }
+                : r,
+            ),
+          );
+
+          const reader = res.body?.getReader();
+          if (!reader) return;
+          const decoder = new TextDecoder();
+          let buffer = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
+
+            for (const line of lines) {
+              if (!line.startsWith("data: ")) continue;
+              try {
+                const payload = JSON.parse(line.slice(6)) as {
+                  text?: string;
+                  cost?: number;
+                  done?: boolean;
+                  error?: string;
+                };
+                if (payload.text) {
+                  setResults((prev) =>
+                    prev.map((r) =>
+                      r._id === qid
+                        ? { ...r, response: r.response + payload.text }
+                        : r,
+                    ),
+                  );
                 }
-              : r,
-          ),
-        );
+                if (payload.cost !== undefined) {
+                  setResults((prev) =>
+                    prev.map((r) =>
+                      r._id === qid
+                        ? { ...r, cost: payload.cost as number }
+                        : r,
+                    ),
+                  );
+                }
+                if (payload.done) {
+                  setResults((prev) =>
+                    prev.map((r) =>
+                      r._id === qid
+                        ? { ...r, status: "done" as const }
+                        : r,
+                    ),
+                  );
+                }
+                if (payload.error) {
+                  setResults((prev) =>
+                    prev.map((r) =>
+                      r._id === qid
+                        ? {
+                            ...r,
+                            response: payload.error!,
+                            status: "error" as const,
+                          }
+                        : r,
+                    ),
+                  );
+                }
+              } catch {
+                /* skip */
+              }
+            }
+          }
+
+          // If stream ended without done event
+          setResults((prev) =>
+            prev.map((r) =>
+              r._id === qid && (r.status === "streaming" || r.status === "loading")
+                ? { ...r, status: "done" as const }
+                : r,
+            ),
+          );
+        }
       } catch (err) {
         setResults((prev) =>
           prev.map((r) =>
@@ -262,7 +376,7 @@ export default function GraphPage() {
       resultRef.current.scrollTop = resultRef.current.scrollHeight;
   }, [results]);
 
-  const isQuerying = results.some((r) => r.status === "loading");
+  const isQuerying = results.some((r) => r.status === "loading" || r.status === "streaming");
 
   return (
     <div
@@ -271,7 +385,7 @@ export default function GraphPage() {
     >
       <PageHeading
         title={<>Graph</>}
-        description="Visualize and query any codebase as an interactive knowledge graph. Powered by AST analysis — zero LLM cost."
+        description="Visualize and query any codebase as an interactive knowledge graph. Commands are free (AST-powered). Plain English questions use AI."
       />
 
       {/* Repo input + build */}
@@ -341,17 +455,40 @@ export default function GraphPage() {
 
       {/* Build progress */}
       {buildStatus === "building" && buildMessages.length > 0 && (
-        <div className="mt-3 border border-border bg-surface/40 px-4 py-3 max-h-36 overflow-y-auto">
-          {buildMessages.map((msg, i) => (
-            <div key={i} className="text-[11px] text-paper-dim font-mono">
-              <span className="text-paper-faint select-none">
-                [{String(i + 1).padStart(2, "0")}]{" "}
-              </span>
-              {msg}
-            </div>
-          ))}
-          <div className="text-[11px] text-signal animate-pulse-signal mt-1 font-mono">
-            analyzing codebase...
+        <div className="mt-3 border border-border bg-surface/40 px-4 py-3">
+          {/* Progress bar */}
+          {(() => {
+            const last = buildMessages[buildMessages.length - 1];
+            const pct = last?.percent ?? null;
+            const phase = last?.phase === "ast" ? "Parsing source files (tree-sitter AST)"
+              : last?.phase === "complete" ? "Graph built"
+              : last?.phase === "writing" ? "Writing output files"
+              : last?.text.includes("Cloning") ? "Cloning repository"
+              : last?.text.includes("cached") ? "Using cached clone"
+              : "Building knowledge graph";
+            return (
+              <div className="mb-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] text-paper-dim">{phase}</span>
+                  {pct !== null && (
+                    <span className="text-[11px] text-signal tabular-nums">{pct}%</span>
+                  )}
+                </div>
+                <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-signal rounded-full transition-all duration-300"
+                    style={{ width: `${pct ?? 5}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })()}
+          <div className="max-h-20 overflow-y-auto">
+            {buildMessages.map((msg, i) => (
+              <div key={i} className="text-[10px] text-paper-faint font-mono truncate">
+                {msg.text}
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -389,11 +526,11 @@ export default function GraphPage() {
                 quick:
               </span>
               {[
+                "help",
                 "stats",
                 "god nodes",
                 "explain src",
                 "explain lib",
-                "explain test",
               ].map((cmd) => (
                 <button
                   key={cmd}
@@ -421,9 +558,15 @@ export default function GraphPage() {
                     &quot;impact UserService&quot; or &quot;explain
                     src/api&quot; or &quot;path auth to billing&quot;
                   </p>
-                  <p className="mt-1 text-[10px] text-ok">
-                    Every query is free — pure graph traversal, zero
-                    LLM cost
+                  <p className="mt-1.5 text-[10px] text-paper-faint">
+                    Type{" "}
+                    <button
+                      onClick={() => quickQuery("help")}
+                      className="text-signal hover:underline"
+                    >
+                      help
+                    </button>
+                    {" "}for all commands and examples (free). Plain English questions use AI (~$0.001).
                   </p>
                 </div>
               )}
@@ -442,22 +585,41 @@ export default function GraphPage() {
                         querying...
                       </span>
                     )}
+                    {r.status === "streaming" && (
+                      <span className="ml-auto flex items-center gap-2">
+                        <span className="text-[10px] text-info">AI</span>
+                        <span className="text-[10px] text-signal animate-pulse-signal">
+                          streaming...
+                        </span>
+                      </span>
+                    )}
                     {r.status === "done" && (
-                      <span className="ml-auto text-[10px] text-ok tabular-nums">
-                        $0.00
+                      <span className="ml-auto flex items-center gap-2">
+                        {r.mode === "llm" && (
+                          <span className="text-[9px] text-info border border-info/30 px-1 py-0.5">
+                            AI
+                          </span>
+                        )}
+                        <span className="text-[10px] text-ok tabular-nums">
+                          ${(r.cost ?? 0).toFixed(4)}
+                        </span>
                       </span>
                     )}
                   </div>
-                  <div className="px-3 py-3">
+                  <div className="px-3 py-3 overflow-x-auto">
                     {r.status === "error" ? (
-                      <pre className="text-[11px] text-alert whitespace-pre-wrap font-mono">
+                      <div className="text-[11px] text-alert whitespace-pre-wrap font-mono break-words">
                         {r.response}
-                      </pre>
+                      </div>
                     ) : r.response ? (
-                      <GraphResponse text={r.response} />
+                      r.mode === "llm" ? (
+                        <MarkdownResponse text={r.response} />
+                      ) : (
+                        <GraphResponse text={r.response} />
+                      )
                     ) : (
                       <div className="text-[11px] text-paper-muted italic">
-                        Traversing graph...
+                        {r.mode === "llm" ? "Asking AI..." : "Traversing graph..."}
                       </div>
                     )}
                   </div>
@@ -467,7 +629,7 @@ export default function GraphPage() {
                       <span className="text-[10px] text-paper-faint uppercase tracking-[0.1em]">
                         follow up:
                       </span>
-                      {generateFollowUps(r.query).map((q, qi) => (
+                      {generateFollowUps(r.query, r.response).map((q, qi) => (
                         <button
                           key={qi}
                           onClick={() => quickQuery(q)}
@@ -577,7 +739,7 @@ function GraphResponse({ text }: { text: string }) {
   const lines = text.split("\n");
 
   return (
-    <div className="text-[11.5px] leading-relaxed font-mono space-y-0">
+    <div className="text-[11.5px] leading-relaxed font-mono space-y-0 overflow-x-hidden">
       {lines.map((line, i) => {
         // Section headers (lines of ─)
         if (/^─+$/.test(line))
@@ -636,7 +798,7 @@ function GraphResponse({ text }: { text: string }) {
           );
 
         // Stats numbers
-        if (/^\s*(Nodes|Edges|Communities|Hyperedges):/.test(line))
+        if (/^\s*(Nodes|Edges|Modules|Communities|Hyperedges):/.test(line))
           return (
             <div key={i} className="text-paper-dim">
               {highlightNumbers(line)}
@@ -656,13 +818,134 @@ function GraphResponse({ text }: { text: string }) {
 
         // Default
         return (
-          <div key={i} className="text-paper-dim whitespace-pre">
+          <div key={i} className="text-paper-dim whitespace-pre-wrap break-words">
             {line}
           </div>
         );
       })}
     </div>
   );
+}
+
+// ── Markdown renderer for LLM responses ───────────────────────────────
+
+function MarkdownResponse({ text }: { text: string }) {
+  const blocks = parseMarkdownBlocks(text);
+
+  return (
+    <div className="space-y-2.5 text-[12px] leading-relaxed text-paper-dim break-words">
+      {blocks.map((block, i) => {
+        if (block.type === "code") {
+          return (
+            <div key={i} className="overflow-x-auto">
+              <div className="flex items-center px-3 py-1 bg-ink/80 border border-border-soft border-b-0 text-[10px] text-paper-muted">
+                <span className="font-mono">{block.lang || "code"}</span>
+              </div>
+              <pre className="overflow-x-auto px-3 py-2.5 bg-ink/60 border border-border-soft text-[11px] leading-snug font-mono whitespace-pre-wrap break-words">
+                {block.content}
+              </pre>
+            </div>
+          );
+        }
+        if (block.type === "heading") {
+          return (
+            <div key={i} className="text-[13px] text-paper font-medium mt-3 first:mt-0">
+              <InlineMd text={block.content} />
+            </div>
+          );
+        }
+        if (block.type === "bullet") {
+          return (
+            <div key={i} className="flex gap-2 ml-1">
+              <span className="text-paper-faint shrink-0">-</span>
+              <span className="break-words min-w-0"><InlineMd text={block.content} /></span>
+            </div>
+          );
+        }
+        return (
+          <p key={i} className="break-words">
+            <InlineMd text={block.content} />
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+type MdBlock =
+  | { type: "paragraph"; content: string }
+  | { type: "heading"; content: string }
+  | { type: "bullet"; content: string }
+  | { type: "code"; content: string; lang: string };
+
+function parseMarkdownBlocks(text: string): MdBlock[] {
+  const blocks: MdBlock[] = [];
+  const lines = text.split("\n");
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line.startsWith("```")) {
+      const lang = line.slice(3).trim();
+      i++;
+      const codeLines: string[] = [];
+      while (i < lines.length && !lines[i].startsWith("```")) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      if (i < lines.length) i++;
+      blocks.push({ type: "code", content: codeLines.join("\n"), lang });
+      continue;
+    }
+    if (/^#{1,4}\s/.test(line)) {
+      blocks.push({ type: "heading", content: line.replace(/^#+\s*/, "") });
+      i++;
+      continue;
+    }
+    if (/^\s*[-*]\s/.test(line)) {
+      blocks.push({ type: "bullet", content: line.replace(/^\s*[-*]\s+/, "") });
+      i++;
+      continue;
+    }
+    if (/^\s*\d+[.)]\s/.test(line)) {
+      blocks.push({ type: "bullet", content: line.replace(/^\s*\d+[.)]\s+/, "") });
+      i++;
+      continue;
+    }
+    if (!line.trim()) { i++; continue; }
+    const paraLines: string[] = [];
+    while (i < lines.length && lines[i].trim() && !lines[i].startsWith("```") && !/^#{1,4}\s/.test(lines[i]) && !/^\s*[-*]\s/.test(lines[i]) && !/^\s*\d+[.)]\s/.test(lines[i])) {
+      paraLines.push(lines[i]);
+      i++;
+    }
+    blocks.push({ type: "paragraph", content: paraLines.join(" ") });
+  }
+  return blocks;
+}
+
+function InlineMd({ text }: { text: string }) {
+  const parts: React.ReactNode[] = [];
+  const regex = /(\*\*[^*]+\*\*|`[^`]+`)/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  let ki = 0;
+
+  while ((m = regex.exec(text)) !== null) {
+    if (m.index > last) parts.push(text.slice(last, m.index));
+    const tok = m[0];
+    if (tok.startsWith("**")) {
+      parts.push(<strong key={ki++} className="text-paper font-medium">{tok.slice(2, -2)}</strong>);
+    } else if (tok.startsWith("`")) {
+      parts.push(
+        <code key={ki++} className="text-signal bg-signal/10 px-1 py-0.5 text-[11px] break-all">
+          {tok.slice(1, -1)}
+        </code>,
+      );
+    }
+    last = m.index + tok.length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return <>{parts}</>;
 }
 
 function highlightLine(line: string): React.ReactNode {
@@ -727,25 +1010,104 @@ function highlightNumbers(line: string): React.ReactNode {
   return <>{parts}</>;
 }
 
-function generateFollowUps(query: string): string[] {
-  const q = query.toLowerCase();
-  if (q === "stats" || q === "statistics" || q === "overview")
-    return ["god nodes", "explain src", "explain lib"];
-  if (q.startsWith("god"))
-    return ["stats", "explain src"];
-  if (q.startsWith("trace"))
-    return [
-      `impact ${query.slice(6).trim()}`,
-      "god nodes",
-    ];
-  if (q.startsWith("impact"))
-    return [
-      `trace ${query.slice(7).trim()}`,
-      "stats",
-    ];
-  if (q.startsWith("explain"))
-    return ["god nodes", "stats"];
-  if (q.startsWith("path"))
-    return ["god nodes", "stats"];
-  return ["stats", "god nodes", "explain src"];
+function generateFollowUps(query: string, response: string): string[] {
+  const q = query.toLowerCase().trim();
+  const suggestions: string[] = [];
+
+  // Extract symbols/labels mentioned in the response for context-aware follow-ups
+  // Look for patterns like "-> funcName" or "funcName —" or "* funcName"
+  const symbolMatches = response.match(/(?:^|\n)\s*(?:\*|->|<-)\s+(\w[\w.]*(?:\(\))?)/g);
+  const symbols = (symbolMatches ?? [])
+    .map((m) => m.replace(/^\s*(?:\*|->|<-)\s+/, "").trim())
+    .filter((s) => s.length > 2 && s.length < 40);
+
+  // Extract directory paths from response
+  const pathMatches = response.match(/\b\w+\/[\w/.-]+/g);
+  const paths = [...new Set(pathMatches ?? [])].slice(0, 3);
+
+  if (q === "help" || q === "-help" || q === "--help") {
+    return ["stats", "god nodes", "explain src"];
+  }
+
+  if (q === "stats" || q === "statistics" || q === "overview") {
+    suggestions.push("god nodes");
+    // Suggest explaining top modules from the stats output
+    const modMatch = response.match(/^\s+(\S+\/\S+):/gm);
+    if (modMatch) {
+      const topMod = modMatch[0].trim().replace(/:.*/, "");
+      suggestions.push(`explain ${topMod}`);
+    } else {
+      suggestions.push("explain src");
+    }
+    return suggestions.slice(0, 3);
+  }
+
+  if (q.startsWith("god")) {
+    // Suggest tracing/impacting the top node from results
+    if (symbols.length > 0) {
+      suggestions.push(`trace ${symbols[0].replace("()", "")}`);
+      suggestions.push(`impact ${symbols[0].replace("()", "")}`);
+    }
+    suggestions.push("stats");
+    return suggestions.slice(0, 3);
+  }
+
+  if (q.startsWith("trace ")) {
+    const sym = query.slice(6).trim();
+    suggestions.push(`impact ${sym}`);
+    // Suggest tracing something the traced function calls
+    if (symbols.length > 1) {
+      suggestions.push(`trace ${symbols[1].replace("()", "")}`);
+    }
+    // Suggest explaining the directory this lives in
+    if (paths.length > 0) {
+      const dir = paths[0].split("/").slice(0, -1).join("/") || paths[0];
+      suggestions.push(`explain ${dir}`);
+    }
+    return suggestions.slice(0, 3);
+  }
+
+  if (q.startsWith("impact ")) {
+    const sym = query.slice(7).trim();
+    suggestions.push(`trace ${sym}`);
+    // Suggest impacting a direct caller
+    if (symbols.length > 0) {
+      const caller = symbols.find((s) => s.toLowerCase() !== sym.toLowerCase());
+      if (caller) suggestions.push(`impact ${caller.replace("()", "")}`);
+    }
+    if (paths.length > 0) {
+      const dir = paths[0].split("/").slice(0, -1).join("/") || paths[0];
+      suggestions.push(`explain ${dir}`);
+    }
+    return suggestions.slice(0, 3);
+  }
+
+  if (q.startsWith("explain ")) {
+    // Suggest tracing/impacting key nodes found in the explanation
+    if (symbols.length > 0) {
+      suggestions.push(`trace ${symbols[0].replace("()", "")}`);
+      suggestions.push(`impact ${symbols[0].replace("()", "")}`);
+    }
+    suggestions.push("god nodes");
+    return suggestions.slice(0, 3);
+  }
+
+  if (q.startsWith("path ")) {
+    // Suggest tracing/impacting the endpoints
+    const parts = q.slice(5).split(/\s+(?:to|→|->)\s+/i);
+    if (parts.length >= 2) {
+      suggestions.push(`impact ${parts[0].trim()}`);
+      suggestions.push(`trace ${parts[1].trim()}`);
+    }
+    suggestions.push("god nodes");
+    return suggestions.slice(0, 3);
+  }
+
+  // For node lookups or unknown queries
+  if (symbols.length > 0) {
+    suggestions.push(`trace ${symbols[0].replace("()", "")}`);
+    suggestions.push(`impact ${symbols[0].replace("()", "")}`);
+  }
+  suggestions.push("help");
+  return suggestions.slice(0, 3);
 }

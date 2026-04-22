@@ -53,6 +53,45 @@ export async function loadGraph(owner: string, repo: string): Promise<GraphData>
   return JSON.parse(raw) as GraphData;
 }
 
+// ── Module naming ─────────────────────────────────────────────────────
+// Graphify calls groups "communities" (from Leiden clustering). We derive
+// human-readable names from the most common directory path in each group
+// so users see "lib/application" instead of "Cluster 9".
+
+export function moduleName(nodes: GraphNode[]): string {
+  if (nodes.length === 0) return "unknown";
+  // Count directory prefixes
+  const dirs = new Map<string, number>();
+  for (const n of nodes) {
+    const sf = (n.source_file || "").replace(/\\/g, "/");
+    // Use directory + filename stem as the label
+    const parts = sf.split("/");
+    const dir = parts.length > 1 ? parts.slice(0, -1).join("/") : parts[0];
+    dirs.set(dir, (dirs.get(dir) ?? 0) + 1);
+  }
+  // Pick the most common directory
+  const topDir = [...dirs.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "";
+  // If all nodes share a common file, use the file label instead
+  if (nodes.length <= 3) {
+    return nodes.map((n) => n.label).join(", ");
+  }
+  return topDir || nodes[0].label;
+}
+
+export function buildModuleMap(graph: GraphData): Map<number, string> {
+  const groups = new Map<number, GraphNode[]>();
+  for (const n of graph.nodes) {
+    const list = groups.get(n.community) ?? [];
+    list.push(n);
+    groups.set(n.community, list);
+  }
+  const names = new Map<number, string>();
+  for (const [cid, nodes] of groups) {
+    names.set(cid, moduleName(nodes));
+  }
+  return names;
+}
+
 // ── Adjacency helpers ─────────────────────────────────────────────────
 
 interface AdjacencyMap {
@@ -185,7 +224,8 @@ export function impactAnalysis(graph: GraphData, symbol: string): string {
     }
   }
 
-  const totalCommunities = new Set(graph.nodes.map((n) => n.community)).size;
+  const moduleNames = buildModuleMap(graph);
+  const totalModules = moduleNames.size;
   const risk =
     directCallers.length > 5
       ? "HIGH"
@@ -197,7 +237,7 @@ export function impactAnalysis(graph: GraphData, symbol: string): string {
     `IMPACT ANALYSIS: ${targetNode.label}`,
     "─".repeat(40),
     `Source: ${targetNode.source_file}${targetNode.source_location ? `:${targetNode.source_location}` : ""}`,
-    `Community: ${targetNode.community}`,
+    `Module: ${moduleNames.get(targetNode.community) ?? "unknown"}`,
     "",
   ];
 
@@ -219,8 +259,11 @@ export function impactAnalysis(graph: GraphData, symbol: string): string {
     lines.push("");
   }
 
+  const affectedModuleNames = [...affectedCommunities]
+    .map((c) => moduleNames.get(c) ?? `module-${c}`)
+    .slice(0, 5);
   lines.push(
-    `AFFECTED COMMUNITIES: ${affectedCommunities.size} of ${totalCommunities}`,
+    `AFFECTED MODULES: ${affectedCommunities.size} of ${totalModules} (${affectedModuleNames.join(", ")})`,
     `BLAST RADIUS: ${visited.size - 1} nodes affected`,
     `RISK: ${risk}`,
   );
@@ -300,7 +343,7 @@ function formatNodeSet(
     `AREA: ${area}`,
     "─".repeat(40),
     `${nodes.length} nodes | ${internalEdges} internal edges | ${externalEdges} boundary edges`,
-    `${communities.size} cluster(s) | ${[...fileTypes.entries()].map(([k, v]) => `${v} ${k}`).join(", ")}`,
+    `${communities.size} module(s) | ${[...fileTypes.entries()].map(([k, v]) => `${v} ${k}`).join(", ")}`,
     "",
   ];
 
@@ -311,16 +354,17 @@ function formatNodeSet(
     lines.push("");
   }
 
-  lines.push("CLUSTERS:");
-  for (const [cid, cnodes] of [...communities.entries()].sort(
+  lines.push("MODULES:");
+  for (const [, cnodes] of [...communities.entries()].sort(
     (a, b) => b[1].length - a[1].length,
   )) {
+    const name = moduleName(cnodes);
     const labels = cnodes
       .slice(0, 8)
       .map((n) => n.label)
       .join(", ");
     const more = cnodes.length > 8 ? ` +${cnodes.length - 8} more` : "";
-    lines.push(`  Cluster ${cid} (${cnodes.length} nodes): ${labels}${more}`);
+    lines.push(`  ${name} (${cnodes.length} nodes): ${labels}${more}`);
   }
   lines.push("");
 
@@ -416,15 +460,18 @@ export function godNodes(graph: GraphData, topN = 10): string {
     .sort((a, b) => b[1] - a[1])
     .slice(0, topN);
 
+  const moduleNames = buildModuleMap(graph);
+
   const lines: string[] = [
-    `GOD NODES (top ${topN} by connectivity)`,
+    `KEY NODES (top ${topN} by connectivity)`,
     "─".repeat(40),
   ];
 
   for (const [id, deg] of sorted) {
     const node = graph.nodes.find((n) => n.id === id);
+    const mod = moduleNames.get(node?.community ?? -1) ?? "";
     lines.push(
-      `  ${String(deg).padStart(4)} edges  ${node?.label ?? id}  (community ${node?.community ?? "?"}, ${node?.source_file ?? ""})`,
+      `  ${String(deg).padStart(4)} edges  ${node?.label ?? id}  (${mod}, ${node?.source_file ?? ""})`,
     );
   }
 
@@ -432,7 +479,7 @@ export function godNodes(graph: GraphData, topN = 10): string {
 }
 
 export function graphStats(graph: GraphData): string {
-  const communities = new Set(graph.nodes.map((n) => n.community));
+  const moduleNames = buildModuleMap(graph);
   const conf = { EXTRACTED: 0, INFERRED: 0, AMBIGUOUS: 0 };
   const rels = new Map<string, number>();
 
@@ -451,12 +498,21 @@ export function graphStats(graph: GraphData): string {
   const total = graph.links.length || 1;
   const pct = (n: number) => ((n / total) * 100).toFixed(1);
 
+  // Top modules by size
+  const modSizes = new Map<string, number>();
+  for (const [, name] of moduleNames) {
+    modSizes.set(name, (modSizes.get(name) ?? 0) + 1);
+  }
+  const topModules = [...modSizes.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8);
+
   const lines: string[] = [
     "GRAPH STATISTICS",
     "─".repeat(40),
     `Nodes: ${graph.nodes.length}`,
     `Edges: ${graph.links.length}`,
-    `Communities: ${communities.size}`,
+    `Modules: ${moduleNames.size}`,
     `Hyperedges: ${graph.hyperedges?.length ?? 0}`,
     "",
     "CONFIDENCE:",
@@ -471,6 +527,10 @@ export function graphStats(graph: GraphData): string {
     (a, b) => b[1] - a[1],
   ))
     lines.push(`  ${ft}: ${count}`);
+
+  lines.push("", "TOP MODULES:");
+  for (const [name, count] of topModules)
+    lines.push(`  ${name}: ${count} nodes`);
 
   lines.push("", "TOP RELATIONS:");
   for (const [rel, count] of [...rels.entries()]
@@ -488,6 +548,7 @@ function nodeInfo(graph: GraphData, query: string): string {
   if (!node) return "";
 
   const adj = buildAdjacency(graph);
+  const moduleNames = buildModuleMap(graph);
   const outEdges = adj.outgoing.get(node.id) ?? [];
   const inEdges = adj.incoming.get(node.id) ?? [];
 
@@ -497,7 +558,7 @@ function nodeInfo(graph: GraphData, query: string): string {
     `ID: ${node.id}`,
     `Type: ${node.file_type}`,
     `Source: ${node.source_file}${node.source_location ? `:${node.source_location}` : ""}`,
-    `Community: ${node.community}`,
+    `Module: ${moduleNames.get(node.community) ?? "unknown"}`,
     `Connections: ${outEdges.length} outgoing, ${inEdges.length} incoming`,
   ];
 
@@ -524,11 +585,65 @@ function nodeInfo(graph: GraphData, query: string): string {
   return lines.join("\n");
 }
 
+// ── Graph summary for LLM context ─────────────────────────────────────
+
+export function buildGraphSummary(graph: GraphData): string {
+  const moduleNames = buildModuleMap(graph);
+  const degrees = new Map<string, number>();
+  for (const e of graph.links) {
+    degrees.set(e.source, (degrees.get(e.source) ?? 0) + 1);
+    degrees.set(e.target, (degrees.get(e.target) ?? 0) + 1);
+  }
+  const topNodes = [...degrees.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 15)
+    .map(([id, deg]) => {
+      const n = graph.nodes.find((x) => x.id === id);
+      return `${n?.label ?? id} (${deg} edges, ${n?.source_file ?? "?"})`;
+    });
+
+  const modGroups = new Map<number, GraphNode[]>();
+  for (const n of graph.nodes) {
+    const list = modGroups.get(n.community) ?? [];
+    list.push(n);
+    modGroups.set(n.community, list);
+  }
+  const topModules = [...modGroups.entries()]
+    .sort((a, b) => b[1].length - a[1].length)
+    .slice(0, 10)
+    .map(([cid, nodes]) => {
+      const name = moduleNames.get(cid) ?? `module-${cid}`;
+      const members = nodes.slice(0, 5).map((n) => n.label).join(", ");
+      return `${name} (${nodes.length} nodes): ${members}`;
+    });
+
+  const edges = graph.links.slice(0, 30).map(
+    (e) => `${e.source} --[${e.relation}]--> ${e.target}`,
+  );
+
+  return [
+    `Codebase graph: ${graph.nodes.length} nodes, ${graph.links.length} edges`,
+    "",
+    "Key nodes: " + topNodes.join("; "),
+    "",
+    "Modules: " + topModules.join(" | "),
+    "",
+    "Sample edges:\n" + edges.join("\n"),
+  ].join("\n");
+}
+
+export const FALLBACK_SENTINEL = "Could not match your query.";
+
 // ── Query router ──────────────────────────────────────────────────────
 
 export function routeQuery(graph: GraphData, query: string): string {
   const q = query.trim();
   const ql = q.toLowerCase();
+
+  // Help command
+  if (ql === "help" || ql === "-help" || ql === "--help" || ql === "?") {
+    return helpText();
+  }
 
   // Command-style
   if (ql.startsWith("trace ")) return traceFlow(graph, q.slice(6).trim());
@@ -578,20 +693,47 @@ export function routeQuery(graph: GraphData, query: string): string {
   const info = nodeInfo(graph, q.replace(/[?"]/g, ""));
   if (info) return info;
 
-  return `Could not match your query. Try one of these:
+  return `${FALLBACK_SENTINEL} Type "help" for available commands, or ask a plain English question (uses AI).`;
+}
 
-COMMANDS:
-  trace <function>         — trace execution flow
-  impact <function>        — blast radius analysis
-  explain <path>           — understand a module/directory
-  path <A> to <B>          — find how two things connect
-  stats                    — graph overview
-  god nodes                — most connected nodes
+function helpText(): string {
+  return `GRAPH QUERY COMMANDS
+${"─".repeat(40)}
+All commands below are free — zero LLM cost.
 
-NATURAL LANGUAGE:
-  "what calls handlePayment?"
-  "how does auth connect to billing?"
-  "what breaks if I change validate?"
+TRACE — follow what a function calls
+  trace <name>              trace execution flow from a symbol
+  Example: trace handlePayment
+  Shows the call chain: what it calls, what those call, etc.
 
-Or type any symbol/file name to see its details.`;
+IMPACT — see what breaks if you change something
+  impact <name>             blast radius analysis
+  Example: impact UserService
+  Shows direct callers, indirect dependents, affected modules, risk level.
+
+EXPLAIN — understand an area of the codebase
+  explain <path>            module/directory overview
+  Example: explain src/api
+  Shows key nodes, modules, internal vs external connections.
+
+PATH — find how two things connect
+  path <A> to <B>           shortest path between two nodes
+  Example: path auth to billing
+  Shows each hop with the relationship type.
+
+STATS — graph overview
+  stats                     node/edge counts, modules, confidence breakdown
+
+KEY NODES — most connected components
+  god nodes                 top 10 most connected nodes in the codebase
+
+NODE LOOKUP — type any symbol or filename
+  <name>                    shows a node's connections and metadata
+  Example: utils.js
+
+PLAIN ENGLISH — ask anything (uses AI, ~$0.001)
+  Any question that doesn't match a command above is answered by AI
+  using the graph as context. No codebase access — just the graph data.
+  Example: "what is the main entry point of this app?"
+  Example: "how is error handling structured?"`;
 }

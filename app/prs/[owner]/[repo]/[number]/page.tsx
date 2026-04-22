@@ -37,15 +37,29 @@ type FixState = {
 type PushState = "idle" | "pushing" | "pushed" | "error";
 
 function extractDiff(text: string): string | null {
-  // Find fenced diff/patch blocks in the response
+  // Find fenced diff/patch blocks in the response — try multiple patterns
   const patterns = [
     /```(?:diff|patch)\n([\s\S]*?)```/,
     /```\n(---[\s\S]*?)```/,
     /```\n(\+\+\+[\s\S]*?)```/,
+    /```(?:python|py|javascript|js|typescript|ts|rust|go|java|c|cpp)?\n([\s\S]*?)```/,
   ];
   for (const re of patterns) {
     const m = re.exec(text);
-    if (m) return m[1].trim();
+    if (m && m[1].trim()) {
+      const block = m[1].trim();
+      // Check if it looks like a diff (has +/- lines or ---/+++ headers)
+      if (/^[-+@]|^---\s|^\+\+\+\s/m.test(block)) {
+        return block;
+      }
+    }
+  }
+  // Last resort: look for any fenced block that contains diff-like content
+  const anyFenced = /```\w*\n([\s\S]*?)```/g;
+  let m: RegExpExecArray | null;
+  while ((m = anyFenced.exec(text)) !== null) {
+    const block = m[1].trim();
+    if (/^[-+].*\n[-+]/m.test(block)) return block;
   }
   return null;
 }

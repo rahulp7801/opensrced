@@ -65,48 +65,68 @@ export async function POST(req: NextRequest) {
       env,
     });
 
-    // 2. Apply the diff
-    const diffPath = join(tmpDir, "__fix.patch");
-    await writeFile(diffPath, body.diff);
-
-    // Try applying with increasing fuzziness
+    // 2. Apply the diff — try multiple strategies since Claude's diff
+    //    format varies (sometimes missing a/b prefixes, sometimes it's
+    //    a search-replace block rather than unified diff).
     let applied = false;
-    const strategies = [
-      ["apply", "--check", "__fix.patch"],
+
+    // Strategy A: try as a git-apply unified diff
+    const diffPath = join(tmpDir, "__fix.patch");
+    const fixedDiff = normalizeDiff(body.diff);
+    await writeFile(diffPath, fixedDiff);
+
+    const gitApplyStrategies = [
       ["apply", "__fix.patch"],
+      ["apply", "--ignore-whitespace", "__fix.patch"],
+      ["apply", "--3way", "__fix.patch"],
+      ["apply", "--3way", "--ignore-whitespace", "__fix.patch"],
     ];
 
-    // First check if it applies cleanly
-    try {
-      await run("git", ["-C", tmpDir, "apply", "--check", "__fix.patch"], { env });
-      // It applies cleanly, now actually apply
-      await run("git", ["-C", tmpDir, "apply", "__fix.patch"], { env });
-      applied = true;
-    } catch {
-      // Try with whitespace ignore
+    for (const args of gitApplyStrategies) {
+      if (applied) break;
       try {
-        await run("git", ["-C", tmpDir, "apply", "--ignore-whitespace", "__fix.patch"], { env });
+        await run("git", ["-C", tmpDir, ...args], { env });
         applied = true;
       } catch {
-        // Try 3-way merge
+        // try next strategy
+      }
+    }
+
+    // Strategy B: if git apply failed, try GNU patch with fuzz
+    if (!applied) {
+      try {
+        await run("patch", ["-p1", "--fuzz=3", "-i", "__fix.patch"], {
+          cwd: tmpDir,
+          env,
+        });
+        applied = true;
+      } catch {
+        // try without -p1
         try {
-          await run("git", ["-C", tmpDir, "apply", "--3way", "__fix.patch"], { env });
+          await run("patch", ["-p0", "--fuzz=3", "-i", "__fix.patch"], {
+            cwd: tmpDir,
+            env,
+          });
           applied = true;
         } catch {
-          // Last resort: try as a unified diff with patch command
-          try {
-            await run("git", ["-C", tmpDir, "apply", "--3way", "--ignore-whitespace", "__fix.patch"], { env });
-            applied = true;
-          } catch {
-            // Give up
-          }
+          // continue to Strategy C
         }
       }
     }
 
+    // Strategy C: if the diff contains search-replace style content,
+    //   try to apply it as direct file edits
+    if (!applied) {
+      applied = await tryDirectEdit(tmpDir, body.diff);
+    }
+
     if (!applied) {
       return Response.json(
-        { error: "Could not apply the diff. The file may have changed since the diff was generated." },
+        {
+          error:
+            "Could not apply the diff. Try regenerating the fix, or apply it manually.",
+          diff: body.diff,
+        },
         { status: 422 },
       );
     }
@@ -166,4 +186,104 @@ export async function POST(req: NextRequest) {
       rm(tmpDir, { recursive: true, force: true }).catch(() => {});
     }
   }
+}
+
+// ── Diff normalization ────────────────────────────────────────────────
+// Claude sometimes outputs diffs without proper a/ b/ prefixes or
+// with missing ---/+++ headers. Normalize to standard unified diff.
+
+function normalizeDiff(raw: string): string {
+  let diff = raw;
+
+  // If the diff has ---/+++ lines without a/ b/ prefixes, add them
+  diff = diff.replace(
+    /^--- ([^/\n][^\n]*)/gm,
+    (_, path) => `--- a/${path.replace(/^a\//, "")}`,
+  );
+  diff = diff.replace(
+    /^\+\+\+ ([^/\n][^\n]*)/gm,
+    (_, path) => `+++ b/${path.replace(/^b\//, "")}`,
+  );
+
+  return diff;
+}
+
+// ── Direct file edit fallback ─────────────────────────────────────────
+// When the diff isn't a proper unified diff, try to parse it as a
+// "replace this with that" instruction and apply directly.
+
+async function tryDirectEdit(dir: string, rawDiff: string): Promise<boolean> {
+  // Look for patterns like:
+  //   --- a/path/to/file
+  //   +++ b/path/to/file
+  //   @@ ... @@
+  //   -old line
+  //   +new line
+  // Even if git apply fails, we can extract the file path and the
+  // old→new line mapping and do a string replace.
+
+  const fileMatch = rawDiff.match(/^\+\+\+ (?:b\/)?(\S+)/m);
+  if (!fileMatch) return false;
+
+  const filePath = fileMatch[1];
+  const absPath = join(dir, filePath);
+
+  let content: string;
+  try {
+    const { readFile: rf } = await import("node:fs/promises");
+    content = await rf(absPath, "utf8");
+  } catch {
+    return false;
+  }
+
+  // Extract removed and added lines from the diff
+  const lines = rawDiff.split("\n");
+  const removals: string[] = [];
+  const additions: string[] = [];
+
+  for (const line of lines) {
+    if (line.startsWith("-") && !line.startsWith("---")) {
+      removals.push(line.slice(1));
+    } else if (line.startsWith("+") && !line.startsWith("+++")) {
+      additions.push(line.slice(1));
+    }
+  }
+
+  if (removals.length === 0 && additions.length === 0) return false;
+
+  // Try to find the old block in the file and replace it
+  const oldBlock = removals.join("\n");
+  const newBlock = additions.join("\n");
+
+  if (oldBlock && content.includes(oldBlock)) {
+    const updated = content.replace(oldBlock, newBlock);
+    if (updated !== content) {
+      await writeFile(absPath, updated);
+      return true;
+    }
+  }
+
+  // Try line-by-line replacement for single-line changes
+  if (removals.length === 1 && additions.length === 1) {
+    const oldLine = removals[0].trim();
+    const newLine = additions[0];
+    if (oldLine && content.includes(oldLine)) {
+      // Replace the first occurrence, preserving leading whitespace
+      const lines = content.split("\n");
+      let replaced = false;
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].trim() === oldLine && !replaced) {
+          const indent = lines[i].match(/^(\s*)/)?.[1] ?? "";
+          lines[i] = indent + newLine.trim();
+          replaced = true;
+        }
+      }
+      if (replaced) {
+        await writeFile(absPath, lines.join("\n"));
+        return true;
+      }
+    }
+  }
+
+  return false;
 }

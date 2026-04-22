@@ -34,6 +34,22 @@ type FixState = {
   cost: number | null;
 };
 
+type PushState = "idle" | "pushing" | "pushed" | "error";
+
+function extractDiff(text: string): string | null {
+  // Find fenced diff/patch blocks in the response
+  const patterns = [
+    /```(?:diff|patch)\n([\s\S]*?)```/,
+    /```\n(---[\s\S]*?)```/,
+    /```\n(\+\+\+[\s\S]*?)```/,
+  ];
+  for (const re of patterns) {
+    const m = re.exec(text);
+    if (m) return m[1].trim();
+  }
+  return null;
+}
+
 export default function PrDetailPage() {
   const params = useParams<{ owner: string; repo: string; number: string }>();
   const repoFull = `${params.owner}/${params.repo}`;
@@ -44,6 +60,9 @@ export default function PrDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fixState, setFixState] = useState<FixState | null>(null);
+  const [pushState, setPushState] = useState<PushState>("idle");
+  const [pushMessage, setPushMessage] = useState("");
+  const [commitMsg, setCommitMsg] = useState("address review feedback");
   const fixRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -166,6 +185,52 @@ export default function PrDetailPage() {
             }
           : prev,
       );
+    }
+  }
+
+  async function handlePush() {
+    if (!fixState?.response || !pr) return;
+    const diff = extractDiff(fixState.response);
+    if (!diff) {
+      setPushState("error");
+      setPushMessage("No diff block found in the generated response.");
+      return;
+    }
+
+    setPushState("pushing");
+    setPushMessage("");
+
+    // The PR branch lives on the fork (author's repo), not upstream
+    const forkRepo = `${pr.author}/${params.repo}`;
+
+    try {
+      const res = await fetch("/api/prs/push", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          repo: forkRepo,
+          upstream: repoFull,
+          branch: pr.branch,
+          diff,
+          commit_message: commitMsg.trim() || "address review feedback",
+        }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        commit?: string;
+        message?: string;
+        error?: string;
+      };
+      if (data.ok) {
+        setPushState("pushed");
+        setPushMessage(data.message ?? `Pushed commit ${data.commit}`);
+      } else {
+        setPushState("error");
+        setPushMessage(data.error ?? "Push failed");
+      }
+    } catch (err) {
+      setPushState("error");
+      setPushMessage(err instanceof Error ? err.message : "Network error");
     }
   }
 
@@ -360,6 +425,55 @@ export default function PrDetailPage() {
                   </div>
                 )}
               </div>
+
+              {/* Push controls — shown after diff is generated */}
+              {fixState.status === "done" &&
+                extractDiff(fixState.response) && (
+                  <div className="px-4 py-3 border-t border-border-soft bg-ink/20">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="text-[10px] text-paper-faint uppercase tracking-[0.1em]">
+                        commit message:
+                      </span>
+                      <input
+                        type="text"
+                        value={commitMsg}
+                        onChange={(e) => setCommitMsg(e.target.value)}
+                        disabled={pushState === "pushing" || pushState === "pushed"}
+                        className="flex-1 min-w-[200px] max-w-md bg-surface border border-border px-2.5 py-1.5 text-[12px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50 disabled:opacity-50"
+                        placeholder="address review feedback"
+                      />
+                      <button
+                        onClick={handlePush}
+                        disabled={pushState === "pushing" || pushState === "pushed"}
+                        className={cn(
+                          "px-4 py-1.5 text-[11px] uppercase tracking-[0.12em] transition shrink-0",
+                          pushState === "pushed"
+                            ? "border border-ok/50 bg-ok/10 text-ok"
+                            : "border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20",
+                          "disabled:opacity-50 disabled:cursor-not-allowed",
+                        )}
+                      >
+                        {pushState === "pushing"
+                          ? "pushing..."
+                          : pushState === "pushed"
+                            ? "pushed"
+                            : "push fix"}
+                      </button>
+                    </div>
+                    {pushMessage && (
+                      <div
+                        className={cn(
+                          "mt-2 text-[11px]",
+                          pushState === "error"
+                            ? "text-alert"
+                            : "text-ok",
+                        )}
+                      >
+                        {pushMessage}
+                      </div>
+                    )}
+                  </div>
+                )}
             </div>
           )}
         </>

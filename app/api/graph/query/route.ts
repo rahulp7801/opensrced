@@ -90,11 +90,14 @@ export async function POST(req: NextRequest) {
       summary = await getCrgSummary(body.owner, body.repo);
     }
 
+    // Compress the graph summary with LLMLingua-2 to reduce tokens
+    const compressed = await compressWithLLMLingua(summary);
+
     const model = "claude-haiku-4-5-20251001";
     const systemPrompt = `You are a codebase analysis assistant. You have access to a knowledge graph of the ${body.owner}/${body.repo} GitHub repository. Answer the user's question using ONLY the graph data provided below. Be concise and specific — cite file paths and function names. If the graph data doesn't contain enough information to answer, say so honestly.
 
 GRAPH DATA:
-${summary}`;
+${compressed.text}`;
 
     // Check cache first — return instant JSON if hit
     const cached = await getCached(model, systemPrompt, body.query);
@@ -205,7 +208,13 @@ ${summary}`;
             (inputTokens * 0.8) / 1_000_000 +
             (outputTokens * 4) / 1_000_000;
           send({ cost: Math.round(cost * 10000) / 10000 });
-          send({ done: true, mode: "llm" });
+          send({
+            done: true,
+            mode: "llm",
+            compression: compressed.ratio !== "1.0x"
+              ? `LLMLingua-2: ${compressed.originalTokens} → ${compressed.compressedTokens} tokens (${compressed.ratio})`
+              : undefined,
+          });
 
           // Cache the response for future identical queries
           if (fullResponse) {
@@ -235,6 +244,67 @@ ${summary}`;
       { error: err instanceof Error ? err.message : String(err) },
       { status: 500 },
     );
+  }
+}
+
+// ── LLMLingua-2 prompt compression ────────────────────────────────────
+
+type CompressionResult = {
+  text: string;
+  originalTokens: number;
+  compressedTokens: number;
+  ratio: string;
+};
+
+async function compressWithLLMLingua(text: string): Promise<CompressionResult> {
+  // Skip for short texts — compression overhead isn't worth it
+  if (text.length < 300) {
+    return { text, originalTokens: text.split(/\s+/).length, compressedTokens: text.split(/\s+/).length, ratio: "1.0x" };
+  }
+
+  try {
+    const { writeFile: wf, mkdtemp, rm } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const tmpDir = await mkdtemp(join(tmpdir(), "llmlingua-"));
+    const inputPath = join(tmpDir, "input.txt");
+    await wf(inputPath, text);
+
+    const scriptPath = join(process.cwd(), "lib", "compress-prompt.py");
+    // Pipe via file since execFile doesn't support stdin
+    const { stdout } = await execFileAsync(
+      "python",
+      ["-c", `
+import sys, json
+with open(r'${inputPath.replace(/\\/g, "\\\\")}', 'r', encoding='utf-8') as f:
+    sys.stdin = f
+    exec(open(r'${scriptPath.replace(/\\/g, "\\\\")}').read())
+`],
+      {
+        maxBuffer: 5 * 1024 * 1024,
+        windowsHide: true,
+        timeout: 60_000,
+      },
+    );
+
+    rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+
+    const result = JSON.parse(stdout) as {
+      compressed_prompt: string;
+      origin_tokens: number;
+      compressed_tokens: number;
+      ratio: string;
+      error?: string;
+    };
+
+    return {
+      text: result.compressed_prompt,
+      originalTokens: result.origin_tokens,
+      compressedTokens: result.compressed_tokens,
+      ratio: result.ratio,
+    };
+  } catch {
+    // Compression failed — return original (fail-open)
+    return { text, originalTokens: text.split(/\s+/).length, compressedTokens: text.split(/\s+/).length, ratio: "1.0x" };
   }
 }
 

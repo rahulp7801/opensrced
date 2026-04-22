@@ -11,6 +11,7 @@ type QueryResult = {
   status: "loading" | "streaming" | "done" | "error";
   cost: number | null;
   mode: "graph" | "llm" | null;
+  compression: string | null;
   _id: number;
 };
 
@@ -222,6 +223,7 @@ export default function GraphPage() {
           status: "loading" as const,
           cost: null,
           mode: null,
+          compression: null,
           _id: qid,
         },
       ]);
@@ -289,6 +291,7 @@ export default function GraphPage() {
                   cost?: number;
                   done?: boolean;
                   error?: string;
+                  compression?: string;
                 };
                 if (payload.text) {
                   setResults((prev) =>
@@ -309,6 +312,13 @@ export default function GraphPage() {
                   );
                 }
                 if (payload.done) {
+                  if (payload.compression) {
+                    setResults((prev) =>
+                      prev.map((r) =>
+                        r._id === qid ? { ...r, compression: payload.compression! } : r,
+                      ),
+                    );
+                  }
                   setResults((prev) =>
                     prev.map((r) =>
                       r._id === qid
@@ -616,6 +626,11 @@ export default function GraphPage() {
                         {r.mode === "llm" && (
                           <span className="text-[9px] text-info border border-info/30 px-1 py-0.5">
                             AI
+                          </span>
+                        )}
+                        {r.compression && (
+                          <span className="text-[9px] text-paper-faint" title={r.compression}>
+                            compressed
                           </span>
                         )}
                         <span className="text-[10px] text-ok tabular-nums">

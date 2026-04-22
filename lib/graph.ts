@@ -744,31 +744,9 @@ export function routeQuery(graph: GraphData, query: string): string {
     return godNodes(graph, n);
   }
 
-  // Natural language intent detection
-  if (ql.includes("what calls") || ql.includes("who calls") || ql.includes("what uses")) {
-    const sym = ql.replace(/what calls|who calls|what uses/g, "").replace(/[?"]/g, "").trim();
-    if (sym) return impactAnalysis(graph, sym);
-  }
-  if (ql.includes("what does") && ql.includes("call")) {
-    const sym = ql.replace(/what does|call\??.*/g, "").replace(/[?"]/g, "").trim();
-    if (sym) return traceFlow(graph, sym);
-  }
-  if (ql.includes("how does") && (ql.includes("connect") || ql.includes("relate") || ql.includes("reach"))) {
-    const m = ql.match(/how does (.+?) (?:connect|relate|reach) (?:to )?(.+?)(?:\?|$)/);
-    if (m) return shortestPath(graph, m[1].trim(), m[2].trim());
-  }
-  if (ql.includes("impact") || ql.includes("blast radius") || ql.includes("what breaks") || ql.includes("affect")) {
-    const sym = ql.replace(/impact|blast radius|what breaks|if i change|what would|affect|changing/g, "").replace(/[?"]/g, "").trim();
-    if (sym) return impactAnalysis(graph, sym);
-  }
-  if (ql.includes("trace") || ql.includes("flow") || ql.includes("execution")) {
-    const sym = ql.replace(/trace|flow|execution|the|of|through/g, "").replace(/[?"]/g, "").trim();
-    if (sym) return traceFlow(graph, sym);
-  }
-  if (ql.includes("explain") || ql.includes("describe")) {
-    const sym = ql.replace(/explain|describe|the|module|area|directory/g, "").replace(/[?"]/g, "").trim();
-    if (sym) return explainArea(graph, sym);
-  }
+  // Commands only match when they START the query. Any other natural
+  // language phrasing (e.g. "can you explain how X works") falls through
+  // to the LLM fallback for a proper answer. No keyword sniffing.
 
   // Fallback: try to match a node
   const info = nodeInfo(graph, q.replace(/[?"]/g, ""));

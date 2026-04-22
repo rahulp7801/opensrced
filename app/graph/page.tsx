@@ -529,8 +529,8 @@ export default function GraphPage() {
                 "help",
                 "stats",
                 "god nodes",
+                "recent",
                 "explain src",
-                "explain lib",
               ].map((cmd) => (
                 <button
                   key={cmd}

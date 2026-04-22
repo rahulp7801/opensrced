@@ -105,6 +105,39 @@ export default function PRsPage() {
           )}
 
           {!loading && githubPrs.length > 0 && (
+            <>
+            {/* Summary stats */}
+            <div className="flex items-center gap-4 mb-3 flex-wrap">
+              <div className="flex items-center gap-4 text-[11px]">
+                <span className="text-paper-muted">
+                  <span className="text-paper tabular-nums">{githubPrs.length}</span> open
+                </span>
+                {(() => {
+                  const needsAction = githubPrs.filter((p) => p.reviewDecision === "CHANGES_REQUESTED");
+                  return needsAction.length > 0 ? (
+                    <span className="text-alert">
+                      <span className="tabular-nums">{needsAction.length}</span> need changes
+                    </span>
+                  ) : null;
+                })()}
+                {(() => {
+                  const approved = githubPrs.filter((p) => p.reviewDecision === "APPROVED");
+                  return approved.length > 0 ? (
+                    <span className="text-ok">
+                      <span className="tabular-nums">{approved.length}</span> approved
+                    </span>
+                  ) : null;
+                })()}
+                {(() => {
+                  const drafts = githubPrs.filter((p) => p.isDraft);
+                  return drafts.length > 0 ? (
+                    <span className="text-paper-faint">
+                      <span className="tabular-nums">{drafts.length}</span> draft
+                    </span>
+                  ) : null;
+                })()}
+              </div>
+            </div>
             <div className="border border-border bg-surface/40 overflow-x-auto">
               <table className="w-full text-[12.5px]">
                 <thead>
@@ -175,6 +208,7 @@ export default function PRsPage() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
       )}

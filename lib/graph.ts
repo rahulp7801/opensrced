@@ -478,6 +478,85 @@ export function godNodes(graph: GraphData, topN = 10): string {
   return lines.join("\n");
 }
 
+export function recentActivity(graph: GraphData): string {
+  // Group nodes by source directory and show which areas have the most code
+  const dirCounts = new Map<string, { nodes: number; labels: string[] }>();
+  for (const n of graph.nodes) {
+    const sf = (n.source_file || "").replace(/\\/g, "/");
+    const parts = sf.split("/");
+    const dir = parts.length > 1 ? parts.slice(0, 2).join("/") : parts[0] || "root";
+    const entry = dirCounts.get(dir) ?? { nodes: 0, labels: [] };
+    entry.nodes++;
+    if (entry.labels.length < 5) entry.labels.push(n.label);
+    dirCounts.set(dir, entry);
+  }
+
+  const moduleNames = buildModuleMap(graph);
+  const moduleGroups = new Map<number, GraphNode[]>();
+  for (const n of graph.nodes) {
+    const list = moduleGroups.get(n.community) ?? [];
+    list.push(n);
+    moduleGroups.set(n.community, list);
+  }
+
+  // Identify the densest modules (most internal edges = most active/complex)
+  const moduleDensity = new Map<number, number>();
+  for (const e of graph.links) {
+    const srcNode = graph.nodes.find((n) => n.id === e.source);
+    const tgtNode = graph.nodes.find((n) => n.id === e.target);
+    if (srcNode && tgtNode && srcNode.community === tgtNode.community) {
+      moduleDensity.set(
+        srcNode.community,
+        (moduleDensity.get(srcNode.community) ?? 0) + 1,
+      );
+    }
+  }
+
+  const lines: string[] = [
+    "CODEBASE ACTIVITY MAP",
+    "─".repeat(40),
+    "",
+    "AREAS BY SIZE:",
+  ];
+
+  const sortedDirs = [...dirCounts.entries()]
+    .sort((a, b) => b[1].nodes - a[1].nodes)
+    .slice(0, 12);
+  for (const [dir, info] of sortedDirs) {
+    const bar = "█".repeat(Math.min(Math.ceil(info.nodes / 2), 20));
+    lines.push(`  ${dir.padEnd(30)} ${bar} ${info.nodes} nodes`);
+  }
+
+  lines.push("", "DENSEST MODULES (most internal connections):");
+  const sortedDensity = [...moduleDensity.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+  for (const [cid, density] of sortedDensity) {
+    const name = moduleNames.get(cid) ?? `module-${cid}`;
+    const size = moduleGroups.get(cid)?.length ?? 0;
+    lines.push(`  ${name} — ${density} internal edges, ${size} nodes`);
+  }
+
+  lines.push("", "ISOLATED NODES (no connections — possible dead code):");
+  const degrees = new Set<string>();
+  for (const e of graph.links) {
+    degrees.add(e.source);
+    degrees.add(e.target);
+  }
+  const isolated = graph.nodes.filter((n) => !degrees.has(n.id));
+  if (isolated.length === 0) {
+    lines.push("  None — all nodes are connected.");
+  } else {
+    for (const n of isolated.slice(0, 10)) {
+      lines.push(`  ${n.label} (${n.source_file})`);
+    }
+    if (isolated.length > 10)
+      lines.push(`  ... and ${isolated.length - 10} more`);
+  }
+
+  return lines.join("\n");
+}
+
 export function graphStats(graph: GraphData): string {
   const moduleNames = buildModuleMap(graph);
   const conf = { EXTRACTED: 0, INFERRED: 0, AMBIGUOUS: 0 };
@@ -646,6 +725,8 @@ export function routeQuery(graph: GraphData, query: string): string {
   }
 
   // Command-style
+  if (ql === "recent" || ql === "recent changes" || ql === "activity")
+    return recentActivity(graph);
   if (ql.startsWith("trace ")) return traceFlow(graph, q.slice(6).trim());
   if (ql.startsWith("impact ")) return impactAnalysis(graph, q.slice(7).trim());
   if (ql.startsWith("explain ")) return explainArea(graph, q.slice(8).trim());
@@ -726,6 +807,9 @@ STATS — graph overview
 
 KEY NODES — most connected components
   god nodes                 top 10 most connected nodes in the codebase
+
+ACTIVITY — codebase activity map
+  recent                    areas by size, densest modules, isolated nodes
 
 NODE LOOKUP — type any symbol or filename
   <name>                    shows a node's connections and metadata

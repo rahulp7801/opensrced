@@ -4,14 +4,15 @@
 
 opensrcer is an AI-powered autonomous contribution agent. Point it at any GitHub repository — public or private — and it scans for vulnerabilities, open issues, and Dependabot alerts. When it finds something actionable, it dispatches an agentic AI pipeline that:
 
-1. **Explores the codebase** using tree-sitter AST indexing, grep, and definition/reference lookup
+1. **Explores the codebase** using tree-sitter AST indexing, graph knowledge queries, grep, and definition/reference lookup
 2. **Reads contribution guidelines** (CONTRIBUTING.md, PR templates, branch conventions) before writing anything
 3. **Generates a minimal patch** with a structured diagnosis, diff, PR title, and PR body
 4. **Reviews its own work** via Gemini 2.0 Flash (correctness, security, completeness)
-5. **Runs the repo's test suite** (npm, pytest, go test, cargo test)
-6. **Opens a verified draft PR** — only if every prior step passes
+5. **Scans for leaked secrets** via Gitleaks before pushing any code
+6. **Runs the repo's test suite** (npm, pytest, go test, cargo test)
+7. **Opens a verified draft PR** — only if every prior step passes
 
-If the tests fail, the PR is blocked and the dashboard shows you exactly why.
+If the tests fail or secrets are found, the PR is blocked and the dashboard shows you exactly why.
 
 ---
 
@@ -27,6 +28,7 @@ If the tests fail, the PR is blocked and the dashboard shows you exactly why.
 - [Issue Scanner & Scorer](#issue-scanner--scorer)
 - [Scope Classifier](#scope-classifier)
 - [Discovery Pipeline](#discovery-pipeline)
+- [Graph Intelligence System](#graph-intelligence-system)
 - [Crucible — Private Repository Mode](#crucible--private-repository-mode)
 - [Security Model](#security-model)
 - [Design System](#design-system)
@@ -43,7 +45,7 @@ If the tests fail, the PR is blocked and the dashboard shows you exactly why.
 
 ### Agentic Deep Solve
 
-Claude Code explores codebases autonomously using a custom MCP server backed by tree-sitter AST indexing. During a solve, Claude calls `repo_info`, `list_files`, `read_file`, `grep`, `find_definition`, and `find_references` against a shallow clone until it has enough context to propose a fix. It then produces a structured response with section headers the auto-PR pipeline parses directly into the pull request.
+Claude Code explores codebases autonomously using a custom MCP server backed by tree-sitter AST indexing and optional graph-powered structural analysis. During a solve, Claude calls `repo_info`, `list_files`, `read_file`, `grep`, `find_definition`, `find_references`, `trace_flow`, `impact_analysis`, and `explain_area` against a shallow clone until it has enough context to propose a fix. It then produces a structured response with section headers the auto-PR pipeline parses directly into the pull request.
 
 The entire interaction — every tool call, every reasoning step — is streamed live to a dispatch log you can watch in the dashboard.
 
@@ -59,9 +61,9 @@ LLM-generated diffs fail in predictable ways. Rather than giving up at the first
 
 | Tier | Strategy | What it handles |
 |------|----------|-----------------|
-| 1 | `git apply --index` (strict) | Clean, accurate diffs |
+| 1 | `git apply --index --recount` (strict) | Clean, accurate diffs |
 | 2 | `+ --ignore-whitespace` | Claude subtly altered spacing or tabs |
-| 3 | `+ --3way` (after deepening the shallow clone) | Context lines drifted since the clone |
+| 3 | `+ --3way` (after deepening the shallow clone to 50 commits) | Context lines drifted since the clone |
 | 4 | `+ --3way --ignore-whitespace` | Combined whitespace + drift |
 | 5 | GNU `patch -p1 --fuzz=3` | Claude wrote the hunk header with the wrong starting line |
 
@@ -81,7 +83,7 @@ This context feeds directly into the PR title and body, so the contribution look
 
 The auto-PR pipeline doesn't naively target the repo's default branch. Instead:
 
-1. Fetch the last 30 merged PRs. If ≥ 80% target the same branch → use that (catches GitFlow repos where `develop` is the real target)
+1. Fetch the last 30 merged PRs. If ≥ 80% target the same branch → use that (catches GitFlow repos where `develop` is the real target). Requires at least 5 data points for the percentage to be meaningful.
 2. Fall back to the repo's `default_branch` metadata
 3. Last resort: `main`
 
@@ -89,7 +91,11 @@ This prevents PRs from landing on the wrong branch in repos with non-standard br
 
 ### Gemini Self-Review
 
-After Claude generates a patch, Gemini 2.0 Flash reviews it for correctness, security issues, and completeness — 3–8 bullet points max. The review is logged in the dispatch output but never blocks the PR. It's advisory context for whoever reviews the draft.
+After Claude generates a patch, Gemini 2.0 Flash reviews it for correctness, security issues, and completeness — 3–8 bullet points max. The review is logged in the dispatch output but never blocks the PR. It's advisory context for whoever reviews the draft. Diffs are truncated to 30,000 characters to stay within Gemini's context window.
+
+### Gitleaks Secret Scanning
+
+Before any PR is pushed, `gitleaks dir` scans the worktree for hardcoded secrets (API keys, passwords, tokens). **This is a hard gate** — if any secrets are detected, the PR is blocked entirely. Findings are redacted in the log (first/last 4 characters only). If Gitleaks is not installed, the scan is gracefully skipped.
 
 ### Security Advisory Remediation
 
@@ -103,9 +109,22 @@ Ask plain-English questions about any GitHub repo. The explore feature streams C
 
 Search all of GitHub for repositories with solvable issues. Filter by star count, language, and recency. Every discovered issue is scored and classified by category, severity, complexity, and scope — then one-click dispatched to the agentic pipeline.
 
+### Graph Intelligence
+
+Build a structural knowledge graph of any repository using graphify (with code-review-graph as a fallback for large repos). Query execution flows, blast radius, module boundaries, and shortest paths — all at zero LLM cost. The graph is exposed as MCP tools (`trace_flow`, `impact_analysis`, `explain_area`) so Claude can use structural understanding during solves.
+
 ### Private Repos (Crucible)
 
 Connect a GitHub Organization through a dedicated GitHub App. opensrcer scans private repos with short-lived installation tokens (60-min TTL, per-org scope, revocable anytime). Tokens are re-minted at PR-open time so long agentic runs don't fail on token expiry. Test-gated PRs are enforced: patches that break the test suite never reach GitHub.
+
+### Input Sanitization
+
+All user-facing inputs pass through dedicated sanitization utilities (`lib/sanitize.ts`):
+- **Prompt injection defense** — control characters stripped, excessive whitespace collapsed, input capped at 5000 chars
+- **Repo ID validation** — only alphanumeric, hyphens, underscores, dots allowed; path traversal rejected
+- **File path sanitization** — `../` and dangerous characters stripped
+- **Commit message sanitization** — newlines stripped, length capped at 200 chars
+- **Branch name and PR number validation** — git-safe character enforcement
 
 ---
 
@@ -134,6 +153,8 @@ Here's the complete lifecycle of a single issue being fixed through the agentic 
 4. AGENTIC DISPATCHER spawns Claude Code in headless mode:
    → claude -p <prompt> --mcp-config .mcp.json
      --max-budget-usd 2 --output-format stream-json
+     --strict-mcp-config --permission-mode bypassPermissions
+     --no-session-persistence --verbose
    → Log starts streaming to .dispatches/d_<timestamp>_<uuid>.log
    → 30-minute wall-clock kill switch armed
 
@@ -155,7 +176,7 @@ Here's the complete lifecycle of a single issue being fixed through the agentic 
    ## PR body               → Full markdown PR body with "Fixes #47"
 
 7. Claude exits 0 → dispatch status: "succeeded"
-   → Auto-PR pipeline fires asynchronously
+   → Auto-PR pipeline fires asynchronously (250ms delay for log flush)
 
 8. AUTO-PR PIPELINE:
    → Extract diff from dispatch log (fenced ```diff block)
@@ -163,6 +184,7 @@ Here's the complete lifecycle of a single issue being fixed through the agentic 
    → Create user's fork: gh repo fork owner/name
    → Create git worktree on new branch: opensrcer/issue-47-<suffix>
    → Apply diff (five-tier ladder — strict first, GNU patch last resort)
+   → Gitleaks secret scan (hard gate — blocks PR if secrets found)
    → Gemini reviews the diff (advisory, non-blocking)
    → (Crucible only) Run test suite: pytest -x -q → all 47 tests pass
    → Resolve base branch: 24/30 merged PRs target 'main' → main
@@ -170,6 +192,7 @@ Here's the complete lifecycle of a single issue being fixed through the agentic 
    → git push to fork
    → gh pr create --draft --base main
    → PR URL appended to dispatch log
+   → Worktree cleaned up
 
 9. DASHBOARD updates on next poll:
    → Dispatch shows PR chip: "PR #48 opened" (green)
@@ -207,14 +230,16 @@ Here's the complete lifecycle of a single issue being fixed through the agentic 
 │                                              │ (repo-tools)  │   │
 │                                              │ tree-sitter   │   │
 │                                              │  + git grep   │   │
+│                                              │  + graphify   │   │
 │                                              └───────┬──────┘   │
 │                                                      ↕           │
-│                                              ┌──────────────┐   │
-│                                              │ Shallow Clone │   │
-│                                              │    Cache      │   │
-│                                              │~/.contribai/  │   │
-│                                              │   repos/      │   │
-│                                              └──────────────┘   │
+│                 ┌──────────────┐              ┌──────────────┐   │
+│                 │   Graphify   │              │ Shallow Clone │   │
+│                 │  Knowledge   │              │    Cache      │   │
+│                 │    Graph     │              │~/.contribai/  │   │
+│                 │~/.opensrcer/ │              │   repos/      │   │
+│                 │ graph-cache/ │              └──────────────┘   │
+│                 └──────────────┘                                  │
 └──────────────────────────────────────────────────────────────────┘
                               ↕
                   ┌──────────────────────┐
@@ -226,14 +251,17 @@ Storage: zero database. All state derived from:
   .dispatches/*.log         - append-only dispatch logs
   .dispatches/*.json        - counters, caches, org mappings
   ~/.contribai/repos/       - shallow clone cache (24h TTL)
+  ~/.opensrcer/graph-cache/ - graphify knowledge graphs
   Browser httpOnly cookie   - encrypted API keys (AES-256-GCM)
 ```
 
-### Key design decisions
+### Key Design Decisions
 
 - **No database.** All state is derived from append-only log files and small JSON caches in `.dispatches/`. Dispatches survive process restarts (logs on disk), but lose process handles (can't cancel a dispatch owned by a previous server instance).
 - **No env fallbacks for secrets.** GitHub tokens, Anthropic keys, Gemini keys — all come from the authenticated user's session or encrypted cookie. The server's own env vars are `delete`d before spawning child processes. This prevents accidental credential leakage across users.
 - **Two dispatch paths.** The deterministic path (contribai.exe) does pre-attach context collection + a single LLM one-shot — fast, cheap, but limited to well-scoped leaf fixes. The agentic path (claude -p + MCP) lets the AI drive its own exploration loop — slower, more expensive, but handles multi-file problems and unfamiliar codebases.
+- **Layered clone caching.** The MCP server clones once and reuses for 24 hours. Worktrees provide isolated checkouts for each dispatch without disturbing the shared clone that the MCP server keeps indexing from.
+- **Multi-tier resilience.** Diff application, definition lookup, graph building, and test execution all have explicit fallback chains. The system degrades gracefully — missing tools are skipped rather than causing failures.
 
 ---
 
@@ -249,6 +277,7 @@ Storage: zero database. All state derived from:
 | `/issues` | Single-repo issue scanner with scope-based solve recommendations | API routes gated |
 | `/dispatches` | Live log streaming, pipeline timeline, PR status chips, cancel, export | API routes gated |
 | `/trigger` | Manual dispatch trigger — repo URL, mode selector, dry-run toggle | API routes gated |
+| `/graph` | Build and query graphify knowledge graphs — interactive force-directed visualization, command palette for graph queries, LLM-powered natural language Q&A | API routes gated |
 | `/prs` | Pull requests opened by the agent (derived from dispatch logs) | API routes gated |
 | `/repos` | Repositories the agent has contributed to | API routes gated |
 | `/runs` | Agent run history with duration, tokens used, model | API routes gated |
@@ -279,6 +308,12 @@ Spawns the Rust `contribai.exe` binary as a subprocess. ContribAI:
 | `solve` | `solve <url> --issue N` | Fix a specific issue |
 | `hunt` | `hunt` | Scan multiple repos for fixable issues |
 
+**Subprocess hygiene:**
+- All sensitive env vars (`GITHUB_TOKEN`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`) are deleted then selectively re-injected from the requesting user's credentials only
+- `CONTRIBAI_DISABLE_SELF_REVIEW=1` to skip the Rust binary's built-in LLM self-review
+- `CONTRIBAI_DRAFT_PR=1` to always create draft PRs
+- `CONTRIBAI_DRAFT_DIR` set for dry-run solves (JSON draft output)
+
 ### 2. Agentic Path (`lib/agentic-dispatcher.ts`)
 
 Spawns `claude -p` (Claude Code in headless print mode) with the opensrcer MCP server attached. Claude drives its own exploration loop through tool calls until it decides it has enough context.
@@ -286,11 +321,22 @@ Spawns `claude -p` (Claude Code in headless print mode) with the opensrcer MCP s
 **Best for:** Multi-file bugs, unfamiliar codebases, issues requiring cross-reference analysis, security vulnerability remediation.
 
 **Guardrails:**
-- `--max-budget-usd` hard cap (default $2, configurable)
-- 30-minute wall-clock timeout (kills entire process tree)
+- `--max-budget-usd` hard cap (default $2, configurable via `OPENSRCER_AGENTIC_BUDGET_USD`)
+- 30-minute wall-clock timeout (kills entire process tree via `taskkill /F /T` on Windows, `SIGKILL` on Unix)
 - `--strict-mcp-config` prevents Claude from picking up user-global MCP servers
 - `--no-session-persistence` keeps each dispatch isolated
+- `--output-format stream-json` for structured parsing of Claude's output
 - All env credentials sanitized — only user-provided keys injected
+
+**Stream parsing:**
+The `pipeStreamJson()` function parses Claude's stream-json output line by line, extracting `assistant` text blocks and `result` events (with total cost). Non-JSON lines are written raw as a fallback.
+
+**Security finding dispatch:**
+`startFindingDispatch()` is a parallel entry point for security advisories/Dependabot alerts. Same mechanics but a tailored prompt focused on vulnerability remediation:
+- Identify the dependency/code affected
+- Determine the fix (usually a version bump)
+- Check compatibility with the codebase
+- Produce a diff + PR title + body with CVE references
 
 ### Dispatch Lifecycle
 
@@ -311,6 +357,10 @@ Every dispatch gets:
 
 The log file is the source of truth. When the server restarts, it reconstructs dispatch records by parsing log headers from disk. PR status (`opened`, `tests_passed`, `tests_failed`, `failed`, `pending`) is derived by scanning the log for marker lines on every read.
 
+### Cancellation
+
+On Windows, `child.kill()` only sends CTRL_C_EVENT which is ignored by many CLIs. The dispatcher uses `taskkill /F /T /PID <pid>` to kill the entire process tree. A `cancelRequested` set tracks the intent so the close handler can distinguish a user-cancelled dispatch from a crash.
+
 ---
 
 ## The MCP Server (Code Intelligence)
@@ -319,16 +369,38 @@ The log file is the source of truth. When the server restarts, it reconstructs d
 
 A standalone Node.js MCP server that communicates over stdio. Built with `@modelcontextprotocol/sdk`. Claude calls these tools during the agentic exploration loop.
 
-### Tools
+### Configuration (`.mcp.json`):
+```json
+{
+  "mcpServers": {
+    "opensrcer-repo-tools": {
+      "command": "node",
+      "args": ["./mcp-server/dist/server.js"]
+    }
+  }
+}
+```
+
+### Tools (9 total)
+
+#### Code Intelligence Tools (6)
 
 | Tool | Description | Implementation |
 |------|------------|----------------|
 | `repo_info` | Basic metadata: HEAD SHA, commit message, file count, top-level entries | `git rev-parse HEAD` + `git ls-files` |
-| `list_files` | List tracked files with optional glob filter | `git ls-files [-- <glob>]` |
-| `read_file` | Read a file with line numbers; supports line_start/line_end for large files | `fs.readFile` + line slicing |
-| `grep` | Regex search, .gitignore-aware, skips binaries | `git grep -n -I --no-color` |
+| `list_files` | List tracked files with optional glob filter (up to 2000 files) | `git ls-files [-- <glob>]` |
+| `read_file` | Read a file with line numbers; supports `line_start`/`line_end` for large files (>400KB requires range) | `fs.readFile` + line slicing |
+| `grep` | Regex search, .gitignore-aware, skips binaries (up to 1000 matches) | `git grep -n -I --no-color` |
 | `find_definition` | Definition lookup for a symbol name | **Two-tier:** tree-sitter AST index → regex-over-git-grep fallback |
-| `find_references` | Every line mentioning a symbol (whole-word), with per-file count summary | `git grep -n -E` with `\b` word boundaries |
+| `find_references` | Every line mentioning a symbol (whole-word), with per-file count summary (up to 1500 matches) | `git grep -n -E` with `\b` word boundaries |
+
+#### Graph-Powered Tools (3, zero LLM cost)
+
+| Tool | Description | Implementation |
+|------|------------|----------------|
+| `trace_flow` | Trace execution flow from a function through its call chain (up to 6 levels deep) | BFS over graphify's `graph.json` call edges |
+| `impact_analysis` | Blast radius analysis — direct callers, indirect dependents, affected modules, risk level | Reverse BFS over incoming call edges (up to 4 levels) |
+| `explain_area` | Module/directory overview — key nodes, clusters, internal vs boundary edges, relationship types | Subgraph extraction + degree analysis |
 
 Every tool takes a `repo: "owner/name"` argument. The server shallow-clones the repo on first use into `~/.contribai/repos/<owner>__<name>/` and caches it for 24 hours.
 
@@ -338,22 +410,29 @@ The `find_definition` tool's first tier uses tree-sitter WASM grammars to parse 
 
 | Language | Declaration types captured |
 |----------|--------------------------|
-| Python | `function_definition`, `class_definition`, lambda assignments |
-| JavaScript | `function_declaration`, `class_declaration`, `method_definition`, `variable_declarator` with arrow/function RHS |
+| Python | `function_definition`, `class_definition`, module-level lambda assignments |
+| JavaScript | `function_declaration`, `class_declaration`, `method_definition`, `variable_declarator` with arrow/function RHS, exported functions |
 | TypeScript | All JS types + `interface_declaration`, `type_alias_declaration`, `enum_declaration` |
 | TSX | Same as TypeScript |
-| Rust | `function_item`, `struct_item`, `enum_item`, `trait_item`, `type_item`, `const_item`, `macro_definition` |
-| Go | `function_declaration`, `method_declaration`, `type_declaration`, `const_declaration` |
+| Rust | `function_item`, `struct_item`, `enum_item`, `trait_item`, `type_item`, `const_item`, `static_item`, `macro_definition` |
+| Go | `function_declaration`, `method_declaration`, `type_declaration`, `const_declaration`, `var_declaration` |
 
-The index is cached on disk as `<repoDir>/.opensrcer-index.json` and rebuilt when the shallow clone is refreshed. When tree-sitter misses (unsupported language, parse error), the grep-based regex fallback catches definitions via keyword pattern matching (`def|class|fn|func|function|struct|...`).
+**Why tree-sitter over regex:** Regex misses multi-line signatures, decorators above the def line, `const foo = () => …`, Rust `impl T { fn foo(…) }` methods, and Go `func (r *T) Foo(…)` receiver methods. Tree-sitter handles all of them structurally and provides `kind` labels (function/class/method/type/…).
+
+**Index caching:** Cached on disk as `<repoDir>/.opensrcer-index.json` and in-memory per process with an inflight lock. Rebuilt when the shallow clone is refreshed. Files over 2MB are skipped (usually generated code).
+
+**WASM compatibility:** Pinned to web-tree-sitter v0.22 because its WASM binary ABI matches the prebuilt grammar bundles in `tree-sitter-wasms@0.1.13`. Newer versions (0.25+) use a different dylink format that fails to load these grammar WASMs.
+
+When tree-sitter misses (unsupported language, parse error), the grep-based regex fallback catches definitions via PCRE keyword pattern matching (`def|class|fn|func|function|struct|...`). Deduplication by file:line prevents duplicates when both tiers match.
 
 ### Repo Cache
 
 - **Location:** `~/.contribai/repos/<owner>__<name>/`
 - **Strategy:** Shallow clone (`--depth=1 --single-branch`), blown away and recloned after 24h TTL
 - **Auth:** If `GITHUB_TOKEN` is in the env, the clone URL is rewritten to `https://x-access-token:<token>@github.com/<owner>/<name>.git` for private repo access
-- **Concurrency:** In-process locks prevent two parallel tool calls from racing the clone
-- **Security:** `safeJoin()` rejects absolute paths and `../` traversals
+- **Concurrency:** In-process locks (`Map<string, Promise>`) prevent two parallel tool calls from racing the clone
+- **Security:** `safeJoin()` rejects absolute paths and `../` traversals — belt-and-braces since git output is trusted but tool args come from the model
+- **Output limits:** All tool results are capped at 60,000 characters to prevent context window flooding
 
 ---
 
@@ -365,18 +444,31 @@ After an agentic dispatch exits cleanly (code 0), this pipeline runs asynchronou
 
 ### Steps
 
-1. **Extract the diff** — Find the first fenced ` ```diff ` / ` ```patch ` block in the log containing `--- a/` + `+++ b/` headers
+1. **Extract the diff** — Find the first fenced `` ```diff `` / `` ```patch `` block in the log containing `--- a/` + `+++ b/` headers. Tolerates bare ``` blocks that start with `--- a/`. Ensures trailing newline (git apply refuses input without one).
+
 2. **Fork setup** (public flows) — `gh repo fork <owner>/<name>` + set up a `fork` remote in the cached clone
-3. **Worktree** — `git worktree add -b opensrcer/issue-<N>-<suffix>` at `.dispatches/<id>/worktree/`
-4. **Apply diff** — Five-tier ladder (see table above), then GNU `patch --fuzz=3` as final fallback
-5. **Gemini review** (optional) — Send diff to Gemini 2.0 Flash for advisory security review
-6. **Run tests** (Crucible only) — Detect ecosystem, run test suite, block PR if tests fail
-7. **Resolve base branch** — Analyze merged PR history for the dominant target branch
+
+3. **Worktree** — `git worktree add -b opensrcer/issue-<N>-<suffix>` at `.dispatches/<id>/worktree/`. For security findings, the branch uses the finding ID (CVE/GHSA) instead of issue number. Stale worktrees from previous attempts are purged.
+
+4. **Apply diff** — Five-tier ladder (see table above), then GNU `patch --fuzz=3` as final fallback. Each tier logs its own failure mode; if all five fail, the diff is reported as genuinely unusable.
+
+5. **Gitleaks secret scan** — Runs `gitleaks dir` on the worktree. **Hard gate:** any finding blocks the PR. Runs on both public and Crucible flows.
+
+6. **Gemini review** (optional) — Send diff to Gemini 2.0 Flash for advisory security/correctness review. Rate limits, quota, or network errors cause silent skip — never blocks the PR flow.
+
+7. **Run tests** (Crucible only) — Detect ecosystem, run test suite in the worktree, block PR if tests fail
+
 8. **Extract PR content** — Parse `## PR title` and `## PR body` sections from Claude's output
-9. **Commit** — Clean subject line, no "generated by" trailers
-10. **Push** — To user's fork (public) or directly upstream (Crucible, using installation token)
-11. **Open draft PR** — Via `gh pr create --draft` (public) or GitHub REST API (Crucible)
-12. **Cleanup** — Remove worktree, restore origin URL if Crucible
+
+9. **Commit** — Clean subject line (uses PR title), no "generated by" trailers. Author identity configurable via `OPENSRCER_COMMIT_NAME` / `OPENSRCER_COMMIT_EMAIL`.
+
+10. **Push** — To user's fork (public) or directly upstream (Crucible, using installation token). 90-second timeout.
+
+11. **Resolve base branch** — Analyze merged PR history for the dominant target branch (see [Base Branch Resolution](#base-branch-resolution))
+
+12. **Open draft PR** — Via `gh pr create --draft` (public) or GitHub REST API (Crucible). For Crucible, the `head` is the branch name directly (same repo, no fork).
+
+13. **Cleanup** — Remove worktree, restore origin URL if Crucible (strip the installation token from git config)
 
 ### PR Content Assembly
 
@@ -384,13 +476,17 @@ The pipeline extracts structured sections from Claude's output:
 
 | Section | Used for |
 |---------|----------|
-| `## PR title` | PR title (truncated to 90 chars, sanitized) |
+| `## PR title` | PR title (truncated to 90 chars, sanitized — truncated at first sentence boundary or 85 chars with ellipsis) |
 | `## PR body` | PR description body |
 | `## Diagnosis` | Fallback body section if PR body is missing |
 | `## Risk / Test` | Fallback "Test plan" section |
-| `## Conventions` | Collapsible details section in body |
+| `## Conventions` | Collapsible `<details>` section in body (omitted if "no contribution guide") |
 
 If the body doesn't contain `Fixes #N` / `Closes #N`, it's auto-injected so the issue auto-closes on merge.
+
+### Crucible Token Re-minting
+
+For private-org flows, the installation token is **re-minted** at PR-open time (not at dispatch-start time). This prevents a 20-minute agentic run from failing at the push step because the token expired during exploration. The origin URL is temporarily set with the fresh token for the push, then restored to the public (non-tokened) form — installation tokens never persist in the clone's git config.
 
 ---
 
@@ -447,6 +543,11 @@ Predicts how wide a fix will reach through the codebase. Purely textual — no n
 | `new-file` | Title matches "create/add/introduce" + file-type noun ("schema", "config", "types.d.ts") | Deep solve |
 | `unknown` | No files or symbols named | Deep solve (let Claude figure it out) |
 
+### How it works:
+1. **Extract file paths** from title+body using a regex matching common extensions (`.py`, `.ts`, `.rs`, `.go`, etc.)
+2. **Extract symbols** — snake_case, CamelCase, function calls like `foo()`
+3. Apply the classification ladder: new-file → refactor phrases → doc-only → file count → unknown
+
 ---
 
 ## Discovery Pipeline
@@ -474,6 +575,52 @@ POST /api/discover { minStars, maxStars?, language?, repoLimit, issuesPerRepo, m
 **Rate limits:** `gh search repos` costs 1 code-search request (30/min authed). `gh issue list` uses REST (5000/hr). Typical scan: 12 repos × 20 issues = ~13 API calls.
 
 **Client-side filtering:** The API returns all scored issues; filtering by age, complexity, scope bucket, and solvability happens in the browser — no re-fetch needed.
+
+---
+
+## Graph Intelligence System
+
+**Files:** `lib/graph.ts`, `lib/graph-build.ts`, `mcp-server/src/graph.ts`
+
+opensrcer can build a structural knowledge graph of any repository, enabling zero-cost structural queries that complement Claude's LLM-powered exploration.
+
+### Graph Building
+
+Two graph builders are supported, with automatic fallback:
+
+1. **Graphify** (primary) — Leiden community clustering, relationship extraction. On Windows, runs via Python with `sys.setrecursionlimit(10000)` to handle large repos. Output: `graphify-out/graph.json`.
+2. **Code-review-graph (CRG)** (fallback) — SQLite-based, handles large repos that exceed graphify's memory/recursion limits. Also built alongside graphify for blast-radius queries. Output: `.code-review-graph/graph.db`.
+
+**Cache location:** `~/.opensrcer/graph-cache/<owner>__<name>/`
+
+### Query Commands (zero LLM cost)
+
+| Command | What it does |
+|---------|-------------|
+| `trace <symbol>` | Follow execution flow through call chain (6 levels deep, 15 edges per node) |
+| `impact <symbol>` | Blast radius — direct callers, indirect dependents, affected communities, risk level (LOW/MEDIUM/HIGH) |
+| `explain <directory>` | Module overview — key nodes by connectivity, clusters, internal vs boundary edges |
+| `path <source> to <target>` | Shortest path between two nodes (BFS, undirected) |
+| `stats` | Graph statistics — nodes, edges, modules, confidence distribution, relationship types |
+| `top nodes` / `god nodes` | Highest-connectivity nodes (potential refactoring targets) |
+| `recent` | Codebase activity map — areas by size, densest modules, isolated nodes (dead code candidates) |
+| `help` | List all available commands |
+
+### MCP Integration
+
+Three graph tools are registered in the MCP server, allowing Claude to use structural understanding during solves:
+- `trace_flow` — same as the `trace` command
+- `impact_analysis` — same as the `impact` command
+- `explain_area` — same as the `explain` command
+
+If no graph is built for a repo, these tools return an actionable error message guiding the user to build one via the Graph page.
+
+### Architecture Concepts
+
+- **Nodes** = named code entities (functions, classes, modules) with file type, source location, and community assignment
+- **Edges** = relationships (calls, imports, instantiates, references, uses_component, binds_method) with confidence scores
+- **Communities** = Leiden algorithm clusters, given human-readable names from the most common directory path in each group
+- **Module naming** = derives readable names like "lib/application" instead of "Cluster 9"
 
 ---
 
@@ -515,7 +662,7 @@ Two GitHub API sources normalized into a unified `SecurityFinding` type:
 - **Repository security advisories** (`GET /repos/:o/:r/security-advisories`) — published + draft GHSA entries
 - **Dependabot alerts** (`GET /repos/:o/:r/dependabot/alerts?state=open`) — active vulnerability alerts
 
-Both are cached in-memory with a 60-second TTL.
+Both are cached in-memory with a 60-second TTL. Also exposes `listInstallationRepos()` (paginated listing of all repos the app can access) and `listInstallationIssues()` (open issues for a specific repo).
 
 ### Test Runner
 
@@ -531,12 +678,13 @@ Both are cached in-memory with a 60-second TTL.
 - **No ecosystem match** → `status: "skipped"` (PR opens with "tests not run")
 - **Tests fail** → PR is **blocked** (log records `[crucible-tests] status=failed`)
 - **Timeout:** 10 minutes. **Output cap:** 256 KB stdout/stderr.
+- **Safety:** `shell: true` for Windows PATH resolution (only whitelisted constant commands)
 
 ---
 
 ## Security Model
 
-### No env fallbacks
+### No Env Fallbacks
 
 All sensitive tokens (GitHub, Anthropic, Gemini) come exclusively from the authenticated user's session or encrypted cookie. Before spawning any child process, the server explicitly `delete`s its own `GITHUB_TOKEN`, `ANTHROPIC_API_KEY`, and `GEMINI_API_KEY` from the env, then injects only the requesting user's credentials.
 
@@ -546,32 +694,56 @@ All sensitive tokens (GitHub, Anthropic, Gemini) come exclusively from the authe
 - **GitHub Social Connection** — Auth0 performs the OAuth flow and returns a scoped token
 - **Custom claim** `https://opensrcer.dev/github_token` — the user's GitHub token, embedded in the Auth0 session by a Rule
 
+### Authentication Middleware (`middleware.ts`)
+
+Every request passes through Next.js edge middleware that enforces auth:
+
+```
+Request → Is prefetch? → skip
+        → Is /login? → if logged in, redirect to /discover
+        → Is public path? → allow through
+        → AUTH_DISABLED=1? → allow through (local dev)
+        → Has session? → allow through
+        → Is /api/*? → return 401 JSON
+        → Else → redirect to /login?returnTo=<path>
+```
+
+**Public paths** (no auth required): `/`, `/login`, `/api/auth/*`, `/api/crucible/github/webhook`, webhooks (HMAC-authenticated), and all client-shell pages. The matcher skips `_next/static`, images, and favicons entirely.
+
 ### API Key Storage
 
 User-provided API keys (Anthropic, Gemini, spend cap) are stored in an **encrypted httpOnly browser cookie**:
 
 - **Algorithm:** AES-256-GCM
 - **Key derivation:** SHA-256 hash of `AUTH0_SECRET`
-- **Cookie:** `opensrcer-keys`, httpOnly, sameSite=lax, 30-day maxAge
+- **Format:** `base64url(IV[12] + AuthTag[16] + Ciphertext)`
+- **Cookie:** `opensrcer-keys`, httpOnly, sameSite=lax, secure in production, 30-day maxAge
 - **Never on disk, never in a database, never logged**
 
-### Token lifecycle
+### Token Lifecycle
 
 | Token type | Source | Lifetime | Scope |
 |-----------|--------|----------|-------|
 | Auth0 session | Auth0 SDK cookie | Session duration | User identity |
 | GitHub OAuth | Auth0 social connection | Session duration | `public_repo`, `read:user` |
 | GitHub App JWT | Signed with App private key | 10 minutes | App-level API calls |
-| Installation token | Exchanged from App JWT | 60 minutes (cached 55 min) | Per-org, all repos |
+| Installation token | Exchanged from App JWT | 60 min (cached 55 min) | Per-org, all repos |
 | Anthropic/Gemini keys | User-provided, encrypted cookie | 30 days (cookie maxAge) | API access |
 
-### Spend controls
+### Spend Controls
 
 - **Hard cap per dispatch** via `--max-budget-usd` (default $2, configurable per-user in encrypted cookie)
 - Claude exits cleanly when the budget is reached
 - The dashboard shows the `total_cost_usd` for each dispatch
 
-### Full revocability
+### Secret Leak Prevention
+
+- **Gitleaks scanning** runs on every generated patch before pushing, blocking PRs with detected secrets
+- **Env sanitization** — server env vars are deleted before spawning child processes
+- **Token redaction** — only the 4-char prefix of tokens is logged (safe: `ghs_` identifies installation tokens, `gho_`/`ghp_` identify user tokens)
+- **Crucible origin URL cleanup** — installation tokens are stripped from git config after push
+
+### Full Revocability
 
 - Disconnect orgs, clear API keys, and sign out with one click
 - Revoke the GitHub OAuth app from `github.com/settings/applications`
@@ -590,34 +762,70 @@ Dark-mode-only with a **warm paper-on-ink** palette. Tailwind CSS v4 with custom
 | Token | Hex | Usage |
 |-------|-----|-------|
 | `ink` | `#0a0a0b` | Background |
-| `surface` | `#111115` → `#1c1c22` | Elevated surfaces (3 tiers) |
+| `ink-2` | `#0d0d0f` | Secondary background |
+| `surface` | `#111115` | Elevated surfaces (tier 1) |
+| `surface-2` | `#16161b` | Elevated surfaces (tier 2) |
+| `surface-3` | `#1c1c22` | Elevated surfaces (tier 3) |
+| `border` | `#26262d` | Default borders |
+| `border-soft` | `#1a1a20` | Subtle borders |
+| `border-strong` | `#3a3a44` | Emphasized borders |
 | `paper` | `#ece5d1` | Primary text (warm cream) |
+| `paper-2` | `#d9d1bc` | Secondary primary text |
 | `paper-dim` | `#9a9280` | Secondary text |
 | `paper-muted` | `#6b6557` | Tertiary text |
+| `paper-faint` | `#3f3c34` | Quaternary text |
 | `signal` | `#ff9d2e` | Primary accent (warm orange) |
+| `signal-soft` | `#ffb866` | Light accent |
+| `signal-dim` | `#8a5a1e` | Dark accent |
+| `signal-faint` | `#2a1c0b` | Very dark accent |
 | `ok` | `#7fe83f` | Success |
+| `ok-dim` | `#3f7620` | Dark success |
 | `alert` | `#ff5c5c` | Error/danger |
+| `alert-dim` | `#7a2b2b` | Dark error |
 | `info` | `#5ec8ff` | Informational |
+| `info-dim` | `#205e84` | Dark informational |
 
 ### Typography
 
-- **Serif:** Instrument Serif (Google Fonts) — headings, large numbers
-- **Mono:** JetBrains Mono (Google Fonts) — everything else: labels, code, body text, navigation
+- **Serif:** Instrument Serif (Google Fonts) — headings, large numbers. Loaded via `next/font/google` with CSS variable `--font-serif`.
+- **Mono:** JetBrains Mono (Google Fonts) — everything else: labels, code, body text, navigation. Weights: 300, 400, 500, 600. Features: `ss01`, `ss02`, `cv01`, `cv11`.
 
 ### Animations
 
-- `pulse-signal` — Orange breathe effect for running indicators
-- `pulse-ok` — Green breathe for succeeded states
-- `fade-rise` — Subtle entrance (translateY + opacity)
-- `scan` — Vertical sweep for scanning UI
-- `confetti-burst` — Particle explosion on PR opened
+- `pulse-signal` — Orange breathe effect (2.2s) for running indicators
+- `pulse-ok` — Green breathe (2.8s) for succeeded states
+- `fade-rise` — Subtle entrance: `translateY(8px) + opacity:0 → origin + opacity:1` (0.6s, cubic bezier)
+- `scan` — Vertical sweep for scanning UI (3.5s)
+- `ticker` — Horizontal continuous scroll (60s)
+- `confetti-burst` — Particle explosion on PR opened (uses CSS custom properties `--tx`, `--ty`)
+- Stagger classes: `.stagger-1` through `.stagger-8` (60ms increments)
+
+### Utility Classes
+
+- `.mono-label` — Uppercase 10px monospace label with `0.18em` letter spacing
+- `.hairline` — Horizontal divider with gradient fade at edges
+- `.grid-pattern` — 32px grid background pattern
+- `.signal-glow` — Orange box-shadow glow effect
+- `.serif` — Apply serif font family
+- `.num-tabular` — Tabular number spacing (`font-variant-numeric: tabular-nums`)
 
 ### Background
 
 Three-layer body background:
-1. Radial orange glow (top-right)
-2. Radial blue glow (bottom-left)
-3. SVG noise texture (subtle paper grain, 160px tile)
+1. Radial orange glow (top-right, 1200×600px, 5% opacity)
+2. Radial blue glow (bottom-left, 900×500px, 3% opacity)
+3. SVG noise texture (subtle paper grain, 160px tile, 2.5% opacity)
+
+All three are `background-attachment: fixed` for parallax-like stability during scroll.
+
+### Other Design Decisions
+
+- **Dark-only:** `color-scheme: dark` on `:root`
+- **Antialiased:** `-webkit-font-smoothing: antialiased` + `text-rendering: optimizeLegibility`
+- **No horizontal overflow:** `overflow-x: hidden; max-width: 100vw` on `html, body`
+- **Custom scrollbar:** 10px, transparent track, `border-color` thumb
+- **Selection color:** Orange signal on ink background
+- **Radius tokens:** `xs: 2px`, `sm: 3px`, `md: 4px` — deliberately tight
 
 ---
 
@@ -633,6 +841,8 @@ Three-layer body background:
 | `gh` CLI | 2.x+ | GitHub API calls (repos, issues, PRs) |
 | GNU `patch` | Any | Fallback diff application (ships with Git-for-Windows) |
 | Git | 2.30+ | Cloning, worktrees, push |
+| Gitleaks | Any | Secret scanning (optional, skipped gracefully if missing) |
+| Python | 3.9+ | Graph building via graphify (optional) |
 
 ### Setup
 
@@ -660,9 +870,16 @@ npm run dev
 
 Open `http://localhost:3000`. Sign in with GitHub via Auth0. Add your Anthropic API key on the Crucible page (or via `/api/settings`). Navigate to `/discover`, scan for issues, and click **Deep solve**.
 
-### Local dev without Auth0
+### Local Dev Without Auth0
 
 Set `AUTH_DISABLED=1` in `.env.local` to skip all auth checks. The middleware will let every request through, and API routes won't require a session. Useful for UI development but all dispatch features will need explicit tokens.
+
+### Building the MCP Server for Development
+
+```bash
+cd mcp-server
+npm run dev  # watches for changes and recompiles
+```
 
 ---
 
@@ -678,7 +895,7 @@ Set `AUTH_DISABLED=1` in `.env.local` to skip all auth checks. The middleware wi
 | `AUTH0_BASE_URL` | Application URL (e.g., `http://localhost:3000`) |
 | `AUTH0_SECRET` | Session encryption secret (also used for API key encryption) |
 
-### Optional — Local dispatch
+### Optional — Local Dispatch
 
 | Variable | Purpose |
 |----------|---------|
@@ -686,7 +903,7 @@ Set `AUTH_DISABLED=1` in `.env.local` to skip all auth checks. The middleware wi
 | `CONTRIBAI_CONFIG` | Path to contribai config YAML |
 | `GH_CLI` | Explicit path to `gh.exe` (falls back to PATH) |
 
-### Optional — Crucible (private repos)
+### Optional — Crucible (Private Repos)
 
 | Variable | Purpose |
 |----------|---------|
@@ -707,7 +924,9 @@ Set `AUTH_DISABLED=1` in `.env.local` to skip all auth checks. The middleware wi
 | `OPENSRCER_AGENTIC_AUTO_PR` | `1` | Set to `0` to disable auto-PR on clean agentic exit |
 | `OPENSRCER_COMMIT_NAME` | `rahulp7801` | Git author name for auto-PRs |
 | `OPENSRCER_COMMIT_EMAIL` | `76501505+rahulp7801@...` | Git author email for auto-PRs |
+| `OPENSRCER_CACHE_DIR` | `~/.contribai/repos` | Override the shallow clone cache directory |
 | `CONTRIBAI_GEMINI_RPM` | `4` | Gemini rate-limit throttle (requests per minute) |
+| `CRG_PYTHONPATH` | _(system)_ | Path to code-review-graph Python package |
 
 ---
 
@@ -765,6 +984,13 @@ Set `AUTH_DISABLED=1` in `.env.local` to skip all auth checks. The middleware wi
 | `/api/health` | GET | Health check |
 | `/api/sessions` | GET | Active sessions |
 
+### Graph
+
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `/api/graph/generate` | POST | Build graphify knowledge graph for a repo (with streaming progress) |
+| `/api/graph/*` | Various | Graph query and visualization endpoints |
+
 ### Crucible (Private Repos)
 
 | Route | Method | Purpose |
@@ -776,6 +1002,12 @@ Set `AUTH_DISABLED=1` in `.env.local` to skip all auth checks. The middleware wi
 | `/api/crucible/github/webhook` | POST | GitHub App webhook receiver (HMAC-verified) |
 | `/api/crucible/github/install-callback` | GET | GitHub App installation callback |
 
+### Explore
+
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `/api/explore` | POST | Plain-English codebase Q&A via Claude + MCP tools |
+
 ---
 
 ## Project Structure
@@ -783,68 +1015,173 @@ Set `AUTH_DISABLED=1` in `.env.local` to skip all auth checks. The middleware wi
 ```
 opensrc2/
 ├── app/                          # Next.js App Router
-│   ├── page.tsx                  # Landing page (388 lines)
+│   ├── page.tsx                  # Landing page (20 KB)
 │   ├── layout.tsx                # Root layout: fonts, Auth0 UserProvider, toast, shell
 │   ├── globals.css               # Design system (201 lines)
+│   ├── loading.tsx               # Loading skeleton
+│   ├── not-found.tsx             # 404 page
 │   ├── login/page.tsx            # Auth0 login page
 │   ├── discover/                 # Discovery UI
 │   ├── issues/                   # Issue scanner UI
 │   ├── dispatches/               # Dispatch list + log viewer
 │   ├── explore/                  # Codebase Q&A
+│   ├── graph/                    # Graph intelligence UI (40 KB)
 │   ├── crucible/                 # Private-org mode
 │   ├── trigger/                  # Manual dispatch trigger
+│   ├── demo/                     # Demo page
 │   ├── prs/ repos/ runs/ stats/  # Observatory views
-│   └── api/                      # ~15 API route directories
+│   └── api/                      # ~16 API route directories
+│       ├── auth/                 # Auth0 SDK routes
+│       ├── discover/             # Discovery endpoint
+│       ├── dispatches/           # Dispatch management
+│       ├── explore/              # Codebase Q&A endpoint
+│       ├── graph/                # Graph build + query endpoints
+│       ├── issues/               # Issue scanning
+│       ├── run/                  # Dispatch execution (target/solve/agentic/hunt)
+│       ├── crucible/             # Crucible: GitHub App, webhooks, org connect
+│       ├── settings/             # API key management
+│       ├── stats/                # Aggregated stats
+│       └── prs/ repos/ runs/     # Observatory data endpoints
 │
 ├── components/                   # 24 React components
 │   ├── dispatch-list.tsx         # 51 KB — real-time log viewer, status chips, PR overlay
 │   ├── issue-scanner.tsx         # 30 KB — scored issue table with action buttons
 │   ├── discover-scanner.tsx      # 21 KB — cross-repo search UI
-│   ├── command-palette.tsx       # 11 KB — ⌘K palette
 │   ├── draft-preview.tsx         # 11 KB — dry-run draft preview
+│   ├── command-palette.tsx       # 11 KB — ⌘K palette
 │   ├── stats-board.tsx           # 10 KB — stats dashboard with sparklines
 │   ├── trigger-form.tsx          # 9 KB — manual trigger
-│   ├── pr-table.tsx              # 8 KB — PR display table
-│   └── ...                       # auth-chip, onboarding, toast, animated-counter, etc.
+│   ├── pr-table.tsx              # 9 KB — PR display table
+│   ├── onboarding.tsx            # 5 KB — first-time user guide
+│   ├── icons.tsx                 # 3 KB — SVG icon components
+│   ├── auth-chip.tsx             # 3 KB — login/logout with user avatar
+│   ├── api-key-gate.tsx          # 2 KB — "Configure API keys" banner
+│   ├── nav.tsx                   # 2 KB — site navigation
+│   ├── sparkline.tsx             # 2 KB — tiny inline SVG charts
+│   ├── toast.tsx                 # 2 KB — toast notification system
+│   ├── animated-counter.tsx      # 1 KB — smooth number animation
+│   ├── status-dot.tsx            # 1 KB — pulsing status indicator dots
+│   ├── header.tsx                # 1 KB — site header
+│   └── ...                       # panel, section, page-heading, footer, etc.
 │
 ├── lib/                          # Server-side business logic
-│   ├── agentic-pr.ts             # 28 KB — auto-PR: diff extract → apply → test → push → PR
+│   ├── graph.ts                  # 28 KB — graph traversal engine (zero LLM cost)
+│   ├── agentic-pr.ts             # 29 KB — auto-PR: diff extract → apply → test → push → PR
 │   ├── agentic-dispatcher.ts     # 27 KB — spawns claude -p with MCP, streams output
 │   ├── dispatcher.ts             # 21 KB — spawns contribai.exe, manages lifecycle
 │   ├── issues.ts                 # 13 KB — issue scanner + deterministic scorer
 │   ├── stats.ts                  # 11 KB — stats aggregator (scans dispatch logs)
 │   ├── scope.ts                  # 11 KB — scope classifier
-│   ├── seed.ts                   # 10 KB — deterministic demo data
+│   ├── seed.ts                   # 10 KB — deterministic demo data (seeded PRNG)
 │   ├── discover.ts               # 7 KB — repo discovery pipeline
+│   ├── gitleaks-scanner.ts       # 5 KB — secret scanning gate
+│   ├── graph-build.ts            # 5 KB — graph build orchestration (graphify + CRG)
 │   ├── enrich.ts                 # 4 KB — PR/repo/run enrichment
+│   ├── data.ts                   # 4 KB — data fetchers (proxy to ContribAI or seed)
 │   ├── api-keys.ts               # 3 KB — AES-256-GCM encrypted cookie storage
+│   ├── crg-summary.py            # 3 KB — code-review-graph summary generator
+│   ├── crg-impact.py             # 5 KB — blast-radius analysis via CRG
+│   ├── sanitize.ts               # 2 KB — input sanitization utilities
 │   ├── github-token.ts           # 2 KB — GitHub token from Auth0 session
+│   ├── use-swr-fetch.ts          # 2 KB — SWR fetch hook
+│   ├── llm-cache.ts              # 3 KB — LLM response caching
 │   ├── types.ts                  # 2 KB — shared TypeScript types
+│   ├── utils.ts                  # 1 KB — utility functions
 │   └── crucible/                 # Private-org subsystem
-│       ├── advisories.ts         # 8 KB — security advisories + Dependabot alerts
 │       ├── test-runner.ts        # 11 KB — sandbox test execution
+│       ├── advisories.ts         # 8 KB — security advisories + Dependabot alerts
 │       ├── github-app.ts         # 4 KB — JWT minting + installation tokens
 │       ├── orgs.ts               # 2 KB — org-user mapping store
 │       ├── tokens.ts             # 2 KB — installation token resolver
-│       └── constants.ts
+│       └── constants.ts          # Crucible constants
 │
 ├── mcp-server/                   # MCP server (separate npm package)
 │   └── src/
-│       ├── server.ts             # 4 KB — stdio transport, 6 tool registrations
-│       ├── tools.ts              # 11 KB — tool implementations
+│       ├── server.ts             # 6 KB — stdio transport, 9 tool registrations
+│       ├── tools.ts              # 11 KB — code intelligence tool implementations
+│       ├── graph.ts              # 7 KB — graph-powered MCP tools
 │       ├── repo-cache.ts         # 4 KB — shallow-clone cache
-│       └── indexer.ts            # 13 KB — tree-sitter WASM symbol indexer
+│       ├── indexer.ts            # 13 KB — tree-sitter WASM symbol indexer
+│       └── tools/                # Additional tool modules
+│
+├── scripts/                      # Utility scripts
+│   └── seed_memory.py            # 7 KB — memory seeding script
 │
 ├── ContribAI/                    # Rust agent binary (deterministic path)
+│   ├── Cargo.toml                # Rust workspace
+│   ├── crates/                   # Rust crate sources
+│   └── python/                   # Python helper scripts
 │
 ├── middleware.ts                 # Auth0 session-gating middleware
 ├── .mcp.json                    # MCP server config for claude -p
 ├── .env.local                    # Environment secrets
 ├── .dispatches/                  # Runtime artifacts (gitignored)
+│   ├── d_<timestamp>_<uuid>.log  # Per-dispatch log files
+│   ├── d_<timestamp>_<uuid>/     # Worktrees + draft JSONs
+│   ├── issue-titles.json         # Cached issue titles (TTL 30 days)
+│   ├── stats.json                # Scan/discover counters
+│   ├── crucible-orgs.json        # Org→installation mapping
+│   ├── crucible-tokens-cache.json # Installation token cache
+│   └── repo-stars.json           # Star count cache (TTL 7 days)
 ├── READING.md                    # Detailed codebase deep-dive (for contributors)
 ├── CRUCIBLE.md                   # Crucible design document
 └── package.json                  # Next.js + dependencies
 ```
+
+---
+
+## Stats & Telemetry
+
+**File:** `lib/stats.ts`
+
+Stats are derived from **filesystem artifacts** — no database. Two data sources:
+
+### 1. Counter file (`.dispatches/stats.json`):
+```json
+{
+  "scans": 47,
+  "discoverRuns": 12,
+  "scanHistory": [
+    { "ts": "2026-04-19T...", "repo": "owner/name", "kind": "scan" }
+  ]
+}
+```
+Bumped by `/api/issues/scan` (scans) and `/api/discover` (scans + discoverRuns).
+
+### 2. Log file scraping:
+For each `.dispatches/*.log`, extract:
+- `repoFull` from `repo: <owner/name>` marker
+- `issueNumber` from `issue: #N`
+- `prUrl` from any `github.com/<o>/<r>/pull/<n>` URL
+- `status` from `exited at ... status=<status>`
+- `costUsd` from `total_cost_usd=<float>`
+- `hasDiff` from presence of `` ```diff `` block
+
+### Aggregated stats (`StatsSummary`):
+- `dispatches`: count of log files
+- `prsCreated`: logs containing a PR URL
+- `totalCostUsd`: sum of all logged costs
+- `patchesGenerated`: logs containing a diff block
+- `successRate`: patchesGenerated / completed
+- `prRate`: prsCreated / completed
+- `biggestContributions`: PRs on repos with ≥1000 stars (star count cached in `.dispatches/repo-stars.json` with 7-day TTL)
+- `recentActivity`: merged scan history + dispatch starts, newest-first
+
+---
+
+## Seed Data & Demo Mode
+
+**File:** `lib/seed.ts`
+
+When `CONTRIBAI_API_URL` is not set (no running Rust backend), the dashboard serves **deterministic demo data** generated by a seeded PRNG (`mulberry32`). This creates:
+- 84 fake PRs across 23 real repos (sherlock, ruff, polars, tokio, etc.)
+- Fake runs, repos, stats, sessions
+- Stable across reloads (same seed = same data)
+
+### Enrichment (`lib/enrich.ts`):
+When the Rust backend IS connected, its API returns sparse PR/repo/run records. The enrichment layer fills in missing fields:
+- **Language + stars**: Fetched from GitHub API and cached in-memory. Falls back to name-based heuristic (`*-rs` → rust, `*-py` → python).
+- **Quality score, risk, lines/files changed**: Derived deterministically via hash code (stable per repo+pr_number).
 
 ---
 
@@ -858,6 +1195,9 @@ opensrc2/
 - **Issue solvability is heuristic.** The stale-open detector catches most resolved-but-not-closed issues, but body-only scanning (not full comment threads on some edge cases) means it can miss resolution signals buried deep in a conversation.
 - **Base branch resolution works for common patterns** (trunk, GitFlow) but not for repos with exotic branching strategies. The fallback is always the repo's default branch.
 - **Gemini review is advisory and best-effort.** Rate limits, quota, or network errors cause it to silently skip — it never blocks the PR flow.
+- **Graph intelligence requires a pre-built graph.** If graphify or CRG hasn't been run, the graph tools return an error. Large repos may exceed Python's recursion limit even with the 10,000-deep override.
+- **Gitleaks is optional.** If not installed, the secret scan is skipped. The PR still opens, but without the secret-leak safety net.
+- **Tree-sitter WASMs are pinned to v0.22.** The grammar bundles in `tree-sitter-wasms@0.1.13` are incompatible with newer web-tree-sitter versions. This limits language support to 6 languages until the grammars are upgraded.
 
 ---
 

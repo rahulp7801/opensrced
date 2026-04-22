@@ -5,18 +5,27 @@ import { NextRequest } from "next/server";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { resolveGitHubToken } from "@/lib/github-token";
+import { sanitizeRepoId, sanitizeForPrompt, sanitizePrNumber } from "@/lib/sanitize";
 
 const execFileAsync = promisify(execFile);
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as {
+  const raw = (await req.json().catch(() => ({}))) as {
     repo?: string;
     pr_number?: number;
     comment_id?: number;
     body?: string;
     type?: "review" | "issue";
+  };
+
+  const body = {
+    repo: raw.repo ? sanitizeRepoId(raw.repo) : null,
+    pr_number: raw.pr_number ? sanitizePrNumber(raw.pr_number) : null,
+    comment_id: raw.comment_id,
+    body: raw.body ? sanitizeForPrompt(raw.body) : null,
+    type: raw.type === "review" ? "review" as const : "issue" as const,
   };
 
   if (!body.repo || !body.body || !body.pr_number) {

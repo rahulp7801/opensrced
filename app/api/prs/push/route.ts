@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { resolveGitHubToken } from "@/lib/github-token";
+import { sanitizeRepoId, sanitizeBranchName, sanitizeCommitMessage } from "@/lib/sanitize";
 
 const execFileAsync = promisify(execFile);
 
@@ -29,12 +30,20 @@ async function run(
 }
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as {
-    repo?: string; // owner/name (the fork, e.g. rahulp7801/auto-round)
-    upstream?: string; // upstream owner/name (e.g. intel/auto-round)
-    branch?: string; // PR branch name
-    diff?: string; // the diff/patch to apply
+  const raw = (await req.json().catch(() => ({}))) as {
+    repo?: string;
+    upstream?: string;
+    branch?: string;
+    diff?: string;
     commit_message?: string;
+  };
+
+  const body = {
+    repo: raw.repo ? sanitizeRepoId(raw.repo) : null,
+    upstream: raw.upstream ? sanitizeRepoId(raw.upstream) : null,
+    branch: raw.branch ? sanitizeBranchName(raw.branch) : null,
+    diff: raw.diff?.slice(0, 100_000) ?? null, // cap diff size
+    commit_message: raw.commit_message ? sanitizeCommitMessage(raw.commit_message) : "address review feedback",
   };
 
   if (!body.repo || !body.branch || !body.diff) {

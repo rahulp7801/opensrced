@@ -7,6 +7,7 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
 import { graphCacheDir } from "@/lib/graph";
 import { resolveGitHubToken } from "@/lib/github-token";
+import { sanitizeRepoId } from "@/lib/sanitize";
 
 export const dynamic = "force-dynamic";
 
@@ -20,15 +21,11 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "Missing repo_url" }, { status: 400 });
   }
 
-  const m =
-    /github\.com[:/]+([^/]+)\/([^/?#\s.]+)|^([^/\s]+)\/([^/\s]+)$/.exec(
-      body.repo_url.trim().replace(/\.git$/i, ""),
-    );
-  const owner = m?.[1] ?? m?.[3];
-  const name = m?.[2] ?? m?.[4];
-  if (!owner || !name) {
+  const repoId = sanitizeRepoId(body.repo_url);
+  if (!repoId) {
     return Response.json({ error: "Invalid repo URL" }, { status: 400 });
   }
+  const [owner, name] = repoId.split("/");
 
   const cacheDir = graphCacheDir(owner, name);
 

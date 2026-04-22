@@ -22,16 +22,24 @@ import {
 import { hasCrg, graphCacheDir } from "@/lib/graph-build";
 import { resolveAnthropicKey } from "@/lib/api-keys";
 import { getCached, setCached } from "@/lib/llm-cache";
+import { sanitizeForPrompt } from "@/lib/sanitize";
 
 const execFileAsync = promisify(execFile);
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as {
+  const raw = (await req.json().catch(() => ({}))) as {
     owner?: string;
     repo?: string;
     query?: string;
+  };
+
+  // Sanitize — owner/repo are validated by path convention, query is user freetext
+  const body = {
+    owner: raw.owner?.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 100),
+    repo: raw.repo?.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 100),
+    query: raw.query ? sanitizeForPrompt(raw.query) : null,
   };
 
   if (!body.owner || !body.repo || !body.query) {

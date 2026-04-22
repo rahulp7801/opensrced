@@ -5,17 +5,26 @@
 import { NextRequest } from "next/server";
 import { resolveAnthropicKey } from "@/lib/api-keys";
 import { getCached, setCached } from "@/lib/llm-cache";
+import { sanitizeForPrompt, sanitizeRepoId, sanitizeFilePath } from "@/lib/sanitize";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as {
+  const raw = (await req.json().catch(() => ({}))) as {
     repo?: string;
     pr_title?: string;
     pr_body?: string;
     comment_body?: string;
     comment_author?: string;
     file_path?: string | null;
+  };
+
+  const body = {
+    repo: raw.repo ? sanitizeRepoId(raw.repo) : null,
+    pr_title: raw.pr_title ? sanitizeForPrompt(raw.pr_title).slice(0, 200) : null,
+    comment_body: raw.comment_body ? sanitizeForPrompt(raw.comment_body) : null,
+    comment_author: raw.comment_author?.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 50) ?? null,
+    file_path: raw.file_path ? sanitizeFilePath(raw.file_path) : null,
   };
 
   if (!body.comment_body) {

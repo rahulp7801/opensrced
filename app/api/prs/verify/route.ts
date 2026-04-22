@@ -17,6 +17,8 @@ import { execFile } from "node:child_process";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
+import { sanitizeRepoId, sanitizeFilePath } from "@/lib/sanitize";
+
 const execFileAsync = promisify(execFile);
 
 export const dynamic = "force-dynamic";
@@ -28,11 +30,18 @@ type Check = {
 };
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as {
+  const raw = (await req.json().catch(() => ({}))) as {
     diff?: string;
     comment_body?: string;
     file_path?: string | null;
     repo?: string;
+  };
+
+  const body = {
+    diff: raw.diff?.slice(0, 200_000) ?? null, // cap diff size
+    comment_body: raw.comment_body ?? null,
+    file_path: raw.file_path ? sanitizeFilePath(raw.file_path) : null,
+    repo: raw.repo ? sanitizeRepoId(raw.repo) : null,
   };
 
   if (!body.diff) {

@@ -9,13 +9,14 @@ import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { resolveAnthropicKey } from "@/lib/api-keys";
 import { resolveGitHubToken } from "@/lib/github-token";
+import { sanitizeForPrompt, sanitizeRepoId, sanitizeFilePath, sanitizeBranchName, sanitizePrNumber } from "@/lib/sanitize";
 
 export const dynamic = "force-dynamic";
 
 const MCP_CONFIG = join(process.cwd(), ".mcp.json");
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as {
+  const raw = (await req.json().catch(() => ({}))) as {
     repo?: string;
     pr_number?: number;
     branch?: string;
@@ -24,6 +25,17 @@ export async function POST(req: NextRequest) {
     line?: number | null;
     diff_hunk?: string | null;
     budget?: number;
+  };
+
+  const body = {
+    repo: raw.repo ? sanitizeRepoId(raw.repo) : null,
+    pr_number: raw.pr_number ? sanitizePrNumber(raw.pr_number) : null,
+    branch: raw.branch ? sanitizeBranchName(raw.branch) : null,
+    comment_body: raw.comment_body ? sanitizeForPrompt(raw.comment_body) : null,
+    file_path: raw.file_path ? sanitizeFilePath(raw.file_path) : null,
+    line: raw.line,
+    diff_hunk: raw.diff_hunk ? sanitizeForPrompt(raw.diff_hunk) : null,
+    budget: raw.budget,
   };
 
   if (!body.repo || !body.pr_number || !body.comment_body || !body.branch) {

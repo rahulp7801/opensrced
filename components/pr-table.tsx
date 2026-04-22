@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import type { PullRequest } from "@/lib/types";
 import { StatusChip } from "@/components/status-dot";
 import { IconExternal, IconSearch, IconFilter } from "@/components/icons";
@@ -140,16 +141,25 @@ export function PrTable({ prs }: { prs: PullRequest[] }) {
                     {formatRelative(pr.created_at)}
                   </td>
                   <td className="px-3 py-2.5 text-right">
-                    <a
-                      href={pr.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 text-paper-muted hover:text-signal"
-                      title="Open on GitHub"
-                    >
-                      #{pr.pr_number}
-                      <IconExternal />
-                    </a>
+                    <div className="flex items-center justify-end gap-3">
+                      <Link
+                        href={`/prs/${pr.repo}/${pr.pr_number}`}
+                        className="text-[10px] text-signal border border-signal/30 hover:bg-signal/10 px-1.5 py-0.5 transition"
+                        title="Review & fix comments"
+                      >
+                        review
+                      </Link>
+                      <a
+                        href={pr.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 text-paper-muted hover:text-signal"
+                        title="Open on GitHub"
+                      >
+                        #{pr.pr_number}
+                        <IconExternal />
+                      </a>
+                    </div>
                   </td>
                 </tr>
               );

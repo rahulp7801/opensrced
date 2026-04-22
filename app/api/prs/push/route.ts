@@ -222,48 +222,56 @@ function normalizeDiff(raw: string): string {
 // "replace this with that" instruction and apply directly.
 
 async function tryDirectEdit(dir: string, rawDiff: string): Promise<boolean> {
-  // Look for patterns like:
-  //   --- a/path/to/file
-  //   +++ b/path/to/file
-  //   @@ ... @@
-  //   -old line
-  //   +new line
-  // Even if git apply fails, we can extract the file path and the
-  // old→new line mapping and do a string replace.
+  const { readFile: rf } = await import("node:fs/promises");
+  const { existsSync: exists } = await import("node:fs");
 
-  const fileMatch = rawDiff.match(/^\+\+\+ (?:b\/)?(\S+)/m);
-  if (!fileMatch) return false;
+  // Find the target file — try multiple patterns
+  let filePath: string | null = null;
+  const filePatterns = [
+    /^\+\+\+ (?:b\/)?(\S+)/m,
+    /^--- (?:a\/)?(\S+)/m,
+    /^diff --git a\/(\S+)/m,
+    // Claude sometimes just mentions the file path in text before the diff
+    /(?:in|file|modify|change)\s+[`"']?([^\s`"']+\.\w{1,5})[`"']?/im,
+  ];
+  for (const pat of filePatterns) {
+    const m = rawDiff.match(pat);
+    if (m && m[1] !== "/dev/null") {
+      const candidate = m[1].replace(/^[ab]\//, "");
+      if (exists(join(dir, candidate))) {
+        filePath = candidate;
+        break;
+      }
+    }
+  }
 
-  const filePath = fileMatch[1];
+  if (!filePath) return false;
+
   const absPath = join(dir, filePath);
-
   let content: string;
   try {
-    const { readFile: rf } = await import("node:fs/promises");
     content = await rf(absPath, "utf8");
   } catch {
     return false;
   }
 
-  // Extract removed and added lines from the diff
-  const lines = rawDiff.split("\n");
+  // Extract removed and added lines from the diff (skip headers)
+  const diffLines = rawDiff.split("\n");
   const removals: string[] = [];
   const additions: string[] = [];
-
-  for (const line of lines) {
-    if (line.startsWith("-") && !line.startsWith("---")) {
+  for (const line of diffLines) {
+    if (line.startsWith("-") && !line.startsWith("---") && !line.startsWith("--")) {
       removals.push(line.slice(1));
-    } else if (line.startsWith("+") && !line.startsWith("+++")) {
+    } else if (line.startsWith("+") && !line.startsWith("+++") && !line.startsWith("++")) {
       additions.push(line.slice(1));
     }
   }
 
   if (removals.length === 0 && additions.length === 0) return false;
 
-  // Try to find the old block in the file and replace it
+  // Strategy 1: Exact block match
   const oldBlock = removals.join("\n");
   const newBlock = additions.join("\n");
-
   if (oldBlock && content.includes(oldBlock)) {
     const updated = content.replace(oldBlock, newBlock);
     if (updated !== content) {
@@ -272,24 +280,72 @@ async function tryDirectEdit(dir: string, rawDiff: string): Promise<boolean> {
     }
   }
 
-  // Try line-by-line replacement for single-line changes
-  if (removals.length === 1 && additions.length === 1) {
-    const oldLine = removals[0].trim();
-    const newLine = additions[0];
-    if (oldLine && content.includes(oldLine)) {
-      // Replace the first occurrence, preserving leading whitespace
-      const lines = content.split("\n");
-      let replaced = false;
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].trim() === oldLine && !replaced) {
-          const indent = lines[i].match(/^(\s*)/)?.[1] ?? "";
-          lines[i] = indent + newLine.trim();
-          replaced = true;
+  // Strategy 2: Trimmed block match (ignore leading/trailing whitespace per line)
+  const contentLines = content.split("\n");
+  const trimmedRemovals = removals.map((l) => l.trim());
+  if (trimmedRemovals.length > 0 && trimmedRemovals[0]) {
+    // Find the starting line in the file
+    for (let i = 0; i <= contentLines.length - removals.length; i++) {
+      let match = true;
+      for (let j = 0; j < trimmedRemovals.length; j++) {
+        if (contentLines[i + j].trim() !== trimmedRemovals[j]) {
+          match = false;
+          break;
         }
       }
-      if (replaced) {
-        await writeFile(absPath, lines.join("\n"));
+      if (match) {
+        // Replace the matched lines, preserving the indent of the first line
+        const baseIndent = contentLines[i].match(/^(\s*)/)?.[1] ?? "";
+        const newLines = additions.map((l) => {
+          const trimmed = l.trimStart();
+          // Try to preserve original indentation structure
+          const origIndent = l.match(/^(\s*)/)?.[1] ?? "";
+          return origIndent || trimmed === "" ? l : baseIndent + trimmed;
+        });
+        contentLines.splice(i, removals.length, ...newLines);
+        await writeFile(absPath, contentLines.join("\n"));
         return true;
+      }
+    }
+  }
+
+  // Strategy 3: Single-line fuzzy replacement
+  if (removals.length === 1 && additions.length === 1) {
+    const oldTrimmed = removals[0].trim();
+    if (oldTrimmed.length > 5) {
+      for (let i = 0; i < contentLines.length; i++) {
+        if (contentLines[i].trim() === oldTrimmed) {
+          const indent = contentLines[i].match(/^(\s*)/)?.[1] ?? "";
+          contentLines[i] = indent + additions[0].trim();
+          await writeFile(absPath, contentLines.join("\n"));
+          return true;
+        }
+      }
+    }
+  }
+
+  // Strategy 4: Multi-line fuzzy — match first and last removal lines to anchor
+  if (removals.length >= 2) {
+    const firstTrimmed = removals[0].trim();
+    const lastTrimmed = removals[removals.length - 1].trim();
+    if (firstTrimmed.length > 5 && lastTrimmed.length > 5) {
+      for (let i = 0; i < contentLines.length; i++) {
+        if (contentLines[i].trim() === firstTrimmed) {
+          // Found start — look for end
+          for (let j = i + 1; j < Math.min(i + removals.length + 5, contentLines.length); j++) {
+            if (contentLines[j].trim() === lastTrimmed) {
+              // Found anchors — replace the range
+              const indent = contentLines[i].match(/^(\s*)/)?.[1] ?? "";
+              const newLines = additions.map((l) => {
+                const trimmed = l.trimStart();
+                return trimmed === "" ? "" : indent + trimmed;
+              });
+              contentLines.splice(i, j - i + 1, ...newLines);
+              await writeFile(absPath, contentLines.join("\n"));
+              return true;
+            }
+          }
+        }
       }
     }
   }

@@ -106,6 +106,7 @@ export default function PrDetailPage() {
   const [followUpComment, setFollowUpComment] = useState("");
   const [followUpGenerating, setFollowUpGenerating] = useState(false);
   const [followUpSent, setFollowUpSent] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
   const [replyStates, setReplyStates] = useState<Map<number, ReplyState>>(new Map());
   const [replyTexts, setReplyTexts] = useState<Map<number, string>>(new Map());
   const [showReplyFor, setShowReplyFor] = useState<number | null>(null);
@@ -226,16 +227,29 @@ export default function PrDetailPage() {
     );
   }
 
+  function cancelGeneration() {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setFixState((prev) => prev && prev.status === "generating" ? { ...prev, status: "done" } : prev);
+    setAskLoading(false);
+    setFollowUpGenerating(false);
+  }
+
   async function streamFix(
     commentBody: string,
     filePath: string | null,
     line: number | null,
     diffHunk: string | null,
   ) {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       const res = await fetch("/api/prs/fix", {
         method: "POST",
         headers: { "content-type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           repo: repoFull,
           pr_number: parseInt(prNumber),
@@ -455,6 +469,9 @@ export default function PrDetailPage() {
 
   async function handleGenerateFollowUp() {
     if (!fixState?.response || followUpGenerating) return;
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setFollowUpGenerating(true);
     setFollowUpComment("");
 
@@ -462,6 +479,7 @@ export default function PrDetailPage() {
       const res = await fetch("/api/prs/draft-reply", {
         method: "POST",
         headers: { "content-type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           repo: repoFull,
           pr_title: pr?.title,
@@ -527,6 +545,8 @@ export default function PrDetailPage() {
 
   async function handleAsk() {
     if (!askInput.trim() || !fixState?.response || askLoading) return;
+    const controller = new AbortController();
+    abortRef.current = controller;
     const question = askInput.trim();
     setAskInput("");
     setAskMessages((prev) => [...prev, { role: "user", text: question }]);
@@ -535,6 +555,7 @@ export default function PrDetailPage() {
     try {
       const res = await fetch("/api/prs/draft-reply", {
         method: "POST",
+        signal: controller.signal,
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           repo: repoFull,
@@ -787,7 +808,10 @@ export default function PrDetailPage() {
                   {fixState.commentId === "all" ? "fix all comments" : "fix generation"}
                 </span>
                 {fixState.status === "generating" && (
-                  <span className="ml-auto text-[10px] text-signal animate-pulse-signal">generating...</span>
+                  <span className="ml-auto flex items-center gap-2">
+                    <span className="text-[10px] text-signal animate-pulse-signal">generating...</span>
+                    <button onClick={cancelGeneration} className="text-[10px] text-paper-muted hover:text-alert transition">cancel</button>
+                  </span>
                 )}
                 {fixState.status === "done" && fixState.cost !== null && (
                   <span className="ml-auto text-[10px] text-paper-muted tabular-nums">${fixState.cost.toFixed(4)}</span>
@@ -911,7 +935,10 @@ export default function PrDetailPage() {
                           </div>
                         ))}
                         {askLoading && (
-                          <div className="text-[10px] text-info animate-pulse-signal">thinking...</div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-info animate-pulse-signal">thinking...</span>
+                            <button onClick={cancelGeneration} className="text-[10px] text-paper-muted hover:text-alert transition">cancel</button>
+                          </div>
                         )}
                       </div>
                       {/* Input */}
@@ -980,6 +1007,9 @@ export default function PrDetailPage() {
                       >
                         {followUpGenerating ? "drafting..." : followUpComment ? "regenerate" : "draft with AI"}
                       </button>
+                      {followUpGenerating && (
+                        <button onClick={cancelGeneration} className="text-[10px] text-paper-muted hover:text-alert transition">cancel</button>
+                      )}
                       <span className="text-[9px] text-paper-faint">
                         Explains the commit reasoning to the reviewer
                       </span>

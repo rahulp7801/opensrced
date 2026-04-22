@@ -37,6 +37,25 @@ type FixState = {
 
 type PushState = "idle" | "pushing" | "pushed" | "error";
 
+type VerifyCheck = {
+  name: string;
+  status: "pass" | "warn" | "fail";
+  detail: string;
+};
+
+type VerifyResult = {
+  checks: VerifyCheck[];
+  summary: {
+    pass: number;
+    warn: number;
+    fail: number;
+    verdict: "clean" | "review" | "blocked";
+    linesAdded: number;
+    linesRemoved: number;
+    filesChanged: number;
+  };
+} | null;
+
 type ReplyState = {
   commentId: number;
   status: "idle" | "sending" | "sent" | "error";
@@ -78,6 +97,8 @@ export default function PrDetailPage() {
   const [pushState, setPushState] = useState<PushState>("idle");
   const [pushMessage, setPushMessage] = useState("");
   const [commitMsg, setCommitMsg] = useState("address review feedback");
+  const [verifyResult, setVerifyResult] = useState<VerifyResult>(null);
+  const [verifying, setVerifying] = useState(false);
   const [replyStates, setReplyStates] = useState<Map<number, ReplyState>>(new Map());
   const [replyTexts, setReplyTexts] = useState<Map<number, string>>(new Map());
   const [showReplyFor, setShowReplyFor] = useState<number | null>(null);
@@ -107,6 +128,35 @@ export default function PrDetailPage() {
     }
   }, [fixState?.response]);
 
+  // Auto-run verification when fix is done
+  useEffect(() => {
+    if (fixState?.status !== "done") return;
+    const diff = extractDiff(fixState.response);
+    if (!diff) return;
+
+    setVerifying(true);
+    setVerifyResult(null);
+
+    // Find the comment that triggered this fix
+    const comment = typeof fixState.commentId === "number"
+      ? comments.find((c) => c.id === fixState.commentId)
+      : null;
+
+    fetch("/api/prs/verify", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        diff,
+        comment_body: comment?.body ?? null,
+        file_path: comment?.path ?? null,
+      }),
+    })
+      .then((r) => r.json())
+      .then((data: VerifyResult) => setVerifyResult(data))
+      .catch(() => {})
+      .finally(() => setVerifying(false));
+  }, [fixState?.status, fixState?.response, fixState?.commentId, comments]);
+
   // Lazy-load diff
   const loadDiff = useCallback(() => {
     if (prDiff !== null || diffLoading) return;
@@ -123,6 +173,9 @@ export default function PrDetailPage() {
   // ── Fix single comment ────────────────────────────────────────────
 
   async function handleFix(comment: ReviewComment) {
+    setVerifyResult(null);
+    setPushState("idle");
+    setPushMessage("");
     setFixState({
       commentId: comment.id,
       status: "generating",
@@ -146,6 +199,9 @@ export default function PrDetailPage() {
       })
       .join("\n\n");
 
+    setVerifyResult(null);
+    setPushState("idle");
+    setPushMessage("");
     setFixState({
       commentId: "all",
       status: "generating",
@@ -612,8 +668,62 @@ export default function PrDetailPage() {
                 )}
               </div>
 
-              {/* Push controls */}
+              {/* Verification results */}
               {fixState.status === "done" && extractDiff(fixState.response) && (
+                <div className="px-4 py-3 border-t border-border-soft">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-[10px] uppercase tracking-[0.15em] text-paper-muted">
+                      verification checks
+                    </span>
+                    {verifying && (
+                      <span className="text-[10px] text-signal animate-pulse-signal">running...</span>
+                    )}
+                    {verifyResult && (
+                      <span className={cn(
+                        "text-[10px] uppercase tracking-[0.1em] px-1.5 py-0.5 border",
+                        verifyResult.summary.verdict === "clean" ? "text-ok border-ok/30" :
+                        verifyResult.summary.verdict === "review" ? "text-signal border-signal/30" :
+                        "text-alert border-alert/30",
+                      )}>
+                        {verifyResult.summary.verdict === "clean" ? "all clear" :
+                         verifyResult.summary.verdict === "review" ? "review needed" : "blocked"}
+                      </span>
+                    )}
+                  </div>
+
+                  {verifyResult && (
+                    <div className="space-y-1">
+                      {verifyResult.checks.map((check, i) => (
+                        <div key={i} className="flex items-start gap-2 text-[11px]">
+                          <span className={cn(
+                            "shrink-0 w-4 text-center font-mono",
+                            check.status === "pass" ? "text-ok" :
+                            check.status === "warn" ? "text-signal" : "text-alert",
+                          )}>
+                            {check.status === "pass" ? "+" : check.status === "warn" ? "!" : "x"}
+                          </span>
+                          <span className={cn(
+                            "font-medium w-28 shrink-0",
+                            check.status === "pass" ? "text-paper-dim" :
+                            check.status === "warn" ? "text-signal" : "text-alert",
+                          )}>
+                            {check.name}
+                          </span>
+                          <span className="text-paper-muted break-words min-w-0">
+                            {check.detail}
+                          </span>
+                        </div>
+                      ))}
+                      <div className="mt-2 pt-2 border-t border-border-soft text-[10px] text-paper-faint">
+                        +{verifyResult.summary.linesAdded} / -{verifyResult.summary.linesRemoved} lines | {verifyResult.summary.filesChanged} file(s) | {verifyResult.summary.pass} passed, {verifyResult.summary.warn} warnings, {verifyResult.summary.fail} failed
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Push controls — only show if verification didn't hard-block */}
+              {fixState.status === "done" && extractDiff(fixState.response) && verifyResult?.summary.verdict !== "blocked" && (
                 <div className="px-4 py-3 border-t border-border-soft bg-ink/20">
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="text-[10px] text-paper-faint uppercase tracking-[0.1em]">commit:</span>

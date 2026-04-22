@@ -67,11 +67,17 @@ ${fileContext}${hunkContext}
 INSTRUCTIONS:
 1. Use the MCP tools to read the file and understand the context. All MCP tools take repo: "${body.repo}".
 2. Understand what the reviewer is asking for.
-3. Generate the EXACT fix needed — minimal change, address only what the reviewer asked.
-4. Output your fix as a fenced diff/patch block that can be applied with git apply.
-5. Explain the change in 1-2 sentences.
+3. Generate the SMALLEST possible fix — ideally under 10 lines changed.
+4. Output your fix as a fenced \`\`\`diff block with proper --- a/ and +++ b/ headers.
+5. Explain in 1-2 sentences what you changed and why.
 
-IMPORTANT: Only change what the reviewer asked for. Do not refactor, clean up, or modify unrelated code.`;
+CONSTRAINTS — these are hard rules, not suggestions:
+- ONLY change what the reviewer explicitly asked for
+- Do NOT add comments, docstrings, or type annotations the reviewer didn't ask for
+- Do NOT refactor surrounding code, rename variables, or "improve" anything
+- Do NOT add error handling, validation, or imports unless the reviewer specifically requested it
+- If the fix requires more than ~15 lines of change, explain why before proceeding
+- If you're unsure what the reviewer wants, say so instead of guessing`;
 
   const args = [
     "-p",

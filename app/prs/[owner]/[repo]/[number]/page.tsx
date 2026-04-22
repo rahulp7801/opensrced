@@ -343,13 +343,20 @@ export default function PrDetailPage() {
           commit_message: commitMsg.trim() || "address review feedback",
         }),
       });
-      const data = (await res.json()) as { ok?: boolean; commit?: string; message?: string; error?: string };
+      const data = (await res.json()) as { ok?: boolean; commit?: string; message?: string; error?: string; debug?: { diffPreview?: string; strategyErrors?: string[] } };
       if (data.ok) {
         setPushState("pushed");
         setPushMessage(data.message ?? `Pushed commit ${data.commit}`);
       } else {
         setPushState("error");
-        setPushMessage(data.error ?? "Push failed");
+        let msg = data.error ?? "Push failed";
+        if (data.debug?.strategyErrors?.length) {
+          msg += "\n\nStrategy errors:\n" + data.debug.strategyErrors.join("\n");
+        }
+        if (data.debug?.diffPreview) {
+          msg += "\n\nDiff received:\n" + data.debug.diffPreview;
+        }
+        setPushMessage(msg);
       }
     } catch (err) {
       setPushState("error");

@@ -93,13 +93,14 @@ export async function POST(req: NextRequest) {
       ["apply", "--3way", "--ignore-whitespace", diffPath],
     ];
 
+    const errors: string[] = [];
     for (const args of gitApplyStrategies) {
       if (applied) break;
       try {
         await run("git", ["-C", tmpDir, ...args], { env });
         applied = true;
-      } catch {
-        // try next strategy
+      } catch (e) {
+        errors.push(`git ${args.join(" ").replace(diffPath, "fix.patch")}: ${e instanceof Error ? e.message.slice(0, 200) : String(e).slice(0, 200)}`);
       }
     }
 
@@ -137,6 +138,14 @@ export async function POST(req: NextRequest) {
           error:
             "Could not apply the diff. Try regenerating the fix, or apply it manually.",
           diff: body.diff,
+          debug: {
+            diffLength: body.diff?.length,
+            diffPreview: body.diff?.slice(0, 500),
+            hasHeaders: /^\+\+\+/m.test(body.diff ?? ""),
+            hasPlusMinus: /^[-+][^-+]/m.test(body.diff ?? ""),
+            filesInDiff: [...(body.diff ?? "").matchAll(/^\+\+\+ (?:b\/)?(\S+)/gm)].map(m => m[1]),
+            strategyErrors: errors,
+          },
         },
         { status: 422 },
       );

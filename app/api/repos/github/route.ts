@@ -1,5 +1,5 @@
-// GET /api/repos/github?tab=contributed|starred|owned
-// Fetches repos from the authenticated user's GitHub account.
+// GET /api/repos/github?tab=contributed|starred|owned&page=1&per_page=15
+// Fetches repos from the authenticated user's GitHub account with pagination.
 
 import { NextRequest } from "next/server";
 import { execFile } from "node:child_process";
@@ -10,55 +10,57 @@ const execFileAsync = promisify(execFile);
 
 export const dynamic = "force-dynamic";
 
+const DEFAULT_PER_PAGE = 15;
+
 export async function GET(req: NextRequest) {
   const tab = req.nextUrl.searchParams.get("tab") ?? "contributed";
+  const page = Math.max(1, parseInt(req.nextUrl.searchParams.get("page") ?? "1"));
+  const perPage = Math.min(30, Math.max(5, parseInt(req.nextUrl.searchParams.get("per_page") ?? String(DEFAULT_PER_PAGE))));
+
   const token = await resolveGitHubToken();
   const env: NodeJS.ProcessEnv = { ...process.env };
   if (token) env.GH_TOKEN = token;
 
+  type Repo = {
+    nameWithOwner: string;
+    description: string;
+    language: string;
+    stars: number;
+    forks: number;
+    updatedAt: string;
+    isPrivate: boolean;
+    source: string;
+  };
+
   try {
-    let repos: Array<{
-      nameWithOwner: string;
-      description: string;
-      language: string;
-      stars: number;
-      forks: number;
-      updatedAt: string;
-      isPrivate: boolean;
-      source: string;
-    }>;
+    let repos: Repo[];
+    let hasMore = false;
 
     if (tab === "starred") {
-      // Starred repos
+      // GitHub starred API supports pagination natively
       const { stdout } = await execFileAsync(
         "gh",
         [
           "api",
-          "user/starred",
-          "--paginate",
+          `user/starred?per_page=${perPage}&page=${page}`,
           "--jq",
           "[.[] | {nameWithOwner: .full_name, description: (.description // \"\"), language: (.language // \"\"), stars: .stargazers_count, forks: .forks_count, updatedAt: .updated_at, isPrivate: .private}]",
         ],
-        { env, maxBuffer: 20 * 1024 * 1024, windowsHide: true, timeout: 20000 },
+        { env, maxBuffer: 5 * 1024 * 1024, windowsHide: true, timeout: 15000 },
       );
-      // gh --paginate with --jq returns multiple JSON arrays, one per page
-      const arrays = stdout.trim().split("\n").filter(Boolean);
-      const all = arrays.flatMap((a) => {
-        try { return JSON.parse(a); } catch { return []; }
-      });
-      repos = all.slice(0, 50).map((r: Record<string, unknown>) => ({
-        ...r,
-        source: "starred",
-      })) as typeof repos;
+      const parsed = JSON.parse(stdout || "[]") as Repo[];
+      repos = parsed.map((r) => ({ ...r, source: "starred" }));
+      hasMore = repos.length === perPage;
     } else if (tab === "owned") {
-      // User's own repos
+      // gh repo list supports --limit but not offset, so we fetch limit*(page) and slice
+      const fetchLimit = perPage * page;
       const { stdout } = await execFileAsync(
         "gh",
         [
           "repo",
           "list",
           "--limit",
-          "50",
+          String(fetchLimit + 1), // +1 to detect hasMore
           "--json",
           "nameWithOwner,description,primaryLanguage,stargazerCount,forkCount,updatedAt,isPrivate",
         ],
@@ -73,7 +75,10 @@ export async function GET(req: NextRequest) {
         updatedAt: string;
         isPrivate: boolean;
       }>;
-      repos = raw.map((r) => ({
+      const start = (page - 1) * perPage;
+      const sliced = raw.slice(start, start + perPage);
+      hasMore = raw.length > start + perPage;
+      repos = sliced.map((r) => ({
         nameWithOwner: r.nameWithOwner,
         description: r.description ?? "",
         language: r.primaryLanguage?.name ?? "",
@@ -84,12 +89,13 @@ export async function GET(req: NextRequest) {
         source: "owned",
       }));
     } else {
-      // Contributed to — repos where user has PRs (merged or open)
+      // Contributed to — search PRs, dedupe repos, paginate
       const { stdout: login } = await execFileAsync(
         "gh",
         ["api", "user", "--jq", ".login"],
         { env, maxBuffer: 1 * 1024 * 1024, windowsHide: true },
       );
+      const fetchLimit = perPage * page + 10; // fetch extra for dedup
       const { stdout } = await execFileAsync(
         "gh",
         [
@@ -98,70 +104,51 @@ export async function GET(req: NextRequest) {
           "--author",
           login.trim(),
           "--limit",
-          "100",
+          String(Math.min(fetchLimit * 3, 200)), // PRs per repo > 1, so overfetch
           "--json",
           "repository",
         ],
         { env, maxBuffer: 10 * 1024 * 1024, windowsHide: true, timeout: 15000 },
       );
-      const raw = JSON.parse(stdout) as Array<{
-        repository: { nameWithOwner: string };
-      }>;
+      const raw = JSON.parse(stdout) as Array<{ repository: { nameWithOwner: string } }>;
 
-      // Deduplicate repos
+      // Deduplicate
       const seen = new Set<string>();
       const uniqueRepos: string[] = [];
       for (const pr of raw) {
         const name = pr.repository.nameWithOwner;
-        if (!seen.has(name)) {
-          seen.add(name);
-          uniqueRepos.push(name);
-        }
+        if (!seen.has(name)) { seen.add(name); uniqueRepos.push(name); }
       }
 
-      // Fetch details for each unique repo (parallel, capped at 20)
+      const start = (page - 1) * perPage;
+      const pageRepos = uniqueRepos.slice(start, start + perPage);
+      hasMore = uniqueRepos.length > start + perPage;
+
+      // Fetch details for this page only
       repos = await Promise.all(
-        uniqueRepos.slice(0, 20).map(async (name) => {
+        pageRepos.map(async (name) => {
           try {
             const { stdout: detail } = await execFileAsync(
               "gh",
-              [
-                "repo",
-                "view",
-                name,
-                "--json",
-                "nameWithOwner,description,primaryLanguage,stargazerCount,forkCount,updatedAt,isPrivate",
-              ],
+              ["repo", "view", name, "--json", "nameWithOwner,description,primaryLanguage,stargazerCount,forkCount,updatedAt,isPrivate"],
               { env, maxBuffer: 1 * 1024 * 1024, windowsHide: true, timeout: 10000 },
             );
             const d = JSON.parse(detail) as {
-              nameWithOwner: string;
-              description: string;
+              nameWithOwner: string; description: string;
               primaryLanguage: { name: string } | null;
-              stargazerCount: number;
-              forkCount: number;
-              updatedAt: string;
-              isPrivate: boolean;
+              stargazerCount: number; forkCount: number;
+              updatedAt: string; isPrivate: boolean;
             };
             return {
-              nameWithOwner: d.nameWithOwner,
-              description: d.description ?? "",
-              language: d.primaryLanguage?.name ?? "",
-              stars: d.stargazerCount,
-              forks: d.forkCount,
-              updatedAt: d.updatedAt,
-              isPrivate: d.isPrivate,
+              nameWithOwner: d.nameWithOwner, description: d.description ?? "",
+              language: d.primaryLanguage?.name ?? "", stars: d.stargazerCount,
+              forks: d.forkCount, updatedAt: d.updatedAt, isPrivate: d.isPrivate,
               source: "contributed" as const,
             };
           } catch {
             return {
-              nameWithOwner: name,
-              description: "",
-              language: "",
-              stars: 0,
-              forks: 0,
-              updatedAt: "",
-              isPrivate: false,
+              nameWithOwner: name, description: "", language: "",
+              stars: 0, forks: 0, updatedAt: "", isPrivate: false,
               source: "contributed" as const,
             };
           }
@@ -169,7 +156,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    return Response.json({ repos });
+    return Response.json({ repos, page, perPage, hasMore });
   } catch (err) {
     return Response.json(
       { error: err instanceof Error ? err.message : String(err) },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
 import { cn } from "@/lib/utils";
@@ -18,53 +18,80 @@ type GitHubRepo = {
 
 type Tab = "contributed" | "starred" | "owned";
 
-const LANG_COLORS: Record<string, string> = {
-  Rust: "#dea584",
-  Python: "#3572a5",
-  TypeScript: "#3178c6",
-  JavaScript: "#f1e05a",
-  Go: "#00add8",
-  "C++": "#f34b7d",
-  Java: "#b07219",
-  Ruby: "#701516",
-  PHP: "#4F5D95",
-  "C#": "#178600",
-  C: "#555555",
-  Shell: "#89e051",
-  Kotlin: "#A97BFF",
-  Swift: "#F05138",
+type TabState = {
+  repos: GitHubRepo[];
+  page: number;
+  hasMore: boolean;
+  loading: boolean;
+  error: string | null;
 };
+
+const LANG_COLORS: Record<string, string> = {
+  Rust: "#dea584", Python: "#3572a5", TypeScript: "#3178c6",
+  JavaScript: "#f1e05a", Go: "#00add8", "C++": "#f34b7d",
+  Java: "#b07219", Ruby: "#701516", PHP: "#4F5D95",
+  "C#": "#178600", C: "#555555", Shell: "#89e051",
+  Kotlin: "#A97BFF", Swift: "#F05138",
+};
+
+const EMPTY_STATE: TabState = { repos: [], page: 0, hasMore: true, loading: false, error: null };
 
 export default function ReposPage() {
   const [tab, setTab] = useState<Tab>("contributed");
-  const [repos, setRepos] = useState<GitHubRepo[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [states, setStates] = useState<Record<Tab, TabState>>({
+    contributed: { ...EMPTY_STATE },
+    starred: { ...EMPTY_STATE },
+    owned: { ...EMPTY_STATE },
+  });
   const [search, setSearch] = useState("");
-  const [fetched, setFetched] = useState<Set<Tab>>(new Set());
 
+  const current = states[tab];
+
+  const fetchPage = useCallback(async (t: Tab, page: number) => {
+    setStates((prev) => ({
+      ...prev,
+      [t]: { ...prev[t], loading: true, error: null },
+    }));
+
+    try {
+      const res = await fetch(`/api/repos/github?tab=${t}&page=${page}&per_page=15`);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Request failed");
+      }
+      const data = (await res.json()) as { repos: GitHubRepo[]; hasMore: boolean };
+      setStates((prev) => ({
+        ...prev,
+        [t]: {
+          repos: page === 1 ? data.repos : [...prev[t].repos, ...data.repos],
+          page,
+          hasMore: data.hasMore,
+          loading: false,
+          error: null,
+        },
+      }));
+    } catch (err) {
+      setStates((prev) => ({
+        ...prev,
+        [t]: { ...prev[t], loading: false, error: err instanceof Error ? err.message : String(err) },
+      }));
+    }
+  }, []);
+
+  // Auto-fetch page 1 when switching to a tab that hasn't loaded
   useEffect(() => {
-    if (fetched.has(tab)) return;
-    setLoading(true);
-    setError(null);
+    if (current.page === 0 && !current.loading) {
+      fetchPage(tab, 1);
+    }
+  }, [tab, current.page, current.loading, fetchPage]);
 
-    fetch(`/api/repos/github?tab=${tab}`)
-      .then((r) => (r.ok ? r.json() : r.json().then((e) => Promise.reject(e.error))))
-      .then((data: { repos: GitHubRepo[] }) => {
-        setRepos((prev) => [...prev.filter((r) => r.source !== tab), ...data.repos]);
-        setFetched((prev) => new Set(prev).add(tab));
-      })
-      .catch((err) => setError(typeof err === "string" ? err : String(err)))
-      .finally(() => setLoading(false));
-  }, [tab, fetched]);
-
-  const filtered = repos
-    .filter((r) => r.source === tab)
-    .filter((r) =>
-      !search || r.nameWithOwner.toLowerCase().includes(search.toLowerCase()) ||
-      (r.description ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (r.language ?? "").toLowerCase().includes(search.toLowerCase()),
-    );
+  const filtered = search
+    ? current.repos.filter((r) =>
+        r.nameWithOwner.toLowerCase().includes(search.toLowerCase()) ||
+        (r.description ?? "").toLowerCase().includes(search.toLowerCase()) ||
+        (r.language ?? "").toLowerCase().includes(search.toLowerCase()),
+      )
+    : current.repos;
 
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 py-6">
@@ -89,10 +116,14 @@ export default function ReposPage() {
             )}
           >
             {t.label}
+            {states[t.key].repos.length > 0 && (
+              <span className="ml-1.5 text-[10px] tabular-nums text-paper-faint">
+                ({states[t.key].repos.length}{states[t.key].hasMore ? "+" : ""})
+              </span>
+            )}
           </button>
         ))}
 
-        {/* Search */}
         <div className="ml-auto flex items-center gap-2 border border-border bg-ink px-2.5 py-1 focus-within:border-signal/50 transition-colors">
           <input
             value={search}
@@ -105,17 +136,17 @@ export default function ReposPage() {
 
       {/* Content */}
       <div className="mt-4">
-        {loading && (
+        {current.error && (
+          <div className="border border-alert/30 bg-alert/5 px-4 py-3 text-[12px] text-alert mb-3">{current.error}</div>
+        )}
+
+        {current.page === 0 && current.loading && (
           <div className="text-[12px] text-paper-muted animate-pulse-signal py-8 text-center">
             Loading repos from GitHub...
           </div>
         )}
 
-        {error && (
-          <div className="border border-alert/30 bg-alert/5 px-4 py-3 text-[12px] text-alert">{error}</div>
-        )}
-
-        {!loading && !error && filtered.length === 0 && (
+        {current.page > 0 && filtered.length === 0 && !current.loading && (
           <div className="border border-border bg-surface/40 p-8 text-center text-[12px] text-paper-muted">
             {search ? "No repos match your search." : "No repos found."}
           </div>
@@ -128,13 +159,10 @@ export default function ReposPage() {
                 key={repo.nameWithOwner}
                 className="group flex items-center gap-4 px-4 py-3 transition-colors hover:bg-surface-2/60"
               >
-                {/* Language dot */}
                 <span
                   className="h-2.5 w-2.5 rounded-full shrink-0"
                   style={{ background: LANG_COLORS[repo.language] ?? "var(--color-paper-muted)" }}
                 />
-
-                {/* Repo info */}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <a
@@ -153,15 +181,11 @@ export default function ReposPage() {
                     <p className="mt-0.5 text-[11px] text-paper-muted truncate max-w-[500px]">{repo.description}</p>
                   )}
                 </div>
-
-                {/* Stats */}
                 <div className="hidden sm:flex items-center gap-4 text-[11px] text-paper-muted shrink-0">
                   {repo.language && <span>{repo.language}</span>}
                   <span>★ {repo.stars.toLocaleString()}</span>
-                  <span className="text-paper-faint">{timeAgo(repo.updatedAt)}</span>
+                  {repo.updatedAt && <span className="text-paper-faint">{timeAgo(repo.updatedAt)}</span>}
                 </div>
-
-                {/* Actions */}
                 <div className="flex items-center gap-2 shrink-0">
                   <Link
                     href={`/graph?repo=${encodeURIComponent(repo.nameWithOwner)}`}
@@ -178,6 +202,30 @@ export default function ReposPage() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Load more / loading indicator */}
+        {current.hasMore && current.page > 0 && (
+          <div className="mt-3 text-center">
+            <button
+              onClick={() => fetchPage(tab, current.page + 1)}
+              disabled={current.loading}
+              className={cn(
+                "px-6 py-2 text-[11px] uppercase tracking-[0.12em] border transition",
+                current.loading
+                  ? "border-border text-paper-faint"
+                  : "border-signal/40 text-signal hover:bg-signal/10",
+              )}
+            >
+              {current.loading ? "loading..." : "load more"}
+            </button>
+          </div>
+        )}
+
+        {!current.hasMore && current.repos.length > 0 && (
+          <div className="mt-3 text-center text-[10px] text-paper-faint">
+            All {current.repos.length} repos loaded
           </div>
         )}
       </div>

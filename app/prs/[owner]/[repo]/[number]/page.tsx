@@ -312,6 +312,68 @@ export default function PrDetailPage() {
     }
   }
 
+  // ── Draft reply (AI, no code exploration) ──────────────────────────
+
+  async function handleDraftReply(comment: ReviewComment) {
+    setFixState({
+      commentId: comment.id,
+      status: "generating",
+      response: "",
+      tools: [],
+      cost: null,
+    });
+
+    try {
+      const res = await fetch("/api/prs/draft-reply", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          repo: repoFull,
+          pr_title: pr?.title,
+          comment_body: comment.body,
+          comment_author: comment.author,
+          file_path: comment.path,
+        }),
+      });
+
+      const reader = res.body?.getReader();
+      if (!reader) return;
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const p = JSON.parse(line.slice(6)) as { text?: string; done?: boolean; error?: string };
+            if (p.text) setFixState((prev) => prev ? { ...prev, response: prev.response + p.text } : prev);
+            if (p.done) setFixState((prev) => prev ? { ...prev, status: "done" } : prev);
+            if (p.error) setFixState((prev) => prev ? { ...prev, response: p.error!, status: "error" } : prev);
+          } catch { /* skip */ }
+        }
+      }
+
+      // Auto-populate the reply input with the drafted text
+      setFixState((prev) => {
+        if (prev && prev.status !== "error") {
+          setReplyTexts((rt) => new Map(rt).set(comment.id, prev.response));
+          setShowReplyFor(comment.id);
+        }
+        return prev ? { ...prev, status: "done" } : prev;
+      });
+    } catch (err) {
+      setFixState((prev) =>
+        prev ? { ...prev, response: err instanceof Error ? err.message : "Error", status: "error" } : prev,
+      );
+    }
+  }
+
   const isFixing = fixState?.status === "generating";
   const actionableComments = comments.filter((c) => c.type === "review" || !c.inReplyTo);
 
@@ -322,7 +384,7 @@ export default function PrDetailPage() {
         description={`Review and respond to feedback on ${repoFull}#${prNumber}`}
       />
 
-      {loading && <div className="mt-8 text-[12px] text-paper-muted animate-pulse-signal">Loading PR data...</div>}
+      {loading && <PrSkeleton />}
       {error && <div className="mt-8 border border-alert/30 bg-alert/5 px-4 py-3 text-[12px] text-alert">{error}</div>}
 
       {pr && (
@@ -430,25 +492,55 @@ export default function PrDetailPage() {
                     <p className="text-[12px] text-paper-dim whitespace-pre-wrap break-words">{c.body}</p>
                   </div>
 
-                  {/* Action buttons */}
+                  {/* Action buttons — smart: show "draft reply" for questions, "fix this" for code requests */}
+                  {!c.isOwnComment && (
                   <div className="px-4 py-2 border-t border-border-soft flex items-center gap-2 flex-wrap">
-                    <button
-                      onClick={() => handleFix(c)}
-                      disabled={isFixing}
-                      className="text-[11px] text-signal border border-signal/40 hover:bg-signal/10 px-3 py-1 transition disabled:opacity-50"
-                    >
-                      {fixState?.commentId === c.id && isFixing ? "generating..." : "fix this"}
-                    </button>
-                    <button
-                      onClick={() => setShowReplyFor(showReplyFor === c.id ? null : c.id)}
-                      className="text-[11px] text-paper-dim border border-border-soft hover:border-info/40 hover:text-info px-3 py-1 transition"
-                    >
-                      reply
-                    </button>
+                    {isQuestion(c.body) ? (
+                      <>
+                        <button
+                          onClick={() => handleDraftReply(c)}
+                          disabled={isFixing}
+                          className="text-[11px] text-info border border-info/40 hover:bg-info/10 px-3 py-1 transition disabled:opacity-50"
+                        >
+                          {fixState?.commentId === c.id && isFixing ? "drafting..." : "draft reply"}
+                        </button>
+                        <button
+                          onClick={() => setShowReplyFor(showReplyFor === c.id ? null : c.id)}
+                          className="text-[11px] text-paper-dim border border-border-soft hover:border-paper-muted hover:text-paper-dim px-3 py-1 transition"
+                        >
+                          reply manually
+                        </button>
+                        <span className="text-[10px] text-paper-faint">question detected — AI will draft a reply, no code exploration</span>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleFix(c)}
+                          disabled={isFixing}
+                          className="text-[11px] text-signal border border-signal/40 hover:bg-signal/10 px-3 py-1 transition disabled:opacity-50"
+                        >
+                          {fixState?.commentId === c.id && isFixing ? "generating..." : "fix this"}
+                        </button>
+                        <button
+                          onClick={() => handleDraftReply(c)}
+                          disabled={isFixing}
+                          className="text-[11px] text-info border border-info/40 hover:bg-info/10 px-3 py-1 transition disabled:opacity-50"
+                        >
+                          draft reply
+                        </button>
+                        <button
+                          onClick={() => setShowReplyFor(showReplyFor === c.id ? null : c.id)}
+                          className="text-[11px] text-paper-dim border border-border-soft hover:border-paper-muted hover:text-paper-dim px-3 py-1 transition"
+                        >
+                          reply manually
+                        </button>
+                      </>
+                    )}
                     {replySt?.status === "sent" && (
                       <span className="text-[10px] text-ok">replied</span>
                     )}
                   </div>
+                  )}
 
                   {/* Reply input */}
                   {showReplyFor === c.id && (
@@ -622,4 +714,56 @@ function parseBlocks(text: string): Block[] {
     blocks.push({ type: "paragraph", content: para.join(" ") });
   }
   return blocks;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────
+
+function isQuestion(body: string): boolean {
+  const b = body.trim().toLowerCase();
+  // Ends with question mark
+  if (b.endsWith("?")) return true;
+  // Starts with question words
+  if (/^(why|how|what|when|where|which|could|can|is|are|do|does|did|would|should|have|has|will)\b/.test(b)) return true;
+  // Contains question patterns
+  if (/\b(wondering|curious|asking|question|thoughts on|opinion on|reason for|understand why)\b/.test(b)) return true;
+  // Mentions asking AI or performance concerns (like the auto-round comment)
+  if (/\b(i asked|chatgpt|mentioned that|is it possible|any concern|performance drop|tradeoff)\b/.test(b)) return true;
+  return false;
+}
+
+function PrSkeleton() {
+  return (
+    <div className="mt-4 space-y-4 animate-pulse">
+      {/* PR header skeleton */}
+      <div className="border border-border bg-surface/40 px-4 py-3">
+        <div className="flex items-center gap-3">
+          <div className="h-5 w-14 bg-surface-2 rounded" />
+          <div className="h-5 w-96 bg-surface-2 rounded" />
+        </div>
+        <div className="mt-2 flex items-center gap-4">
+          <div className="h-3.5 w-64 bg-surface-2 rounded" />
+          <div className="h-3.5 w-24 bg-surface-2 rounded" />
+        </div>
+      </div>
+
+      {/* Comment skeletons */}
+      {[1, 2].map((i) => (
+        <div key={i} className="border border-border bg-surface/40">
+          <div className="px-4 py-2 border-b border-border-soft flex items-center gap-2">
+            <div className="h-4 w-20 bg-surface-2 rounded" />
+            <div className="h-3 w-32 bg-surface-2 rounded" />
+            <div className="ml-auto h-3 w-40 bg-surface-2 rounded" />
+          </div>
+          <div className="px-4 py-3 space-y-2">
+            <div className="h-3.5 w-full bg-surface-2 rounded" />
+            <div className="h-3.5 w-3/4 bg-surface-2 rounded" />
+          </div>
+          <div className="px-4 py-2 border-t border-border-soft flex gap-2">
+            <div className="h-6 w-20 bg-surface-2 rounded" />
+            <div className="h-6 w-20 bg-surface-2 rounded" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }

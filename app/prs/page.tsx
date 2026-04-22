@@ -87,8 +87,18 @@ export default function PRsPage() {
       {tab === "github" && (
         <div className="mt-4">
           {loading && (
-            <div className="text-[12px] text-paper-muted animate-pulse-signal py-8 text-center">
-              Fetching open PRs from GitHub...
+            <div className="border border-border bg-surface/40 divide-y divide-border-soft animate-pulse">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="flex items-center gap-4 px-4 py-3.5">
+                  <div className="h-4 w-40 bg-surface-2 rounded" />
+                  <div className="h-4 w-72 bg-surface-2 rounded" />
+                  <div className="ml-auto flex gap-3">
+                    <div className="h-4 w-16 bg-surface-2 rounded" />
+                    <div className="h-4 w-12 bg-surface-2 rounded" />
+                    <div className="h-4 w-16 bg-surface-2 rounded" />
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 

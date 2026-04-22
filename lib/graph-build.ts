@@ -45,10 +45,14 @@ export async function ensureGraph(
       });
     }
 
-    // Run graphify
+    // Run graphify. Use a Python wrapper that raises the recursion limit
+    // for large repos (graphify's Leiden clustering can exceed Python's
+    // default 1000-deep limit on repos with 500+ files).
     const useModule = process.platform === "win32";
     const cmd = useModule ? "python" : "graphify";
-    const args = useModule ? ["-m", "graphify", "update", "."] : ["update", "."];
+    const args = useModule
+      ? ["-c", "import sys; sys.setrecursionlimit(10000); sys.argv=['graphify','update','.']; from graphify.__main__ import main; main()"]
+      : ["update", "."];
 
     await execAsync(cmd, args, { cwd: cacheDir, timeout: 300_000 });
 

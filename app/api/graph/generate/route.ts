@@ -96,14 +96,14 @@ export async function POST(req: NextRequest) {
         });
 
         await new Promise<void>((resolve, reject) => {
-          // graphify's CLI command for building is `update <path>`, which
-          // does AST-only extraction (zero LLM cost for code files).
-          // On Windows, use `python -m graphify` since the .exe entry
-          // point can fail with permission errors.
+          // graphify's CLI command for building is `update <path>`.
+          // On Windows, use Python directly with a raised recursion limit
+          // (graphify's Leiden clustering exceeds Python's default 1000
+          // on repos with 500+ files).
           const useModule = process.platform === "win32";
           const cmd = useModule ? "python" : "graphify";
           const cmdArgs = useModule
-            ? ["-m", "graphify", "update", "."]
+            ? ["-c", "import sys; sys.setrecursionlimit(10000); sys.argv=['graphify','update','.']; from graphify.__main__ import main; main()"]
             : ["update", "."];
           const proc = spawn(cmd, cmdArgs, {
             cwd: cacheDir,

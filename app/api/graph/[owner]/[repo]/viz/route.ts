@@ -49,6 +49,33 @@ export async function GET(
     });
   }
 
+  // CRG-only repo — no graphify output at all, but graph.db exists
+  if (hasCrg(owner, repo)) {
+    const crgHtml = `<!DOCTYPE html>
+<html><head><style>
+  body { background: #0d0d0d; color: #a0a0a0; font-family: monospace;
+    display: flex; align-items: center; justify-content: center;
+    height: 100vh; margin: 0; text-align: center; }
+  .msg { max-width: 420px; }
+  h2 { color: #e0e0e0; font-size: 16px; margin-bottom: 12px; }
+  p { font-size: 12px; line-height: 1.7; }
+  .highlight { color: #f0a050; }
+  .dim { color: #666; font-size: 11px; margin-top: 16px; }
+</style></head><body><div class="msg">
+  <h2>Large repository</h2>
+  <p>This repo has too many files for an interactive graph visualization.
+  It was analyzed with <span class="highlight">code-review-graph</span>
+  instead, which uses a SQLite-backed engine optimized for large codebases.</p>
+  <p>Use the <span class="highlight">chat panel</span> to ask questions
+  about the codebase — all queries are powered by AI with the full
+  graph data as context.</p>
+  <p class="dim">Visualization is available for repos under 800 files.</p>
+</div></body></html>`;
+    return new Response(crgHtml, {
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
+  }
+
   return new Response(
     "Graph not built yet. Build the graph first via the UI.",
     { status: 404 },

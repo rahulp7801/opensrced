@@ -52,6 +52,15 @@ export async function ensureGraph(
 
     await execAsync(cmd, args, { cwd: cacheDir, timeout: 300_000 });
 
+    // Verify output was actually produced
+    if (!existsSync(graphJsonPath(owner, repo))) {
+      return {
+        built: false,
+        cached: false,
+        error: "graphify completed but did not produce graph.json. Repo may be too large.",
+      };
+    }
+
     return { built: true, cached: false };
   } catch (err) {
     return {

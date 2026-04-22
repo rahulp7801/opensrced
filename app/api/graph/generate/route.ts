@@ -202,12 +202,22 @@ export async function POST(req: NextRequest) {
           proc.on("error", reject);
         });
 
-        send({
-          status: "done",
-          message: "Knowledge graph built successfully.",
-          owner,
-          repo: name,
-        });
+        // Verify graph.json was actually produced — graphify can exit 0
+        // but fail to generate output on large repos (recursion limit, etc.)
+        const { graphJsonPath: gjp } = await import("@/lib/graph");
+        const outputPath = gjp(owner, name);
+        if (!existsSync(outputPath)) {
+          send({
+            error: "graphify completed but did not produce a graph. The repo may be too large or hit a recursion limit. Try a smaller repo.",
+          });
+        } else {
+          send({
+            status: "done",
+            message: "Knowledge graph built successfully.",
+            owner,
+            repo: name,
+          });
+        }
       } catch (err) {
         send({
           error: err instanceof Error ? err.message : String(err),

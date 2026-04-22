@@ -74,7 +74,8 @@ export async function ensureGraph(
     }
 
     // Also build CRG for blast radius (it handles large repos better)
-    buildCrg(cacheDir).catch(() => {}); // best-effort, don't block
+    // Blocking — CRG is fast and needed for verification
+    try { await buildCrg(cacheDir); } catch { /* CRG build failed — graphify still works */ }
 
     return { built: true, cached: false };
   } catch (err) {

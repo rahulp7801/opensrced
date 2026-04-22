@@ -9,6 +9,9 @@
 
 import { NextRequest } from "next/server";
 import { existsSync } from "node:fs";
+import { execFile } from "node:child_process";
+import { join } from "node:path";
+import { promisify } from "node:util";
 import {
   loadGraph,
   routeQuery,
@@ -16,8 +19,11 @@ import {
   buildGraphSummary,
   FALLBACK_SENTINEL,
 } from "@/lib/graph";
+import { hasCrg, graphCacheDir } from "@/lib/graph-build";
 import { resolveAnthropicKey } from "@/lib/api-keys";
 import { getCached, setCached } from "@/lib/llm-cache";
+
+const execFileAsync = promisify(execFile);
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +42,9 @@ export async function POST(req: NextRequest) {
   }
 
   const jsonPath = graphJsonPath(body.owner, body.repo);
-  if (!existsSync(jsonPath)) {
+  const hasCrgData = hasCrg(body.owner, body.repo);
+
+  if (!existsSync(jsonPath) && !hasCrgData) {
     return Response.json(
       { error: "Graph not built yet. Click 'Build Graph' first." },
       { status: 404 },
@@ -44,24 +52,34 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const graph = await loadGraph(body.owner, body.repo);
+    // If graphify data exists, use it for command-based queries
+    if (existsSync(jsonPath)) {
+      const graph = await loadGraph(body.owner, body.repo);
+      const result = routeQuery(graph, body.query);
 
-    // Try graph traversal first (free)
-    const result = routeQuery(graph, body.query);
-
-    // If the query matched a command or node, return instant JSON
-    if (!result.startsWith(FALLBACK_SENTINEL)) {
-      return Response.json({ result, cost: 0 });
+      if (!result.startsWith(FALLBACK_SENTINEL)) {
+        return Response.json({ result, cost: 0 });
+      }
     }
 
-    // LLM fallback — use Anthropic API with graph context
+    // LLM fallback — build context from whichever engine has data
     const apiKey = await resolveAnthropicKey();
     if (!apiKey) {
-      // No API key — return the graph help text instead
-      return Response.json({ result, cost: 0 });
+      return Response.json({
+        result: `${FALLBACK_SENTINEL} Type "help" for available commands, or configure an Anthropic API key for AI-powered answers.`,
+        cost: 0,
+      });
     }
 
-    const summary = buildGraphSummary(graph);
+    // Build summary from graphify (preferred) or CRG (fallback)
+    let summary: string;
+    if (existsSync(jsonPath)) {
+      const graph = await loadGraph(body.owner, body.repo);
+      summary = buildGraphSummary(graph);
+    } else {
+      summary = await getCrgSummary(body.owner, body.repo);
+    }
+
     const model = "claude-haiku-4-5-20251001";
     const systemPrompt = `You are a codebase analysis assistant. You have access to a knowledge graph of the ${body.owner}/${body.repo} GitHub repository. Answer the user's question using ONLY the graph data provided below. Be concise and specific — cite file paths and function names. If the graph data doesn't contain enough information to answer, say so honestly.
 
@@ -207,5 +225,58 @@ ${summary}`;
       { error: err instanceof Error ? err.message : String(err) },
       { status: 500 },
     );
+  }
+}
+
+// ── CRG summary for LLM context ──────────────────────────────────────
+
+async function getCrgSummary(owner: string, repo: string): Promise<string> {
+  const repoDir = graphCacheDir(owner, repo);
+  const scriptPath = join(process.cwd(), "lib", "crg-summary.py");
+  const pythonPath = process.env.CRG_PYTHONPATH ?? "C:/Users/rahul/crg-pkg";
+
+  try {
+    const { stdout } = await execFileAsync(
+      "python",
+      [scriptPath, repoDir],
+      {
+        env: { ...process.env, PYTHONPATH: pythonPath, PYTHONIOENCODING: "utf-8" },
+        maxBuffer: 5 * 1024 * 1024,
+        windowsHide: true,
+        timeout: 15_000,
+      },
+    );
+
+    const data = JSON.parse(stdout) as {
+      nodes?: number;
+      edges?: number;
+      files?: number;
+      top_files?: Array<{ file: string; nodes: number }>;
+      edge_kinds?: Record<string, number>;
+      sample_edges?: string[];
+      error?: string;
+    };
+
+    if (data.error) return `Graph data unavailable: ${data.error}`;
+
+    const topFiles = (data.top_files ?? [])
+      .map((f) => `${f.file} (${f.nodes} symbols)`)
+      .join("; ");
+    const edgeKinds = Object.entries(data.edge_kinds ?? {})
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(", ");
+    const edges = (data.sample_edges ?? []).join("\n");
+
+    return [
+      `Codebase graph (code-review-graph): ${data.nodes ?? 0} nodes, ${data.edges ?? 0} edges, ${data.files ?? 0} files`,
+      "",
+      `Key files: ${topFiles}`,
+      "",
+      `Relationship types: ${edgeKinds}`,
+      "",
+      `Sample edges:\n${edges}`,
+    ].join("\n");
+  } catch {
+    return "Graph summary unavailable";
   }
 }

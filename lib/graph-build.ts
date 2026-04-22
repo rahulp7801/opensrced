@@ -86,7 +86,7 @@ export async function ensureGraph(
   }
 }
 
-async function buildCrg(cwd: string): Promise<void> {
+export async function buildCrg(cwd: string): Promise<void> {
   // code-review-graph build — uses SQLite, handles large repos
   const pythonPath = process.env.CRG_PYTHONPATH ?? "C:/Users/rahul/crg-pkg";
   await execAsync("python", [

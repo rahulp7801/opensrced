@@ -202,15 +202,39 @@ export async function POST(req: NextRequest) {
           proc.on("error", reject);
         });
 
-        // Verify graph.json was actually produced — graphify can exit 0
-        // but fail to generate output on large repos (recursion limit, etc.)
+        // Verify graph.json was actually produced
         const { graphJsonPath: gjp } = await import("@/lib/graph");
         const outputPath = gjp(owner, name);
         if (!existsSync(outputPath)) {
+          // Graphify failed — fall back to code-review-graph
           send({
-            error: "graphify completed but did not produce a graph. The repo may be too large or hit a recursion limit. Try a smaller repo.",
+            status: "progress",
+            message: "Graphify could not build this repo (too large). Falling back to code-review-graph...",
+            phase: "crg",
+            percent: 50,
           });
+
+          try {
+            const { buildCrg } = await import("@/lib/graph-build");
+            await buildCrg(cacheDir);
+            send({
+              status: "done",
+              message: "Knowledge graph built with code-review-graph (large repo mode).",
+              owner,
+              repo: name,
+              engine: "crg",
+            });
+          } catch (crgErr) {
+            send({
+              error: `Both graphify and code-review-graph failed: ${crgErr instanceof Error ? crgErr.message : String(crgErr)}`,
+            });
+          }
         } else {
+          // Also build CRG in background for blast radius analysis
+          import("@/lib/graph-build").then(({ buildCrg }) =>
+            buildCrg(cacheDir).catch(() => {}),
+          );
+
           send({
             status: "done",
             message: "Knowledge graph built successfully.",

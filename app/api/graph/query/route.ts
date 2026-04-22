@@ -90,17 +90,18 @@ export async function POST(req: NextRequest) {
       summary = await getCrgSummary(body.owner, body.repo);
     }
 
-    // Compress the graph summary with LLMLingua-2 to reduce tokens
-    const compressed = await compressWithLLMLingua(summary);
+    // Compress the USER QUERY with LLMLingua-2 to reduce input tokens
+    const compressed = await compressWithLLMLingua(body.query);
+    const userQuery = compressed.text;
 
     const model = "claude-haiku-4-5-20251001";
     const systemPrompt = `You are a codebase analysis assistant. You have access to a knowledge graph of the ${body.owner}/${body.repo} GitHub repository. Answer the user's question using ONLY the graph data provided below. Be concise and specific — cite file paths and function names. If the graph data doesn't contain enough information to answer, say so honestly.
 
 GRAPH DATA:
-${compressed.text}`;
+${summary}`;
 
     // Check cache first — return instant JSON if hit
-    const cached = await getCached(model, systemPrompt, body.query);
+    const cached = await getCached(model, systemPrompt, userQuery);
     if (cached) {
       return Response.json({
         result: cached.response,
@@ -134,7 +135,7 @@ ${compressed.text}`;
                 max_tokens: 1024,
                 system: systemPrompt,
                 stream: true,
-                messages: [{ role: "user", content: body.query }],
+                messages: [{ role: "user", content: userQuery }],
               }),
             },
           );
@@ -218,7 +219,7 @@ ${compressed.text}`;
 
           // Cache the response for future identical queries
           if (fullResponse) {
-            setCached(model, systemPrompt, body.query!, fullResponse, inputTokens, outputTokens).catch(() => {});
+            setCached(model, systemPrompt, userQuery, fullResponse, inputTokens, outputTokens).catch(() => {});
           }
         } catch (err) {
           send({

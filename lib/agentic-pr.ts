@@ -411,6 +411,23 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
     }
   }
 
+  // 4.45 Gitleaks secret scan. Runs on every flow (public and Crucible)
+  //      to prevent the agent from accidentally pushing hardcoded secrets
+  //      in AI-generated code. Hard gate: any finding blocks the PR.
+  {
+    const { scanSecrets, formatLogBlock: fmtGitleaks } = await import("./gitleaks-scanner");
+    const scanResult = await scanSecrets(worktreeDir);
+    await appendFile(args.logPath, fmtGitleaks(scanResult)).catch(() => {});
+    if (scanResult.status === "leaks_found") {
+      await cleanupWorktree();
+      return {
+        ok: false,
+        reason: `gitleaks found ${scanResult.findingCount} secret(s) in generated code — PR blocked`,
+      };
+    }
+    // clean, skipped (not installed), or error: continue
+  }
+
   // 4.5 Crucible sandbox test runner. Only runs for private-org flows
   //     (orgCtx set). Public flows skip entirely — the existing PAT
   //     path has no test-gating semantics and shouldn't block on

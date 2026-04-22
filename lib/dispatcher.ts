@@ -161,8 +161,14 @@ function enrichWithPrStatus(d: Dispatch): Dispatch {
     const prOpened = /https?:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+/.test(text);
     const testsPassed = /\[crucible-tests\] status=passed/.test(text);
     const testsFailed = /\[crucible-tests\] status=(?:failed|error)/.test(text);
+    const gitleaksFailed = /\[gitleaks\] status=leaks_found/.test(text);
 
     if (prOpened) return { ...d, pr_status: "opened" };
+    if (gitleaksFailed) {
+      const countM = /\[gitleaks\] findings=(\d+)/.exec(text);
+      const reason = `gitleaks blocked PR: ${countM?.[1] ?? "?"} secret(s) found in generated code`;
+      return { ...d, pr_status: "failed", pr_failure_reason: reason };
+    }
     if (testsFailed) {
       const reasonM = /\[crucible-tests\] reason=([^\n]+)/.exec(text);
       const reason = reasonM ? reasonM[1].trim().slice(0, 500) : "sandbox tests failed";

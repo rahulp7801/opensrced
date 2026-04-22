@@ -27,7 +27,9 @@ export async function GET() {
       return Response.json({ error: "Could not determine GitHub user" }, { status: 401 });
     }
 
-    // Search for all open PRs by this user
+    // Search for all open PRs by this user.
+    // gh search prs only supports a subset of fields — use what's available,
+    // then enrich with per-PR details for branch/additions/deletions.
     const { stdout } = await execFileAsync(
       "gh",
       [
@@ -40,7 +42,7 @@ export async function GET() {
         "--limit",
         "100",
         "--json",
-        "repository,title,number,url,state,createdAt,updatedAt,headRefName,baseRefName,additions,deletions,reviewDecision,isDraft",
+        "repository,title,number,url,state,createdAt,updatedAt,isDraft",
       ],
       { env, maxBuffer: 10 * 1024 * 1024, windowsHide: true },
     );
@@ -53,29 +55,63 @@ export async function GET() {
       state: string;
       createdAt: string;
       updatedAt: string;
-      headRefName: string;
-      baseRefName: string;
-      additions: number;
-      deletions: number;
-      reviewDecision: string;
       isDraft: boolean;
     }>;
 
-    const prs = raw.map((pr) => ({
-      repo: pr.repository.nameWithOwner,
-      title: pr.title,
-      number: pr.number,
-      url: pr.url,
-      state: pr.state,
-      createdAt: pr.createdAt,
-      updatedAt: pr.updatedAt,
-      branch: pr.headRefName,
-      base: pr.baseRefName,
-      additions: pr.additions,
-      deletions: pr.deletions,
-      reviewDecision: pr.reviewDecision,
-      isDraft: pr.isDraft,
-    }));
+    // Enrich each PR with branch/additions/deletions via gh pr view
+    const prs = await Promise.all(
+      raw.map(async (pr) => {
+        let branch = "";
+        let base = "";
+        let additions = 0;
+        let deletions = 0;
+        let reviewDecision = "";
+        try {
+          const { stdout: detail } = await execFileAsync(
+            "gh",
+            [
+              "pr",
+              "view",
+              String(pr.number),
+              "--repo",
+              pr.repository.nameWithOwner,
+              "--json",
+              "headRefName,baseRefName,additions,deletions,reviewDecision",
+            ],
+            { env, maxBuffer: 1 * 1024 * 1024, windowsHide: true, timeout: 10000 },
+          );
+          const d = JSON.parse(detail) as {
+            headRefName?: string;
+            baseRefName?: string;
+            additions?: number;
+            deletions?: number;
+            reviewDecision?: string;
+          };
+          branch = d.headRefName ?? "";
+          base = d.baseRefName ?? "";
+          additions = d.additions ?? 0;
+          deletions = d.deletions ?? 0;
+          reviewDecision = d.reviewDecision ?? "";
+        } catch {
+          // If enrichment fails, continue with basic data
+        }
+        return {
+          repo: pr.repository.nameWithOwner,
+          title: pr.title,
+          number: pr.number,
+          url: pr.url,
+          state: pr.state,
+          createdAt: pr.createdAt,
+          updatedAt: pr.updatedAt,
+          branch,
+          base,
+          additions,
+          deletions,
+          reviewDecision,
+          isDraft: pr.isDraft,
+        };
+      }),
+    );
 
     return Response.json({ login, prs });
   } catch (err) {

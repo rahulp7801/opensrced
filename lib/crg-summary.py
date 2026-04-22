@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-"""Generate a full context dump of a code-review-graph database for LLM.
+"""Generate a compact but informative summary of a code-review-graph database.
+
+Designed for LLM context on general questions — includes top files with
+symbols and key edges, but not the full dump (that would blow up tokens).
+File-specific queries are handled by crg-impact.py directly.
 
 Usage: python crg-summary.py <repo_dir>
-Output: JSON with all nodes grouped by file, all edge types, full structure.
+Output: JSON
 """
 import sys, os, json
 
@@ -23,7 +27,7 @@ def main():
 
         all_files = g.get_all_files()
 
-        # Build full node listing grouped by file
+        # Get top 30 files by symbol count
         file_data = []
         for f in all_files:
             nodes = g.get_nodes_by_file(f)
@@ -36,30 +40,24 @@ def main():
                 if n.kind != 'File':
                     symbols.append(f"{n.name} ({n.kind})")
 
-            if symbols:
-                file_data.append({
-                    "file": rel_path,
-                    "symbols": symbols[:50],  # cap per file
-                    "count": len(nodes),
-                })
+            file_data.append({
+                "file": rel_path,
+                "symbols": symbols[:20],
+                "count": len(nodes),
+            })
 
-        # Sort by symbol count descending
         file_data.sort(key=lambda x: -x["count"])
+        top_files = file_data[:30]
 
-        # Get edge statistics
+        # Edge statistics
         all_edges = g.get_all_edges()
         edge_kinds = {}
         sample_edges = []
-        for e in all_edges:
-            kind = e.kind if hasattr(e, 'kind') else "unknown"
+        for e in all_edges[:100]:
+            kind = getattr(e, 'kind', 'unknown')
             edge_kinds[kind] = edge_kinds.get(kind, 0) + 1
-
-        # Get sample edges with readable names
-        for e in all_edges[:200]:
-            src = getattr(e, 'source_qualified', '') or ''
-            tgt = getattr(e, 'target_qualified', '') or ''
-            kind = getattr(e, 'kind', '') or ''
-            # Make relative
+            src = getattr(e, 'source_qualified', '')
+            tgt = getattr(e, 'target_qualified', '')
             if repo_dir in src:
                 src = src[len(repo_dir):].lstrip("/\\").replace("\\", "/")
             if repo_dir in tgt:
@@ -67,14 +65,18 @@ def main():
             if src and tgt:
                 sample_edges.append(f"{src} --[{kind}]--> {tgt}")
 
-        # Count totals
+        # Count full edges
+        for e in all_edges[100:]:
+            kind = getattr(e, 'kind', 'unknown')
+            edge_kinds[kind] = edge_kinds.get(kind, 0) + 1
+
         total_nodes = sum(fd["count"] for fd in file_data)
 
         json.dump({
             "nodes": total_nodes,
             "edges": len(all_edges),
             "files": len(all_files),
-            "file_data": file_data[:100],  # top 100 files
+            "top_files": top_files,
             "edge_kinds": dict(sorted(edge_kinds.items(), key=lambda x: -x[1])),
             "sample_edges": sample_edges,
         }, sys.stdout)

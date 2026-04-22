@@ -16,7 +16,7 @@ import {
   loadGraph,
   routeQuery,
   graphJsonPath,
-  buildFullGraphContext,
+  buildGraphSummary,
   FALLBACK_SENTINEL,
 } from "@/lib/graph";
 import { hasCrg, graphCacheDir } from "@/lib/graph-build";
@@ -89,11 +89,14 @@ export async function POST(req: NextRequest) {
       return Response.json({ result: msg, cost: 0, engine });
     }
 
-    // Build full graph context from graphify (preferred) or CRG (fallback)
+    // Build a compact but useful summary for the LLM — not the full graph.
+    // File-specific queries are already handled by CRG/graphify commands
+    // above. The LLM only gets general questions, so it needs structure
+    // and key nodes, not every single edge.
     let graphContext: string;
     if (existsSync(jsonPath)) {
       const graph = await loadGraph(body.owner, body.repo);
-      graphContext = buildFullGraphContext(graph);
+      graphContext = buildGraphSummary(graph);
     } else {
       graphContext = await getCrgSummary(body.owner, body.repo);
     }
@@ -457,7 +460,7 @@ async function getCrgSummary(owner: string, repo: string): Promise<string> {
       nodes?: number;
       edges?: number;
       files?: number;
-      file_data?: Array<{ file: string; symbols: string[]; count: number }>;
+      top_files?: Array<{ file: string; symbols: string[]; count: number }>;
       edge_kinds?: Record<string, number>;
       sample_edges?: string[];
       error?: string;
@@ -466,12 +469,12 @@ async function getCrgSummary(owner: string, repo: string): Promise<string> {
     if (data.error) return `Graph data unavailable: ${data.error}`;
 
     const lines: string[] = [
-      `Codebase knowledge graph (code-review-graph): ${data.nodes ?? 0} nodes, ${data.edges ?? 0} edges, ${data.files ?? 0} files`,
+      `Codebase graph (code-review-graph): ${data.nodes ?? 0} nodes, ${data.edges ?? 0} edges, ${data.files ?? 0} files`,
       "",
-      "ALL FILES AND SYMBOLS:",
+      "TOP FILES BY SYMBOL COUNT:",
     ];
 
-    for (const fd of data.file_data ?? []) {
+    for (const fd of data.top_files ?? []) {
       lines.push(`\n[${fd.file}] (${fd.count} nodes)`);
       for (const sym of fd.symbols) {
         lines.push(`  ${sym}`);
@@ -483,17 +486,12 @@ async function getCrgSummary(owner: string, repo: string): Promise<string> {
       .join(", ");
     lines.push("", `RELATIONSHIP TYPES: ${edgeKinds}`);
 
-    lines.push("", "EDGES:");
+    lines.push("", "SAMPLE EDGES:");
     for (const e of data.sample_edges ?? []) {
       lines.push(`  ${e}`);
     }
 
-    // Cap at 100K chars
-    const full = lines.join("\n");
-    if (full.length > 100_000) {
-      return full.slice(0, 100_000) + "\n\n[... truncated, graph too large for full context]";
-    }
-    return full;
+    return lines.join("\n");
   } catch {
     return "Graph data unavailable";
   }

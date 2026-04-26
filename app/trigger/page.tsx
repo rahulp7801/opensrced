@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { PageHeading } from "@/components/page-heading";
 import { TriggerForm } from "@/components/trigger-form";
 
@@ -5,46 +6,48 @@ export default function TriggerPage() {
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 py-6">
       <PageHeading
-        eyebrow="dispatch · control"
-        title={<>Trigger a run</>}
+        eyebrow="fix an issue"
+        title={<>Fix an issue</>}
         description={
           <>
-            Paste a GitHub repo URL and launch a single pipeline pass. Dry-run skips the fork/PR step — use it for reconnaissance. Or press{" "}
-            <kbd className="mx-0.5 px-1.5 py-0.5 border border-border-soft text-paper-muted text-[11px]">⌘K</kbd>{" "}
-            from any page to dispatch instantly.
+            Paste a GitHub repo or issue URL. The AI agent will explore the codebase,
+            generate a fix, run tests, and open a draft PR. Use Preview mode to see what
+            the agent finds without opening a PR.
           </>
         }
       />
 
       <div className="mt-6 animate-fade-rise">
-        <TriggerForm />
+        <Suspense fallback={<div className="text-paper-muted text-[12px]">Loading...</div>}>
+          <TriggerForm />
+        </Suspense>
       </div>
 
       <section className="mt-16">
         <div className="mb-5 flex items-center gap-3">
-          <span className="mono-label text-paper-muted">[protocol]</span>
+          <span className="text-[10px] uppercase tracking-[0.15em] text-paper-muted">How it works</span>
           <div className="h-px flex-1 bg-border" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[
             {
-              code: "P-01",
-              title: "Discovery",
-              body: "A single repo is enqueued. No crawl, no filtering — targeted strike.",
+              code: "01",
+              title: "Explore",
+              body: "The agent clones the repo, builds an AST index, and reads the relevant files using tree-sitter + grep.",
             },
             {
-              code: "P-02",
-              title: "Analysis",
-              body: "13-language AST parse · 17 progressive skills · token-budgeted context compression.",
+              code: "02",
+              title: "Fix",
+              body: "Diagnoses the root cause, generates a minimal patch, and verifies it won't break existing code.",
             },
             {
-              code: "P-03",
-              title: "Dispatch",
-              body: "Fork · branch · commit · self-review · quality gate · signed PR with DCO.",
+              code: "03",
+              title: "Ship",
+              body: "Forks the repo, commits the fix, runs the test suite, and opens a draft PR with full context.",
             },
           ].map((step) => (
             <div key={step.code} className="border border-border bg-surface/40 p-5">
-              <span className="mono-label text-signal">[{step.code}]</span>
+              <span className="text-[10px] text-signal uppercase tracking-[0.15em]">{step.code}</span>
               <div className="mt-3 serif text-[28px] text-paper leading-none">
                 {step.title}
               </div>

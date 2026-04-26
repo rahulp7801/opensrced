@@ -66,6 +66,7 @@ export async function GET() {
         let additions = 0;
         let deletions = 0;
         let reviewDecision = "";
+        let commentCount = 0;
         try {
           const { stdout: detail } = await execFileAsync(
             "gh",
@@ -76,7 +77,7 @@ export async function GET() {
               "--repo",
               pr.repository.nameWithOwner,
               "--json",
-              "headRefName,baseRefName,additions,deletions,reviewDecision",
+              "headRefName,baseRefName,additions,deletions,reviewDecision,comments",
             ],
             { env, maxBuffer: 1 * 1024 * 1024, windowsHide: true, timeout: 10000 },
           );
@@ -86,12 +87,14 @@ export async function GET() {
             additions?: number;
             deletions?: number;
             reviewDecision?: string;
+            comments?: Array<unknown>;
           };
           branch = d.headRefName ?? "";
           base = d.baseRefName ?? "";
           additions = d.additions ?? 0;
           deletions = d.deletions ?? 0;
           reviewDecision = d.reviewDecision ?? "";
+          commentCount = Array.isArray(d.comments) ? d.comments.length : 0;
         } catch {
           // If enrichment fails, continue with basic data
         }
@@ -109,6 +112,7 @@ export async function GET() {
           deletions,
           reviewDecision,
           isDraft: pr.isDraft,
+          commentCount,
         };
       }),
     );

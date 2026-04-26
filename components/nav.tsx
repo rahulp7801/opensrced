@@ -21,9 +21,10 @@ const ITEMS = [
   { href: "/issues", label: "Issues", Icon: IconTrigger },
   { href: "/prs", label: "PRs", Icon: IconPrs },
   { href: "/repos", label: "Repos", Icon: IconRepos },
-  { href: "/dispatches", label: "Dispatches", Icon: IconPulse },
+  { href: "/trigger", label: "Fix issue", Icon: IconPulse, title: "Trigger a run to fix a GitHub issue" },
+  { href: "/dispatches", label: "Runs", Icon: IconRuns, title: "Active and past runs" },
   { href: "/stats", label: "Stats", Icon: IconRuns },
-  { href: "/crucible", label: "Crucible", Icon: IconShield },
+  { href: "/crucible", label: "Settings", Icon: IconShield, title: "API keys, GitHub App, org settings" },
 ];
 
 export function Nav() {
@@ -31,13 +32,13 @@ export function Nav() {
 
   return (
     <nav className="flex items-stretch flex-1 min-w-0">
-      {ITEMS.map(({ href, label, Icon }) => {
+      {ITEMS.map(({ href, label, Icon, title }) => {
         const active = path === href || (href !== "/" && path.startsWith(href));
         return (
           <Link
             key={href}
             href={href}
-            title={label}
+            title={title ?? label}
             className={cn(
               "group relative flex items-center justify-center gap-1.5 border-r border-border px-3 transition-colors min-w-0",
               "hover:bg-surface-2/60",

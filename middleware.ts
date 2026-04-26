@@ -37,6 +37,9 @@ const PUBLIC_PATHS = [
   "/runs",
   "/crucible",
   "/demo",
+  // Public shared fix viewer + API
+  "/fix",
+  "/api/fixes",
 ];
 
 function isPublic(pathname: string): boolean {

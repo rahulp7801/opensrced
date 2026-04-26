@@ -10,10 +10,13 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { sanitizeRepoId, sanitizeBranchName, sanitizeCommitMessage } from "@/lib/sanitize";
+import { acquireSlot, releaseSlot, activeSlots } from "@/lib/concurrency";
 
 const execFileAsync = promisify(execFile);
 
 export const dynamic = "force-dynamic";
+
+const MAX_CONCURRENT_PUSHES = 2;
 
 async function run(
   cmd: string,
@@ -50,6 +53,14 @@ export async function POST(req: NextRequest) {
     return Response.json(
       { error: "Missing repo, branch, or diff" },
       { status: 400 },
+    );
+  }
+
+  // Concurrency limit
+  if (!acquireSlot("push", MAX_CONCURRENT_PUSHES)) {
+    return Response.json(
+      { error: `Too many concurrent push operations (${activeSlots("push")}/${MAX_CONCURRENT_PUSHES}). Wait for one to finish.` },
+      { status: 429 },
     );
   }
 
@@ -221,6 +232,7 @@ export async function POST(req: NextRequest) {
       { status: 500 },
     );
   } finally {
+    releaseSlot("push");
     // Cleanup temp dir
     if (tmpDir) {
       rm(tmpDir, { recursive: true, force: true }).catch(() => {});

@@ -57,8 +57,27 @@ const LANGUAGES = [
   "", "python", "javascript", "typescript", "rust", "go", "java", "c", "cpp", "ruby",
 ];
 
+function useBookmarks() {
+  const [bookmarks, setBookmarks] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("opensrcer-bookmarks");
+      if (raw) setBookmarks(JSON.parse(raw));
+    } catch { /* ignore */ }
+  }, []);
+  function toggle(repo: string) {
+    setBookmarks((prev) => {
+      const next = prev.includes(repo) ? prev.filter((r) => r !== repo) : [...prev, repo];
+      localStorage.setItem("opensrcer-bookmarks", JSON.stringify(next));
+      return next;
+    });
+  }
+  return { bookmarks, toggle, isBookmarked: (repo: string) => bookmarks.includes(repo) };
+}
+
 export function DiscoverScanner() {
   const [minStars, setMinStars] = useState("500");
+  const { bookmarks, toggle: toggleBookmark, isBookmarked } = useBookmarks();
   // Empty string = no ceiling. Letting users target smaller repos where
   // a single contribution lands more visibly.
   const [maxStars, setMaxStars] = useState("");
@@ -297,6 +316,16 @@ export function DiscoverScanner() {
                       )}
                     >
                       <td className="px-3 py-2.5 whitespace-nowrap">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleBookmark(i.repo.fullName); }}
+                          className={cn(
+                            "inline-block w-4 text-center mr-1 text-[12px] transition",
+                            isBookmarked(i.repo.fullName) ? "text-signal" : "text-paper-faint hover:text-signal opacity-0 group-hover:opacity-100",
+                          )}
+                          title={isBookmarked(i.repo.fullName) ? "Remove bookmark" : "Bookmark this repo"}
+                        >
+                          {isBookmarked(i.repo.fullName) ? "*" : "+"}
+                        </button>
                         <Link
                           href={`/issues?repo=${encodeURIComponent(i.repo.fullName)}&issue=${i.number}`}
                           className="text-paper hover:text-signal"
@@ -374,6 +403,25 @@ export function DiscoverScanner() {
             </table>
           </div>
         </>
+      )}
+
+      {/* Bookmarked repos */}
+      {bookmarks.length > 0 && (
+        <div className="mt-4 border border-border bg-surface/40 px-4 py-3">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[10px] uppercase tracking-[0.15em] text-signal">Saved repos</span>
+            <span className="text-[10px] text-paper-faint">{bookmarks.length} bookmarked</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {bookmarks.map((repo) => (
+              <div key={repo} className="flex items-center gap-1.5 border border-border bg-ink/30 px-2.5 py-1 text-[11px]">
+                <Link href={`/issues?repo=${encodeURIComponent(repo)}`} className="text-paper hover:text-signal transition">{repo}</Link>
+                <Link href={`/trigger?repo=${repo}`} className="text-signal hover:underline text-[10px]">fix</Link>
+                <button onClick={() => toggleBookmark(repo)} className="text-paper-faint hover:text-alert text-[10px] transition ml-1">x</button>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {!data && !loading && !err && (

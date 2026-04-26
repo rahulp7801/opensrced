@@ -12,8 +12,11 @@ import { resolveGitHubToken } from "@/lib/github-token";
 import { getSession } from "@auth0/nextjs-auth0";
 import { mappingForOrg } from "@/lib/crucible/orgs";
 import { resolveGithubToken } from "@/lib/crucible/tokens";
+import { acquireSlot, releaseSlot, activeSlots } from "@/lib/concurrency";
 
 export const dynamic = "force-dynamic";
+
+const MAX_CONCURRENT_EXPLORE = 3;
 
 const MCP_CONFIG = join(process.cwd(), ".mcp.json");
 
@@ -40,6 +43,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Concurrency limit
+  if (!acquireSlot("explore", MAX_CONCURRENT_EXPLORE)) {
+    return new Response(
+      JSON.stringify({ error: `Too many concurrent explorations (${activeSlots("explore")}/${MAX_CONCURRENT_EXPLORE}). Wait for one to finish.` }),
+      { status: 429, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
   if (!existsSync(MCP_CONFIG)) {
     return new Response(
       JSON.stringify({ error: "MCP server not built. Run: cd mcp-server && npm run build" }),
@@ -55,19 +66,27 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Parse owner/name from URL
+  // Parse owner/name from URL and sanitize
   const m = /github\.com[:/]+([^/]+)\/([^/?#\s.]+)|^([^/\s]+)\/([^/\s]+)$/.exec(
     body.repo_url.trim().replace(/\.git$/i, ""),
   );
-  const owner = m?.[1] ?? m?.[3];
-  const name = m?.[2] ?? m?.[4];
-  if (!owner || !name) {
+  const rawOwner = m?.[1] ?? m?.[3];
+  const rawName = m?.[2] ?? m?.[4];
+  if (!rawOwner || !rawName) {
     return new Response(
       JSON.stringify({ error: "Invalid repo URL" }),
       { status: 400, headers: { "Content-Type": "application/json" } },
     );
   }
-  const repoFull = `${owner}/${name}`;
+  const { sanitizeRepoId: sanitizeRepo } = await import("@/lib/sanitize");
+  const repoFull = sanitizeRepo(`${rawOwner}/${rawName}`);
+  if (!repoFull) {
+    return new Response(
+      JSON.stringify({ error: "Invalid repo identifier" }),
+      { status: 400, headers: { "Content-Type": "application/json" } },
+    );
+  }
+  const [owner, name] = repoFull.split("/");
 
   const prompt = buildExplorePrompt(repoFull, body.query);
 
@@ -195,6 +214,7 @@ export async function POST(req: NextRequest) {
 
       child.on("close", (code) => {
         clearTimeout(timeout);
+        releaseSlot("explore");
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ done: true, exit_code: code })}\n\n`),
         );
@@ -203,6 +223,7 @@ export async function POST(req: NextRequest) {
 
       child.on("error", (err) => {
         clearTimeout(timeout);
+        releaseSlot("explore");
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ error: err.message })}\n\n`),
         );

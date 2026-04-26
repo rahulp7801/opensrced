@@ -1,6 +1,4 @@
-// Pre-login page. Explains the full auth flow: what Auth0 is, what GitHub
-// OAuth does, what permissions are requested and why, and the privacy
-// commitment — all BEFORE the user clicks anything.
+// Login page — clean CTA with collapsible security details.
 
 import Link from "next/link";
 
@@ -30,124 +28,8 @@ export default async function LoginPage({
         </div>
 
         <div className="mt-8 border border-border bg-surface/40">
-          {/* How it works */}
+          {/* CTA — always visible at top */}
           <div className="p-6 border-b border-border-soft">
-            <div className="mono-label text-paper-muted">how sign-in works</div>
-            <div className="mt-3 space-y-3 text-[12.5px] text-paper-dim leading-relaxed">
-              <div className="flex gap-3">
-                <span className="shrink-0 inline-flex items-center justify-center h-5 w-5 border border-border-soft text-[10px] text-paper-muted">1</span>
-                <span>
-                  You click <span className="text-paper">Sign in with GitHub</span> below.
-                  This takes you to <span className="text-paper">Auth0</span>, a trusted
-                  third-party authentication service — opensrcer never sees or
-                  handles your password.
-                </span>
-              </div>
-              <div className="flex gap-3">
-                <span className="shrink-0 inline-flex items-center justify-center h-5 w-5 border border-border-soft text-[10px] text-paper-muted">2</span>
-                <span>
-                  Auth0 redirects you to <span className="text-paper">GitHub</span> to
-                  approve the permissions listed below. GitHub shows you exactly
-                  what&apos;s being requested — you can review before approving.
-                </span>
-              </div>
-              <div className="flex gap-3">
-                <span className="shrink-0 inline-flex items-center justify-center h-5 w-5 border border-border-soft text-[10px] text-paper-muted">3</span>
-                <span>
-                  After you approve, GitHub sends a short-lived token back
-                  through Auth0 to opensrcer. This token is stored only in your
-                  encrypted browser cookie — never on our servers.
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* What we request */}
-          <div className="p-6 border-b border-border-soft">
-            <div className="mono-label text-paper-muted">permissions requested from GitHub</div>
-            <div className="mt-3 space-y-2.5 text-[12.5px] text-paper-dim leading-relaxed">
-              <div className="flex gap-2.5">
-                <span className="text-signal shrink-0 mt-0.5">+</span>
-                <span>
-                  <span className="text-paper">Public repo access</span> — fork repos and
-                  open draft PRs with AI-generated patches on your behalf
-                </span>
-              </div>
-              <div className="flex gap-2.5">
-                <span className="text-signal shrink-0 mt-0.5">+</span>
-                <span>
-                  <span className="text-paper">Read your profile</span> — display your name
-                  and avatar in the dashboard
-                </span>
-              </div>
-              <div className="flex gap-2.5">
-                <span className="text-signal shrink-0 mt-0.5">+</span>
-                <span>
-                  <span className="text-paper">Read your email</span> — attribute commits to
-                  you (shown as the commit author)
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Security model */}
-          <div className="p-6 border-b border-border-soft">
-            <div className="mono-label text-paper-muted">security model</div>
-            <div className="mt-3 space-y-2.5 text-[12.5px] text-paper-dim leading-relaxed">
-              <div className="flex gap-2.5">
-                <span className="text-signal shrink-0 mt-0.5">~</span>
-                <span>
-                  Your GitHub token and API keys are <span className="text-paper">encrypted (AES-256-GCM)</span> and
-                  stored in browser cookies — never in a database, never on disk
-                </span>
-              </div>
-              <div className="flex gap-2.5">
-                <span className="text-signal shrink-0 mt-0.5">~</span>
-                <span>
-                  When you trigger a task, the server decrypts your key
-                  <span className="text-paper"> in memory only</span> to call
-                  the AI provider, then discards it — keys are never logged or cached
-                </span>
-              </div>
-              <div className="flex gap-2.5">
-                <span className="text-signal shrink-0 mt-0.5">~</span>
-                <span>
-                  Authentication is handled by <span className="text-paper">Auth0</span> — opensrcer
-                  never sees your GitHub password
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* What we never do */}
-          <div className="p-6 border-b border-border-soft">
-            <div className="mono-label text-paper-muted">privacy commitment</div>
-            <div className="mt-3 space-y-2.5 text-[12.5px] text-paper-dim leading-relaxed">
-              <div className="flex gap-2.5">
-                <span className="text-red-400 shrink-0 mt-0.5">-</span>
-                <span>No database storage of tokens, keys, or personal information</span>
-              </div>
-              <div className="flex gap-2.5">
-                <span className="text-red-400 shrink-0 mt-0.5">-</span>
-                <span>No access to private repos unless you explicitly connect an org</span>
-              </div>
-              <div className="flex gap-2.5">
-                <span className="text-red-400 shrink-0 mt-0.5">-</span>
-                <span>No selling, sharing, or transmitting your data to third parties</span>
-              </div>
-              <div className="flex gap-2.5">
-                <span className="text-red-400 shrink-0 mt-0.5">-</span>
-                <span>No analytics, no tracking — the only cookies are your encrypted session and keys</span>
-              </div>
-              <div className="flex gap-2.5">
-                <span className="text-red-400 shrink-0 mt-0.5">-</span>
-                <span>Everything is cleared the moment you sign out</span>
-              </div>
-            </div>
-          </div>
-
-          {/* CTA */}
-          <div className="p-6">
             <Link
               href={loginHref}
               className="flex items-center justify-center gap-3 w-full border border-border bg-surface-2/80 hover:bg-surface-2 px-4 py-3.5 text-[14px] font-medium text-paper transition"
@@ -157,16 +39,54 @@ export default async function LoginPage({
               </svg>
               Sign in with GitHub
             </Link>
-            <div className="mt-4 text-center text-[11px] text-paper-faint leading-relaxed">
-              Authentication is handled by{" "}
-              <a href="https://auth0.com" target="_blank" rel="noreferrer" className="underline hover:text-paper-muted">Auth0</a>.
-              Your password is never shared with opensrcer.
-              You can revoke access at any time from the dashboard or from{" "}
-              <a href="https://github.com/settings/applications" target="_blank" rel="noreferrer" className="underline hover:text-paper-muted">
-                GitHub settings
-              </a>.
+            <div className="mt-3 text-center text-[11px] text-paper-faint leading-relaxed">
+              Secure authentication via Auth0. Your password is never shared with opensrcer.
             </div>
           </div>
+
+          {/* Permissions — compact */}
+          <div className="p-5 border-b border-border-soft">
+            <div className="text-[11px] text-paper-muted font-medium mb-2">What we request from GitHub</div>
+            <div className="flex flex-wrap gap-2 text-[11px]">
+              <span className="border border-signal/30 text-signal px-2 py-0.5">public repos</span>
+              <span className="border border-signal/30 text-signal px-2 py-0.5">read profile</span>
+              <span className="border border-signal/30 text-signal px-2 py-0.5">read email</span>
+            </div>
+            <p className="mt-2 text-[10.5px] text-paper-faint">
+              Fork repos, open draft PRs, display your name, attribute commits to you.
+            </p>
+          </div>
+
+          {/* Security details — collapsible */}
+          <details className="group">
+            <summary className="px-5 py-3 cursor-pointer text-[11px] text-paper-muted hover:text-paper-dim transition flex items-center gap-2">
+              <span className="text-signal group-open:rotate-90 transition-transform inline-block">{">"}</span>
+              How we protect your data
+            </summary>
+            <div className="px-5 pb-5 space-y-4 text-[11.5px] text-paper-dim leading-relaxed">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.15em] text-paper-muted mb-1.5">Security model</div>
+                <div className="space-y-1.5">
+                  <p>+ Tokens and API keys are <span className="text-paper">encrypted (AES-256-GCM)</span> in browser cookies — never in a database</p>
+                  <p>+ Keys are decrypted <span className="text-paper">in memory only</span> for API calls, then discarded</p>
+                  <p>+ Authentication handled by <span className="text-paper">Auth0</span> — we never see your GitHub password</p>
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.15em] text-paper-muted mb-1.5">Privacy commitment</div>
+                <div className="space-y-1.5">
+                  <p className="text-paper-faint">- No database storage of tokens, keys, or personal information</p>
+                  <p className="text-paper-faint">- No access to private repos unless you explicitly connect an org</p>
+                  <p className="text-paper-faint">- No analytics, no tracking — only session + key cookies</p>
+                  <p className="text-paper-faint">- Everything is cleared the moment you sign out</p>
+                </div>
+              </div>
+              <p className="text-[10px] text-paper-faint">
+                Revoke access anytime from the dashboard or{" "}
+                <a href="https://github.com/settings/applications" target="_blank" rel="noreferrer" className="underline hover:text-paper-muted">GitHub settings</a>.
+              </p>
+            </div>
+          </details>
         </div>
       </div>
     </div>

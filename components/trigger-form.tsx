@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/toast";
 
 type SubmitState =
   | { kind: "idle" }
@@ -9,7 +11,19 @@ type SubmitState =
   | { kind: "ok"; message: string; queued_at: string; mode: string; dispatch_id?: string }
   | { kind: "err"; message: string };
 
+function friendlyError(msg: string): string {
+  if (msg.includes("ECONNREFUSED") || msg.includes("fetch failed")) return "Could not reach the server. Check your connection and try again.";
+  if (msg.includes("401") || msg.includes("unauthenticated")) return "Your session expired. Please log in again.";
+  if (msg.includes("API key") || msg.includes("api key")) return "Missing API keys. Add them in Settings before running.";
+  if (msg.includes("rate limit")) return "Rate limit hit. Wait a minute and try again.";
+  if (msg.includes("repo_url")) return "Please enter a valid GitHub repository URL.";
+  return msg;
+}
+
 export function TriggerForm() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const { toast } = useToast();
   const [repoUrl, setRepoUrl] = useState("");
   const [dryRun, setDryRun] = useState(true);
   const [priority, setPriority] = useState<"normal" | "high">("normal");
@@ -19,10 +33,21 @@ export function TriggerForm() {
     Array<{ t: string; repo: string; mode: string; status: "queued" | "error" }>
   >([]);
 
+  // Pre-fill from URL params (e.g. ?repo=owner/name&issue=123&try=1)
+  useEffect(() => {
+    const repo = searchParams.get("repo");
+    const issue = searchParams.get("issue");
+    const tryMode = searchParams.get("try");
+    if (repo) {
+      setRepoUrl(issue ? `https://github.com/${repo}/issues/${issue}` : `https://github.com/${repo}`);
+      if (tryMode === "1") setDryRun(true);
+    }
+  }, [searchParams]);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!repoUrl.trim()) {
-      setState({ kind: "err", message: "repo_url is required" });
+      setState({ kind: "err", message: "Please enter a GitHub repository URL" });
       return;
     }
     setState({ kind: "pending" });
@@ -34,12 +59,13 @@ export function TriggerForm() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message ?? `HTTP ${res.status}`);
+      const dispatchId = data.dispatch_id;
       setState({
         kind: "ok",
         message: data.message ?? "queued",
         queued_at: data.queued_at ?? new Date().toISOString(),
         mode: data.mode ?? (dryRun ? "dry-run" : "live"),
-        dispatch_id: data.dispatch_id,
+        dispatch_id: dispatchId,
       });
       setLog((prev) =>
         [
@@ -52,11 +78,20 @@ export function TriggerForm() {
           ...prev,
         ].slice(0, 12),
       );
+      toast("Run started — redirecting to live view...", "ok");
       setRepoUrl("");
       setNotes("");
+
+      // Auto-redirect to the live run view after 1.5s
+      if (dispatchId) {
+        setTimeout(() => {
+          router.push(`/dispatches/${dispatchId}`);
+        }, 1500);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      setState({ kind: "err", message: msg });
+      setState({ kind: "err", message: friendlyError(msg) });
+      toast(friendlyError(msg), "alert");
       setLog((prev) =>
         [
           {
@@ -78,45 +113,45 @@ export function TriggerForm() {
         className="col-span-12 lg:col-span-8 border border-border bg-surface/40 p-6"
       >
         <Row
-          label="TARGET · repo_url"
-          hint="https://github.com/owner/repo"
+          label="Repository"
+          hint="Paste a GitHub repo URL or issue URL"
         >
           <input
             value={repoUrl}
             onChange={(e) => setRepoUrl(e.target.value)}
-            placeholder="https://github.com/astral-sh/ruff"
+            placeholder="https://github.com/owner/repo or https://github.com/owner/repo/issues/123"
             spellCheck={false}
             autoComplete="off"
             className="w-full border border-border bg-ink px-3 py-3 text-[14px] text-paper placeholder:text-paper-faint focus:border-signal focus:outline-none"
           />
         </Row>
 
-        <Row label="MODE · dry_run" hint="dry-run skips network side effects.">
+        <Row label="Mode" hint="Preview runs analysis only. Live opens a PR when done.">
           <div className="flex gap-0 border border-border bg-ink w-fit">
-            {[
-              { key: true, label: "dry-run" },
-              { key: false, label: "live" },
-            ].map((o, i) => (
-              <button
-                key={String(o.key)}
-                type="button"
-                onClick={() => setDryRun(o.key)}
-                className={cn(
-                  "px-4 py-2 text-[12px] uppercase tracking-[0.15em] border-l first:border-l-0 border-border",
-                  dryRun === o.key
-                    ? i === 0
-                      ? "bg-info/10 text-info"
-                      : "bg-signal/10 text-signal"
-                    : "text-paper-muted hover:text-paper",
-                )}
-              >
-                {o.label}
-              </button>
-            ))}
+            <button
+              type="button"
+              onClick={() => setDryRun(true)}
+              className={cn(
+                "px-4 py-2 text-[12px] uppercase tracking-[0.15em]",
+                dryRun ? "bg-info/10 text-info" : "text-paper-muted hover:text-paper",
+              )}
+            >
+              preview
+            </button>
+            <button
+              type="button"
+              onClick={() => setDryRun(false)}
+              className={cn(
+                "px-4 py-2 text-[12px] uppercase tracking-[0.15em] border-l border-border",
+                !dryRun ? "bg-signal/10 text-signal" : "text-paper-muted hover:text-paper",
+              )}
+            >
+              live (opens PR)
+            </button>
           </div>
         </Row>
 
-        <Row label="PRIORITY · queue_depth">
+        <Row label="Priority">
           <div className="flex gap-0 border border-border bg-ink w-fit">
             {(["normal", "high"] as const).map((p) => (
               <button
@@ -134,12 +169,12 @@ export function TriggerForm() {
           </div>
         </Row>
 
-        <Row label="NOTES · optional" hint="Free-form guidance for the analyzer.">
+        <Row label="Notes" hint="Optional guidance for the AI agent.">
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
-            placeholder="focus on security fixes, avoid license-encumbered files, skip tests/"
+            placeholder="e.g. focus on security fixes, avoid license-encumbered files, skip tests/"
             className="w-full border border-border bg-ink px-3 py-3 text-[13px] text-paper placeholder:text-paper-faint focus:border-signal focus:outline-none resize-none"
           />
         </Row>
@@ -155,46 +190,49 @@ export function TriggerForm() {
                 : "border-signal bg-signal/10 text-paper hover:bg-signal/20",
             )}
           >
-            <span className="mono-label text-signal">[dispatch]</span>
-            {state.kind === "pending" ? "queuing…" : "launch target"}
-            <Arrow />
+            {state.kind === "pending" ? (
+              "Starting run..."
+            ) : (
+              <>
+                <span className="text-signal">Fix this issue</span>
+                <Arrow />
+              </>
+            )}
           </button>
 
           {state.kind === "ok" && (
             <div className="flex items-center gap-3 text-[12px]">
-              <span className="text-ok">✓ {state.message}</span>
+              <span className="text-ok flex items-center gap-1">
+                <span aria-hidden>+</span> Run started
+              </span>
               {state.dispatch_id && (
                 <a
-                  href="/dispatches"
+                  href={`/dispatches/${state.dispatch_id}`}
                   className="text-signal hover:underline"
                 >
-                  watch live log →
+                  View live run
                 </a>
               )}
             </div>
           )}
           {state.kind === "err" && (
-            <div className="text-[12px] text-alert">✗ {state.message}</div>
+            <div className="text-[12px] text-alert flex items-center gap-1">
+              <span aria-hidden>x</span> {state.message}
+            </div>
           )}
         </div>
-
-        <p className="mt-6 text-[11px] text-paper-muted leading-relaxed">
-          POST /api/run/target · mirrors the agent REST contract. When
-          <code className="mx-1 text-paper">CONTRIBAI_API_URL</code> is set, this form proxies
-          directly to the running Rust web-server.
-        </p>
       </form>
 
       <aside className="col-span-12 lg:col-span-4 border border-border bg-surface/40 p-0">
         <div className="flex items-center justify-between border-b border-border px-4 py-2">
-          <span className="mono-label text-paper-muted">[dispatch log]</span>
+          <span className="mono-label text-paper-muted">Run history</span>
           <span className="mono-label text-paper-faint tabular-nums">
             {log.length.toString().padStart(2, "0")}
           </span>
         </div>
         {log.length === 0 ? (
           <div className="p-6 text-[12px] text-paper-muted">
-            No dispatches yet. Your launches in this session will appear here.
+            No runs yet. Start your first run to see history here.
           </div>
         ) : (
           <ul>
@@ -206,10 +244,14 @@ export function TriggerForm() {
                 <span className="mono-label text-paper-faint tabular-nums">{l.t}</span>
                 <span
                   className={cn(
-                    "inline-block h-1.5 w-1.5 rounded-full",
-                    l.status === "queued" ? "bg-ok" : "bg-alert",
+                    "inline-flex items-center justify-center h-4 w-4 text-[10px]",
+                    l.status === "queued" ? "text-ok" : "text-alert",
                   )}
-                />
+                  role="img"
+                  aria-label={l.status}
+                >
+                  {l.status === "queued" ? "+" : "x"}
+                </span>
                 <span className="min-w-0 flex-1 truncate text-paper">{l.repo}</span>
                 <span className="mono-label text-paper-muted">{l.mode}</span>
               </li>
@@ -233,8 +275,12 @@ function Row({
   return (
     <div className="mb-6 grid grid-cols-12 gap-4 items-start">
       <div className="col-span-12 md:col-span-3">
-        <div className="mono-label text-paper-muted">{label}</div>
-        {hint && <div className="mt-1 text-[10px] text-paper-faint">{hint}</div>}
+        <div className="text-[12px] text-paper font-medium">{label}</div>
+        {hint && (
+          <div className="mt-1 text-[10.5px] text-paper-faint leading-relaxed">
+            {hint}
+          </div>
+        )}
       </div>
       <div className="col-span-12 md:col-span-9">{children}</div>
     </div>
@@ -243,13 +289,8 @@ function Row({
 
 function Arrow() {
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-      <path
-        d="M3 7h8m0 0L7.5 3.5M11 7l-3.5 3.5"
-        stroke="currentColor"
-        strokeWidth="1.25"
-        strokeLinecap="square"
-      />
+    <svg width="12" height="12" viewBox="0 0 12 12" className="text-signal group-hover:translate-x-0.5 transition-transform" aria-hidden>
+      <path d="M2 6h8m-3-3 3 3-3 3" stroke="currentColor" strokeWidth="1.2" fill="none" />
     </svg>
   );
 }

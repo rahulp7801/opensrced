@@ -10,9 +10,9 @@ export default function DiscoverPage() {
         title={<>Discover</>}
         description={
           <>
-            Search across public GitHub by star count and language, then sift the surfaced
-            issues by recency and difficulty. Deterministic — no LLM, no Anthropic spend.
-            Click any row to jump into the scanner with that repo loaded.
+            Search public GitHub repos by stars and language, then browse their open issues
+            ranked by solvability. No AI cost — this is free. Click any issue to scan it
+            or jump straight to fixing it.
           </>
         }
       />

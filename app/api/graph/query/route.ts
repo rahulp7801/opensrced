@@ -23,7 +23,7 @@ import {
 import { hasCrg, graphCacheDir } from "@/lib/graph-build";
 import { resolveAnthropicKey } from "@/lib/api-keys";
 import { getCached, setCached } from "@/lib/llm-cache";
-import { sanitizeForPrompt } from "@/lib/sanitize";
+import { sanitizeForPrompt, sanitizeRepoId, sanitizeFilePath } from "@/lib/sanitize";
 
 const execFileAsync = promisify(execFile);
 
@@ -36,10 +36,12 @@ export async function POST(req: NextRequest) {
     query?: string;
   };
 
-  // Sanitize — owner/repo are validated by path convention, query is user freetext
+  // Sanitize all inputs
+  const fullRepo = raw.owner && raw.repo ? `${raw.owner}/${raw.repo}` : null;
+  const sanitizedRepo = fullRepo ? sanitizeRepoId(fullRepo) : null;
   const body = {
-    owner: raw.owner?.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 100),
-    repo: raw.repo?.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 100),
+    owner: sanitizedRepo?.split("/")[0] ?? null,
+    repo: sanitizedRepo?.split("/")[1] ?? null,
     query: raw.query ? sanitizeForPrompt(raw.query) : null,
   };
 
@@ -326,9 +328,11 @@ async function tryCrgCommand(
 
   if (!filePath) return null;
 
-  // Clean up the path
+  // Clean up and sanitize the path
   filePath = filePath.replace(/[`"'?]/g, "").trim();
   if (filePath.length < 3) return null;
+  filePath = sanitizeFilePath(filePath);
+  if (!filePath) return null;
 
   const repoDir = graphCacheDir(owner, repo);
   const scriptPath = join(process.cwd(), "lib", "crg-impact.py");

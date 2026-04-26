@@ -21,6 +21,10 @@ const GITHUB_TOKEN_CLAIM = "https://opensrcer.dev/github_token";
 
 export async function getGitHubTokenFromSession(): Promise<string | null> {
   try {
+    // Next.js 15 requires cookies() to be awaited before getSession().
+    // Import dynamically to avoid issues outside request context.
+    const { cookies } = await import("next/headers");
+    await cookies();
     const session = await getSession();
     const token = session?.user?.[GITHUB_TOKEN_CLAIM];
     if (typeof token === "string" && token.length > 0) return token;

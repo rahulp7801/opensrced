@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { PageHeading } from "@/components/page-heading";
 import { IssueScanner } from "@/components/issue-scanner";
+import { SuggestedIssues } from "@/components/suggested-issues";
 
 export default function IssuesPage() {
   return (
@@ -16,8 +17,17 @@ export default function IssuesPage() {
           </>
         }
       />
+
+      {/* Suggested issues feed */}
       <div className="mt-6">
-        <Suspense fallback={<div className="text-paper-muted text-[12px]">Loading…</div>}>
+        <Suspense fallback={<div className="text-paper-muted text-[12px]">Loading suggestions...</div>}>
+          <SuggestedIssues />
+        </Suspense>
+      </div>
+
+      {/* Manual scanner */}
+      <div className="mt-8">
+        <Suspense fallback={<div className="text-paper-muted text-[12px]">Loading...</div>}>
           <IssueScanner />
         </Suspense>
       </div>

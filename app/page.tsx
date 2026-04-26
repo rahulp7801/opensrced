@@ -31,6 +31,13 @@ export default function LandingPage() {
             Get started with GitHub
           </Link>
           <Link
+            href="/trigger?repo=tiangolo/fastapi&issue=13435&try=1"
+            className="inline-flex items-center gap-2 border border-ok/60 bg-ok/10 px-6 py-3 text-[14px] text-ok hover:bg-ok/20 transition"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 2 3 9h4l-1 5 6-7H8l1-5z" /></svg>
+            Try it now — fix a real bug
+          </Link>
+          <Link
             href="/demo"
             className="inline-flex items-center gap-2 border border-border px-6 py-3 text-[14px] text-paper-muted hover:text-paper hover:border-border-strong transition"
           >

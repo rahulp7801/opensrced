@@ -38,13 +38,11 @@ export default async function CruciblePage({
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 py-6">
       <PageHeading
-        title={<>Crucible</>}
+        title={<>Settings</>}
         description={
           <>
-            Connect a GitHub Organization to scan its private repos for real
-            bugs, security advisories, and Dependabot alerts — then land
-            verified draft PRs whose patches have already passed the repo&apos;s
-            own tests.
+            Manage API keys, connect GitHub organizations for private repo scanning,
+            and configure your account. API keys are encrypted in your browser — never stored on our servers.
           </>
         }
       />

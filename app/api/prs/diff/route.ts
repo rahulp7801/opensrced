@@ -5,16 +5,22 @@ import { NextRequest } from "next/server";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { resolveGitHubToken } from "@/lib/github-token";
+import { sanitizeRepoId, sanitizePrNumber } from "@/lib/sanitize";
 
 const execFileAsync = promisify(execFile);
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const repo = req.nextUrl.searchParams.get("repo");
-  const pr = req.nextUrl.searchParams.get("pr");
-  if (!repo || !pr) {
+  const rawRepo = req.nextUrl.searchParams.get("repo");
+  const rawPr = req.nextUrl.searchParams.get("pr");
+  if (!rawRepo || !rawPr) {
     return Response.json({ error: "Missing repo or pr" }, { status: 400 });
+  }
+  const repo = sanitizeRepoId(rawRepo);
+  const pr = String(sanitizePrNumber(parseInt(rawPr)));
+  if (!repo || !pr) {
+    return Response.json({ error: "Invalid repo or pr" }, { status: 400 });
   }
 
   const token = await resolveGitHubToken();

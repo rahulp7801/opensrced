@@ -2,10 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useUser } from "@auth0/nextjs-auth0/client";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
+
+// Pages that work WITHOUT API keys (public repo browsing, PRs, repos)
+const KEY_FREE_PAGES = ["/prs", "/repos", "/discover", "/issues", "/stats", "/graph"];
 
 export function ApiKeyGate() {
   const { user } = useUser();
+  const pathname = usePathname();
   const [hasKey, setHasKey] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -29,14 +34,12 @@ export function ApiKeyGate() {
 
     check();
 
-    // Re-check when sessionStorage is cleared (key saved/removed on Crucible page)
     function onStorage(e: StorageEvent) {
       if (e.key === "opensrcer-has-key" || e.key === null) check();
     }
-    // StorageEvent only fires cross-tab. For same-tab, poll sessionStorage.
     const poll = setInterval(() => {
       const cached = sessionStorage.getItem("opensrcer-has-key");
-      if (cached === null) check(); // cache was cleared — re-fetch
+      if (cached === null) check();
     }, 1000);
 
     window.addEventListener("storage", onStorage);
@@ -46,24 +49,22 @@ export function ApiKeyGate() {
     };
   }, [user]);
 
-  // Don't show if not logged in, still loading, or key is set
+  // Don't show if: not logged in, still loading, key is set, or on a key-free page
   if (!user || hasKey === null || hasKey) return null;
+  if (KEY_FREE_PAGES.some((p) => pathname === p || pathname.startsWith(p + "/"))) return null;
 
   return (
     <div className="border-b border-signal/40 bg-signal/5 px-4 py-2.5 flex items-center justify-center gap-3 text-[12px]">
-      <span className="text-signal font-medium">API keys required</span>
+      <span className="text-signal font-medium">API keys needed for this page</span>
       <span className="text-paper-muted">
-        — add Anthropic + Gemini keys in
+        Add your Anthropic + Gemini keys to use AI features.
       </span>
       <Link
         href="/crucible"
-        className="text-signal underline hover:text-signal-soft"
+        className="text-signal border border-signal/30 px-2.5 py-0.5 hover:bg-signal/10 transition"
       >
-        Crucible → API Keys
+        Add keys in Settings
       </Link>
-      <span className="text-paper-muted">
-        to use Explore, Dispatches, and Deep Solve.
-      </span>
     </div>
   );
 }

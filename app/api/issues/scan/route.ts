@@ -23,7 +23,17 @@ export async function GET(req: NextRequest) {
     );
   }
   try {
-    const issues = await listIssues(parsed.owner, parsed.repo, 50);
+    // Always pull beginner-tagged issues alongside the recent batch — they're
+    // usually old (maintainers leave them open for newcomers) and would
+    // otherwise be missed by the recent-N fetch.
+    const beginnerLabels = [
+      "good first issue",
+      "beginner",
+      "starter",
+      "first-timers-only",
+      "easy",
+    ];
+    const issues = await listIssues(parsed.owner, parsed.repo, 50, beginnerLabels);
     // Fire-and-forget stats bump — failure here must not break the scan.
     void recordScan(`${parsed.owner}/${parsed.repo}`).catch(() => {});
     return NextResponse.json({

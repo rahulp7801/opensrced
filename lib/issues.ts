@@ -187,25 +187,56 @@ export async function listIssues(
   owner: string,
   repo: string,
   limit = 50,
+  extraLabels: string[] = [],
 ): Promise<ScannedIssue[]> {
-  const { stdout } = await execFileAsync(
-    ghBin(),
-    [
-      "issue",
-      "list",
-      "--repo",
-      `${owner}/${repo}`,
-      "--state",
-      "open",
-      "--limit",
-      String(limit),
-      "--json",
-      "number,title,body,labels,state,author,url,createdAt,updatedAt,assignees,comments",
-    ],
-    { maxBuffer: 10 * 1024 * 1024 },
-  );
-  const raw: GhIssue[] = JSON.parse(stdout);
-  return raw.map(scoreIssue);
+  // Recent batch: most recently created N issues regardless of label.
+  // Label-filtered batches: ensures beginner-friendly issues show up even
+  // on active repos where they're old (maintainers keep them open for
+  // newcomers, so they're rarely in the recent N).
+  const calls: Array<Promise<GhIssue[]>> = [
+    runListIssues(owner, repo, limit, []),
+    ...extraLabels.map((l) => runListIssues(owner, repo, limit, [l])),
+  ];
+  const batches = await Promise.all(calls.map((p) => p.catch(() => [])));
+
+  // Dedupe by issue number — first occurrence wins
+  const seen = new Set<number>();
+  const merged: GhIssue[] = [];
+  for (const batch of batches) {
+    for (const issue of batch) {
+      if (seen.has(issue.number)) continue;
+      seen.add(issue.number);
+      merged.push(issue);
+    }
+  }
+  return merged.map(scoreIssue);
+}
+
+async function runListIssues(
+  owner: string,
+  repo: string,
+  limit: number,
+  labels: string[],
+): Promise<GhIssue[]> {
+  const args = [
+    "issue",
+    "list",
+    "--repo",
+    `${owner}/${repo}`,
+    "--state",
+    "open",
+    "--limit",
+    String(limit),
+    "--json",
+    "number,title,body,labels,state,author,url,createdAt,updatedAt,assignees,comments",
+  ];
+  for (const l of labels) {
+    args.push("--label", l);
+  }
+  const { stdout } = await execFileAsync(ghBin(), args, {
+    maxBuffer: 10 * 1024 * 1024,
+  });
+  return JSON.parse(stdout) as GhIssue[];
 }
 
 function scoreIssue(i: GhIssue): ScannedIssue {

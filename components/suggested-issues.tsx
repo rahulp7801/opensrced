@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { cacheGet, cacheSet } from "@/lib/client-cache";
+
+type CachedSuggestions = { issues: SuggestedIssue[]; filteredOut: number };
 
 type SuggestedIssue = {
   repo: string;
@@ -22,10 +25,12 @@ const LANGUAGES = [
 
 export function SuggestedIssues() {
   const [issues, setIssues] = useState<SuggestedIssue[]>([]);
+  const [filteredOut, setFilteredOut] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedLangs, setSelectedLangs] = useState<string[]>(["python", "typescript"]);
   const [expanded, setExpanded] = useState(true);
+  const [tags, setTags] = useState<"strict" | "broad">("strict");
 
   function toggleLang(lang: string) {
     setSelectedLangs((prev) =>
@@ -33,20 +38,40 @@ export function SuggestedIssues() {
     );
   }
 
-  function fetchIssues() {
+  function fetchIssues(force = false) {
     if (selectedLangs.length === 0) return;
+
+    // Cache key: stable across language order (sort), unique per tag mode.
+    const key = `${tags}|${[...selectedLangs].sort().join(",")}`;
+
+    if (!force) {
+      const cached = cacheGet<CachedSuggestions>("suggested-issues", key);
+      if (cached) {
+        setIssues(cached.issues);
+        setFilteredOut(cached.filteredOut);
+        setError(null);
+        return;
+      }
+    }
+
     setLoading(true);
     setError(null);
-    fetch(`/api/issues/suggested?languages=${selectedLangs.join(",")}&limit=20`)
+    fetch(`/api/issues/suggested?languages=${selectedLangs.join(",")}&limit=20&tags=${tags}`)
       .then((r) => (r.ok ? r.json() : r.json().then((e) => Promise.reject(e.error))))
-      .then((data: { issues: SuggestedIssue[] }) => setIssues(data.issues))
+      .then((data: { issues: SuggestedIssue[]; filteredOut?: number }) => {
+        const next = { issues: data.issues, filteredOut: data.filteredOut ?? 0 };
+        setIssues(next.issues);
+        setFilteredOut(next.filteredOut);
+        cacheSet("suggested-issues", key, next);
+      })
       .catch((err) => setError(typeof err === "string" ? err : String(err)))
       .finally(() => setLoading(false));
   }
 
   useEffect(() => {
     fetchIssues();
-  }, []); // Load once on mount with defaults
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tags]); // Refetch when the tag mode changes; languages still need explicit refresh
 
   return (
     <div className="border border-border bg-surface/40">
@@ -54,6 +79,14 @@ export function SuggestedIssues() {
         <div className="flex items-center gap-3">
           <span className="text-[10px] uppercase tracking-[0.15em] text-signal">suggested issues</span>
           <span className="text-[10px] text-paper-faint">Good first issues matching your interests</span>
+          {filteredOut > 0 && (
+            <span
+              className="text-[10px] text-paper-faint"
+              title="Bot-engagement spam filtered out: bounty repos, token-farming quests, social-media tasks, follow/star quests."
+            >
+              · {filteredOut} bot-spam hidden
+            </span>
+          )}
         </div>
         <button
           onClick={() => setExpanded(!expanded)}
@@ -83,11 +116,41 @@ export function SuggestedIssues() {
               </button>
             ))}
             <button
-              onClick={fetchIssues}
+              onClick={() => fetchIssues(true)}
               disabled={loading || selectedLangs.length === 0}
+              title="Force a fresh search, bypassing the 5-minute cache"
               className="ml-auto text-[10px] text-signal border border-signal/30 px-2.5 py-0.5 hover:bg-signal/10 transition disabled:opacity-50"
             >
               {loading ? "searching..." : "refresh"}
+            </button>
+          </div>
+
+          {/* Tag-strictness selector */}
+          <div className="px-4 py-2 border-b border-border-soft bg-ink/10 flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] text-paper-faint">Tags:</span>
+            <button
+              onClick={() => setTags("strict")}
+              title='Only issues labeled exactly "good first issue"'
+              className={cn(
+                "text-[10px] px-2 py-0.5 border transition",
+                tags === "strict"
+                  ? "border-ok/40 text-ok bg-ok/10"
+                  : "border-transparent text-paper-faint hover:text-paper-muted",
+              )}
+            >
+              good first issue only
+            </button>
+            <button
+              onClick={() => setTags("broad")}
+              title='Also match "beginner", "starter", "first-timers-only", "easy"'
+              className={cn(
+                "text-[10px] px-2 py-0.5 border transition",
+                tags === "broad"
+                  ? "border-ok/40 text-ok bg-ok/10"
+                  : "border-transparent text-paper-faint hover:text-paper-muted",
+              )}
+            >
+              broader beginner tags
             </button>
           </div>
 

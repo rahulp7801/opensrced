@@ -15,15 +15,15 @@ import {
 } from "./icons";
 
 const ITEMS = [
-  { href: "/", label: "Overview", Icon: IconOverview },
-  { href: "/discover", label: "Discover", Icon: IconSearch },
-  { href: "/graph", label: "Graph", Icon: IconPulse },
-  { href: "/issues", label: "Issues", Icon: IconTrigger },
-  { href: "/prs", label: "PRs", Icon: IconPrs },
-  { href: "/repos", label: "Repos", Icon: IconRepos },
-  { href: "/trigger", label: "Fix issue", Icon: IconPulse, title: "Trigger a run to fix a GitHub issue" },
-  { href: "/dispatches", label: "Runs", Icon: IconRuns, title: "Active and past runs" },
-  { href: "/stats", label: "Stats", Icon: IconRuns },
+  { href: "/", label: "Home", Icon: IconOverview },
+  { href: "/discover", label: "Browse", Icon: IconSearch, title: "Browse public GitHub repos by stars and language" },
+  { href: "/graph", label: "Map", Icon: IconPulse, title: "Visualize and query any codebase as a knowledge graph" },
+  { href: "/issues", label: "Issues", Icon: IconTrigger, title: "Browse open issues across repos to pick one to solve" },
+  { href: "/prs", label: "PRs", Icon: IconPrs, title: "Pull requests opened by opensrcer" },
+  { href: "/repos", label: "Repos", Icon: IconRepos, title: "Your indexed GitHub repos" },
+  { href: "/trigger", label: "Fix", Icon: IconPulse, title: "Trigger a run to fix a specific GitHub issue" },
+  { href: "/dispatches", label: "History", Icon: IconRuns, title: "Active and past fix runs" },
+  { href: "/stats", label: "Stats", Icon: IconRuns, title: "Your contribution activity, streaks, and impact" },
   { href: "/crucible", label: "Settings", Icon: IconShield, title: "API keys, GitHub App, org settings" },
 ];
 

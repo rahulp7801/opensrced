@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { cacheGet, cacheSet } from "@/lib/client-cache";
 import { StatusChip } from "./status-dot";
 import { IconArrow, IconExternal, IconSearch } from "./icons";
 
@@ -53,6 +54,7 @@ export function IssueScanner() {
   const [err, setErr] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "solvable">("solvable");
   const [age, setAge] = useState<"recent" | "any">("recent");
+  const [beginner, setBeginner] = useState<"any" | "good-first">("any");
   const [dispatchingNumber, setDispatchingNumber] = useState<number | null>(null);
   // Row expansion — one issue at a time, showing the full body + scope
   // details inline. Auto-opens when ?issue=N is in the URL (used by the
@@ -85,7 +87,18 @@ export function IssueScanner() {
     if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [scan, expandedNumber]);
 
-  async function runScan(url: string) {
+  async function runScan(url: string, force = false) {
+    const key = url.trim().toLowerCase();
+
+    if (!force) {
+      const cached = cacheGet<Scan>("issue-scan", key);
+      if (cached) {
+        setScan(cached);
+        setErr(null);
+        return;
+      }
+    }
+
     setLoading(true);
     setErr(null);
     setScan(null);
@@ -96,6 +109,7 @@ export function IssueScanner() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
       setScan(data);
+      cacheSet("issue-scan", key, data);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -161,6 +175,7 @@ export function IssueScanner() {
           if (!Number.isFinite(created)) return true;
           return now - created <= RECENT_CUTOFF_MS;
         })
+        .filter((i) => (beginner === "good-first" ? isGoodFirstIssue(i) : true))
         .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
     : [];
 
@@ -172,13 +187,23 @@ export function IssueScanner() {
       ).length
     : 0;
 
+  const goodFirstCount = scan
+    ? scan.issues.filter(
+        (i) =>
+          (filter === "solvable" ? i.solvable : true) &&
+          isGoodFirstIssue(i),
+      ).length
+    : 0;
+
   return (
     <div>
       {/* Repo input */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (repoUrl.trim()) void runScan(repoUrl.trim());
+          // Explicit submit forces a fresh scan even if cached; auto-load
+          // from ?repo= (the useEffect below) uses the cache.
+          if (repoUrl.trim()) void runScan(repoUrl.trim(), true);
         }}
         className="flex items-center gap-3 border border-border bg-surface/40 p-3"
       >
@@ -265,6 +290,29 @@ export function IssueScanner() {
                   {opt.label}
                 </button>
               ))}
+              <span className="mx-1 self-center text-paper-faint">·</span>
+              {([
+                { k: "any", label: "Any tag" },
+                { k: "good-first", label: `Good first (${goodFirstCount})` },
+              ] as const).map((opt) => (
+                <button
+                  key={opt.k}
+                  onClick={() => setBeginner(opt.k)}
+                  className={cn(
+                    "px-3 py-1.5 text-[11px] uppercase tracking-[0.12em] border transition-colors",
+                    beginner === opt.k
+                      ? "border-ok/60 bg-ok/10 text-ok"
+                      : "border-border text-paper-muted hover:text-paper",
+                  )}
+                  title={
+                    opt.k === "good-first"
+                      ? "Only issues maintainers tagged for newcomers (good first issue, beginner, starter, first-timers-only, easy, low-hanging-fruit)"
+                      : "Show issues regardless of beginner-friendly tags"
+                  }
+                >
+                  {opt.label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -287,11 +335,13 @@ export function IssueScanner() {
                 {issues.length === 0 ? (
                   <tr>
                     <td colSpan={10} className="py-10 text-center text-paper-muted text-[12px]">
-                      {age === "recent" && filter === "solvable"
-                        ? "No solvable issues opened in the last 30 days. Switch to 'Any age' to widen the window."
-                        : filter === "solvable"
-                          ? "No solvable issues in this repo. Switch to 'All' to see non-actionable ones."
-                          : "No issues."}
+                      {beginner === "good-first"
+                        ? "No beginner-tagged issues match the current filters. Switch to 'Any tag', or widen age/solvability."
+                        : age === "recent" && filter === "solvable"
+                          ? "No solvable issues opened in the last 30 days. Switch to 'Any age' to widen the window."
+                          : filter === "solvable"
+                            ? "No solvable issues in this repo. Switch to 'All' to see non-actionable ones."
+                            : "No issues."}
                     </td>
                   </tr>
                 ) : (
@@ -431,6 +481,19 @@ export function IssueScanner() {
       )}
     </div>
   );
+}
+
+const GOOD_FIRST_PATTERNS = [
+  /good\s*-?\s*first/i,
+  /^beginner/i,
+  /^starter$/i,
+  /first[\s-]*timers?[\s-]*only/i,
+  /^easy$/i,
+  /low[\s-]*hanging/i,
+];
+
+function isGoodFirstIssue(issue: { labels: string[] }): boolean {
+  return issue.labels.some((l) => GOOD_FIRST_PATTERNS.some((p) => p.test(l)));
 }
 
 function fmtMinutes(m: number) {

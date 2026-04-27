@@ -25,6 +25,7 @@ import { randomUUID } from "node:crypto";
 import type { Dispatch } from "./dispatcher";
 import { createDraftPrFromLog } from "./agentic-pr";
 import { ensureRepoClone, triggerIndexBuild, buildSymbolMap } from "./pre-index";
+import { classifyScope, type ScopeInfo } from "./scope";
 
 const DISPATCH_DIR = join(process.cwd(), ".dispatches");
 
@@ -76,10 +77,22 @@ function fetchGithubToken(): string | undefined {
   return undefined;
 }
 
+type FetchedIssue = {
+  title: string;
+  body: string;
+  formatted: string; // pre-formatted block used in the prompt
+};
+
 function fetchIssueBody(repoFull: string, issueNumber: number): string {
+  return fetchIssue(repoFull, issueNumber).formatted;
+}
+
+function fetchIssue(repoFull: string, issueNumber: number): FetchedIssue {
   const gh = process.env.GH_CLI;
+  const fallbackTitle = `Issue #${issueNumber}`;
+  const fallbackBody = `(gh CLI not available; body could not be fetched for ${repoFull}#${issueNumber})`;
   if (!gh || !existsSync(gh)) {
-    return `(gh CLI not available; body could not be fetched for ${repoFull}#${issueNumber})`;
+    return { title: fallbackTitle, body: "", formatted: fallbackBody };
   }
   try {
     const raw = execFileSync(
@@ -94,9 +107,15 @@ function fetchIssueBody(repoFull: string, issueNumber: number): string {
       url: string;
     };
     const labels = (parsed.labels ?? []).map((l) => l.name).join(", ") || "(none)";
-    return `# ${parsed.title}\n\nURL: ${parsed.url}\nLabels: ${labels}\n\n${parsed.body ?? "(empty body)"}`;
+    const body = parsed.body ?? "";
+    const formatted = `# ${parsed.title}\n\nURL: ${parsed.url}\nLabels: ${labels}\n\n${body || "(empty body)"}`;
+    return { title: parsed.title ?? fallbackTitle, body, formatted };
   } catch (e) {
-    return `(failed to fetch issue body: ${e instanceof Error ? e.message : String(e)})`;
+    return {
+      title: fallbackTitle,
+      body: "",
+      formatted: `(failed to fetch issue body: ${e instanceof Error ? e.message : String(e)})`,
+    };
   }
 }
 
@@ -159,6 +178,70 @@ function buildFindingPrompt(repoFull: string, finding: FindingInput): string {
     `- If the fix requires a major version bump that would break the codebase, say so and stop.`,
   ];
   return parts.filter((l) => l !== null).join("\n");
+}
+
+// Triage decides if the issue is small enough that the agent should skip
+// the full CONTRIBUTING/PR-template/exploration dance and go straight to
+// reading the one or two files mentioned in the issue. The user's complaint:
+// "doing too much" on simple issues. By short-circuiting here, leaf/doc
+// scopes drop from 8-15 tool calls to 1-3, which avoids both rate-limit
+// blow-ups and the cost overhead of the full agentic flow.
+function isFastPathScope(scope: ScopeInfo): boolean {
+  if (scope.bucket === "doc") return true;
+  if (scope.bucket === "leaf" && scope.confidence !== "low" && scope.files.length > 0) {
+    return true;
+  }
+  return false;
+}
+
+// Minimal prompt for leaf/doc-scope issues. Skips the CONTRIBUTING-first
+// requirement and the "explore as much as you need" framing — the issue
+// already names the file, the agent should read it once and emit the diff.
+function buildLeafPrompt(
+  repoFull: string,
+  issueNumber: number,
+  issueBody: string,
+  scope: ScopeInfo,
+): string {
+  const fileList = scope.files.slice(0, 3).map((f) => `\`${f}\``).join(", ");
+  return [
+    `You are fixing issue #${issueNumber} in the GitHub repository \`${repoFull}\`.`,
+    ``,
+    `## The issue`,
+    ``,
+    issueBody,
+    ``,
+    `## Triage — this is a small fix`,
+    ``,
+    `An automated scope classifier ran on this issue and decided it's a **${scope.bucket}** fix${scope.files.length > 0 ? ` touching ${fileList}` : ""}. Reason: ${scope.reason}.`,
+    ``,
+    `**Do not explore broadly.** This is a single-file (or doc) change. Read only the file(s) above, plus at most one related file if the diagnosis demands it. Do **not** read CONTRIBUTING, .github/, PR templates, or other ceremony — those add tool calls without changing the diff. Skip \`repo_info\`, \`list_files\`, \`grep\`, and \`find_references\` unless the named file simply does not contain what the issue describes.`,
+    ``,
+    `## Your tools`,
+    ``,
+    `MCP server \`opensrcer-repo-tools\` is configured. Every tool takes \`repo: "${repoFull}"\`.`,
+    ``,
+    `- \`read_file\` — your primary tool here. Read the file(s) named above.`,
+    `- \`grep\` — only if the named file doesn't contain the obvious target.`,
+    `- \`find_definition\` — only if a symbol moved between files.`,
+    ``,
+    `Aim for **at most 3 tool calls** before emitting the fix.`,
+    ``,
+    `## What to produce`,
+    ``,
+    `Structure your final response with these section headings **exactly**:`,
+    ``,
+    `1. \`## Diagnosis\` — 1–2 sentences on the root cause, citing file:line.`,
+    `2. A fenced \`\`\`diff block with the patch. Use standard \`--- a/path\` / \`+++ b/path\` headers. Keep the change minimal.`,
+    `3. \`## Risk / Test\` — 1 sentence on what could regress, or "Trivial change, no regression risk." for a typo/doc fix.`,
+    `4. \`## PR title\` — one line, under 72 chars, imperative mood.`,
+    `5. \`## PR body\` — short markdown: one-line summary, what changed, \`Fixes #${issueNumber}\` close-keyword.`,
+    ``,
+    `Rules:`,
+    `- Do not fabricate file paths. Verify via \`read_file\` first.`,
+    `- Smallest possible diff. Don't refactor surrounding code.`,
+    `- If the named file doesn't actually contain the issue, say so and stop — don't escalate to a wider exploration.`,
+  ].join("\n");
 }
 
 function buildPrompt(repoFull: string, issueNumber: number, issueBody: string, symbolMap?: string): string {
@@ -273,7 +356,20 @@ export function startAgenticDispatch(
   const logPath = join(DISPATCH_DIR, `${id}.log`);
   const out = createWriteStream(logPath);
 
-  const issueBody = fetchIssueBody(repoFull, issueNumber);
+  const issue = fetchIssue(repoFull, issueNumber);
+  const issueBody = issue.formatted;
+
+  // Triage: classify the scope of the issue from its title + body. If the
+  // scope is leaf or doc, we'll swap in a much more constrained prompt that
+  // tells Claude to read only the named file(s) and emit the diff — no
+  // CONTRIBUTING/PR-template ceremony, no broad exploration. This is the
+  // direct fix for the "doing too much on a simple issue → rate-limited"
+  // problem.
+  const scope = classifyScope(issue.title, issue.body);
+  const fastPath = isFastPathScope(scope);
+  out.write(
+    `[triage] scope=${scope.bucket} confidence=${scope.confidence} files=${scope.files.length} → ${fastPath ? "FAST PATH (minimal prompt, reduced budget)" : "full agentic"}\n`,
+  );
 
   // Pre-index: clone repo + build AST index BEFORE spawning Claude.
   // This gives Claude a symbol map so it can jump directly to file:line
@@ -317,17 +413,25 @@ export function startAgenticDispatch(
     out.write(`[pre-index] Failed (non-fatal): ${err instanceof Error ? err.message : String(err)}\n`);
   }
 
-  const prompt = buildPrompt(repoFull, issueNumber, issueBody, symbolMap);
+  const prompt = fastPath
+    ? buildLeafPrompt(repoFull, issueNumber, issueBody, scope)
+    : buildPrompt(repoFull, issueNumber, issueBody, symbolMap);
 
   // Runaway guard rails:
   //   --max-budget-usd — hard cap on total LLM spend for this one invocation.
   //     Claude exits cleanly when the cap is reached. Default $2 is a
   //     realistic ceiling for leaf/cross-file issues; override via env for
   //     harder repos. Only works under --print (we're in -p mode already).
+  //     Fast-path leaf/doc issues get a tighter $0.50 cap — if a "small fix"
+  //     is somehow burning more than that, something's wrong and we'd rather
+  //     bail than blow the budget.
   //   wall-clock timeout — setTimeout below kills the whole process tree if
   //     Claude is still alive after N minutes. Covers the case where the
   //     model loops on tool calls without ever emitting final output.
-  const budgetUsd = opts.maxSpendUsd ?? Number(process.env.OPENSRCER_AGENTIC_BUDGET_USD ?? "2");
+  const defaultBudget = fastPath
+    ? Number(process.env.OPENSRCER_AGENTIC_LEAF_BUDGET_USD ?? "0.5")
+    : Number(process.env.OPENSRCER_AGENTIC_BUDGET_USD ?? "2");
+  const budgetUsd = opts.maxSpendUsd ?? defaultBudget;
   // 30 min default. Was 15 — bumped after a real dispatch on
   // splx-ai/agentic-radar#127 hit the cap while Claude was still writing
   // a complete response. Override via OPENSRCER_AGENTIC_TIMEOUT_MS.

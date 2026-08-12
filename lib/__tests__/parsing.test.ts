@@ -26,6 +26,7 @@ import {
 } from "../dispatcher";
 import { sanitizeFilePath, sanitizeGitHubName } from "../sanitize";
 import { parseSplitHunks } from "../diff-view";
+import { parseMarkdownBlocks, generateFollowUps } from "../graph-view";
 
 const SAMPLE_DIFF = `--- a/src/util.ts
 +++ b/src/util.ts
@@ -526,5 +527,117 @@ describe("parseSplitHunks", () => {
 
     const files = parseSplitHunks(diff).map((h) => h.file);
     assert.deepEqual(files, ["one.ts", "two.ts"]);
+  });
+});
+
+describe("parseMarkdownBlocks", () => {
+  test("separates fenced code from prose", () => {
+    const blocks = parseMarkdownBlocks(
+      "Intro line.\n\n```ts\nconst a = 1;\n```\n\nAfter.",
+    );
+    assert.deepEqual(
+      blocks.map((b) => b.type),
+      ["paragraph", "code", "paragraph"],
+    );
+    const code = blocks[1];
+    assert.equal(code.type === "code" && code.lang, "ts");
+    assert.equal(code.content, "const a = 1;");
+  });
+
+  test("an unterminated fence still yields a code block", () => {
+    // Every streamed token re-parses the partial answer, so a half-written
+    // fence is the normal case, not a malformed one.
+    const blocks = parseMarkdownBlocks("Here:\n```py\nx = 1\ny = 2");
+    assert.deepEqual(
+      blocks.map((b) => b.type),
+      ["paragraph", "code"],
+    );
+    assert.equal(blocks[1].content, "x = 1\ny = 2");
+  });
+
+  test("a fence interrupts a paragraph instead of being swallowed by it", () => {
+    const blocks = parseMarkdownBlocks("Prose runs on\n```\ncode\n```");
+    assert.deepEqual(
+      blocks.map((b) => b.type),
+      ["paragraph", "code"],
+    );
+    assert.equal(blocks[0].content, "Prose runs on");
+  });
+
+  test("headings and both list markers", () => {
+    const blocks = parseMarkdownBlocks("## Title\n- one\n* two\n1. three\n2) four");
+    assert.deepEqual(
+      blocks.map((b) => b.type),
+      ["heading", "bullet", "bullet", "bullet", "bullet"],
+    );
+    assert.deepEqual(
+      blocks.map((b) => b.content),
+      ["Title", "one", "two", "three", "four"],
+    );
+  });
+
+  test("consecutive prose lines join into one paragraph", () => {
+    const blocks = parseMarkdownBlocks("one\ntwo\n\nthree");
+    assert.deepEqual(
+      blocks.map((b) => b.content),
+      ["one two", "three"],
+    );
+  });
+});
+
+describe("generateFollowUps", () => {
+  const RESPONSE = [
+    "IMPACT ANALYSIS: parseConfig",
+    "  -> loadSettings()",
+    "  -> applyDefaults()",
+    "  src/config/parse.ts",
+  ].join("\n");
+
+  test("never suggests a bare verb with no argument", () => {
+    // A chip reading just "trace" is a dead end the user only discovers by
+    // clicking it.
+    const queries = ["trace ", "impact ", "explain ", "path ", "god", "stats", "what?"];
+    for (const q of queries) {
+      for (const s of generateFollowUps(q, "")) {
+        assert.ok(
+          !/^(trace|impact|explain)$/.test(s.trim()),
+          `"${q}" produced a bare "${s}"`,
+        );
+      }
+    }
+  });
+
+  test("caps at three and never repeats one", () => {
+    for (const q of ["trace parseConfig", "impact parseConfig", "explain src", "god nodes"]) {
+      const out = generateFollowUps(q, RESPONSE);
+      assert.ok(out.length <= 3);
+      assert.equal(new Set(out).size, out.length, `duplicate in ${q}: ${out}`);
+    }
+  });
+
+  test("trace offers the matching impact and a symbol from the answer", () => {
+    const out = generateFollowUps("trace parseConfig", RESPONSE);
+    assert.ok(out.includes("impact parseConfig"));
+    assert.ok(out.some((s) => s.startsWith("trace ") && s !== "trace parseConfig"));
+  });
+
+  test("impact does not suggest impacting the same symbol back", () => {
+    const out = generateFollowUps("impact parseConfig", RESPONSE);
+    assert.ok(!out.includes("impact parseConfig"));
+    assert.ok(out.includes("trace parseConfig"));
+  });
+
+  test("path keeps the original casing of its endpoints", () => {
+    // Symbol lookup is case-sensitive, so lowercasing the endpoints produced
+    // suggestions that could not resolve.
+    const out = generateFollowUps("path AuthService to BillingJob", "");
+    assert.ok(out.includes("impact AuthService"), out.join(" | "));
+    assert.ok(out.includes("trace BillingJob"), out.join(" | "));
+  });
+
+  test("stats points at the busiest module the output named", () => {
+    const stats = "GRAPH STATISTICS\n  Modules:\n    src/billing: 42\n    src/auth: 9";
+    assert.ok(generateFollowUps("stats", stats).includes("explain src/billing"));
+    assert.ok(generateFollowUps("stats", "no modules here").includes("explain src"));
   });
 });

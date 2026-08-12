@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { PageHeading } from "@/components/page-heading";
+import { generateFollowUps, parseMarkdownBlocks } from "@/lib/graph-view";
 import { cn } from "@/lib/utils";
 
 type QueryResult = {
@@ -37,6 +38,47 @@ function parseRepo(
   return { owner, name };
 }
 
+/**
+ * Yield the parsed `data:` payloads of an SSE response.
+ *
+ * Both callers used to inline this, and both inlined the same trap with it:
+ * the API returns SSE only on the happy path and plain `Response.json({error})`
+ * for 400/401/404/500, which carries no `data:` lines at all. Draining that
+ * body silently yields nothing and the caller's loop just ends, leaving the UI
+ * pinned to its in-flight state. So the status check lives here, once, and a
+ * non-OK response throws with the server's own message rather than returning.
+ */
+async function* sseEvents<T>(res: Response): AsyncGenerator<T> {
+  if (!res.ok) {
+    const detail = await res
+      .json()
+      .then((d: { error?: string }) => d?.error)
+      .catch(() => null);
+    throw new Error(detail ?? `Request failed (${res.status})`);
+  }
+
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error("Empty response from server");
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      try {
+        yield JSON.parse(line.slice(6)) as T;
+      } catch {
+        /* a partial or malformed event is not worth failing the stream over */
+      }
+    }
+  }
+}
+
 export default function GraphPage() {
   const [repoUrl, setRepoUrl] = useState("");
   const [owner, setOwner] = useState("");
@@ -50,7 +92,12 @@ export default function GraphPage() {
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   const resultRef = useRef<HTMLDivElement>(null);
-  const queryInputRef = useRef<HTMLInputElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
+  const queryIdRef = useRef(0);
+  // Auto-scroll follows the stream only while the reader is already at the
+  // bottom; scrolling up to re-read an earlier answer used to be undone by the
+  // next token.
+  const atBottomRef = useRef(true);
   const searchParams = useSearchParams();
 
   // Persist repo URL to localStorage / read from ?repo= param
@@ -69,24 +116,62 @@ export default function GraphPage() {
       localStorage.setItem("opensrcer-graph-repo", repoUrl.trim());
   }, [repoUrl]);
 
-  // Check if graph is already built when repo URL changes
+  // Check whether a graph already exists whenever the repo changes.
+  //
+  // This owns buildStatus for repo changes, rather than the input's onChange:
+  // the URL can also change from ?repo=, from localStorage, and from clicking
+  // a suggestion, and only one of those four paths went through onChange. The
+  // other three left the previous repo's "ready" standing while owner/repo
+  // moved on — pointing the iframe at a graph that was never built and letting
+  // queries run against it.
   useEffect(() => {
     const m = parseRepo(repoUrl);
-    if (!m) {
-      setBuildStatus("idle");
-      return;
-    }
+    setBuildStatus("idle");
+    setEngine(null);
+    if (!m) return;
     setOwner(m.owner);
     setRepo(m.name);
+
+    // Two repos typed in quick succession leave two HEADs in flight; without
+    // this the slower one wins and marks the wrong repo ready.
+    let live = true;
     fetch(`/api/graph/${m.owner}/${m.name}/viz`, { method: "HEAD" })
       .then((r) => {
-        if (r.ok) {
-          setBuildStatus("ready");
-          setEngine((r.headers.get("X-Graph-Engine") as GraphEngine) ?? "graphify");
-        }
+        if (!live || !r.ok) return;
+        setBuildStatus("ready");
+        setEngine((r.headers.get("X-Graph-Engine") as GraphEngine) ?? "graphify");
       })
       .catch(() => {});
+    return () => {
+      live = false;
+    };
   }, [repoUrl]);
+
+  // This page is a fixed-height app view — the iframe and the answer list
+  // scroll inside it, the window does not — so it needs to know how tall the
+  // chrome above it is. That was hardcoded to the header's 56px, but the
+  // API-key banner and the section tabs both sit above this too and both come
+  // and go at runtime, so any constant is wrong some of the time: it was
+  // pushing the query input off the bottom of the screen. Measure instead.
+  const [shellHeight, setShellHeight] = useState<number | null>(null);
+  useEffect(() => {
+    const el = shellRef.current;
+    if (!el) return;
+    const measure = () => {
+      // Document-relative, so a scrolled window still measures the chrome
+      // rather than how far down the page we happen to be.
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      setShellHeight(Math.max(360, window.innerHeight - top));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(document.body);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
 
   // Fetch connected org repos for autocomplete
   const suggestionsLoaded = useRef(false);
@@ -144,6 +229,7 @@ export default function GraphPage() {
     setBuildMessages([]);
     setResults([]);
 
+    let settled = false;
     try {
       const res = await fetch("/api/graph/generate", {
         method: "POST",
@@ -151,53 +237,48 @@ export default function GraphPage() {
         body: JSON.stringify({ repo_url: repoUrl.trim(), force }),
       });
 
-      const reader = res.body?.getReader();
-      if (!reader) return;
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const payload = JSON.parse(line.slice(6)) as {
-              status?: string;
-              message?: string;
-              error?: string;
-              percent?: number;
-              phase?: string;
-              engine?: string;
-            };
-            if (payload.message) {
-              setBuildMessages((prev) => [
-                ...prev,
-                {
-                  text: payload.message!,
-                  percent: payload.percent,
-                  phase: payload.phase,
-                },
-              ]);
-            }
-            if (payload.status === "done") {
-              setBuildStatus("ready");
-              setEngine((payload.engine as GraphEngine) ?? "graphify");
-            }
-            if (payload.error) {
-              setBuildMessages((prev) => [
-                ...prev,
-                { text: `Error: ${payload.error}` },
-              ]);
-              setBuildStatus("error");
-            }
-          } catch {
-            /* skip */
-          }
+      for await (const payload of sseEvents<{
+        status?: string;
+        message?: string;
+        error?: string;
+        percent?: number;
+        phase?: string;
+        engine?: string;
+      }>(res)) {
+        if (payload.message) {
+          setBuildMessages((prev) => [
+            ...prev,
+            {
+              text: payload.message!,
+              percent: payload.percent,
+              phase: payload.phase,
+            },
+          ]);
         }
+        if (payload.status === "done") {
+          settled = true;
+          setBuildStatus("ready");
+          setEngine((payload.engine as GraphEngine) ?? "graphify");
+        }
+        if (payload.error) {
+          settled = true;
+          setBuildMessages((prev) => [
+            ...prev,
+            { text: `Error: ${payload.error}` },
+          ]);
+          setBuildStatus("error");
+        }
+      }
+
+      // A stream that ends without a done or error event is a failure we would
+      // otherwise render as an in-progress build forever, with the button
+      // disabled and no way back except a reload.
+      if (!settled) {
+        setBuildMessages((prev) => [
+          ...prev,
+          { text: "Error: the build stopped without finishing" },
+        ]);
+        setBuildStatus("error");
       }
     } catch (err) {
       setBuildMessages((prev) => [
@@ -214,7 +295,10 @@ export default function GraphPage() {
     async (q: string) => {
       if (!q.trim() || !owner || !repo) return;
 
-      const qid = Date.now();
+      // A counter, not Date.now(): two quick-action chips clicked in the same
+      // millisecond produced the same id, and every setResults update matched
+      // both rows.
+      const qid = ++queryIdRef.current;
       setResults((prev) => [
         ...prev,
         {
@@ -270,87 +354,44 @@ export default function GraphPage() {
             ),
           );
 
-          const reader = res.body?.getReader();
-          if (!reader) return;
-          const decoder = new TextDecoder();
-          let buffer = "";
-
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split("\n");
-            buffer = lines.pop() ?? "";
-
-            for (const line of lines) {
-              if (!line.startsWith("data: ")) continue;
-              try {
-                const payload = JSON.parse(line.slice(6)) as {
-                  text?: string;
-                  cost?: number;
-                  done?: boolean;
-                  error?: string;
-                  compression?: string;
-                };
-                if (payload.text) {
-                  setResults((prev) =>
-                    prev.map((r) =>
-                      r._id === qid
-                        ? { ...r, response: r.response + payload.text }
-                        : r,
-                    ),
-                  );
-                }
-                if (payload.cost !== undefined) {
-                  setResults((prev) =>
-                    prev.map((r) =>
-                      r._id === qid
-                        ? { ...r, cost: payload.cost as number }
-                        : r,
-                    ),
-                  );
-                }
-                if (payload.done) {
-                  if (payload.compression) {
-                    setResults((prev) =>
-                      prev.map((r) =>
-                        r._id === qid ? { ...r, compression: payload.compression! } : r,
-                      ),
-                    );
-                  }
-                  setResults((prev) =>
-                    prev.map((r) =>
-                      r._id === qid
-                        ? { ...r, status: "done" as const }
-                        : r,
-                    ),
-                  );
-                }
+          // One state update per event rather than one per field: a token, its
+          // cost and the done flag often arrive in the same event, and that
+          // used to map the whole result list three times over.
+          for await (const payload of sseEvents<{
+            text?: string;
+            cost?: number;
+            done?: boolean;
+            error?: string;
+            compression?: string;
+          }>(res)) {
+            setResults((prev) =>
+              prev.map((r) => {
+                if (r._id !== qid) return r;
                 if (payload.error) {
-                  setResults((prev) =>
-                    prev.map((r) =>
-                      r._id === qid
-                        ? {
-                            ...r,
-                            response: payload.error!,
-                            status: "error" as const,
-                          }
-                        : r,
-                    ),
-                  );
+                  return { ...r, response: payload.error, status: "error" };
                 }
-              } catch {
-                /* skip */
-              }
-            }
+                return {
+                  ...r,
+                  response: payload.text ? r.response + payload.text : r.response,
+                  cost: payload.cost ?? r.cost,
+                  compression: payload.compression ?? r.compression,
+                  status: payload.done ? "done" : r.status,
+                };
+              }),
+            );
           }
 
-          // If stream ended without done event
+          // A stream that stops without a done event still has to settle, or
+          // the row stays "streaming" and isQuerying disables the whole panel
+          // for good.
           setResults((prev) =>
             prev.map((r) =>
               r._id === qid && (r.status === "streaming" || r.status === "loading")
-                ? { ...r, status: "done" as const }
+                ? {
+                    ...r,
+                    status: r.response ? "done" : "error",
+                    response: r.response || "The answer stream ended early.",
+                  }
                 : r,
             ),
           );
@@ -387,18 +428,26 @@ export default function GraphPage() {
     submitQuery(q);
   }
 
-  // Scroll to bottom on new results
+  // Follow the tail of a streaming answer, but only for a reader who is
+  // already there.
   useEffect(() => {
-    if (resultRef.current)
-      resultRef.current.scrollTop = resultRef.current.scrollHeight;
+    const el = resultRef.current;
+    if (el && atBottomRef.current) el.scrollTop = el.scrollHeight;
   }, [results]);
+
+  function onResultsScroll(e: React.UIEvent<HTMLDivElement>) {
+    const el = e.currentTarget;
+    atBottomRef.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  }
 
   const isQuerying = results.some((r) => r.status === "loading" || r.status === "streaming");
 
   return (
     <div
+      ref={shellRef}
       className="mx-auto w-full max-w-[1800px] px-4 sm:px-6 py-6 flex flex-col"
-      style={{ height: "calc(100vh - 56px)" }}
+      style={{ height: shellHeight ? `${shellHeight}px` : "calc(100dvh - 56px)" }}
     >
       <PageHeading
         title={<>Codebase map</>}
@@ -414,7 +463,6 @@ export default function GraphPage() {
             onChange={(e) => {
               setRepoUrl(e.target.value);
               setShowSuggestions(true);
-              setBuildStatus("idle");
             }}
             onFocus={() => {
               setShowSuggestions(true);
@@ -470,11 +518,19 @@ export default function GraphPage() {
         )}
       </div>
 
-      {/* Build progress */}
-      {buildStatus === "building" && buildMessages.length > 0 && (
-        <div className="mt-3 border border-border bg-surface/40 px-4 py-3">
+      {/* Build progress — kept on screen for a failed build too. Hiding it on
+          error meant the log flashed past and the page fell back to the empty
+          state, so a failure was indistinguishable from never having clicked. */}
+      {(buildStatus === "building" || buildStatus === "error") &&
+        buildMessages.length > 0 && (
+        <div
+          className={cn(
+            "mt-3 border bg-surface/40 px-4 py-3",
+            buildStatus === "error" ? "border-alert/40" : "border-border",
+          )}
+        >
           {/* Progress bar */}
-          {(() => {
+          {buildStatus === "building" && (() => {
             const last = buildMessages[buildMessages.length - 1];
             const pct = last?.percent ?? null;
             const phase = last?.phase === "ast" ? "Parsing source files (tree-sitter AST)"
@@ -500,12 +556,25 @@ export default function GraphPage() {
               </div>
             );
           })()}
-          <div className="max-h-20 overflow-y-auto">
-            {buildMessages.map((msg, i) => (
-              <div key={i} className="text-[10px] text-paper-faint font-mono truncate">
-                {msg.text}
-              </div>
-            ))}
+          <div className={cn("overflow-y-auto", buildStatus === "error" ? "max-h-32" : "max-h-20")}>
+            {buildMessages.map((msg, i) => {
+              // The failure reason is the one line here worth reading, so it
+              // does not get the truncate treatment the progress chatter does.
+              const failed = msg.text.startsWith("Error:");
+              return (
+                <div
+                  key={i}
+                  className={cn(
+                    "text-[10px] font-mono",
+                    failed
+                      ? "text-alert whitespace-pre-wrap break-words"
+                      : "text-paper-faint truncate",
+                  )}
+                >
+                  {msg.text}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -560,6 +629,7 @@ export default function GraphPage() {
             {/* Results */}
             <div
               ref={resultRef}
+              onScroll={onResultsScroll}
               className="flex-1 overflow-y-auto min-h-0 space-y-3"
             >
               {results.length === 0 && (
@@ -599,8 +669,8 @@ export default function GraphPage() {
                 </div>
               )}
 
-              {results.map((r, i) => (
-                <div key={i} className="border border-border bg-surface/40">
+              {results.map((r) => (
+                <div key={r._id} className="border border-border bg-surface/40">
                   <div className="px-3 py-2 border-b border-border-soft flex items-center gap-2">
                     <span className="text-[10px] uppercase tracking-[0.15em] text-signal">
                       Q
@@ -650,6 +720,13 @@ export default function GraphPage() {
                       ) : (
                         <GraphResponse text={r.response} />
                       )
+                    ) : r.status === "done" ? (
+                      // Finished with nothing to show. Without this it fell
+                      // through to the in-progress placeholder and sat there
+                      // claiming to still be working.
+                      <div className="text-[11px] text-paper-muted italic">
+                        The graph returned no output for this query.
+                      </div>
                     ) : (
                       <div className="text-[11px] text-paper-muted italic">
                         {r.mode === "llm" ? "Asking AI..." : "Traversing graph..."}
@@ -658,20 +735,7 @@ export default function GraphPage() {
                   </div>
                   {/* Follow-up suggestions */}
                   {r.status === "done" && !isQuerying && (
-                    <div className="px-3 py-2 border-t border-border-soft flex items-center gap-2 flex-wrap">
-                      <span className="text-[10px] text-paper-faint uppercase tracking-[0.1em]">
-                        follow up:
-                      </span>
-                      {generateFollowUps(r.query, r.response).map((q, qi) => (
-                        <button
-                          key={qi}
-                          onClick={() => quickQuery(q)}
-                          className="text-[10px] text-paper-dim border border-border-soft hover:border-signal/40 hover:text-signal px-2 py-1 transition"
-                        >
-                          {q}
-                        </button>
-                      ))}
-                    </div>
+                    <FollowUps result={r} onPick={quickQuery} />
                   )}
                 </div>
               ))}
@@ -681,7 +745,6 @@ export default function GraphPage() {
             <form onSubmit={handleSubmit} className="mt-3 shrink-0">
               <div className="flex gap-2">
                 <input
-                  ref={queryInputRef}
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -905,55 +968,41 @@ function MarkdownResponse({ text }: { text: string }) {
   );
 }
 
-type MdBlock =
-  | { type: "paragraph"; content: string }
-  | { type: "heading"; content: string }
-  | { type: "bullet"; content: string }
-  | { type: "code"; content: string; lang: string };
+// ── Follow-up chips ───────────────────────────────────────────────────
+// Its own component so the suggestions are derived once per answer. Inline in
+// the list they were recomputed on every render of the panel — two regex
+// sweeps of the full response text per finished result, per keystroke in the
+// query box.
 
-function parseMarkdownBlocks(text: string): MdBlock[] {
-  const blocks: MdBlock[] = [];
-  const lines = text.split("\n");
-  let i = 0;
+function FollowUps({
+  result,
+  onPick,
+}: {
+  result: QueryResult;
+  onPick: (q: string) => void;
+}) {
+  const followUps = useMemo(
+    () => generateFollowUps(result.query, result.response),
+    [result.query, result.response],
+  );
+  if (!followUps.length) return null;
 
-  while (i < lines.length) {
-    const line = lines[i];
-    if (line.startsWith("```")) {
-      const lang = line.slice(3).trim();
-      i++;
-      const codeLines: string[] = [];
-      while (i < lines.length && !lines[i].startsWith("```")) {
-        codeLines.push(lines[i]);
-        i++;
-      }
-      if (i < lines.length) i++;
-      blocks.push({ type: "code", content: codeLines.join("\n"), lang });
-      continue;
-    }
-    if (/^#{1,4}\s/.test(line)) {
-      blocks.push({ type: "heading", content: line.replace(/^#+\s*/, "") });
-      i++;
-      continue;
-    }
-    if (/^\s*[-*]\s/.test(line)) {
-      blocks.push({ type: "bullet", content: line.replace(/^\s*[-*]\s+/, "") });
-      i++;
-      continue;
-    }
-    if (/^\s*\d+[.)]\s/.test(line)) {
-      blocks.push({ type: "bullet", content: line.replace(/^\s*\d+[.)]\s+/, "") });
-      i++;
-      continue;
-    }
-    if (!line.trim()) { i++; continue; }
-    const paraLines: string[] = [];
-    while (i < lines.length && lines[i].trim() && !lines[i].startsWith("```") && !/^#{1,4}\s/.test(lines[i]) && !/^\s*[-*]\s/.test(lines[i]) && !/^\s*\d+[.)]\s/.test(lines[i])) {
-      paraLines.push(lines[i]);
-      i++;
-    }
-    blocks.push({ type: "paragraph", content: paraLines.join(" ") });
-  }
-  return blocks;
+  return (
+    <div className="px-3 py-2 border-t border-border-soft flex items-center gap-2 flex-wrap">
+      <span className="text-[10px] text-paper-faint uppercase tracking-[0.1em]">
+        follow up:
+      </span>
+      {followUps.map((q) => (
+        <button
+          key={q}
+          onClick={() => onPick(q)}
+          className="text-[10px] text-paper-dim border border-border-soft hover:border-signal/40 hover:text-signal px-2 py-1 transition"
+        >
+          {q}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function InlineMd({ text }: { text: string }) {
@@ -1041,106 +1090,4 @@ function highlightNumbers(line: string): React.ReactNode {
   }
   if (last < line.length) parts.push(line.slice(last));
   return <>{parts}</>;
-}
-
-function generateFollowUps(query: string, response: string): string[] {
-  const q = query.toLowerCase().trim();
-  const suggestions: string[] = [];
-
-  // Extract symbols/labels mentioned in the response for context-aware follow-ups
-  // Look for patterns like "-> funcName" or "funcName —" or "* funcName"
-  const symbolMatches = response.match(/(?:^|\n)\s*(?:\*|->|<-)\s+(\w[\w.]*(?:\(\))?)/g);
-  const symbols = (symbolMatches ?? [])
-    .map((m) => m.replace(/^\s*(?:\*|->|<-)\s+/, "").trim())
-    .filter((s) => s.length > 2 && s.length < 40);
-
-  // Extract directory paths from response
-  const pathMatches = response.match(/\b\w+\/[\w/.-]+/g);
-  const paths = [...new Set(pathMatches ?? [])].slice(0, 3);
-
-  if (q === "help" || q === "-help" || q === "--help") {
-    return ["stats", "god nodes", "explain src"];
-  }
-
-  if (q === "stats" || q === "statistics" || q === "overview") {
-    suggestions.push("god nodes");
-    // Suggest explaining top modules from the stats output
-    const modMatch = response.match(/^\s+(\S+\/\S+):/gm);
-    if (modMatch) {
-      const topMod = modMatch[0].trim().replace(/:.*/, "");
-      suggestions.push(`explain ${topMod}`);
-    } else {
-      suggestions.push("explain src");
-    }
-    return suggestions.slice(0, 3);
-  }
-
-  if (q.startsWith("god")) {
-    // Suggest tracing/impacting the top node from results
-    if (symbols.length > 0) {
-      suggestions.push(`trace ${symbols[0].replace("()", "")}`);
-      suggestions.push(`impact ${symbols[0].replace("()", "")}`);
-    }
-    suggestions.push("stats");
-    return suggestions.slice(0, 3);
-  }
-
-  if (q.startsWith("trace ")) {
-    const sym = query.slice(6).trim();
-    suggestions.push(`impact ${sym}`);
-    // Suggest tracing something the traced function calls
-    if (symbols.length > 1) {
-      suggestions.push(`trace ${symbols[1].replace("()", "")}`);
-    }
-    // Suggest explaining the directory this lives in
-    if (paths.length > 0) {
-      const dir = paths[0].split("/").slice(0, -1).join("/") || paths[0];
-      suggestions.push(`explain ${dir}`);
-    }
-    return suggestions.slice(0, 3);
-  }
-
-  if (q.startsWith("impact ")) {
-    const sym = query.slice(7).trim();
-    suggestions.push(`trace ${sym}`);
-    // Suggest impacting a direct caller
-    if (symbols.length > 0) {
-      const caller = symbols.find((s) => s.toLowerCase() !== sym.toLowerCase());
-      if (caller) suggestions.push(`impact ${caller.replace("()", "")}`);
-    }
-    if (paths.length > 0) {
-      const dir = paths[0].split("/").slice(0, -1).join("/") || paths[0];
-      suggestions.push(`explain ${dir}`);
-    }
-    return suggestions.slice(0, 3);
-  }
-
-  if (q.startsWith("explain ")) {
-    // Suggest tracing/impacting key nodes found in the explanation
-    if (symbols.length > 0) {
-      suggestions.push(`trace ${symbols[0].replace("()", "")}`);
-      suggestions.push(`impact ${symbols[0].replace("()", "")}`);
-    }
-    suggestions.push("god nodes");
-    return suggestions.slice(0, 3);
-  }
-
-  if (q.startsWith("path ")) {
-    // Suggest tracing/impacting the endpoints
-    const parts = q.slice(5).split(/\s+(?:to|→|->)\s+/i);
-    if (parts.length >= 2) {
-      suggestions.push(`impact ${parts[0].trim()}`);
-      suggestions.push(`trace ${parts[1].trim()}`);
-    }
-    suggestions.push("god nodes");
-    return suggestions.slice(0, 3);
-  }
-
-  // For node lookups or unknown queries
-  if (symbols.length > 0) {
-    suggestions.push(`trace ${symbols[0].replace("()", "")}`);
-    suggestions.push(`impact ${symbols[0].replace("()", "")}`);
-  }
-  suggestions.push("help");
-  return suggestions.slice(0, 3);
 }

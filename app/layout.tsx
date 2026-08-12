@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Instrument_Serif, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { SiteHeader } from "@/components/header";
+import { SectionNav } from "@/components/section-nav";
 import { SiteFooter } from "@/components/footer";
 import { ApiKeyGate } from "@/components/api-key-gate";
 import { Onboarding } from "@/components/onboarding";
@@ -43,7 +44,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Auth0Provider>
           <ToastProvider>
             <div className="flex min-h-svh flex-col">
-              <SiteHeader />
+              {/* Header + section tabs pin together, so neither has to hardcode
+                  the other's height. */}
+              <div className="sticky top-0 z-30">
+                <SiteHeader />
+                <SectionNav />
+              </div>
               <ApiKeyGate />
               <Onboarding />
               <main className="flex-1">{children}</main>

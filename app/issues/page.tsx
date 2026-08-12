@@ -8,7 +8,7 @@ export default function IssuesPage() {
     <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 py-6">
       <PageHeading
         eyebrow="pick what to solve"
-        title={<>Issue scanner</>}
+        title={<>Issues</>}
         description={
           <>
             Point at any public GitHub repo. The scanner reads every open issue, classifies it

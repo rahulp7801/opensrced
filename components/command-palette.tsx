@@ -13,6 +13,7 @@ import {
   IconSearch,
   IconPulse,
 } from "./icons";
+import { SECTIONS } from "./nav-config";
 
 type Action = {
   id: string;
@@ -29,13 +30,35 @@ type Ctx = {
   setStatus: (s: string) => void;
 };
 
-const NAV_ACTIONS: Action[] = [
-  { id: "go-overview", label: "Go to Overview", keys: "g 1", Icon: IconOverview, onRun: ({ router, close }) => { router.push("/"); close(); } },
-  { id: "go-prs", label: "Go to Pull Requests", keys: "g 2", Icon: IconPrs, onRun: ({ router, close }) => { router.push("/prs"); close(); } },
-  { id: "go-repos", label: "Go to Repositories", keys: "g 3", Icon: IconRepos, onRun: ({ router, close }) => { router.push("/repos"); close(); } },
-  { id: "go-dispatches", label: "Go to History", keys: "g 4", Icon: IconRuns, onRun: ({ router, close }) => { router.push("/dispatches"); close(); } },
-  { id: "go-trigger", label: "Go to Dispatch", keys: "g 5", Icon: IconTrigger, onRun: ({ router, close }) => { router.push("/trigger"); close(); } },
-];
+// Every page in the IA, in nav order, flattened for the palette.
+//
+// This list used to be hand-maintained and had drifted into a THIRD set of
+// names for the same pages — "Overview", "Pull Requests", "Repositories",
+// "History", "Dispatch" — while omitting Discover, Issues, Graph and Stats
+// entirely. Deriving it from components/nav-config.tsx means the palette,
+// the header nav and the section tabs cannot disagree again, and a new page
+// shows up in all three at once.
+const NAV_LINKS = SECTIONS.flatMap((section) =>
+  section.links.map((link) => ({ section, link })),
+);
+
+// `g` then a digit jumps to the nth page. Derived from the same order the
+// palette lists them in, so the number next to a row is the key that gets you
+// there.
+const GOTO_KEYS: Record<string, string> = Object.fromEntries(
+  NAV_LINKS.map(({ link }, i) => [String(i + 1), link.href]),
+);
+
+const NAV_ACTIONS: Action[] = NAV_LINKS.map(({ section, link }, i) => ({
+  id: `go-${link.href}`,
+  label: `${section.label} · ${link.label}`,
+  keys: `g ${i + 1}`,
+  Icon: section.Icon,
+  onRun: ({ router, close }: Ctx) => {
+    router.push(link.href);
+    close();
+  },
+}));
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
@@ -70,9 +93,8 @@ export function CommandPalette() {
 
       // `g` then digit to navigate
       if (prefix) {
-        const map: Record<string, string> = { "1": "/", "2": "/prs", "3": "/repos", "4": "/dispatches", "5": "/trigger" };
-        if (map[e.key]) {
-          router.push(map[e.key]);
+        if (GOTO_KEYS[e.key]) {
+          router.push(GOTO_KEYS[e.key]);
         }
         prefix = false;
         if (prefixTimer) clearTimeout(prefixTimer);

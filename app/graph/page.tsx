@@ -401,7 +401,7 @@ export default function GraphPage() {
       style={{ height: "calc(100vh - 56px)" }}
     >
       <PageHeading
-        title={<>Graph</>}
+        title={<>Codebase map</>}
         description="Visualize and query any codebase as an interactive knowledge graph. Commands are free (AST-powered). Plain English questions use AI."
       />
 

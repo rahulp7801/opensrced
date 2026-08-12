@@ -96,7 +96,7 @@ export default function ReposPage() {
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 py-6">
       <PageHeading
-        title={<>Repositories</>}
+        title={<>Your repos</>}
         description="Your GitHub repos. Build knowledge graphs, scan for issues, or explore any codebase."
       />
 

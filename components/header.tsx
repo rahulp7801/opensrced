@@ -12,7 +12,9 @@ export function SiteHeader() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 border-b border-border bg-ink/85 backdrop-blur-md">
+      {/* Stickiness lives on the wrapper in app/layout.tsx, which pins this
+          header and the section tab bar together. */}
+      <header className="border-b border-border bg-ink/85 backdrop-blur-md">
         <div className="flex items-stretch w-full">
           <Link
             href={user ? "/discover" : "/"}
@@ -52,17 +54,17 @@ export function SiteHeader() {
               <button onClick={() => setHelpOpen(false)} className="text-[10px] text-paper-faint hover:text-paper-muted">close</button>
             </div>
             <div className="p-4 space-y-4 text-[12px]">
+              {/* The "Key pages" list that used to sit here explained what
+                  each of the ten nav items meant. The nav is four task-named
+                  sections now (components/nav-config.tsx) and says so itself,
+                  so the list was restating the navigation. What remains is
+                  the part navigation cannot express: the order to do things
+                  in, and the two shortcuts tables. */}
               <HelpSection title="Getting started">
-                <p className="text-paper-dim">1. Add your Anthropic API key in <Link href="/crucible" className="text-signal hover:underline" onClick={() => setHelpOpen(false)}>Settings</Link></p>
-                <p className="text-paper-dim">2. Go to <Link href="/discover" className="text-signal hover:underline" onClick={() => setHelpOpen(false)}>Discover</Link> to find repos with issues</p>
-                <p className="text-paper-dim">3. Click any issue, then <Link href="/trigger" className="text-signal hover:underline" onClick={() => setHelpOpen(false)}>Fix issue</Link> to dispatch a run</p>
-              </HelpSection>
-              <HelpSection title="Key pages">
-                <p className="text-paper-dim"><strong className="text-paper">Discover</strong> — Search public repos for fixable issues</p>
-                <p className="text-paper-dim"><strong className="text-paper">Issues</strong> — Suggested good-first-issues + repo scanner</p>
-                <p className="text-paper-dim"><strong className="text-paper">PRs</strong> — Manage your open PRs, review comments, push fixes</p>
-                <p className="text-paper-dim"><strong className="text-paper">Graph</strong> — Explore any codebase with AI-powered Q&A</p>
-                <p className="text-paper-dim"><strong className="text-paper">Runs</strong> — Monitor active and past fix runs</p>
+                <p className="text-paper-dim">1. Add your Anthropic API key in <Link href="/crucible" className="text-signal hover:underline" onClick={() => setHelpOpen(false)}>Settings</Link>, behind your avatar</p>
+                <p className="text-paper-dim">2. <strong className="text-paper">Find</strong> — browse repos or issues and pick one</p>
+                <p className="text-paper-dim">3. <strong className="text-paper">Fix</strong> — start a run and watch it work</p>
+                <p className="text-paper-dim">4. <strong className="text-paper">Ship</strong> — review the draft PR it opened</p>
               </HelpSection>
               <HelpSection title="PR review shortcuts">
                 <div className="grid grid-cols-2 gap-1 text-[11px]">

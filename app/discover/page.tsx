@@ -7,7 +7,7 @@ export default function DiscoverPage() {
     <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 py-6">
       <PageHeading
         eyebrow="find something to fix"
-        title={<>Discover</>}
+        title={<>Browse repos</>}
         description={
           <>
             Search public GitHub repos by stars and language, then browse their open issues

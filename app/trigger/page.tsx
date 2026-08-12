@@ -7,7 +7,7 @@ export default function TriggerPage() {
     <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 py-6">
       <PageHeading
         eyebrow="fix an issue"
-        title={<>Fix an issue</>}
+        title={<>New run</>}
         description={
           <>
             Paste a GitHub repo or issue URL. The AI agent will explore the codebase,

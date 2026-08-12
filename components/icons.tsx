@@ -1,6 +1,6 @@
 // Compact line icons. 16px, currentColor, 1.25 stroke.
 
-type IconProps = React.SVGProps<SVGSVGElement> & { size?: number };
+export type IconProps = React.SVGProps<SVGSVGElement> & { size?: number };
 
 function Base({
   size = 16,

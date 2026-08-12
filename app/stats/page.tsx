@@ -7,7 +7,7 @@ export default function StatsPage() {
     <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 py-6">
       <PageHeading
         eyebrow="your contributions"
-        title={<>Stats</>}
+        title={<>Impact</>}
         description="Track your contribution activity, streaks, and impact across open-source repos."
       />
 

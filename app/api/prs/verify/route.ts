@@ -12,12 +12,13 @@
 import { NextRequest } from "next/server";
 import { existsSync } from "node:fs";
 import { graphJsonPath, loadGraph, type GraphData } from "@/lib/graph";
-import { ensureGraph, hasCrg, graphCacheDir } from "@/lib/graph-build";
+import { ensureGraph, hasCrg, graphCacheDir, crgPythonPath } from "@/lib/graph-build";
 import { execFile } from "node:child_process";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
 import { sanitizeRepoId, sanitizeFilePath } from "@/lib/sanitize";
+import { requireSession } from "@/lib/require-session";
 
 const execFileAsync = promisify(execFile);
 
@@ -30,6 +31,9 @@ type Check = {
 };
 
 export async function POST(req: NextRequest) {
+  const unauth = await requireSession();
+  if (unauth) return unauth;
+
   const raw = (await req.json().catch(() => ({}))) as {
     diff?: string;
     comment_body?: string;
@@ -361,7 +365,12 @@ async function runCrgImpact(
 
   const repoDir = graphCacheDir(owner, repo);
   const scriptPath = join(process.cwd(), "lib", "crg-impact.py");
-  const pythonPath = process.env.CRG_PYTHONPATH ?? "C:/Users/rahul/crg-pkg";
+  const pythonPath = crgPythonPath();
+  if (!pythonPath) {
+    // CRG not configured — impact analysis is optional, report "no data"
+    // rather than failing the whole verify pass.
+    return { total_affected: 0, changed_nodes: 0, affected_files: [], affected_labels: [], affected_file_count: 0 };
+  }
 
   const { stdout } = await execFileAsync(
     "python",

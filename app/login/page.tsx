@@ -9,7 +9,7 @@ export default async function LoginPage({
 }) {
   const params = await searchParams;
   const returnTo = params?.returnTo || "/";
-  const loginHref = `/api/auth/login?returnTo=${encodeURIComponent(returnTo)}`;
+  const loginHref = `/auth/login?returnTo=${encodeURIComponent(returnTo)}`;
 
   return (
     <div className="flex min-h-svh items-center justify-center px-4 py-12">

@@ -7,27 +7,28 @@
 // Why split this out from `lib/dispatcher.ts`: that file is hard-wired to
 // CONTRIBAI_BIN and the target/solve/hunt argument shape. Rather than
 // sprinkle if-agentic branches through it, the agentic flow reuses the
-// dispatch log format + registry indirectly (via the same .dispatches/<id>
-// layout) but owns its own spawn.
+// dispatch log format + registry (via registerDispatch) but owns its spawn.
 //
-// v2 scope: the agent's output goes to the dispatch log as plain text
-// (markdown with a unified-diff fenced block is what Claude tends to
-// produce). The draft-preview → approve-PR pipeline is NOT wired for
-// agentic mode yet — the user reads the log, decides, and either applies
-// the diff manually or re-runs the deterministic path. Auto-PR for agentic
-// is a v2.1 follow-up.
+// Two entry points — issues and security findings — share one spawn core.
+// They previously existed as two ~150-line near-identical functions; the
+// only real differences are the prompt, the log header, and how the branch
+// is named. Everything else (guardrails, kill switch, close handling,
+// auto-PR hook) is identical and now lives in one place.
 
 import { execFileSync, spawn } from "node:child_process";
-import { createWriteStream, existsSync, mkdirSync } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { appendFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import type { Dispatch } from "./dispatcher";
+import { registerDispatch, type Dispatch } from "./dispatcher";
+import { patch, persist } from "./dispatch-store";
 import { createDraftPrFromLog } from "./agentic-pr";
 import { ensureRepoClone, triggerIndexBuild, buildSymbolMap } from "./pre-index";
 import { classifyScope, type ScopeInfo } from "./scope";
 
 const DISPATCH_DIR = join(process.cwd(), ".dispatches");
+const MCP_CONFIG = join(process.cwd(), ".mcp.json");
 
 // Parse stream-json output from Claude, write readable text to the log,
 // and return the total cost when the result event arrives.
@@ -65,16 +66,20 @@ function pipeStreamJson(
     }
   });
 }
-const MCP_CONFIG = join(process.cwd(), ".mcp.json");
 
 function ensureDir() {
   if (!existsSync(DISPATCH_DIR)) mkdirSync(DISPATCH_DIR, { recursive: true });
 }
 
-// No env/CLI fallback — token must be passed explicitly from the
-// caller (resolved from the user's Auth0 session or installation token).
-function fetchGithubToken(): string | undefined {
-  return undefined;
+/** Parse "owner/name" from a URL or bare slug. Throws on garbage. */
+function parseRepoFull(repoUrl: string): string {
+  const m = /github\.com[:/]+([^/]+)\/([^/?#\s.]+)|^([^/\s]+)\/([^/\s]+)$/.exec(
+    repoUrl.trim().replace(/\.git$/i, ""),
+  );
+  const owner = m?.[1] ?? m?.[3];
+  const name = m?.[2] ?? m?.[4];
+  if (!owner || !name) throw new Error(`Unrecognized repo URL: ${repoUrl}`);
+  return `${owner}/${name}`;
 }
 
 type FetchedIssue = {
@@ -82,10 +87,6 @@ type FetchedIssue = {
   body: string;
   formatted: string; // pre-formatted block used in the prompt
 };
-
-function fetchIssueBody(repoFull: string, issueNumber: number): string {
-  return fetchIssue(repoFull, issueNumber).formatted;
-}
 
 function fetchIssue(repoFull: string, issueNumber: number): FetchedIssue {
   const gh = process.env.GH_CLI;
@@ -333,34 +334,35 @@ export type StartAgenticOpts = {
   maxSpendUsd?: number;
 };
 
-export function startAgenticDispatch(
-  repoUrl: string,
-  issueNumber: number,
-  opts: StartAgenticOpts = {},
-): Dispatch {
-  if (!existsSync(MCP_CONFIG)) {
-    throw new Error(`Missing ${MCP_CONFIG} — build the MCP server first (cd mcp-server && npm run build).`);
+/** What this dispatch is trying to fix. The only real difference between
+ *  the two entry points. */
+type DispatchTarget =
+  | { kind: "issue"; issueNumber: number }
+  | { kind: "finding"; finding: FindingInput };
+
+/** Build the prompt + log header for a target, and load the AST symbol map
+ *  when one is useful. Issue dispatches get scope triage and pre-indexing;
+ *  findings go straight to the remediation prompt. */
+function prepare(
+  repoFull: string,
+  target: DispatchTarget,
+  token: string | undefined,
+  out: import("node:fs").WriteStream,
+): { prompt: string; headerLine: string; fastPath: boolean } {
+  if (target.kind === "finding") {
+    const label = target.finding.cve_id ?? target.finding.id;
+    return {
+      prompt: buildFindingPrompt(repoFull, target.finding),
+      headerLine: `repo: ${repoFull}  finding: ${label} (${target.finding.kind})`,
+      fastPath: false,
+    };
   }
 
-  // Parse "owner/name" from either a URL or a bare slug.
-  const m = /github\.com[:/]+([^/]+)\/([^/?#\s.]+)|^([^/\s]+)\/([^/\s]+)$/.exec(
-    repoUrl.trim().replace(/\.git$/i, ""),
-  );
-  const owner = m?.[1] ?? m?.[3];
-  const name = m?.[2] ?? m?.[4];
-  if (!owner || !name) throw new Error(`Unrecognized repo URL: ${repoUrl}`);
-  const repoFull = `${owner}/${name}`;
-
-  ensureDir();
-  const id = `d_${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}_${randomUUID().slice(0, 6)}`;
-  const logPath = join(DISPATCH_DIR, `${id}.log`);
-  const out = createWriteStream(logPath);
-
+  const { issueNumber } = target;
   const issue = fetchIssue(repoFull, issueNumber);
-  const issueBody = issue.formatted;
 
   // Triage: classify the scope of the issue from its title + body. If the
-  // scope is leaf or doc, we'll swap in a much more constrained prompt that
+  // scope is leaf or doc, we swap in a much more constrained prompt that
   // tells Claude to read only the named file(s) and emit the diff — no
   // CONTRIBUTING/PR-template ceremony, no broad exploration. This is the
   // direct fix for the "doing too much on a simple issue → rate-limited"
@@ -371,51 +373,82 @@ export function startAgenticDispatch(
     `[triage] scope=${scope.bucket} confidence=${scope.confidence} files=${scope.files.length} → ${fastPath ? "FAST PATH (minimal prompt, reduced budget)" : "full agentic"}\n`,
   );
 
-  // Pre-index: clone repo + build AST index BEFORE spawning Claude.
-  // This gives Claude a symbol map so it can jump directly to file:line
-  // instead of reading entire files. Saves 10-50x tokens.
+  // Pre-index: clone repo + build AST index BEFORE spawning Claude. This
+  // gives Claude a symbol map so it can jump directly to file:line instead
+  // of reading entire files. Saves 10-50x tokens.
   let symbolMap: string | undefined;
-  const token = opts.token ?? fetchGithubToken();
   try {
     out.write(`[pre-index] Building AST index for ${repoFull}...\n`);
-    // ensureRepoClone + triggerIndexBuild are async but we're in a sync function.
-    // Fire-and-forget the index build — if it completes before Claude needs it,
-    // great. If not, Claude falls back to normal tool exploration.
-    // We use execFileSync to block briefly for the index.
     const cacheDir = join(
-      process.env.OPENSRCER_CACHE_DIR || join(require("node:os").homedir(), ".contribai", "repos"),
+      process.env.OPENSRCER_CACHE_DIR || join(homedir(), ".contribai", "repos"),
       repoFull.replace("/", "__"),
     );
     const indexPath = join(cacheDir, ".opensrcer-index.json");
     if (existsSync(indexPath)) {
       try {
-        const indexData = JSON.parse(require("node:fs").readFileSync(indexPath, "utf8"));
+        const indexData = JSON.parse(readFileSync(indexPath, "utf8"));
         symbolMap = buildSymbolMap(indexData);
-        out.write(`[pre-index] Loaded cached index: ${indexData.symbols?.length ?? 0} symbols from ${indexData.fileCount ?? 0} files\n`);
+        out.write(
+          `[pre-index] Loaded cached index: ${indexData.symbols?.length ?? 0} symbols from ${indexData.fileCount ?? 0} files\n`,
+        );
       } catch {
         out.write(`[pre-index] Cached index unreadable, will build fresh\n`);
       }
     }
     if (!symbolMap) {
-      // Trigger async index build — runs in background
-      ensureRepoClone(repoFull, token ?? undefined)
+      // Trigger async index build — runs in background. If it finishes
+      // before Claude needs it, great; if not, Claude falls back to normal
+      // tool exploration.
+      ensureRepoClone(repoFull, token)
         .then((dir) => triggerIndexBuild(dir, repoFull))
         .then((index) => {
           if (index) {
-            out.write(`[pre-index] Index built: ${index.symbols.length} symbols from ${index.fileCount} files\n`);
+            out.write(
+              `[pre-index] Index built: ${index.symbols.length} symbols from ${index.fileCount} files\n`,
+            );
           }
         })
         .catch((err) => {
-          out.write(`[pre-index] Index build failed (non-fatal): ${err instanceof Error ? err.message : String(err)}\n`);
+          out.write(
+            `[pre-index] Index build failed (non-fatal): ${err instanceof Error ? err.message : String(err)}\n`,
+          );
         });
     }
   } catch (err) {
     out.write(`[pre-index] Failed (non-fatal): ${err instanceof Error ? err.message : String(err)}\n`);
   }
 
-  const prompt = fastPath
-    ? buildLeafPrompt(repoFull, issueNumber, issueBody, scope)
-    : buildPrompt(repoFull, issueNumber, issueBody, symbolMap);
+  return {
+    prompt: fastPath
+      ? buildLeafPrompt(repoFull, issueNumber, issue.formatted, scope)
+      : buildPrompt(repoFull, issueNumber, issue.formatted, symbolMap),
+    headerLine: `repo: ${repoFull}  issue: #${issueNumber}`,
+    fastPath,
+  };
+}
+
+/** Shared spawn core for both entry points. */
+function startDispatch(
+  repoUrl: string,
+  target: DispatchTarget,
+  opts: StartAgenticOpts,
+): Dispatch {
+  if (!existsSync(MCP_CONFIG)) {
+    throw new Error(`Missing ${MCP_CONFIG} — build the MCP server first (cd mcp-server && npm run build).`);
+  }
+  const repoFull = parseRepoFull(repoUrl);
+
+  ensureDir();
+  const id = `d_${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}_${randomUUID().slice(0, 6)}`;
+  const logPath = join(DISPATCH_DIR, `${id}.log`);
+  const out = createWriteStream(logPath);
+
+  // Token must be passed explicitly by the caller (resolved from the user's
+  // Auth0 session or a GitHub App installation). There is deliberately no
+  // env/CLI fallback here — a background dispatch must never silently run
+  // as the deployer.
+  const token = opts.token;
+  const { prompt, headerLine, fastPath } = prepare(repoFull, target, token, out);
 
   // Runaway guard rails:
   //   --max-budget-usd — hard cap on total LLM spend for this one invocation.
@@ -425,8 +458,8 @@ export function startAgenticDispatch(
   //     Fast-path leaf/doc issues get a tighter $0.50 cap — if a "small fix"
   //     is somehow burning more than that, something's wrong and we'd rather
   //     bail than blow the budget.
-  //   wall-clock timeout — setTimeout below kills the whole process tree if
-  //     Claude is still alive after N minutes. Covers the case where the
+  //   wall-clock timeout — the setTimeout below kills the whole process tree
+  //     if Claude is still alive after N minutes. Covers the case where the
   //     model loops on tool calls without ever emitting final output.
   const defaultBudget = fastPath
     ? Number(process.env.OPENSRCER_AGENTIC_LEAF_BUDGET_USD ?? "0.5")
@@ -462,14 +495,13 @@ export function startAgenticDispatch(
   delete env.GITHUB_TOKEN;
   delete env.ANTHROPIC_API_KEY;
   delete env.GEMINI_API_KEY;
-  // `token` was already resolved above for pre-indexing
   if (token) env.GITHUB_TOKEN = token;
   if (opts.anthropicKey) env.ANTHROPIC_API_KEY = opts.anthropicKey;
   if (opts.geminiKey) env.GEMINI_API_KEY = opts.geminiKey;
 
   out.write(
     `[agentic-dispatcher] ${new Date().toISOString()}\n` +
-      `[agentic-dispatcher] repo: ${repoFull}  issue: #${issueNumber}\n` +
+      `[agentic-dispatcher] ${headerLine}\n` +
       `[agentic-dispatcher] bin: claude (-p headless, MCP: ${MCP_CONFIG})\n` +
       `[agentic-dispatcher] env: ANTHROPIC_API_KEY=${env.ANTHROPIC_API_KEY ? "(present)" : "(missing — claude will use its own auth)"} · GITHUB_TOKEN=${token ? "(present)" : "(missing)"}\n` +
       `[agentic-dispatcher] guardrails: --max-budget-usd=${budgetUsd} · timeout=${Math.round(timeoutMs / 1000)}s\n` +
@@ -514,6 +546,12 @@ export function startAgenticDispatch(
     }
   }, timeoutMs);
 
+  // Findings use a synthetic issue number of 0 — the PR pipeline names the
+  // branch after the finding ID instead.
+  const issueNumber = target.kind === "issue" ? target.issueNumber : 0;
+  const findingId =
+    target.kind === "finding" ? (target.finding.cve_id ?? target.finding.id) : undefined;
+
   const dispatch: Dispatch = {
     id,
     repo_url: repoUrl,
@@ -530,177 +568,10 @@ export function startAgenticDispatch(
     log_path: logPath,
   };
 
-  pipeStreamJson(child.stdout, out);
-  child.stderr.on("data", () => {}); // swallow stderr (MCP startup noise)
-  child.on("close", (code, signal) => {
-    clearTimeout(timeoutHandle);
-    dispatch.ended_at = new Date().toISOString();
-    dispatch.exit_code = code ?? undefined;
-    const wasKilled = signal === "SIGKILL" || signal === "SIGTERM" || killedByTimeout;
-    dispatch.status = wasKilled
-      ? "killed"
-      : code === 0
-        ? "succeeded"
-        : "failed";
-    out.write(
-      `\n[agentic-dispatcher] ─────────────────────────────\n` +
-        `[agentic-dispatcher] exited at ${dispatch.ended_at} · status=${dispatch.status} · exit=${code ?? "n/a"}` +
-        (killedByTimeout ? " (killed by wall-clock timeout)" : "") +
-        `\n`,
-    );
-    out.end();
-
-    // Auto-PR on clean exit. Runs detached — we can't block the close
-    // handler, and the dispatch is already reported as succeeded. On
-    // success we append the PR URL to the log; on failure we append the
-    // diagnostic so the user can fix and rerun.
-    if (
-      !wasKilled &&
-      code === 0 &&
-      process.env.OPENSRCER_AGENTIC_AUTO_PR !== "0"
-    ) {
-      void (async () => {
-        // Small delay so the close handler's write flushes before we append.
-        await new Promise((r) => setTimeout(r, 250));
-        const header =
-          `\n[agentic-pr] ─────────────────────────────\n` +
-          `[agentic-pr] starting auto-PR at ${new Date().toISOString()}\n`;
-        await appendFile(logPath, header).catch(() => {});
-        try {
-          const result = await createDraftPrFromLog({
-            repoFull,
-            issueNumber,
-            logPath,
-            dispatchId: id,
-            orgCtx: opts.orgCtx,
-          });
-          const line = result.ok
-            ? `[agentic-pr] opened draft PR: ${result.url}\n` +
-              `[agentic-pr] head: ${result.branch}  →  base: ${result.base.branch} (${result.base.confidence} confidence — ${result.base.reason})\n`
-            : `[agentic-pr] skipped: ${result.reason}\n`;
-          await appendFile(logPath, line).catch(() => {});
-        } catch (e) {
-          const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
-          await appendFile(logPath, `[agentic-pr] unexpected error: ${msg}\n`).catch(() => {});
-        }
-      })();
-    }
-  });
-  child.on("error", (err) => {
-    dispatch.ended_at = new Date().toISOString();
-    dispatch.status = "failed";
-    out.write(`\n[agentic-dispatcher] spawn error: ${err.message}\n`);
-    out.end();
-  });
-
-  return dispatch;
-}
-
-// ── Security-finding dispatch ─────────────────────────────────────────
-// Same spawn mechanics as startAgenticDispatch but takes a FindingInput
-// (advisory / dependabot alert) instead of an issue number. The prompt
-// is tailored for vulnerability remediation rather than bug fixing.
-
-export function startFindingDispatch(
-  repoUrl: string,
-  finding: FindingInput,
-  opts: StartAgenticOpts = {},
-): Dispatch {
-  if (!existsSync(MCP_CONFIG)) {
-    throw new Error(`Missing ${MCP_CONFIG} — build the MCP server first (cd mcp-server && npm run build).`);
-  }
-
-  const m = /github\.com[:/]+([^/]+)\/([^/?#\s.]+)|^([^/\s]+)\/([^/\s]+)$/.exec(
-    repoUrl.trim().replace(/\.git$/i, ""),
-  );
-  const owner = m?.[1] ?? m?.[3];
-  const name = m?.[2] ?? m?.[4];
-  if (!owner || !name) throw new Error(`Unrecognized repo URL: ${repoUrl}`);
-  const repoFull = `${owner}/${name}`;
-
-  ensureDir();
-  const id = `d_${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}_${randomUUID().slice(0, 6)}`;
-  const logPath = join(DISPATCH_DIR, `${id}.log`);
-  const out = createWriteStream(logPath);
-
-  const prompt = buildFindingPrompt(repoFull, finding);
-
-  const budgetUsd = opts.maxSpendUsd ?? Number(process.env.OPENSRCER_AGENTIC_BUDGET_USD ?? "2");
-  const timeoutMs = Number(process.env.OPENSRCER_AGENTIC_TIMEOUT_MS ?? String(30 * 60 * 1000));
-
-  const args = [
-    "-p",
-    prompt,
-    "--mcp-config",
-    MCP_CONFIG,
-    "--strict-mcp-config",
-    "--permission-mode",
-    "bypassPermissions",
-    "--no-session-persistence",
-    "--output-format",
-    "stream-json",
-    "--verbose",
-    "--max-budget-usd",
-    String(budgetUsd),
-  ];
-
-  const env: NodeJS.ProcessEnv = { ...process.env };
-  // Clear all sensitive env vars — only use keys the user explicitly
-  // provided via their authenticated session / encrypted cookie.
-  delete env.GITHUB_TOKEN;
-  delete env.ANTHROPIC_API_KEY;
-  delete env.GEMINI_API_KEY;
-  const token = opts.token ?? fetchGithubToken();
-  if (token) env.GITHUB_TOKEN = token;
-  if (opts.anthropicKey) env.ANTHROPIC_API_KEY = opts.anthropicKey;
-  if (opts.geminiKey) env.GEMINI_API_KEY = opts.geminiKey;
-
-  const findingLabel = finding.cve_id ?? finding.id;
-  out.write(
-    `[agentic-dispatcher] ${new Date().toISOString()}\n` +
-      `[agentic-dispatcher] repo: ${repoFull}  finding: ${findingLabel} (${finding.kind})\n` +
-      `[agentic-dispatcher] bin: claude (-p headless, MCP: ${MCP_CONFIG})\n` +
-      `[agentic-dispatcher] guardrails: --max-budget-usd=${budgetUsd} · timeout=${Math.round(timeoutMs / 1000)}s\n` +
-      `[agentic-dispatcher] ─────────────────────────────\n`,
-  );
-
-  const child = spawn("claude", args, { env, windowsHide: true });
-
-  let killedByTimeout = false;
-  const timeoutHandle = setTimeout(() => {
-    if (!child.killed && child.pid) {
-      killedByTimeout = true;
-      try {
-        out.write(
-          `\n[agentic-dispatcher] ─────────────────────────────\n` +
-            `[agentic-dispatcher] wall-clock timeout (${Math.round(timeoutMs / 1000)}s) hit at ${new Date().toISOString()}\n`,
-        );
-      } catch { /* stream may be half-closed */ }
-      if (process.platform === "win32") {
-        try {
-          execFileSync("taskkill", ["/F", "/T", "/PID", String(child.pid)], { stdio: "pipe" });
-        } catch {
-          child.kill("SIGKILL");
-        }
-      } else {
-        child.kill("SIGKILL");
-      }
-    }
-  }, timeoutMs);
-
-  // Use a synthetic issue number of 0 for findings — the PR pipeline
-  // uses the finding ID in the branch name instead.
-  const dispatch: Dispatch = {
-    id,
-    repo_url: repoUrl,
-    mode: "agentic",
-    dry_run: true,
-    issue_number: 0,
-    started_at: new Date().toISOString(),
-    status: "running",
-    pid: child.pid,
-    log_path: logPath,
-  };
+  // Register before wiring handlers so a cancel arriving immediately finds
+  // the child. Without this, cancelDispatch() had nothing to kill and every
+  // agentic cancel failed with "No running process found".
+  registerDispatch(dispatch, child);
 
   pipeStreamJson(child.stdout, out);
   child.stderr.on("data", () => {}); // swallow stderr (MCP startup noise)
@@ -718,30 +589,49 @@ export function startFindingDispatch(
     );
     out.end();
 
-    if (!wasKilled && code === 0 && process.env.OPENSRCER_AGENTIC_AUTO_PR !== "0") {
+    const autoPr = !wasKilled && code === 0 && process.env.OPENSRCER_AGENTIC_AUTO_PR !== "0";
+    persist({ ...dispatch, pr_status: autoPr ? "pending" : "none" });
+
+    // Auto-PR on clean exit. Runs detached — we can't block the close
+    // handler, and the dispatch is already reported as succeeded. On
+    // success we append the PR URL to the log; on failure we append the
+    // diagnostic so the user can fix and rerun. Either way the outcome is
+    // written to the sidecar so the dashboard doesn't have to re-derive it
+    // by regexing this log on every poll.
+    if (autoPr) {
       void (async () => {
+        // Small delay so the close handler's write flushes before we append.
         await new Promise((r) => setTimeout(r, 250));
-        await appendFile(logPath,
+        await appendFile(
+          logPath,
           `\n[agentic-pr] ─────────────────────────────\n` +
-          `[agentic-pr] starting auto-PR at ${new Date().toISOString()}\n`,
+            `[agentic-pr] starting auto-PR at ${new Date().toISOString()}\n`,
         ).catch(() => {});
         try {
           const result = await createDraftPrFromLog({
             repoFull,
-            issueNumber: 0,
+            issueNumber,
             logPath,
             dispatchId: id,
             orgCtx: opts.orgCtx,
-            findingId: findingLabel,
+            findingId,
           });
           const line = result.ok
             ? `[agentic-pr] opened draft PR: ${result.url}\n` +
               `[agentic-pr] head: ${result.branch}  →  base: ${result.base.branch} (${result.base.confidence} confidence — ${result.base.reason})\n`
             : `[agentic-pr] skipped: ${result.reason}\n`;
           await appendFile(logPath, line).catch(() => {});
+          patch(id, result.ok
+            ? { pr_status: "opened", pr_url: result.url, tests: result.tests }
+            : {
+                pr_status: result.tests === "failed" ? "tests_failed" : "failed",
+                pr_failure_reason: result.reason.slice(0, 500),
+                tests: result.tests,
+              });
         } catch (e) {
           const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
           await appendFile(logPath, `[agentic-pr] unexpected error: ${msg}\n`).catch(() => {});
+          patch(id, { pr_status: "failed", pr_failure_reason: msg.slice(0, 500) });
         }
       })();
     }
@@ -751,7 +641,26 @@ export function startFindingDispatch(
     dispatch.status = "failed";
     out.write(`\n[agentic-dispatcher] spawn error: ${err.message}\n`);
     out.end();
+    persist({ ...dispatch, pr_status: "none" });
   });
 
   return dispatch;
+}
+
+/** Agentic solve for a GitHub issue. */
+export function startAgenticDispatch(
+  repoUrl: string,
+  issueNumber: number,
+  opts: StartAgenticOpts = {},
+): Dispatch {
+  return startDispatch(repoUrl, { kind: "issue", issueNumber }, opts);
+}
+
+/** Agentic remediation for a security advisory / Dependabot alert. */
+export function startFindingDispatch(
+  repoUrl: string,
+  finding: FindingInput,
+  opts: StartAgenticOpts = {},
+): Dispatch {
+  return startDispatch(repoUrl, { kind: "finding", finding }, opts);
 }

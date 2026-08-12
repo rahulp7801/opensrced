@@ -9,10 +9,11 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { resolveAnthropicKey } from "@/lib/api-keys";
 import { resolveGitHubToken } from "@/lib/github-token";
-import { getSession } from "@auth0/nextjs-auth0";
+import { auth0 } from "@/lib/auth0";
 import { mappingForOrg } from "@/lib/crucible/orgs";
 import { resolveGithubToken } from "@/lib/crucible/tokens";
 import { acquireSlot, releaseSlot, activeSlots } from "@/lib/concurrency";
+import { CLAUDE_AGENT_MODEL } from "@/lib/models";
 
 export const dynamic = "force-dynamic";
 
@@ -40,14 +41,6 @@ export async function POST(req: NextRequest) {
     return new Response(
       JSON.stringify({ error: "Missing repo_url or query" }),
       { status: 400, headers: { "Content-Type": "application/json" } },
-    );
-  }
-
-  // Concurrency limit
-  if (!acquireSlot("explore", MAX_CONCURRENT_EXPLORE)) {
-    return new Response(
-      JSON.stringify({ error: `Too many concurrent explorations (${activeSlots("explore")}/${MAX_CONCURRENT_EXPLORE}). Wait for one to finish.` }),
-      { status: 429, headers: { "Content-Type": "application/json" } },
     );
   }
 
@@ -88,6 +81,17 @@ export async function POST(req: NextRequest) {
   }
   const [owner, name] = repoFull.split("/");
 
+  // Concurrency limit. Acquired LAST, after every cheap rejection above —
+  // the slot is only released once the stream closes, so any early return
+  // between acquire and stream-start leaks it for the process lifetime.
+  // Four returns above used to sit inside that window.
+  if (!acquireSlot("explore", MAX_CONCURRENT_EXPLORE)) {
+    return new Response(
+      JSON.stringify({ error: `Too many concurrent explorations (${activeSlots("explore")}/${MAX_CONCURRENT_EXPLORE}). Wait for one to finish.` }),
+      { status: 429, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
   const prompt = buildExplorePrompt(repoFull, body.query);
 
   const args = [
@@ -103,7 +107,7 @@ export async function POST(req: NextRequest) {
     "stream-json",
     "--verbose",
     "--model",
-    "claude-sonnet-4-5",
+    CLAUDE_AGENT_MODEL,
     "--max-budget-usd",
     String(Math.min(Math.max(body.budget ?? 0.15, 0.01), 2)),
   ];
@@ -115,7 +119,7 @@ export async function POST(req: NextRequest) {
 
   // Private repo support — use installation token if org is specified
   if (body.github_org) {
-    const session = await getSession();
+    const session = await auth0.getSession();
     const sub = session?.user?.sub;
     if (sub) {
       const mapping = mappingForOrg(sub, body.github_org);

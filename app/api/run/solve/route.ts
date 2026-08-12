@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { canDispatchLocally, startDispatch } from "@/lib/dispatcher";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { resolveAnthropicKey } from "@/lib/api-keys";
+import { requireSession } from "@/lib/require-session";
 
 export async function POST(req: NextRequest) {
+  const unauth = await requireSession();
+  if (unauth) return unauth;
+
   const body = await req.json().catch(() => ({}));
   const repo_url: string | undefined = body?.repo_url;
   if (!repo_url || typeof repo_url !== "string") {

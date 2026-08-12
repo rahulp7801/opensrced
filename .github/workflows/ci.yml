@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # react-diff-viewer-continued has not declared React 19 support yet.
+      - run: npm ci --legacy-peer-deps
+
+      - name: Typecheck app
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      # Separate package, separate tsconfig and deps.
+      - name: Build MCP server
+        run: |
+          cd mcp-server
+          npm ci
+          npm run build
+
+      # No lint step: this repo has no ESLint config, so `next lint` drops into
+      # an interactive setup prompt and would hang the job. (It's also
+      # deprecated in Next 15 and gone in 16.) Add `eslint.config.mjs` and a
+      # step here if you want linting — `tsc --noEmit` above is the current
+      # static check.
+
+      # The Next build needs an AUTH0_SECRET present to import lib/api-keys.
+      # A throwaway value is fine — nothing is decrypted at build time.
+      - name: Build
+        run: npm run build
+        env:
+          AUTH0_SECRET: ci-build-only-not-a-real-secret
+          APP_BASE_URL: http://localhost:3000
+          AUTH0_DOMAIN: example.us.auth0.com
+          AUTH0_CLIENT_ID: ci
+          AUTH0_CLIENT_SECRET: ci

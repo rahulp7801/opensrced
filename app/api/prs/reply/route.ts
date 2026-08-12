@@ -6,12 +6,16 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { sanitizeRepoId, sanitizeForPrompt, sanitizePrNumber } from "@/lib/sanitize";
+import { requireSession } from "@/lib/require-session";
 
 const execFileAsync = promisify(execFile);
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  const unauth = await requireSession();
+  if (unauth) return unauth;
+
   const raw = (await req.json().catch(() => ({}))) as {
     repo?: string;
     pr_number?: number;

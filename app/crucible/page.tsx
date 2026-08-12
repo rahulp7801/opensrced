@@ -3,7 +3,7 @@
 // Per-org repo drill-down + findings list land in Phase 4.
 
 import Link from "next/link";
-import { getSession } from "@auth0/nextjs-auth0";
+import { auth0 } from "@/lib/auth0";
 import { PageHeading } from "@/components/page-heading";
 import { listOrgsFor } from "@/lib/crucible/orgs";
 import { DisconnectButton } from "./disconnect-button";
@@ -25,7 +25,7 @@ export default async function CruciblePage({
 }: {
   searchParams: Promise<{ connect_error?: string }>;
 }) {
-  const session = await getSession();
+  const session = await auth0.getSession();
   const user = session?.user;
   const params = await searchParams;
   const connectErrorKey = params?.connect_error;

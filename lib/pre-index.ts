@@ -10,6 +10,7 @@ import { readFile, stat, mkdir, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { gitAuthArgs } from "./git-auth";
 
 const execFileAsync = promisify(execFile);
 
@@ -56,12 +57,10 @@ export async function ensureRepoClone(
   if (needsClone) {
     if (existsSync(dir)) await rm(dir, { recursive: true, force: true });
     await mkdir(CACHE_ROOT, { recursive: true });
-    const url = token
-      ? `https://x-access-token:${token}@github.com/${repoFull}.git`
-      : `https://github.com/${repoFull}.git`;
+    const url = `https://github.com/${repoFull}.git`;
     const env: NodeJS.ProcessEnv = { ...process.env };
     if (token) env.GITHUB_TOKEN = token;
-    await execFileAsync("git", ["clone", "--depth=1", "--single-branch", url, dir], {
+    await execFileAsync("git", [...gitAuthArgs(token), "clone", "--depth=1", "--single-branch", url, dir], {
       maxBuffer: 50 * 1024 * 1024,
       env,
       windowsHide: true,

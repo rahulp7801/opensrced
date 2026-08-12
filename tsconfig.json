@@ -17,5 +17,11 @@
     "paths": { "@/*": ["./*"] }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "ContribAI"]
+  // mcp-server is a separate package with its own tsconfig, deps, and module
+  // resolution — type-checking it from here reports phantom errors for
+  // modules that are installed under mcp-server/node_modules. scripts/ are
+  // tsx-run one-offs that import with explicit .ts extensions, which this
+  // config rejects. Both are checked by their own commands; see the ci
+  // workflow.
+  "exclude": ["node_modules", "mcp-server", "scripts"]
 }

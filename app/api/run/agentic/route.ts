@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { startAgenticDispatch } from "@/lib/agentic-dispatcher";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { resolveAnthropicKey, resolveGeminiKey, resolveMaxSpendUsd } from "@/lib/api-keys";
+import { requireSession } from "@/lib/require-session";
 
 export async function POST(req: NextRequest) {
+  const unauth = await requireSession();
+  if (unauth) return unauth;
+
   const body = await req.json().catch(() => ({}));
   const repo_url: string | undefined = body?.repo_url;
   const issue_number: number | undefined =

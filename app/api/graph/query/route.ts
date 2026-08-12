@@ -20,16 +20,21 @@ import {
   buildFullGraphContext,
   FALLBACK_SENTINEL,
 } from "@/lib/graph";
-import { hasCrg, graphCacheDir } from "@/lib/graph-build";
+import { hasCrg, graphCacheDir, crgPythonPath } from "@/lib/graph-build";
 import { resolveAnthropicKey } from "@/lib/api-keys";
 import { getCached, setCached } from "@/lib/llm-cache";
 import { sanitizeForPrompt, sanitizeRepoId, sanitizeFilePath } from "@/lib/sanitize";
+import { requireSession } from "@/lib/require-session";
+import { CLAUDE_FAST_MODEL } from "@/lib/models";
 
 const execFileAsync = promisify(execFile);
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  const unauth = await requireSession();
+  if (unauth) return unauth;
+
   const raw = (await req.json().catch(() => ({}))) as {
     owner?: string;
     repo?: string;
@@ -113,7 +118,7 @@ export async function POST(req: NextRequest) {
     const compressed = await compressWithLLMLingua(body.query);
     const userQuery = compressed.text;
 
-    const model = "claude-haiku-4-5-20251001";
+    const model = CLAUDE_FAST_MODEL;
     const systemPrompt = `You are a codebase analysis assistant. You have access to a knowledge graph of the ${body.owner}/${body.repo} GitHub repository. Answer the user's question using ONLY the graph data provided below. Be concise and specific — cite file paths and function names. If the graph data doesn't contain enough information to answer, say so honestly.
 
 GRAPH DATA:
@@ -150,7 +155,7 @@ ${graphContext}`;
                 "anthropic-version": "2023-06-01",
               },
               body: JSON.stringify({
-                model: "claude-haiku-4-5-20251001",
+                model: CLAUDE_FAST_MODEL,
                 max_tokens: 1024,
                 system: systemPrompt,
                 stream: true,
@@ -336,7 +341,8 @@ async function tryCrgCommand(
 
   const repoDir = graphCacheDir(owner, repo);
   const scriptPath = join(process.cwd(), "lib", "crg-impact.py");
-  const pythonPath = process.env.CRG_PYTHONPATH ?? "C:/Users/rahul/crg-pkg";
+  const pythonPath = crgPythonPath();
+  if (!pythonPath) return null; // CRG not configured — caller falls back
 
   try {
     const { stdout } = await execFileAsync(
@@ -484,7 +490,8 @@ with open(r'${inputPath.replace(/\\/g, "\\\\")}', 'r', encoding='utf-8') as f:
 async function getCrgSummary(owner: string, repo: string, full = false): Promise<string> {
   const repoDir = graphCacheDir(owner, repo);
   const scriptPath = join(process.cwd(), "lib", "crg-summary.py");
-  const pythonPath = process.env.CRG_PYTHONPATH ?? "C:/Users/rahul/crg-pkg";
+  const pythonPath = crgPythonPath();
+  if (!pythonPath) return ""; // CRG not configured — no structural context
 
   try {
     const { stdout } = await execFileAsync(

@@ -11,7 +11,7 @@
 // user and the org.
 
 import { NextResponse } from "next/server";
-import { getSession } from "@auth0/nextjs-auth0";
+import { auth0 } from "@/lib/auth0";
 import { mappingForOrg, deleteByInstallationId } from "@/lib/crucible/orgs";
 import fs from "node:fs";
 import path from "node:path";
@@ -34,7 +34,7 @@ export async function POST(
   _req: Request,
   { params }: { params: Promise<{ org: string }> },
 ) {
-  const session = await getSession();
+  const session = await auth0.getSession();
   const sub = session?.user?.sub;
   if (!sub) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 

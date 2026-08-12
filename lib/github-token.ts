@@ -12,7 +12,7 @@
 // resolver (lib/crucible/tokens.ts). This is for the public-repo flows
 // (discover, issues, dispatches, agentic-pr fork+push).
 
-import { getSession } from "@auth0/nextjs-auth0";
+import { auth0 } from "@/lib/auth0";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 
@@ -21,11 +21,11 @@ const GITHUB_TOKEN_CLAIM = "https://opensrcer.dev/github_token";
 
 export async function getGitHubTokenFromSession(): Promise<string | null> {
   try {
-    // Next.js 15 requires cookies() to be awaited before getSession().
+    // Next.js 15 requires cookies() to be awaited before auth0.getSession().
     // Import dynamically to avoid issues outside request context.
     const { cookies } = await import("next/headers");
     await cookies();
-    const session = await getSession();
+    const session = await auth0.getSession();
     const token = session?.user?.[GITHUB_TOKEN_CLAIM];
     if (typeof token === "string" && token.length > 0) return token;
   } catch {

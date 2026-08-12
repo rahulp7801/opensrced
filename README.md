@@ -7,12 +7,14 @@ opensrcer is an AI-powered autonomous contribution agent. Point it at any GitHub
 1. **Explores the codebase** using tree-sitter AST indexing, graph knowledge queries, grep, and definition/reference lookup
 2. **Reads contribution guidelines** (CONTRIBUTING.md, PR templates, branch conventions) before writing anything
 3. **Generates a minimal patch** with a structured diagnosis, diff, PR title, and PR body
-4. **Reviews its own work** via Gemini 2.0 Flash (correctness, security, completeness)
-5. **Scans for leaked secrets** via Gitleaks before pushing any code
-6. **Runs the repo's test suite** (npm, pytest, go test, cargo test)
-7. **Opens a verified draft PR** — only if every prior step passes
+4. **Reviews its own work** via Gemini (correctness, security, completeness) — a `critical` verdict blocks the PR
+5. **Scans for leaked secrets** via Gitleaks before pushing any code — any finding blocks the PR
+6. **Runs the repo's test suite** (npm, pytest, go test, cargo test) — see the caveat below
+7. **Opens a draft PR** — only if every gate above passes
 
-If the tests fail or secrets are found, the PR is blocked and the dashboard shows you exactly why.
+If the tests fail, the review returns `critical`, or secrets are found, the PR is blocked and the dashboard shows you exactly why.
+
+> **Step 6 is opt-in per deployment.** The test runner executes the *target* repo's own `npm ci && npm test` (or `pytest`, `go test`, `cargo test`) directly on the host, with no container isolation. For a private repo your org already trusts, that's fine — and it's the default there. For an arbitrary public repo pulled off a discover scan, it is remote code execution by design: one malicious `postinstall` and the agent has handed over the box. So `OPENSRCER_RUN_TESTS` defaults to `crucible` (private-org flows only); set it to `all` to run tests everywhere, or `off` to disable. **A PR opened without a test run is labeled "unverified" in the dashboard, never "verified"** — the distinction is recorded per dispatch rather than assumed.
 
 ---
 
@@ -53,7 +55,16 @@ The entire interaction — every tool call, every reasoning step — is streamed
 
 "Verified" means **the repo's own test suite passed on the patched code**. Not a self-assessment from the AI — an actual `npm test` / `pytest` / `go test` / `cargo test` run against the modified source tree. The pipeline detects the correct ecosystem automatically and runs the appropriate command chain.
 
-If a repo has no tests, opensrcer says so rather than faking a green check.
+Every dispatch records which of four things happened, and the dashboard shows them differently:
+
+| `tests` | Meaning | Dashboard |
+|---|---|---|
+| `passed` | The suite ran and went green | **✓ verified** |
+| `failed` | The suite ran and failed | PR blocked, reason shown |
+| `skipped` | Ran, but no recognized test suite in the repo | *unverified* |
+| `not_run` | We chose not to execute it (`OPENSRCER_RUN_TESTS`) | *unverified* |
+
+If a repo has no tests, opensrcer says so rather than faking a green check — and so does a PR opened with the runner switched off. See `OPENSRCER_RUN_TESTS` under [Environment Variables](#environment-variables) for why the default is conservative.
 
 ### Five-Tier Diff Application
 
@@ -293,11 +304,25 @@ Storage: zero database. All state derived from:
 
 ### 1. Deterministic Path (`lib/dispatcher.ts`)
 
-Spawns the Rust `contribai.exe` binary as a subprocess. ContribAI:
+Spawns the Rust `contribai` binary as a subprocess. ContribAI:
 - Collects relevant file context via its own pre-attach heuristic (top 5 files by relevance)
 - Builds a focused prompt with the collected context
 - Makes a single LLM call (one-shot)
 - Writes a structured contribution to stdout
+
+> **The ContribAI source no longer lives in this repo.** It was a vendored
+> 61k-LOC Rust/Python tree that the Next app never imported — the only
+> coupling is `CONTRIBAI_BIN`, an env var pointing at a prebuilt binary, so
+> the source belongs in its own repository. This path still works exactly as
+> before: point `CONTRIBAI_BIN` at the binary and `CONTRIBAI_CONFIG` at its
+> `config.yaml`. Without `CONTRIBAI_BIN`, the `/api/run/*` deterministic
+> routes return **501** and only the agentic path is available.
+>
+> To recover the source (it is still in this repo's history):
+> ```bash
+> git checkout d3449c4 -- ContribAI          # restore into the working tree
+> git subtree split -P ContribAI -b contribai  # or extract to its own branch
+> ```
 
 **Best for:** Well-scoped, single-file bug fixes where the affected file is obvious from the issue.
 
@@ -708,7 +733,7 @@ Request → Is prefetch? → skip
         → Else → redirect to /login?returnTo=<path>
 ```
 
-**Public paths** (no auth required): `/`, `/login`, `/api/auth/*`, `/api/crucible/github/webhook`, webhooks (HMAC-authenticated), and all client-shell pages. The matcher skips `_next/static`, images, and favicons entirely.
+**Public paths** (no auth required): `/`, `/login`, `/auth/*` (SDK-served), `/api/crucible/github/webhook`, webhooks (HMAC-authenticated), and all client-shell pages. The matcher skips `_next/static`, images, and favicons entirely.
 
 ### API Key Storage
 
@@ -870,9 +895,40 @@ npm run dev
 
 Open `http://localhost:3000`. Sign in with GitHub via Auth0. Add your Anthropic API key on the Crucible page (or via `/api/settings`). Navigate to `/discover`, scan for issues, and click **Deep solve**.
 
+### Run in Docker
+
+The prerequisites table above is the tedious part of setup — the image bundles
+all of it (Claude Code CLI, `gh`, GNU `patch`, `gitleaks`, Python) and builds
+the MCP server:
+
+```bash
+docker build -t opensrcer .
+docker run -p 3000:3000 --env-file .env.local \
+  -v opensrcer-dispatches:/app/.dispatches \
+  -v opensrcer-repos:/root/.contribai/repos \
+  opensrcer
+```
+
+Both volumes are load-bearing: `.dispatches` holds the run history the
+dashboard reads, and `~/.contribai/repos` is the shallow-clone cache. Without
+them a container restart loses history and re-clones every repo.
+
+### Deployment model — one long-lived box
+
+opensrcer is **not serverless-deployable**, by design. It spawns `claude` and
+`git` subprocesses, keeps dispatch state on local disk under `.dispatches/`,
+holds an in-memory registry of running children so they can be cancelled, and
+creates git worktrees in a shared clone cache. Run it on one persistent host
+(or one container with persistent volumes). Multiple replicas behind a load
+balancer will not share dispatch state and will contend over the clone cache.
+
 ### Local Dev Without Auth0
 
-Set `AUTH_DISABLED=1` in `.env.local` to skip all auth checks. The middleware will let every request through, and API routes won't require a session. Useful for UI development but all dispatch features will need explicit tokens.
+Set `AUTH_DISABLED=1` in `.env.local` to skip all auth checks — both the
+middleware gate and the per-route `requireSession()` guards. Useful for UI
+development. `AUTH0_SECRET` is still required (it encrypts the stored API-key
+cookie), and dispatch features need `GITHUB_TOKEN` set explicitly, since with
+no session there's no GitHub identity to derive one from.
 
 ### Building the MCP Server for Development
 
@@ -891,9 +947,18 @@ npm run dev  # watches for changes and recompiles
 |----------|---------|
 | `AUTH0_CLIENT_ID` | Auth0 application client ID |
 | `AUTH0_CLIENT_SECRET` | Auth0 application client secret |
-| `AUTH0_ISSUER_BASE_URL` | Auth0 tenant URL (e.g., `https://dev-xxx.us.auth0.com`) |
-| `AUTH0_BASE_URL` | Application URL (e.g., `http://localhost:3000`) |
+| `AUTH0_DOMAIN` | Auth0 tenant **domain** — bare host, no scheme (e.g. `dev-xxx.us.auth0.com`) |
+| `APP_BASE_URL` | Application URL (e.g., `http://localhost:3000`) |
 | `AUTH0_SECRET` | Session encryption secret (also used for API key encryption) |
+
+> **Upgrading from SDK v3?** Two variables were renamed: `AUTH0_BASE_URL` →
+> `APP_BASE_URL`, and `AUTH0_ISSUER_BASE_URL` → `AUTH0_DOMAIN` (which takes a
+> bare host, not a URL). [lib/auth0.ts](lib/auth0.ts) still reads the old
+> names as a fallback so an existing `.env.local` keeps working, but update
+> them — the fallback is transitional. You must also update the Auth0
+> dashboard: **Allowed Callback URLs** becomes `<origin>/auth/callback`
+> (previously `/api/auth/callback`). Login fails at the tenant, not in this
+> app, if you skip that.
 
 ### Optional — Local Dispatch
 
@@ -915,18 +980,22 @@ npm run dev  # watches for changes and recompiles
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `AUTH_DISABLED` | `0` | Set to `1` to skip auth (local dev) |
-| `CONTRIBAI_API_URL` | _(unset)_ | If set, dashboard proxies API calls to running ContribAI web server |
+| `AUTH_DISABLED` | `0` | Set to `1` to skip auth — both the middleware and the per-route guards (local dev) |
+| `OPENSRCER_RUN_TESTS` | `crucible` | Which flows run the target repo's test suite: `crucible` (private-org only), `all`, `off`. **`all` executes untrusted repo code on this host with no sandbox** |
+| `OPENSRCER_GEMINI_GATE` | `1` | Set to `0` to make the Gemini review advisory instead of PR-blocking |
 | `GEMINI_API_KEY` | _(unset)_ | Server-side Gemini key for patch self-review |
-| `ANTHROPIC_API_KEY` | _(unset)_ | Server-side Anthropic key (prefer user-cookie keys) |
 | `OPENSRCER_AGENTIC_BUDGET_USD` | `2` | Hard cap per agentic dispatch (USD) |
+| `OPENSRCER_AGENTIC_LEAF_BUDGET_USD` | `0.5` | Tighter cap for triage-classified leaf/doc issues |
 | `OPENSRCER_AGENTIC_TIMEOUT_MS` | `1800000` | Wall-clock timeout per dispatch (30 min) |
 | `OPENSRCER_AGENTIC_AUTO_PR` | `1` | Set to `0` to disable auto-PR on clean agentic exit |
 | `OPENSRCER_COMMIT_NAME` | `rahulp7801` | Git author name for auto-PRs |
 | `OPENSRCER_COMMIT_EMAIL` | `76501505+rahulp7801@...` | Git author email for auto-PRs |
 | `OPENSRCER_CACHE_DIR` | `~/.contribai/repos` | Override the shallow clone cache directory |
-| `CONTRIBAI_GEMINI_RPM` | `4` | Gemini rate-limit throttle (requests per minute) |
-| `CRG_PYTHONPATH` | _(system)_ | Path to code-review-graph Python package |
+| `CRG_PYTHONPATH` | _(unset)_ | Path to the code-review-graph Python package. Unset = graph features report unavailable instead of erroring |
+
+There is no `ANTHROPIC_API_KEY` fallback: Anthropic and Gemini keys for dispatches
+come from the user's encrypted cookie (Crucible → API Keys), never from the
+server environment. See [lib/api-keys.ts](lib/api-keys.ts).
 
 ---
 
@@ -936,10 +1005,12 @@ npm run dev  # watches for changes and recompiles
 
 | Route | Method | Purpose |
 |-------|--------|---------|
-| `/api/auth/login` | GET | Initiate Auth0 login |
-| `/api/auth/logout` | GET | Clear session |
-| `/api/auth/callback` | GET | Auth0 OAuth callback |
-| `/api/auth/me` | GET | Current user info |
+| `/auth/login` | GET | Initiate Auth0 login |
+| `/auth/logout` | GET | Clear session |
+| `/auth/callback` | GET | Auth0 OAuth callback |
+| `/auth/profile` | GET | Current user info |
+
+These are served by `auth0.middleware()` in [middleware.ts](middleware.ts) — there is no route file for them. Under SDK v3 they lived under `/api/auth/*` and were mounted by a `handleAuth()` catch-all.
 
 ### Discovery & Issues
 
@@ -1106,11 +1177,6 @@ opensrc2/
 │
 ├── scripts/                      # Utility scripts
 │   └── seed_memory.py            # 7 KB — memory seeding script
-│
-├── ContribAI/                    # Rust agent binary (deterministic path)
-│   ├── Cargo.toml                # Rust workspace
-│   ├── crates/                   # Rust crate sources
-│   └── python/                   # Python helper scripts
 │
 ├── middleware.ts                 # Auth0 session-gating middleware
 ├── .mcp.json                    # MCP server config for claude -p

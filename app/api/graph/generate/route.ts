@@ -8,10 +8,15 @@ import { existsSync, mkdirSync } from "node:fs";
 import { graphCacheDir } from "@/lib/graph";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { sanitizeRepoId } from "@/lib/sanitize";
+import { requireSession } from "@/lib/require-session";
+import { gitAuthArgs } from "@/lib/git-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  const unauth = await requireSession();
+  if (unauth) return unauth;
+
   const body = (await req.json().catch(() => ({}))) as {
     repo_url?: string;
     force?: boolean;
@@ -54,14 +59,12 @@ export async function POST(req: NextRequest) {
           mkdirSync(cacheDir, { recursive: true });
 
           const token = await resolveGitHubToken();
-          const cloneUrl = token
-            ? `https://x-access-token:${token}@github.com/${owner}/${name}.git`
-            : `https://github.com/${owner}/${name}.git`;
+          const cloneUrl = `https://github.com/${owner}/${name}.git`;
 
           await new Promise<void>((resolve, reject) => {
             const proc = spawn(
               "git",
-              ["clone", "--depth", "1", cloneUrl, "."],
+              [...gitAuthArgs(token), "clone", "--depth", "1", cloneUrl, "."],
               { cwd: cacheDir, windowsHide: true },
             );
             let stderr = "";

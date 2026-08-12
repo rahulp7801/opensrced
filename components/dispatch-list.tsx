@@ -22,6 +22,10 @@ type Dispatch = {
   exit_code?: number;
   pr_status?: PrStatus;
   pr_failure_reason?: string;
+  pr_url?: string;
+  /** Whether the repo's own suite ran against the patch. "Verified" in the
+   *  UI must mean `passed` and nothing else. */
+  tests?: "passed" | "failed" | "skipped" | "not_run";
 };
 
 type DispatchWithLog = Dispatch & { log: string };
@@ -95,16 +99,30 @@ export function DispatchList() {
     };
   }, [selected]);
 
-  // Poll selected dispatch's log
+  // Poll selected dispatch's log incrementally: ask only for bytes written
+  // since the last poll and append them. The server used to resend the
+  // whole log (up to 200KB) every 1.5s.
   useEffect(() => {
     if (!selected) return;
     let live = true;
+    let offset = 0; // bytes of this dispatch's log already held
     async function tick() {
       try {
-        const res = await fetch(`/api/dispatches/${selected}`, { cache: "no-store" });
+        const res = await fetch(`/api/dispatches/${selected}?since=${offset}`, {
+          cache: "no-store",
+        });
         if (!res.ok) return;
-        const data = await res.json();
-        if (live) setDetail(data);
+        const data = (await res.json()) as DispatchWithLog & {
+          log_size?: number;
+          log_reset?: boolean;
+        };
+        if (!live) return;
+        offset = data.log_size ?? 0;
+        setDetail((prev) => {
+          // reset (or a different dispatch, or the first poll) → replace
+          if (data.log_reset || !prev || prev.id !== data.id) return data;
+          return { ...data, log: prev.log + data.log };
+        });
       } catch {
         /* ignore */
       }
@@ -237,7 +255,27 @@ export function DispatchList() {
                       ) : d.status === "succeeded" && d.pr_status === "pending" ? (
                         <span className="text-signal">opening PR</span>
                       ) : d.status === "succeeded" && d.pr_status === "opened" ? (
-                        <span className="text-ok">PR opened</span>
+                        // "verified" is reserved for a suite that actually
+                        // ran and passed. An opened PR whose tests were
+                        // skipped or never run says so rather than implying
+                        // a green check it didn't earn.
+                        d.tests === "passed" ? (
+                          <span className="text-ok">✓ PR opened · verified</span>
+                        ) : (
+                          <span className="text-ok">
+                            PR opened{" "}
+                            <span
+                              className="text-paper-faint"
+                              title={
+                                d.tests === "skipped"
+                                  ? "No recognized test suite in this repo"
+                                  : "Tests were not run — see OPENSRCER_RUN_TESTS"
+                              }
+                            >
+                              · unverified
+                            </span>
+                          </span>
+                        )
                       ) : (
                         d.status
                       )}

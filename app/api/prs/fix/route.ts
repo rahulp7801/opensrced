@@ -14,6 +14,8 @@ import { resolveAnthropicKey } from "@/lib/api-keys";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { sanitizeForPrompt, sanitizeRepoId, sanitizeFilePath, sanitizeBranchName, sanitizePrNumber } from "@/lib/sanitize";
 import { acquireSlot, releaseSlot, activeSlots } from "@/lib/concurrency";
+import { requireSession } from "@/lib/require-session";
+import { CLAUDE_AGENT_MODEL, CLAUDE_FAST_MODEL } from "@/lib/models";
 
 const execFileAsync = promisify(execFile);
 
@@ -24,6 +26,9 @@ const MAX_CONCURRENT_FIXES = 3;
 const MCP_CONFIG = join(process.cwd(), ".mcp.json");
 
 export async function POST(req: NextRequest) {
+  const unauth = await requireSession();
+  if (unauth) return unauth;
+
   const raw = (await req.json().catch(() => ({}))) as {
     repo?: string;
     pr_number?: number;
@@ -55,20 +60,21 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Concurrency limit
+  const anthropicKey = await resolveAnthropicKey();
+  if (!anthropicKey) {
+    return Response.json(
+      { error: "No Anthropic API key configured." },
+      { status: 400 },
+    );
+  }
+
+  // Concurrency limit. Acquired LAST, after every cheap rejection above —
+  // from here the slot is only released inside the streaming handlers, so
+  // an early return in between would leak it for the process lifetime.
   if (!acquireSlot("fix", MAX_CONCURRENT_FIXES)) {
     return Response.json(
       { error: `Too many concurrent fix generations (${activeSlots("fix")}/${MAX_CONCURRENT_FIXES}). Wait for one to finish.` },
       { status: 429 },
-    );
-  }
-
-  const anthropicKey = await resolveAnthropicKey();
-  if (!anthropicKey) {
-    releaseSlot("fix");
-    return Response.json(
-      { error: "No Anthropic API key configured." },
-      { status: 400 },
     );
   }
 
@@ -226,7 +232,7 @@ Rules:
             "anthropic-version": "2023-06-01",
           },
           body: JSON.stringify({
-            model: "claude-haiku-4-5-20251001",
+            model: CLAUDE_FAST_MODEL,
             max_tokens: 1024,
             system: systemPrompt,
             stream: true,
@@ -365,7 +371,7 @@ CONSTRAINTS — these are hard rules, not suggestions:
     "stream-json",
     "--verbose",
     "--model",
-    "claude-sonnet-4-5",
+    CLAUDE_AGENT_MODEL,
     "--max-budget-usd",
     String(Math.min(body.budget ?? 0.25, 1)),
   ];

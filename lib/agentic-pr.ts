@@ -21,6 +21,9 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { gitAuthArgs } from "./git-auth";
+import { GEMINI_API_BASE, GEMINI_REVIEW_MODEL } from "./models";
+import { applyDiff } from "./apply-diff";
 
 const execFileAsync = promisify(execFile);
 
@@ -38,14 +41,21 @@ function cloneDir(owner: string, name: string): string {
   return path.join(cacheRoot(), `${owner}__${name}`);
 }
 
-/** Pull the first fenced `diff` / `patch` block out of a log blob.
- *  Tolerates the common forms Claude produces: ```diff … ```,
- *  ```patch … ```, or a bare ``` block that starts with `--- a/`. */
+/** Pull the first fenced block that actually contains a unified diff.
+ *
+ *  Scans EVERY fenced block regardless of its language tag, then keeps the
+ *  first whose body has diff headers. The old version only matched fences
+ *  labelled `diff`, `patch`, or nothing — which meant a preceding ```bash
+ *  or ```js block (Claude emits these constantly: a repro command, the
+ *  offending snippet) desynchronized the fence pairing and the real diff
+ *  was never found. The dispatch then failed with "no fenced diff block
+ *  found in dispatch output" despite the diff being right there. */
 export function extractFirstDiff(log: string): string | null {
-  const fenced = /```(?:diff|patch|)\s*\n([\s\S]*?)```/g;
+  // [^\n]* — consume whatever language tag is on the opening fence.
+  const fenced = /```[^\n]*\n([\s\S]*?)```/g;
   for (const m of log.matchAll(fenced)) {
     const body = m[1];
-    if (/^--- (?:a\/|\/dev\/null)/m.test(body) && /^\+\+\+ b\//m.test(body)) {
+    if (/^--- (?:a\/|\/dev\/null)/m.test(body) && /^\+\+\+ (?:b\/|\/dev\/null)/m.test(body)) {
       // Ensure a trailing newline — git apply refuses input without one.
       return body.endsWith("\n") ? body : body + "\n";
     }
@@ -163,9 +173,13 @@ async function resolveBaseBranch(
   return { branch: "main", confidence: "low", reason: "could not query GitHub; defaulting to 'main'" };
 }
 
+/** Did the target repo's own suite run, and what did it say? Carried on
+ *  the result so the caller can record it without re-parsing the log. */
+export type TestOutcome = "passed" | "failed" | "skipped" | "not_run";
+
 export type PrResult =
-  | { ok: true; url: string; branch: string; base: BaseBranchResolution }
-  | { ok: false; reason: string };
+  | { ok: true; url: string; branch: string; base: BaseBranchResolution; tests: TestOutcome }
+  | { ok: false; reason: string; tests?: TestOutcome };
 
 export type CreatePrArgs = {
   repoFull: string;      // "owner/name" of upstream
@@ -236,17 +250,14 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
   let ghUser: string | null = null;
   const pushRemote = isCrucible ? "origin" : "fork";
 
-  if (isCrucible) {
-    // Temporarily set origin URL with the installation token so git push
-    // authenticates. Saved and restored after push to avoid leaving
-    // secrets in the clone's git config.
-    const tokenUrl = `https://x-access-token:${env.GITHUB_TOKEN}@github.com/${args.repoFull}.git`;
-    try {
-      await run("git", ["-C", clone, "remote", "set-url", "origin", tokenUrl], { env });
-    } catch (e) {
-      return { ok: false, reason: `set origin URL failed: ${e instanceof Error ? e.message : String(e)}` };
-    }
-  } else {
+  // Crucible pushes authenticate with a one-shot header rather than a
+  // tokenized origin URL. The old approach wrote the installation token
+  // into the shared clone's .git/config and only restored the clean URL on
+  // the success path — every failure between here and the push (worktree,
+  // diff apply, gitleaks, tests, commit, push) left the credential on disk.
+  const pushAuth = isCrucible ? gitAuthArgs(env.GITHUB_TOKEN) : [];
+
+  if (!isCrucible) {
     ghUser = await currentGithubUser(env);
     if (!ghUser) {
       return { ok: false, reason: "gh CLI not authenticated (gh api user failed)" };
@@ -319,95 +330,56 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
   //    changes land in both the working tree and the index, ready for
   //    commit without a separate `git add`.
   const patchPath = path.join(path.dirname(worktreeDir), "agentic.patch");
-  await writeFile(patchPath, diff);
-  // Four-tier apply ladder. LLM diffs fail in predictable ways; each
-  // tier targets a specific class of failure:
-  //
-  //   1. strict           — clean baseline
-  //   2. --ignore-whitespace   — catches paraphrased context lines where
-  //                              Claude subtly altered spacing/tabs
-  //   3. deepen + --3way       — fetches blob history into the shallow
-  //                              clone so 3-way merge can fuzz-match
-  //                              when context has drifted lightly
-  //   4. deepen + --3way + --ignore-whitespace — combined last resort
-  //
-  // Each step logs its own failure mode. If all four fail we give up
-  // with the last error, since the diff is beyond any reasonable
-  // auto-correction.
-  const applyBase = ["-C", worktreeDir, "apply", "--index", "--recount", "--whitespace=nowarn"];
-  let lastErr: unknown = null;
-  const applyTiers: Array<{ name: string; args: string[]; deepen?: boolean }> = [
-    { name: "strict",                            args: [...applyBase, patchPath] },
-    { name: "ignore-whitespace",                 args: [...applyBase, "--ignore-whitespace", patchPath] },
-    { name: "3way (deepened)",                   args: [...applyBase, "--3way", patchPath], deepen: true },
-    { name: "3way + ignore-whitespace (deepened)", args: [...applyBase, "--3way", "--ignore-whitespace", patchPath], deepen: true },
-  ];
-  let deepened = false;
-  let success = false;
-  for (const tier of applyTiers) {
-    if (tier.deepen && !deepened) {
-      // Fetch recent history into the shared shallow clone so --3way can
-      // reach blob parents. 50 commits is enough for recent-drift cases
-      // and much cheaper than --unshallow on a large repo.
-      try {
-        await run("git", ["-C", clone, "fetch", "--depth=50", "origin"], { env, timeout: 60_000 });
-        deepened = true;
-      } catch {
-        // Fetch failed (offline, fork issues, …). Skip 3way tiers.
-        break;
-      }
-    }
-    try {
-      await run("git", tier.args, { env });
-      success = true;
-      break;
-    } catch (e) {
-      lastErr = e;
-    }
+  const applied = await applyDiff(worktreeDir, diff, patchPath, {
+    env,
+    // Fetch recent history into the shared shallow clone so --3way can
+    // reach blob parents. 50 commits covers recent-drift cases and is much
+    // cheaper than --unshallow on a large repo. pushAuth carries the
+    // crucible installation token when the clone is private.
+    deepen: async () => {
+      await run("git", [...pushAuth, "-C", clone, "fetch", "--depth=50", "origin"], {
+        env,
+        timeout: 60_000,
+      });
+      return true;
+    },
+  });
+  if (!applied.ok) {
+    await cleanupWorktree();
+    return {
+      ok: false,
+      reason: `diff did not apply via any strategy. ${applied.errors.join(" | ").slice(0, 600)}`,
+    };
   }
-  if (!success) {
-    // Final tier: GNU `patch --fuzz=3`. `git apply` is strict to a fault —
-    // it bails on even a 1-line offset because Claude wrote the hunk
-    // header with the wrong starting line. GNU patch slides hunks to find
-    // their match; observed to apply every LLM-drift case tested. If this
-    // also fails, the diff is genuinely unusable.
-    try {
-      await run(
-        "patch",
-        ["-p1", "--fuzz=3", "-i", patchPath, "--no-backup-if-mismatch"],
-        { env, cwd: worktreeDir },
-      );
-      // GNU patch writes to the working tree but not the index. Stage
-      // the files it touched so the subsequent commit picks them up.
-      const touched = [...diff.matchAll(/^\+\+\+ b\/(\S+)/gm)].map((m) => m[1]);
-      for (const p of touched) {
-        await run("git", ["-C", worktreeDir, "add", "--", p], { env });
-      }
-      success = true;
-    } catch (e) {
-      await cleanupWorktree();
-      const primary = lastErr instanceof Error ? lastErr.message : String(lastErr);
-      const fallback = e instanceof Error ? e.message : String(e);
-      return {
-        ok: false,
-        reason: `diff did not apply via any strategy (git apply x4, GNU patch --fuzz=3). git: ${primary.slice(0, 200)}. patch: ${fallback.slice(0, 200)}`,
-      };
-    }
-  }
+  await appendFile(args.logPath, `[agentic-pr] diff applied via: ${applied.tier}\n`).catch(() => {});
 
-  // 4.4 Gemini self-review. If the user configured a Gemini API key,
-  //     ask Gemini to review the patch for correctness, security issues,
-  //     and style before proceeding. The review is logged but never blocks
-  //     the PR — it's advisory context for the reviewer.
+  // 4.4 Gemini self-review. Asks Gemini to review the patch for
+  //     correctness and security before it can become a PR.
+  //
+  //     This is a real gate: a `critical` verdict blocks the PR. It used
+  //     to log the review and continue unconditionally, which meant the
+  //     "reviews its own work" step could flag a patch as actively
+  //     dangerous and open the PR anyway. `concerns` still proceeds — the
+  //     PR is a draft and the note is in the log for the human.
+  //
+  //     Set OPENSRCER_GEMINI_GATE=0 to go back to advisory-only.
   if (env.GEMINI_API_KEY) {
-    const reviewResult = await geminiReviewDiff(diff, env.GEMINI_API_KEY);
-    if (reviewResult) {
+    const review = await geminiReviewDiff(diff, env.GEMINI_API_KEY);
+    if (review) {
       await appendFile(
         args.logPath,
         `\n[gemini-review] ─────────────────────────────\n` +
           `[gemini-review] ${new Date().toISOString()}\n` +
-          `${reviewResult}\n`,
+          `[gemini-review] verdict=${review.verdict}\n` +
+          `${review.text}\n`,
       ).catch(() => {});
+      if (review.verdict === "critical" && process.env.OPENSRCER_GEMINI_GATE !== "0") {
+        await cleanupWorktree();
+        return {
+          ok: false,
+          reason: `gemini review returned a critical verdict — PR blocked. See [gemini-review] in the dispatch log.`,
+        };
+      }
     }
   }
 
@@ -428,25 +400,49 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
     // clean, skipped (not installed), or error: continue
   }
 
-  // 4.5 Crucible sandbox test runner. Only runs for private-org flows
-  //     (orgCtx set). Public flows skip entirely — the existing PAT
-  //     path has no test-gating semantics and shouldn't block on
-  //     install-time failures for random public repos. The runner is
-  //     best-effort: a "skipped" result (no recognized ecosystem) still
-  //     permits the PR to open, but we annotate the log so the UI can
-  //     show "tests not run" rather than "verified".
-  if (args.orgCtx) {
-    const { runTests, formatLogBlock } = await import("./crucible/test-runner");
-    const result = await runTests(worktreeDir, { env });
-    await appendFile(args.logPath, formatLogBlock(result)).catch(() => {});
-    if (result.status === "failed" || result.status === "error") {
-      await cleanupWorktree();
-      return {
-        ok: false,
-        reason: `tests ${result.status}: ${result.reason ?? result.command ?? "unknown"}`,
-      };
+  // 4.5 Test runner — the thing that makes "Verified" mean something.
+  //
+  //   OPENSRCER_RUN_TESTS=crucible  (default) private-org flows only
+  //   OPENSRCER_RUN_TESTS=all                 every flow, public included
+  //   OPENSRCER_RUN_TESTS=off                 never
+  //
+  // Why "all" is not the default despite the README's pitch: the runner
+  // executes the TARGET repo's own `npm ci && npm test` / `pytest` / etc.
+  // directly on the host with no container isolation (see the header of
+  // crucible/test-runner.ts). For a private repo your org already trusts
+  // that's fine. For an arbitrary public repo picked off a discover scan
+  // it is remote code execution by design — one malicious postinstall
+  // script and the agent has handed over the box. Opt in per deployment,
+  // ideally alongside CRUCIBLE_SANDBOX_DOCKER when that lands.
+  //
+  // Either way we ALWAYS write a [crucible-tests] marker, so the dispatch
+  // record can distinguish "tests passed" from "tests never ran" instead
+  // of silently showing both as success.
+  let tests: TestOutcome = "not_run";
+  {
+    const mode = process.env.OPENSRCER_RUN_TESTS ?? "crucible";
+    const shouldRun = mode === "all" || (mode === "crucible" && Boolean(args.orgCtx));
+
+    if (shouldRun) {
+      const { runTests, formatLogBlock } = await import("./crucible/test-runner");
+      const result = await runTests(worktreeDir, { env });
+      await appendFile(args.logPath, formatLogBlock(result)).catch(() => {});
+      if (result.status === "failed" || result.status === "error") {
+        await cleanupWorktree();
+        return {
+          ok: false,
+          tests: "failed",
+          reason: `tests ${result.status}: ${result.reason ?? result.command ?? "unknown"}`,
+        };
+      }
+      tests = result.status === "passed" ? "passed" : "skipped";
+    } else {
+      await appendFile(
+        args.logPath,
+        `\n[crucible-tests] status=not_run reason=OPENSRCER_RUN_TESTS=${mode}` +
+          `${args.orgCtx ? "" : " (public flow)"} — patch is UNVERIFIED\n`,
+      ).catch(() => {});
     }
-    // passed or skipped: continue to commit + PR.
   }
 
   // 5. Commit with the user's identity (matches HANDOFF's "Commits
@@ -489,9 +485,10 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
     };
   }
 
-  // 6. Push branch.
+  // 6. Push branch. `pushAuth` is empty for public flows (gh/git pick up
+  //    the user's own credentials) and a one-shot auth header for crucible.
   try {
-    await run("git", ["-C", worktreeDir, "push", "-u", pushRemote, branch], {
+    await run("git", [...pushAuth, "-C", worktreeDir, "push", "-u", pushRemote, branch], {
       env,
       timeout: 90_000,
     });
@@ -501,13 +498,6 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
       ok: false,
       reason: `git push to ${pushRemote} failed: ${e instanceof Error ? e.message : String(e)}`,
     };
-  }
-
-  // Crucible: restore origin URL to the public (non-tokened) form so the
-  // installation token doesn't persist in the clone's git config.
-  if (isCrucible) {
-    const cleanUrl = `https://github.com/${args.repoFull}.git`;
-    await run("git", ["-C", clone, "remote", "set-url", "origin", cleanUrl], { env }).catch(() => {});
   }
 
   // Resolve the PR target branch BEFORE opening the PR. Passing an
@@ -584,13 +574,7 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
   // 7. Worktree cleanup on success too — the branch lives on the fork now.
   await cleanupWorktree();
   if (!prUrl) return { ok: false, reason: "gh pr create returned no URL" };
-  return { ok: true, url: prUrl, branch, base: baseRes };
-}
-
-/** First file path touched by the diff, for the commit subject. */
-function diffFirstPath(diff: string): string | null {
-  const m = /^\+\+\+ b\/(\S+)/m.exec(diff);
-  return m ? m[1] : null;
+  return { ok: true, url: prUrl, branch, base: baseRes, tests };
 }
 
 // ── PR title/body assembly ─────────────────────────────────────────────
@@ -622,7 +606,7 @@ function firstNonEmptyLine(s: string | null): string | null {
 
 type PrContent = { title: string; body: string };
 
-function buildPrContent(
+export function buildPrContent(
   issueNumber: number,
   dispatchId: string,
   logText: string,
@@ -679,10 +663,25 @@ function buildPrContent(
 
 // ── Gemini self-review ────────────────────────────────────────────────
 // Calls Gemini to review a diff for correctness and security issues.
-// Returns the review text. Uses the REST API directly to avoid adding
-// an SDK dependency.
+// Uses the REST API directly to avoid adding an SDK dependency.
+//
+// Returns null on any transport failure (rate limit, quota, network). A
+// review we could not obtain must never block a PR — only a review that
+// actually came back and said "critical" does.
 
-async function geminiReviewDiff(diff: string, apiKey: string): Promise<string | null> {
+export type GeminiVerdict = "clean" | "concerns" | "critical";
+
+export type GeminiReview = { verdict: GeminiVerdict; text: string };
+
+/** Pull the trailing `VERDICT: x` line out of the model's response.
+ *  Defaults to "concerns" when the line is missing or unparseable —
+ *  neither silently clean nor a PR-blocking critical. */
+export function parseGeminiVerdict(text: string): GeminiVerdict {
+  const m = /^\s*VERDICT:\s*(clean|concerns|critical)\s*$/im.exec(text);
+  return (m?.[1].toLowerCase() as GeminiVerdict) ?? "concerns";
+}
+
+async function geminiReviewDiff(diff: string, apiKey: string): Promise<GeminiReview | null> {
   // Truncate very large diffs to stay within Gemini's context window.
   const truncated = diff.length > 30_000 ? diff.slice(0, 30_000) + "\n\n... (truncated)" : diff;
 
@@ -696,6 +695,13 @@ async function geminiReviewDiff(diff: string, apiKey: string): Promise<string | 
     "",
     "Be concise. 3-8 bullet points max. If the patch looks clean, say so in one line.",
     "",
+    "Then end your response with exactly one final line, nothing after it:",
+    "  VERDICT: clean      — safe to open as a draft PR",
+    "  VERDICT: concerns   — worth a human look, but not dangerous",
+    "  VERDICT: critical   — actively wrong or insecure; must not be opened",
+    "Reserve `critical` for patches that are broken or introduce a vulnerability.",
+    "Style nits and missing tests are `concerns`, not `critical`.",
+    "",
     "```diff",
     truncated,
     "```",
@@ -703,7 +709,7 @@ async function geminiReviewDiff(diff: string, apiKey: string): Promise<string | 
 
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `${GEMINI_API_BASE}/models/${GEMINI_REVIEW_MODEL}:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -720,9 +726,11 @@ async function geminiReviewDiff(diff: string, apiKey: string): Promise<string | 
     const json = (await res.json()) as {
       candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
     };
-    return json.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
+    const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) return null;
+    return { verdict: parseGeminiVerdict(text), text };
   } catch {
-    // Network error, timeout, etc. — advisory review is best-effort.
+    // Network error, timeout, etc. — a review we couldn't get is not a veto.
     return null;
   }
 }

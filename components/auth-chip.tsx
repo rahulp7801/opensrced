@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useUser } from "@auth0/nextjs-auth0/client";
+import { useUser } from "@auth0/nextjs-auth0";
 
 export function AuthChip() {
   const { user, isLoading } = useUser();
@@ -17,7 +17,7 @@ export function AuthChip() {
   if (!user) {
     return (
       <Link
-        href="/api/auth/login"
+        href="/auth/login"
         className="flex items-center gap-2 border-l border-border px-4 text-[12px] font-medium text-paper bg-surface-2/60 hover:bg-surface-2 transition shrink-0 whitespace-nowrap"
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" className="shrink-0" aria-hidden>
@@ -57,7 +57,7 @@ export function AuthChip() {
         </span>
       </Link>
       <Link
-        href="/api/auth/logout"
+        href="/auth/logout"
         className="flex items-center border-l border-border px-3 text-[11px] text-paper-faint hover:text-red-300 hover:bg-red-950/20 transition whitespace-nowrap"
         title="Sign out"
       >

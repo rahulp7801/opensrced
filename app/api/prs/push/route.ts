@@ -11,6 +11,9 @@ import { promisify } from "node:util";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { sanitizeRepoId, sanitizeBranchName, sanitizeCommitMessage } from "@/lib/sanitize";
 import { acquireSlot, releaseSlot, activeSlots } from "@/lib/concurrency";
+import { gitAuthArgs } from "@/lib/git-auth";
+import { requireSession } from "@/lib/require-session";
+import { applyDiff, diffTouchedFiles } from "@/lib/apply-diff";
 
 const execFileAsync = promisify(execFile);
 
@@ -33,6 +36,9 @@ async function run(
 }
 
 export async function POST(req: NextRequest) {
+  const unauth = await requireSession();
+  if (unauth) return unauth;
+
   const raw = (await req.json().catch(() => ({}))) as {
     repo?: string;
     upstream?: string;
@@ -56,14 +62,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Concurrency limit
-  if (!acquireSlot("push", MAX_CONCURRENT_PUSHES)) {
-    return Response.json(
-      { error: `Too many concurrent push operations (${activeSlots("push")}/${MAX_CONCURRENT_PUSHES}). Wait for one to finish.` },
-      { status: 429 },
-    );
-  }
-
   const token = await resolveGitHubToken();
   if (!token) {
     return Response.json(
@@ -72,78 +70,43 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Concurrency limit. Acquired LAST, after every cheap rejection above —
+  // the slot is only released by the finally below, so anything that
+  // returns between acquire and try leaks it permanently. This 401 used to
+  // sit inside that window: three unauthenticated requests wedged pushes
+  // until the server restarted.
+  if (!acquireSlot("push", MAX_CONCURRENT_PUSHES)) {
+    return Response.json(
+      { error: `Too many concurrent push operations (${activeSlots("push")}/${MAX_CONCURRENT_PUSHES}). Wait for one to finish.` },
+      { status: 429 },
+    );
+  }
+
   const env: NodeJS.ProcessEnv = { ...process.env, GH_TOKEN: token };
   let tmpDir: string | null = null;
 
   try {
-    // 1. Clone the fork (shallow, single branch)
+    // 1. Clone the fork (shallow, single branch). Auth goes in a one-shot
+    //    header, not the URL — a tokenized remote lands in .git/config and
+    //    would survive in tmpDir until cleanup (and past it, if cleanup
+    //    fails). See lib/git-auth.ts.
     tmpDir = await mkdtemp(join(tmpdir(), "opensrcer-fix-"));
-    const cloneUrl = `https://x-access-token:${token}@github.com/${body.repo}.git`;
+    const cloneUrl = `https://github.com/${body.repo}.git`;
 
-    await run("git", ["clone", "--depth", "50", "--single-branch", "-b", body.branch, cloneUrl, "."], {
+    await run("git", [...gitAuthArgs(token), "clone", "--depth", "50", "--single-branch", "-b", body.branch, cloneUrl, "."], {
       cwd: tmpDir,
       env,
     });
 
-    // 2. Apply the diff — try multiple strategies since Claude's diff
-    //    format varies (sometimes missing a/b prefixes, sometimes it's
-    //    a search-replace block rather than unified diff).
-    let applied = false;
-
-    // Strategy A: try as a git-apply unified diff
-    // Write patch file OUTSIDE the repo to avoid it getting staged
+    // 2. Apply the diff via the shared ladder (lib/apply-diff.ts). The
+    //    patch file lives OUTSIDE the repo so it can't get staged. The
+    //    clone is --depth 50, so 3-way already has history — no deepen
+    //    callback needed here.
     const patchDir = await mkdtemp(join(tmpdir(), "opensrcer-patch-"));
     const diffPath = join(patchDir, "fix.patch");
-    const fixedDiff = normalizeDiff(body.diff);
-    await writeFile(diffPath, fixedDiff);
+    const applied = await applyDiff(tmpDir, body.diff, diffPath, { env });
 
-    const gitApplyStrategies = [
-      ["apply", diffPath],
-      ["apply", "--ignore-whitespace", diffPath],
-      ["apply", "--3way", diffPath],
-      ["apply", "--3way", "--ignore-whitespace", diffPath],
-    ];
-
-    const errors: string[] = [];
-    for (const args of gitApplyStrategies) {
-      if (applied) break;
-      try {
-        await run("git", ["-C", tmpDir, ...args], { env });
-        applied = true;
-      } catch (e) {
-        errors.push(`git ${args.join(" ").replace(diffPath, "fix.patch")}: ${e instanceof Error ? e.message.slice(0, 200) : String(e).slice(0, 200)}`);
-      }
-    }
-
-    // Strategy B: if git apply failed, try GNU patch with fuzz
-    if (!applied) {
-      try {
-        await run("patch", ["-p1", "--fuzz=3", "--no-backup-if-mismatch", "-i", diffPath], {
-          cwd: tmpDir,
-          env,
-        });
-        applied = true;
-      } catch {
-        // try without -p1
-        try {
-          await run("patch", ["-p0", "--fuzz=3", "--no-backup-if-mismatch", "-i", diffPath], {
-            cwd: tmpDir,
-            env,
-          });
-          applied = true;
-        } catch {
-          // continue to Strategy C
-        }
-      }
-    }
-
-    // Strategy C: if the diff contains search-replace style content,
-    //   try to apply it as direct file edits
-    if (!applied) {
-      applied = await tryDirectEdit(tmpDir, body.diff);
-    }
-
-    if (!applied) {
+    if (!applied.ok) {
       return Response.json(
         {
           error:
@@ -154,8 +117,8 @@ export async function POST(req: NextRequest) {
             diffPreview: body.diff?.slice(0, 500),
             hasHeaders: /^\+\+\+/m.test(body.diff ?? ""),
             hasPlusMinus: /^[-+][^-+]/m.test(body.diff ?? ""),
-            filesInDiff: [...(body.diff ?? "").matchAll(/^\+\+\+ (?:b\/)?(\S+)/gm)].map(m => m[1]),
-            strategyErrors: errors,
+            filesInDiff: diffTouchedFiles(body.diff ?? ""),
+            strategyErrors: applied.errors,
           },
         },
         { status: 422 },
@@ -216,7 +179,7 @@ export async function POST(req: NextRequest) {
     );
 
     // 5. Push
-    await run("git", ["-C", tmpDir, "push", "origin", body.branch], { env });
+    await run("git", [...gitAuthArgs(token), "-C", tmpDir, "push", "origin", body.branch], { env });
 
     // 6. Get the new commit SHA
     const newSha = await run("git", ["-C", tmpDir, "rev-parse", "HEAD"], { env });
@@ -238,163 +201,4 @@ export async function POST(req: NextRequest) {
       rm(tmpDir, { recursive: true, force: true }).catch(() => {});
     }
   }
-}
-
-// ── Diff normalization ────────────────────────────────────────────────
-// Claude sometimes outputs diffs without proper a/ b/ prefixes or
-// with missing ---/+++ headers. Normalize to standard unified diff.
-
-function normalizeDiff(raw: string): string {
-  let diff = raw;
-
-  // If the diff has ---/+++ lines without a/ b/ prefixes, add them
-  diff = diff.replace(
-    /^--- ([^/\n][^\n]*)/gm,
-    (_, path) => `--- a/${path.replace(/^a\//, "")}`,
-  );
-  diff = diff.replace(
-    /^\+\+\+ ([^/\n][^\n]*)/gm,
-    (_, path) => `+++ b/${path.replace(/^b\//, "")}`,
-  );
-
-  // Ensure trailing newline — git apply requires it
-  if (!diff.endsWith("\n")) diff += "\n";
-
-  return diff;
-}
-
-// ── Direct file edit fallback ─────────────────────────────────────────
-// When the diff isn't a proper unified diff, try to parse it as a
-// "replace this with that" instruction and apply directly.
-
-async function tryDirectEdit(dir: string, rawDiff: string): Promise<boolean> {
-  const { readFile: rf } = await import("node:fs/promises");
-  const { existsSync: exists } = await import("node:fs");
-
-  // Find the target file — try multiple patterns
-  let filePath: string | null = null;
-  const filePatterns = [
-    /^\+\+\+ (?:b\/)?(\S+)/m,
-    /^--- (?:a\/)?(\S+)/m,
-    /^diff --git a\/(\S+)/m,
-    // Claude sometimes just mentions the file path in text before the diff
-    /(?:in|file|modify|change)\s+[`"']?([^\s`"']+\.\w{1,5})[`"']?/im,
-  ];
-  for (const pat of filePatterns) {
-    const m = rawDiff.match(pat);
-    if (m && m[1] !== "/dev/null") {
-      const candidate = m[1].replace(/^[ab]\//, "");
-      if (exists(join(dir, candidate))) {
-        filePath = candidate;
-        break;
-      }
-    }
-  }
-
-  if (!filePath) return false;
-
-  const absPath = join(dir, filePath);
-  let content: string;
-  try {
-    content = await rf(absPath, "utf8");
-  } catch {
-    return false;
-  }
-
-  // Extract removed and added lines from the diff (skip headers)
-  const diffLines = rawDiff.split("\n");
-  const removals: string[] = [];
-  const additions: string[] = [];
-  for (const line of diffLines) {
-    if (line.startsWith("-") && !line.startsWith("---") && !line.startsWith("--")) {
-      removals.push(line.slice(1));
-    } else if (line.startsWith("+") && !line.startsWith("+++") && !line.startsWith("++")) {
-      additions.push(line.slice(1));
-    }
-  }
-
-  if (removals.length === 0 && additions.length === 0) return false;
-
-  // Strategy 1: Exact block match
-  const oldBlock = removals.join("\n");
-  const newBlock = additions.join("\n");
-  if (oldBlock && content.includes(oldBlock)) {
-    const updated = content.replace(oldBlock, newBlock);
-    if (updated !== content) {
-      await writeFile(absPath, updated);
-      return true;
-    }
-  }
-
-  // Strategy 2: Trimmed block match (ignore leading/trailing whitespace per line)
-  const contentLines = content.split("\n");
-  const trimmedRemovals = removals.map((l) => l.trim());
-  if (trimmedRemovals.length > 0 && trimmedRemovals[0]) {
-    // Find the starting line in the file
-    for (let i = 0; i <= contentLines.length - removals.length; i++) {
-      let match = true;
-      for (let j = 0; j < trimmedRemovals.length; j++) {
-        if (contentLines[i + j].trim() !== trimmedRemovals[j]) {
-          match = false;
-          break;
-        }
-      }
-      if (match) {
-        // Replace the matched lines, preserving the indent of the first line
-        const baseIndent = contentLines[i].match(/^(\s*)/)?.[1] ?? "";
-        const newLines = additions.map((l) => {
-          const trimmed = l.trimStart();
-          // Try to preserve original indentation structure
-          const origIndent = l.match(/^(\s*)/)?.[1] ?? "";
-          return origIndent || trimmed === "" ? l : baseIndent + trimmed;
-        });
-        contentLines.splice(i, removals.length, ...newLines);
-        await writeFile(absPath, contentLines.join("\n"));
-        return true;
-      }
-    }
-  }
-
-  // Strategy 3: Single-line fuzzy replacement
-  if (removals.length === 1 && additions.length === 1) {
-    const oldTrimmed = removals[0].trim();
-    if (oldTrimmed.length > 5) {
-      for (let i = 0; i < contentLines.length; i++) {
-        if (contentLines[i].trim() === oldTrimmed) {
-          const indent = contentLines[i].match(/^(\s*)/)?.[1] ?? "";
-          contentLines[i] = indent + additions[0].trim();
-          await writeFile(absPath, contentLines.join("\n"));
-          return true;
-        }
-      }
-    }
-  }
-
-  // Strategy 4: Multi-line fuzzy — match first and last removal lines to anchor
-  if (removals.length >= 2) {
-    const firstTrimmed = removals[0].trim();
-    const lastTrimmed = removals[removals.length - 1].trim();
-    if (firstTrimmed.length > 5 && lastTrimmed.length > 5) {
-      for (let i = 0; i < contentLines.length; i++) {
-        if (contentLines[i].trim() === firstTrimmed) {
-          // Found start — look for end
-          for (let j = i + 1; j < Math.min(i + removals.length + 5, contentLines.length); j++) {
-            if (contentLines[j].trim() === lastTrimmed) {
-              // Found anchors — replace the range
-              const indent = contentLines[i].match(/^(\s*)/)?.[1] ?? "";
-              const newLines = additions.map((l) => {
-                const trimmed = l.trimStart();
-                return trimmed === "" ? "" : indent + trimmed;
-              });
-              contentLines.splice(i, j - i + 1, ...newLines);
-              await writeFile(absPath, contentLines.join("\n"));
-              return true;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  return false;
 }

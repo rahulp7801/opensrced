@@ -7,6 +7,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { graphCacheDir, graphJsonPath } from "./graph";
+import { gitAuthArgs } from "./git-auth";
 export { graphCacheDir };
 
 export async function ensureGraph(
@@ -37,11 +38,9 @@ export async function ensureGraph(
         } catch { /* no gh CLI */ }
       }
 
-      const cloneUrl = token
-        ? `https://x-access-token:${token}@github.com/${owner}/${repo}.git`
-        : `https://github.com/${owner}/${repo}.git`;
+      const cloneUrl = `https://github.com/${owner}/${repo}.git`;
 
-      await execAsync("git", ["clone", "--depth", "1", cloneUrl, "."], {
+      await execAsync("git", [...gitAuthArgs(token), "clone", "--depth", "1", cloneUrl, "."], {
         cwd: cacheDir,
         timeout: 120_000,
       });
@@ -87,9 +86,30 @@ export async function ensureGraph(
   }
 }
 
+/** Path to the code-review-graph Python package, or null when it isn't
+ *  configured.
+ *
+ *  This used to default to `C:/Users/rahul/crg-pkg` in four separate files.
+ *  On any other machine that path doesn't exist, and the failure surfaced as
+ *  an opaque Python ImportError rather than "the optional CRG feature isn't
+ *  set up". Callers now check for null and degrade cleanly. */
+export function crgPythonPath(): string | null {
+  return process.env.CRG_PYTHONPATH || null;
+}
+
+/** True when CRG-backed features can run at all. */
+export function crgAvailable(): boolean {
+  return crgPythonPath() !== null;
+}
+
 export async function buildCrg(cwd: string): Promise<void> {
   // code-review-graph build — uses SQLite, handles large repos
-  const pythonPath = process.env.CRG_PYTHONPATH ?? "C:/Users/rahul/crg-pkg";
+  const pythonPath = crgPythonPath();
+  if (!pythonPath) {
+    throw new Error(
+      "CRG_PYTHONPATH is not set — graph features need the code-review-graph package. See README → Environment Variables.",
+    );
+  }
   await execAsync("python", [
     "-c",
     `import sys; sys.path.insert(0, r'${pythonPath}'); sys.argv=['code-review-graph','build']; from code_review_graph.cli import main; main()`,

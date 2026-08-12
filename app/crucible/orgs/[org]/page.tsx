@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getSession } from "@auth0/nextjs-auth0";
+import { auth0 } from "@/lib/auth0";
 import { PageHeading } from "@/components/page-heading";
 import { mappingForOrg } from "@/lib/crucible/orgs";
 import { listInstallationRepos } from "@/lib/crucible/advisories";
@@ -17,7 +17,7 @@ export default async function OrgReposPage({
   params: Promise<{ org: string }>;
 }) {
   const { org } = await params;
-  const session = await getSession();
+  const session = await auth0.getSession();
   const sub = session?.user?.sub;
   if (!sub) notFound();
 

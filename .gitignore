@@ -43,8 +43,9 @@ Cargo.lock.bak
 .DS_Store
 Thumbs.db
 
-# ContribAI runtime artifacts
+# Runtime artifacts
 .dispatches/
+.fixes/
 *.log
 llm_cache.db
 llm_cache.db-shm
@@ -61,3 +62,6 @@ venv/
 # Misc
 *.tmp
 *.bak
+
+# Test build output
+.test-build/

@@ -6,7 +6,7 @@ import { SiteFooter } from "@/components/footer";
 import { ApiKeyGate } from "@/components/api-key-gate";
 import { Onboarding } from "@/components/onboarding";
 import { ToastProvider } from "@/components/toast";
-import { UserProvider } from "@auth0/nextjs-auth0/client";
+import { Auth0Provider } from "@auth0/nextjs-auth0";
 
 const serif = Instrument_Serif({
   subsets: ["latin"],
@@ -40,7 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           } as React.CSSProperties
         }
       >
-        <UserProvider>
+        <Auth0Provider>
           <ToastProvider>
             <div className="flex min-h-svh flex-col">
               <SiteHeader />
@@ -50,7 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <SiteFooter />
             </div>
           </ToastProvider>
-        </UserProvider>
+        </Auth0Provider>
       </body>
     </html>
   );

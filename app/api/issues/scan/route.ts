@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listIssues } from "@/lib/issues";
 import { recordScan } from "@/lib/stats";
+import { requireSession } from "@/lib/require-session";
 
 function parseRepo(url: string): { owner: string; repo: string } | null {
   const m = /github\.com[:/]+([^/]+)\/([^/?#\s]+?)(?:\.git)?$/.exec(url.trim());
@@ -11,6 +12,9 @@ function parseRepo(url: string): { owner: string; repo: string } | null {
 }
 
 export async function GET(req: NextRequest) {
+  const unauth = await requireSession();
+  if (unauth) return unauth;
+
   const url = req.nextUrl.searchParams.get("repo");
   if (!url) {
     return NextResponse.json({ error: "missing ?repo=" }, { status: 400 });

@@ -2,7 +2,7 @@
 // Installation-tokened issue list (excludes PRs).
 
 import { NextResponse } from "next/server";
-import { getSession } from "@auth0/nextjs-auth0";
+import { auth0 } from "@/lib/auth0";
 import { mappingForOrg } from "@/lib/crucible/orgs";
 import { listInstallationIssues } from "@/lib/crucible/advisories";
 
@@ -12,7 +12,7 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ owner: string; name: string }> },
 ) {
-  const session = await getSession();
+  const session = await auth0.getSession();
   const sub = session?.user?.sub;
   if (!sub) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 

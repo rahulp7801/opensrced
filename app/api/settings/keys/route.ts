@@ -3,13 +3,13 @@
 // DELETE /api/settings/keys — clear all stored keys
 
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@auth0/nextjs-auth0";
+import { auth0 } from "@/lib/auth0";
 import { getStoredKeys, setStoredKeys, clearStoredKeys } from "@/lib/api-keys";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const session = await getSession();
+  const session = await auth0.getSession();
   if (!session?.user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
   const keys = await getStoredKeys();
@@ -21,7 +21,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getSession();
+  const session = await auth0.getSession();
   if (!session?.user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
   const body = (await req.json().catch(() => ({}))) as {
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE() {
-  const session = await getSession();
+  const session = await auth0.getSession();
   if (!session?.user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
   await clearStoredKeys();

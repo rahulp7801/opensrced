@@ -1,0 +1,25 @@
+{
+  // Test build. The app's tsconfig targets the Next bundler, which resolves
+  // extensionless relative imports ("./git-auth"); bare Node cannot. Rather
+  // than add a test-runner dependency or put .ts extensions on every import
+  // in the app, compile to CommonJS first — tsc is already a devDependency
+  // and CJS require() resolves extensionless paths natively.
+  //
+  //   npm test  →  tsc -p tsconfig.test.json && node --test .test-build/
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": ".test-build",
+    "rootDir": ".",
+    "jsx": "react-jsx",
+    "incremental": false,
+    "declaration": false,
+    "sourceMap": true
+  },
+  // Only the pure logic under test and what it imports. Pulling in the app
+  // routes would drag next/server and react into a plain-Node build.
+  "include": ["lib/**/*.ts"],
+  "exclude": ["node_modules", "mcp-server", "scripts", ".test-build"]
+}

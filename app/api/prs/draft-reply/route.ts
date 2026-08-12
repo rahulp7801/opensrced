@@ -6,10 +6,15 @@ import { NextRequest } from "next/server";
 import { resolveAnthropicKey } from "@/lib/api-keys";
 import { getCached, setCached } from "@/lib/llm-cache";
 import { sanitizeForPrompt, sanitizeRepoId, sanitizeFilePath } from "@/lib/sanitize";
+import { requireSession } from "@/lib/require-session";
+import { CLAUDE_FAST_MODEL } from "@/lib/models";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  const unauth = await requireSession();
+  if (unauth) return unauth;
+
   const raw = (await req.json().catch(() => ({}))) as {
     repo?: string;
     pr_title?: string;
@@ -49,7 +54,7 @@ Rules:
 - Don't be defensive or overly apologetic
 - Don't use emojis`;
 
-  const model = "claude-haiku-4-5-20251001";
+  const model = CLAUDE_FAST_MODEL;
   const userMsg = `Reviewer ${body.comment_author ?? "someone"} wrote:\n"${body.comment_body}"\n\nDraft a reply:`;
 
   // Check cache first
@@ -74,7 +79,7 @@ Rules:
             "anthropic-version": "2023-06-01",
           },
           body: JSON.stringify({
-            model: "claude-haiku-4-5-20251001",
+            model: CLAUDE_FAST_MODEL,
             max_tokens: 300,
             system: systemPrompt,
             stream: true,

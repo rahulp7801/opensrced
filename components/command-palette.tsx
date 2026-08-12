@@ -33,7 +33,7 @@ const NAV_ACTIONS: Action[] = [
   { id: "go-overview", label: "Go to Overview", keys: "g 1", Icon: IconOverview, onRun: ({ router, close }) => { router.push("/"); close(); } },
   { id: "go-prs", label: "Go to Pull Requests", keys: "g 2", Icon: IconPrs, onRun: ({ router, close }) => { router.push("/prs"); close(); } },
   { id: "go-repos", label: "Go to Repositories", keys: "g 3", Icon: IconRepos, onRun: ({ router, close }) => { router.push("/repos"); close(); } },
-  { id: "go-runs", label: "Go to Activity", keys: "g 4", Icon: IconRuns, onRun: ({ router, close }) => { router.push("/runs"); close(); } },
+  { id: "go-dispatches", label: "Go to History", keys: "g 4", Icon: IconRuns, onRun: ({ router, close }) => { router.push("/dispatches"); close(); } },
   { id: "go-trigger", label: "Go to Dispatch", keys: "g 5", Icon: IconTrigger, onRun: ({ router, close }) => { router.push("/trigger"); close(); } },
 ];
 
@@ -70,7 +70,7 @@ export function CommandPalette() {
 
       // `g` then digit to navigate
       if (prefix) {
-        const map: Record<string, string> = { "1": "/", "2": "/prs", "3": "/repos", "4": "/runs", "5": "/trigger" };
+        const map: Record<string, string> = { "1": "/", "2": "/prs", "3": "/repos", "4": "/dispatches", "5": "/trigger" };
         if (map[e.key]) {
           router.push(map[e.key]);
         }

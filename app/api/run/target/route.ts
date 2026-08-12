@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { proxy } from "@/lib/api";
 import { canDispatchLocally, startDispatch } from "@/lib/dispatcher";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { resolveAnthropicKey } from "@/lib/api-keys";
+import { requireSession } from "@/lib/require-session";
 
 export async function POST(req: NextRequest) {
+  const unauth = await requireSession();
+  if (unauth) return unauth;
+
   const body = await req.json().catch(() => ({}));
   const repo_url: string | undefined = body?.repo_url;
   if (!repo_url || typeof repo_url !== "string") {
@@ -18,8 +21,22 @@ export async function POST(req: NextRequest) {
   const token = await resolveGitHubToken();
   const anthropicKey = (await resolveAnthropicKey()) ?? undefined;
 
-  // Prefer local subprocess execution — the Rust backend's trigger_target is a stub.
-  if (canDispatchLocally()) {
+  // The deterministic path needs the contribai binary. There is no remote
+  // fallback: the old one proxied to a Rust endpoint that was a stub, and
+  // when that was absent (always) it returned 202 "queued" for work that
+  // never happened. Failing loudly beats reporting a phantom success.
+  if (!canDispatchLocally()) {
+    return NextResponse.json(
+      {
+        status: "error",
+        message:
+          "Deterministic dispatch is not configured — set CONTRIBAI_BIN to the contribai binary, or use the agentic path (POST /api/run/agentic).",
+      },
+      { status: 501 },
+    );
+  }
+
+  {
     try {
       const d = startDispatch(repo_url, dry_run, "target", [], { token: token ?? undefined, anthropicKey });
       return NextResponse.json(
@@ -42,23 +59,4 @@ export async function POST(req: NextRequest) {
       );
     }
   }
-
-  // Fallback: proxy to the Rust stub (just logs, doesn't actually run).
-  const upstream = await proxy<unknown>("/api/run/target", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (upstream) return NextResponse.json(upstream, { status: 202 });
-
-  return NextResponse.json(
-    {
-      status: "accepted",
-      message: `Targeted run queued for ${repo_url} (no dispatcher configured — this is a no-op).`,
-      repo_url,
-      queued_at: new Date().toISOString(),
-      mode: dry_run ? "dry-run" : "live",
-    },
-    { status: 202 },
-  );
 }

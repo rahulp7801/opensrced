@@ -9,6 +9,7 @@ import { spawn, execFileSync, type ChildProcess } from "node:child_process";
 import { createWriteStream, mkdirSync, readFileSync, readdirSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { listAll as listSidecars, persist, read as readSidecar } from "./dispatch-store";
 
 const DISPATCH_DIR = join(process.cwd(), ".dispatches");
 
@@ -49,11 +50,32 @@ export type Dispatch = {
   /** Human-readable failure reason from `[agentic-pr] skipped:` when
    *  pr_status === "failed". */
   pr_failure_reason?: string;
+  /** Did the repo's own test suite actually run against the patch?
+   *
+   *  Tracked separately from pr_status because a PR can be opened while
+   *  wholly unverified — public flows skip the runner unless
+   *  OPENSRCER_RUN_TESTS=all. "Verified" in the UI must mean `passed`
+   *  here and nothing else; "skipped" is a repo with no recognized test
+   *  suite, "not_run" is us choosing not to execute it. */
+  tests?: "passed" | "failed" | "skipped" | "not_run";
 };
 
 // In-memory registry. Surviving logs are reconstructed from disk on read.
 const registry = new Map<string, Dispatch>();
 const children = new Map<string, ChildProcess>();
+
+/** Register a dispatch + its child so cancelDispatch() can find them.
+ *
+ *  The agentic path lives in lib/agentic-dispatcher.ts and used to skip
+ *  this entirely, which meant cancelDispatch() found no registry entry, no
+ *  child handle and no PID — every cancel on the primary dispatch path
+ *  returned "No running process found". Both spawners call this now. */
+export function registerDispatch(d: Dispatch, child: ChildProcess): void {
+  registry.set(d.id, d);
+  children.set(d.id, child);
+  persist(d);
+  child.on("close", () => children.delete(d.id));
+}
 
 // ── Issue-title cache ──────────────────────────────────────────────────
 // Keyed by "owner/repo#N". Fetched via `gh issue view` the first time a
@@ -150,7 +172,10 @@ function lookupTitle(repoFull: string, issueNumber: number): string | undefined 
 //   "[agentic-pr] starting auto-PR"    -> pending (started, not done)
 //   (none of the above, status=succeeded) -> undefined (dry-run / target
 //                                            / hunt; no PR expected)
-function enrichWithPrStatus(d: Dispatch): Dispatch {
+// Exported for tests — marker precedence here decides what the dashboard
+// reports for every pre-sidecar dispatch, and it is pure regex.
+export function enrichWithPrStatus(input: Dispatch): Dispatch {
+  let d = input;
   if (d.status === "running") return d;
   try {
     const text = readFileSync(d.log_path, "utf8");
@@ -162,6 +187,15 @@ function enrichWithPrStatus(d: Dispatch): Dispatch {
     const testsPassed = /\[crucible-tests\] status=passed/.test(text);
     const testsFailed = /\[crucible-tests\] status=(?:failed|error)/.test(text);
     const gitleaksFailed = /\[gitleaks\] status=leaks_found/.test(text);
+
+    // Independent of pr_status: a PR can be opened AND unverified.
+    const testsM = /\[crucible-tests\] status=(passed|failed|error|skipped|not_run)/.exec(text);
+    const tests: Dispatch["tests"] | undefined = testsM
+      ? testsM[1] === "error"
+        ? "failed"
+        : (testsM[1] as Dispatch["tests"])
+      : undefined;
+    d = tests ? { ...d, tests } : d;
 
     if (prOpened) return { ...d, pr_status: "opened" };
     if (gitleaksFailed) {
@@ -207,17 +241,11 @@ export function canDispatchLocally(): boolean {
   return Boolean(process.env.CONTRIBAI_BIN);
 }
 
-// No env/CLI fallback — token must be passed explicitly via opts.token,
-// resolved from the user's authenticated session.
-function fetchGithubToken(): string | undefined {
-  return undefined;
-}
-
 export type StartDispatchOpts = {
   // Pre-resolved token. Crucible (private-org) flows resolve the
   // installation token via lib/crucible/tokens.ts::resolveGithubToken
-  // before calling. Public flows omit this and we fall back to
-  // fetchGithubToken() (PAT → gh CLI).
+  // before calling. There is deliberately no env/CLI fallback: a
+  // background dispatch must never silently run as the deployer.
   token?: string;
   // User-provided Anthropic API key (from encrypted cookie).
   anthropicKey?: string;
@@ -248,7 +276,7 @@ export function startDispatch(
   delete env.GITHUB_TOKEN;
   delete env.ANTHROPIC_API_KEY;
   delete env.GEMINI_API_KEY;
-  const token = opts.token ?? fetchGithubToken();
+  const token = opts.token;
   if (token) env.GITHUB_TOKEN = token;
   if (opts.anthropicKey) env.ANTHROPIC_API_KEY = opts.anthropicKey;
 
@@ -305,8 +333,7 @@ export function startDispatch(
     pid: child.pid,
     log_path: logPath,
   };
-  registry.set(id, dispatch);
-  children.set(id, child);
+  registerDispatch(dispatch, child);
 
   child.stdout.pipe(out, { end: false });
   child.stderr.pipe(out, { end: false });
@@ -325,12 +352,14 @@ export function startDispatch(
       `[dispatcher] exited at ${dispatch.ended_at} · status=${dispatch.status} · exit=${code ?? "n/a"}${wasKilled ? " (cancelled by user)" : ""}\n`,
     );
     out.end();
+    persist(dispatch);
   });
   child.on("error", (err) => {
     dispatch.ended_at = new Date().toISOString();
     dispatch.status = "failed";
     out.write(`\n[dispatcher] spawn error: ${err.message}\n`);
     out.end();
+    persist(dispatch);
   });
 
   return dispatch;
@@ -408,13 +437,21 @@ export function readDraft(id: string, issueNumber: number) {
 }
 
 export function listDispatches(): Dispatch[] {
-  // Merge in-memory with filesystem-only records (from previous runs).
+  // Sidecars are the fast path: one small JSON per dispatch, written at
+  // each state transition. Anything with a sidecar never needs its log
+  // opened. See lib/dispatch-store.ts.
+  const fromSidecars = listSidecars();
+  const covered = new Set<string>([...registry.keys(), ...fromSidecars.map((d) => d.id)]);
+
+  // Legacy fallback: dispatches from before sidecars existed. Their state
+  // is reconstructed by parsing the log, which is why this is slow and why
+  // it only runs for ids the sidecars don't cover.
   const fromFs: Dispatch[] = [];
   if (existsSync(DISPATCH_DIR)) {
     for (const f of readdirSync(DISPATCH_DIR)) {
       if (!f.endsWith(".log")) continue;
       const id = f.slice(0, -4);
-      if (registry.has(id)) continue;
+      if (covered.has(id)) continue;
       // Reconstruct a minimal record from header
       try {
         const full = readFileSync(join(DISPATCH_DIR, f), "utf8");
@@ -482,29 +519,80 @@ export function listDispatches(): Dispatch[] {
       }
     }
   }
-  // Enrich in-memory records with titles from the cache — when a dispatch
-  // is freshly started its registry entry has no title, and we want the
-  // UI to backfill it the moment the title fetcher returns.
-  const memEnriched = [...registry.values()].map((d) => {
-    if (d.issue_title || d.issue_number === undefined) return d;
-    const repoFull = parseRepoFull(d.repo_url);
-    if (!repoFull) return d;
-    const t = lookupTitle(repoFull, d.issue_number);
-    return t ? { ...d, issue_title: t } : d;
-  });
+  // In-memory records win over their own sidecar — a live dispatch has a
+  // pid and an up-to-the-moment status the file can lag behind by one
+  // transition.
+  const inMemory = new Set(registry.keys());
+  const merged: Dispatch[] = [
+    ...registry.values(),
+    ...fromSidecars.filter((d) => !inMemory.has(d.id)),
+    ...fromFs,
+  ];
 
-  const list = [...memEnriched, ...fromFs].map(enrichWithPrStatus);
+  // Backfill issue titles from the cache, and only fall back to reading
+  // the log for records whose PR outcome isn't already recorded.
+  const list = merged.map((d) => {
+    let out = d;
+    if (!out.issue_title && out.issue_number !== undefined) {
+      const repoFull = parseRepoFull(out.repo_url);
+      const t = repoFull ? lookupTitle(repoFull, out.issue_number) : undefined;
+      if (t) out = { ...out, issue_title: t };
+    }
+    return out.pr_status ? out : enrichWithPrStatus(out);
+  });
   list.sort((a, b) => b.started_at.localeCompare(a.started_at));
   return list;
 }
 
 export function getDispatch(id: string): Dispatch | undefined {
   const fromRegistry = registry.get(id);
-  if (fromRegistry) return enrichWithPrStatus(fromRegistry);
+  if (fromRegistry) {
+    return fromRegistry.pr_status ? fromRegistry : enrichWithPrStatus(fromRegistry);
+  }
+  const sidecar = readSidecar(id);
+  if (sidecar) return sidecar.pr_status ? sidecar : enrichWithPrStatus(sidecar);
   const logPath = join(DISPATCH_DIR, `${id}.log`);
   if (!existsSync(logPath)) return undefined;
-  // Reconstruct from disk (listDispatches already runs enrichWithPrStatus)
+  // Legacy record with no sidecar — reconstruct from the log.
   return listDispatches().find((d) => d.id === id);
+}
+
+/** Read the log from a byte offset — the incremental path used by polling.
+ *
+ *  The dashboard polls a running dispatch every 1.5s. Re-sending the whole
+ *  log each time meant up to 200KB per poll for content the client already
+ *  had; now it asks for what arrived since `since` and appends.
+ *
+ *  `size` is the new offset to pass next time. A `size` smaller than
+ *  `since` means the log was truncated or replaced, so the caller gets the
+ *  whole thing back with reset=true instead of a nonsense slice. */
+export function readLogSince(
+  id: string,
+  since: number,
+  maxBytes = 200_000,
+): { chunk: string; size: number; reset: boolean } {
+  const logPath = join(DISPATCH_DIR, `${id}.log`);
+  if (!existsSync(logPath)) return { chunk: "", size: 0, reset: false };
+  const buf = readFileSync(logPath);
+  const size = buf.length;
+
+  if (since > 0 && since <= size) {
+    const slice = buf.subarray(since);
+    if (slice.length <= maxBytes) {
+      return { chunk: slice.toString("utf8"), size, reset: false };
+    }
+    // Fell far behind (client was backgrounded); send the tail and tell
+    // the client to replace rather than append.
+    return {
+      chunk:
+        `…(skipped ${slice.length - maxBytes} bytes)…\n` +
+        slice.subarray(slice.length - maxBytes).toString("utf8"),
+      size,
+      reset: true,
+    };
+  }
+
+  return { chunk: readLog(id, maxBytes), size, reset: true };
 }
 
 export function readLog(id: string, maxBytes = 200_000): string {

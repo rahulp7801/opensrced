@@ -3,18 +3,41 @@
 
 import { NextRequest } from "next/server";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { requireSession } from "@/lib/require-session";
 
 export const dynamic = "force-dynamic";
 
 const FIXES_DIR = join(process.cwd(), ".fixes");
 
+// Hard ceiling on stored fixes. Without it an authenticated client can grow
+// .fixes/ without bound — one small JSON per call, no natural expiry.
+// ponytail: oldest-first eviction by filename sort; swap for mtime if IDs
+// ever stop being creation-ordered.
+const MAX_FIXES = 1000;
+
 function ensureDir() {
   if (!existsSync(FIXES_DIR)) mkdirSync(FIXES_DIR, { recursive: true });
 }
 
+function evictOldest() {
+  try {
+    const files = readdirSync(FIXES_DIR).filter((f) => f.endsWith(".json")).sort();
+    for (const f of files.slice(0, files.length - MAX_FIXES)) {
+      rmSync(join(FIXES_DIR, f), { force: true });
+    }
+  } catch {
+    /* best effort — never block a write on cleanup */
+  }
+}
+
 export async function POST(req: NextRequest) {
+  // Writes are authenticated; reads stay public so shared /fix/<id> links
+  // work for anyone the user sends them to.
+  const unauth = await requireSession();
+  if (unauth) return unauth;
+
   const body = (await req.json().catch(() => ({}))) as {
     repo?: string;
     pr_number?: number;
@@ -42,6 +65,7 @@ export async function POST(req: NextRequest) {
   };
 
   writeFileSync(join(FIXES_DIR, `${id}.json`), JSON.stringify(fix, null, 2));
+  evictOldest();
 
   return Response.json({ id, url: `/fix/${id}` });
 }

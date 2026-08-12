@@ -4,7 +4,7 @@
 // orgCtx) to startAgenticDispatch so Phase 3 plumbing picks it up.
 
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@auth0/nextjs-auth0";
+import { auth0 } from "@/lib/auth0";
 import { startAgenticDispatch, startFindingDispatch } from "@/lib/agentic-dispatcher";
 import { mappingForOrg } from "@/lib/crucible/orgs";
 import { resolveGithubToken } from "@/lib/crucible/tokens";
@@ -13,7 +13,7 @@ import { resolveAnthropicKey, resolveGeminiKey, resolveMaxSpendUsd } from "@/lib
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const session = await getSession();
+  const session = await auth0.getSession();
   const sub = session?.user?.sub;
   if (!sub) {
     return NextResponse.json({ status: "error", message: "unauthenticated" }, { status: 401 });

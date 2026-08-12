@@ -220,8 +220,9 @@ export default function LandingPage() {
           <div className="px-4 py-4 text-[12.5px] text-paper-dim leading-relaxed space-y-3">
             <p>
               The authentication middleware lives in <strong className="text-paper">middleware.ts</strong> at the project root.
-              It uses <code className="text-signal bg-signal/10 px-1 py-0.5 text-[11.5px]">@auth0/nextjs-auth0/edge</code> to
-              gate every route behind an Auth0 session check.
+              It calls <code className="text-signal bg-signal/10 px-1 py-0.5 text-[11.5px]">auth0.middleware()</code> to serve
+              the <code className="text-signal bg-signal/10 px-1 py-0.5 text-[11.5px]">/auth/*</code> routes, then gates every
+              other route behind an Auth0 session check.
             </p>
             <div>
               <div className="flex items-center justify-between px-3 py-1.5 bg-ink/80 border border-border-soft border-b-0 text-[10px] text-paper-muted">

@@ -1,0 +1,9 @@
+node_modules
+mcp-server/node_modules
+.next
+.test-build
+.git
+.dispatches
+.fixes
+.env
+.env.local

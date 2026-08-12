@@ -3,10 +3,11 @@
 // rather than parsing files themselves — git/grep on a shallow clone is
 // fast enough and gives us language-agnostic coverage for free.
 //
-// Why not tree-sitter: it'd give precise defs/refs but needs per-language
-// grammars + a lot of glue. For v2 a heuristic `def`/`fn`/`class`-prefix
-// regex over ripgrep output is already strictly better than what the
-// pre-attach pipeline gives Sonnet today. Upgrade later if needed.
+// Symbol lookup (find_definition / find_references) is the exception: it
+// goes through the tree-sitter index in indexer.ts, which handles the
+// cases a regex can't — multi-line signatures, decorators above the def,
+// `const foo = () => …`, Rust `impl T { fn foo() }`, Go method receivers —
+// and labels each hit with a kind. The regex path it replaced is gone.
 
 import { execFile } from "node:child_process";
 import { readFile, stat } from "node:fs/promises";

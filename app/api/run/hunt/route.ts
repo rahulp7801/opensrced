@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { canDispatchLocally, startDispatch } from "@/lib/dispatcher";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { resolveAnthropicKey } from "@/lib/api-keys";
+import { requireSession } from "@/lib/require-session";
 
 export async function POST(req: NextRequest) {
+  const unauth = await requireSession();
+  if (unauth) return unauth;
+
   const body = await req.json().catch(() => ({}));
   const dry_run: boolean = Boolean(body?.dry_run ?? true);
   const rounds = Number(body?.rounds ?? 1);

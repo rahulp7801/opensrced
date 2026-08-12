@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { StatusChip, StatusDot } from "./status-dot";
 import { IconExternal, IconTrigger } from "./icons";
 import { DraftPreview } from "./draft-preview";
 import { cn, formatRelative } from "@/lib/utils";
+import { parseSplitHunks, type DiffRow } from "@/lib/diff-view";
 
 type PrStatus = "opened" | "failed" | "pending" | "tests_passed" | "tests_failed" | "none";
 
@@ -37,58 +38,99 @@ export function DispatchList() {
   const [selected, setSelected] = useState<string | null>(initialDispatch);
   const [detail, setDetail] = useState<DispatchWithLog | null>(null);
   const logRef = useRef<HTMLPreElement>(null);
+  // Dispatches we have already raised a desktop notification for.
   const notifiedRef = useRef(new Set<string>());
-  const prevRunningRef = useRef(new Set<string>());
+  // Dispatches we have observed in the `running` state during this session.
+  // A completion is only interesting if we watched it run.
+  const seenRunningRef = useRef(new Set<string>());
+  // Has the user clicked a row? Once they have, nothing may move the
+  // selection out from under them.
+  const userPickedRef = useRef(Boolean(initialDispatch));
+  // Read inside the poll loop without making it a dependency — see below.
+  const selectedRef = useRef<string | null>(initialDispatch);
 
-  // #7: Request notification permission on mount
+  const pick = useCallback((id: string) => {
+    userPickedRef.current = true;
+    selectedRef.current = id;
+    setSelected(id);
+  }, []);
+
+  // Request notification permission on mount
   useEffect(() => {
     if (typeof Notification !== "undefined" && Notification.permission === "default") {
       Notification.requestPermission();
     }
   }, []);
 
-  // Poll dispatch list
+  // Poll dispatch list.
+  //
+  // Deps are empty on purpose. This used to depend on `selected`, so every
+  // click tore the 2.5s interval down and built a new one — the poll cadence
+  // restarted from zero on each selection, and the effect re-ran only to read
+  // one value. `selectedRef` gives the loop the current selection without
+  // making the subscription depend on it.
   useEffect(() => {
     let live = true;
     async function tick() {
       try {
         const res = await fetch("/api/dispatches", { cache: "no-store" });
         const data = await res.json();
-        if (live) {
-          const dispatches: Dispatch[] = data.dispatches ?? [];
-          // #7: Notify on completion
-          for (const d of dispatches) {
-            if (
-              (d.status === "succeeded" || d.status === "failed") &&
-              !notifiedRef.current.has(d.id) &&
-              typeof Notification !== "undefined" &&
-              Notification.permission === "granted" &&
-              document.hidden
-            ) {
-              notifiedRef.current.add(d.id);
-              const repo = shortRepo(d.repo_url);
-              const body = d.status === "succeeded" && d.pr_status === "opened"
-                ? "PR opened successfully"
-                : d.status === "succeeded" ? "Completed" : "Failed";
-              new Notification(`opensrcer · ${repo}`, { body, icon: "/favicon.ico" });
-            }
-            if (d.status === "running") notifiedRef.current.add(d.id);
-            // Track running dispatches for auto-select on complete
-            if (d.status === "running") prevRunningRef.current.add(d.id);
-            // Auto-select dispatch that just finished
-            if (
-              (d.status === "succeeded" || d.status === "failed") &&
-              prevRunningRef.current.has(d.id)
-            ) {
-              prevRunningRef.current.delete(d.id);
-              setSelected(d.id);
-            }
+        if (!live) return;
+        const dispatches: Dispatch[] = data.dispatches ?? [];
+
+        for (const d of dispatches) {
+          if (d.status === "running") {
+            seenRunningRef.current.add(d.id);
+            continue;
           }
-          setItems(dispatches);
-          if (!selected && dispatches[0]) setSelected(dispatches[0].id);
+          const finished = d.status === "succeeded" || d.status === "failed";
+          if (!finished || !seenRunningRef.current.has(d.id)) continue;
+
+          // Notify once, for a run we actually watched start.
+          //
+          // The old code added every running dispatch to `notifiedRef`, which
+          // is the set meaning "already notified" — so by the time a run
+          // finished it was always in the set and the notification was
+          // suppressed. The feature only ever fired for dispatches that were
+          // already finished on first load, which is precisely the case where
+          // nobody is waiting on one.
+          if (
+            !notifiedRef.current.has(d.id) &&
+            typeof Notification !== "undefined" &&
+            Notification.permission === "granted" &&
+            document.hidden
+          ) {
+            notifiedRef.current.add(d.id);
+            const body =
+              d.status === "succeeded" && d.pr_status === "opened"
+                ? "PR opened successfully"
+                : d.status === "succeeded"
+                  ? "Completed"
+                  : "Failed";
+            new Notification(`opensrcer · ${shortRepo(d.repo_url)}`, {
+              body,
+              icon: "/favicon.ico",
+            });
+          }
+
+          // Surface a finished run only if the user is not reading something
+          // else. Previously any completion called setSelected, so a
+          // background run finishing yanked you out of the log you were
+          // mid-way through reading.
+          seenRunningRef.current.delete(d.id);
+          if (!userPickedRef.current) {
+            selectedRef.current = d.id;
+            setSelected(d.id);
+          }
+        }
+
+        setItems(dispatches);
+        if (!selectedRef.current && dispatches[0]) {
+          selectedRef.current = dispatches[0].id;
+          setSelected(dispatches[0].id);
         }
       } catch {
-        /* ignore */
+        /* transient network failure — the next tick retries */
       }
     }
     tick();
@@ -97,7 +139,7 @@ export function DispatchList() {
       live = false;
       clearInterval(id);
     };
-  }, [selected]);
+  }, []);
 
   // Poll selected dispatch's log incrementally: ask only for bytes written
   // since the last poll and append them. The server used to resend the
@@ -135,10 +177,35 @@ export function DispatchList() {
     };
   }, [selected]);
 
-  // Auto-scroll log to bottom when it grows
+  // Follow the log only while the user is already at the bottom.
+  //
+  // This used to jam scrollTop to the end on every log change. A running
+  // dispatch polls every 1.5s, so scrolling up to read an earlier line meant
+  // being thrown back to the tail a moment later — the log was unreadable
+  // until the run finished. Now scrolling up detaches, and scrolling back to
+  // the bottom re-attaches, which is how a tail-follow is expected to behave.
+  const wasAtBottomRef = useRef(true);
+  const onLogScroll = useCallback(() => {
+    const el = logRef.current;
+    if (!el) return;
+    wasAtBottomRef.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  }, []);
   useEffect(() => {
-    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+    const el = logRef.current;
+    if (el && wasAtBottomRef.current) el.scrollTop = el.scrollHeight;
   }, [detail?.log]);
+  // A different dispatch is a fresh log — start following it again.
+  useEffect(() => {
+    wasAtBottomRef.current = true;
+  }, [selected]);
+
+  // Both of these scan the entire log with regexes, and extractPrInfo was
+  // being called twice per render on top of that. A running dispatch renders
+  // every 1.5s against a log that reaches 200KB, so key them on the log.
+  const log = detail?.log ?? "";
+  const prInfo = useMemo(() => extractPrInfo(log), [log]);
+  const cost = useMemo(() => extractCost(log), [log]);
 
   // #10: Loading skeleton
   if (items === null) {
@@ -171,7 +238,7 @@ export function DispatchList() {
       <div className="border border-border bg-surface/40 p-10 text-center">
         <div className="serif text-[24px] text-paper">No dispatches yet.</div>
         <p className="mt-2 text-[12px] text-paper-muted">
-          Paste a repo URL into the command palette ({isMac() ? "⌘K" : "Ctrl K"}) or on the Dispatch page to fire your first pipeline.
+          Start one from <a href="/trigger" className="text-signal hover:underline">New run</a>, or hit the command palette ({isMac() ? "⌘K" : "Ctrl K"}) and paste a repo URL.
         </p>
       </div>
     );
@@ -196,7 +263,7 @@ export function DispatchList() {
                   "border-b border-border-soft last:border-0 cursor-pointer transition-colors",
                   selected === d.id ? "bg-surface-2/80" : "hover:bg-surface-2/40",
                 )}
-                onClick={() => setSelected(d.id)}
+                onClick={() => pick(d.id)}
               >
                 <div className="px-4 py-3">
                   <div className="flex items-center gap-2">
@@ -321,7 +388,7 @@ export function DispatchList() {
                     {detail.ended_at && (
                       <><span className="text-paper-faint">·</span><span className="tabular-nums">{formatDuration(detail.started_at, detail.ended_at)}</span></>
                     )}
-                    {(() => { const c = extractCost(detail.log); return c !== null ? <><span className="text-paper-faint">·</span><span className="tabular-nums text-signal">${c.toFixed(4)}</span></> : null; })()}
+                    {cost !== null && (<><span className="text-paper-faint">·</span><span className="tabular-nums text-signal">${cost.toFixed(4)}</span></>)}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -352,7 +419,7 @@ export function DispatchList() {
 
             {/* PR banner */}
             {(() => {
-              const info = extractPrInfo(detail.log);
+              const info = prInfo;
               if (!info) return null;
               return (
                 <div className="border-b border-ok/40 bg-ok/5 px-4 py-2.5 flex items-center gap-3">
@@ -365,10 +432,10 @@ export function DispatchList() {
             })()}
 
             {/* Diff preview */}
-            <DiffPreviewFromLog log={detail.log} prOpened={!!extractPrInfo(detail.log)} />
+            <DiffPreviewFromLog log={detail.log} prOpened={!!prInfo} />
 
             {/* Log */}
-            <LogViewer log={detail.log} isRunning={detail.status === "running"} logRef={logRef} />
+            <LogViewer log={detail.log} isRunning={detail.status === "running"} logRef={logRef} onScroll={onLogScroll} />
             <DraftPreview dispatchId={detail.id} repoUrl={detail.repo_url} />
           </div>
         ) : (
@@ -428,59 +495,6 @@ function RetryButton({ dispatch }: { dispatch: DispatchWithLog }) {
   );
 }
 
-// ── Status summary badges ─────────────────────────────────────────────
-function StatusSummary({ log }: { log: string }) {
-  if (!log) return null;
-
-  const hasDiff = /```(?:diff|patch)/m.test(log);
-  const testsRan = /\[crucible-tests\]/.test(log);
-  const testsPassed = /\[crucible-tests\] status=passed/.test(log);
-  const testsFailed = /\[crucible-tests\] status=(?:failed|error)/.test(log);
-  const prOpened = /github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+/.test(log);
-  const geminiReviewed = /\[gemini-review\]/.test(log);
-
-  const costMatch = /(?:Total cost|cost)[=:]\s*\$?([\d.]+)/i.exec(log);
-  const cost = costMatch ? parseFloat(costMatch[1]) : null;
-
-  const badges: Array<{ label: string; tone: "ok" | "alert" | "muted" | "info" | "signal" }> = [];
-
-  if (hasDiff) badges.push({ label: "patch", tone: "ok" });
-  if (geminiReviewed) badges.push({ label: "reviewed", tone: "info" });
-  if (testsRan) {
-    if (testsPassed) badges.push({ label: "tests passed", tone: "ok" });
-    else if (testsFailed) badges.push({ label: "tests failed", tone: "alert" });
-    else badges.push({ label: "tests ran", tone: "signal" });
-  }
-  if (prOpened) badges.push({ label: "PR opened", tone: "ok" });
-
-  if (badges.length === 0 && !cost) return null;
-
-  return (
-    <div className="flex items-center gap-1.5 flex-wrap">
-      {badges.map((b) => (
-        <span
-          key={b.label}
-          className={cn(
-            "text-[9px] tracking-[0.1em] uppercase px-1.5 py-px border leading-none",
-            b.tone === "ok" && "border-ok/40 text-ok",
-            b.tone === "alert" && "border-alert/40 text-alert",
-            b.tone === "info" && "border-info/40 text-info",
-            b.tone === "signal" && "border-signal/40 text-signal",
-            b.tone === "muted" && "border-border text-paper-muted",
-          )}
-        >
-          {b.label}
-        </span>
-      ))}
-      {cost !== null && cost > 0 && (
-        <span className="text-[9px] tracking-[0.1em] text-paper-muted tabular-nums">
-          ${cost.toFixed(2)}
-        </span>
-      )}
-    </div>
-  );
-}
-
 function CancelButton({ dispatchId }: { dispatchId: string }) {
   const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
@@ -536,26 +550,6 @@ function formatDuration(start: string, end?: string): string {
   return `${mins}m ${remSecs.toString().padStart(2, "0")}s`;
 }
 
-// #3: Copy button for PR URL
-function CopyPrUrl({ url }: { url: string }) {
-  const [copied, setCopied] = useState(false);
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch { /* clipboard denied */ }
-  }
-  return (
-    <button
-      onClick={copy}
-      className="inline-flex items-center gap-1 border border-border hover:border-border-strong px-2 py-1.5 text-[11px] text-paper-dim hover:text-paper transition"
-    >
-      {copied ? "copied" : "copy url"}
-    </button>
-  );
-}
-
 // Parse total cost from dispatch log. Claude Code outputs "total_cost_usd":N
 // in stream-json mode, and the agentic dispatcher may echo it.
 function extractCost(log: string): number | null {
@@ -572,67 +566,7 @@ function extractCost(log: string): number | null {
   return null;
 }
 
-// Celebration effect on PR opened
-function Confetti() {
-  const particles = Array.from({ length: 12 }, (_, i) => {
-    const angle = (i / 12) * 360;
-    const distance = 8 + Math.random() * 12;
-    const x = Math.cos((angle * Math.PI) / 180) * distance;
-    const y = Math.sin((angle * Math.PI) / 180) * distance;
-    const colors = ["text-ok", "text-signal", "text-info", "text-alert"];
-    const shapes = ["\u2022", "\u2726", "\u2727", "\u25CF"];
-    return { x, y, color: colors[i % colors.length], shape: shapes[i % shapes.length], delay: i * 30 };
-  });
-
-  return (
-    <span className="relative inline-block w-5 h-5">
-      {particles.map((p, i) => (
-        <span
-          key={i}
-          className={`absolute left-1/2 top-1/2 ${p.color}`}
-          style={{
-            fontSize: "6px",
-            opacity: 0,
-            animation: `confetti-burst 0.8s ease-out ${p.delay}ms forwards`,
-            ["--tx" as string]: `${p.x}px`,
-            ["--ty" as string]: `${p.y}px`,
-          }}
-        >
-          {p.shape}
-        </span>
-      ))}
-    </span>
-  );
-}
-
-function IssuePreview({ log }: { log: string }) {
-  const [expanded, setExpanded] = useState(false);
-  // Extract issue body from the log — it appears between the issue title
-  // header and "## Your tools" or the dispatcher separator
-  const bodyMatch = /^# .+?\n\n(?:URL: .+\nLabels: .+\n\n)?([\s\S]+?)(?=\n## Your tools|\n## Required first step|\n\[agentic-dispatcher\])/m.exec(log);
-  if (!bodyMatch || !bodyMatch[1].trim()) return null;
-  const body = bodyMatch[1].trim();
-  if (body.length < 20) return null;
-
-  return (
-    <div className="mt-1">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="text-[10px] text-paper-faint hover:text-paper-muted"
-      >
-        {expanded ? "hide issue body" : "show issue body"}
-      </button>
-      {expanded && (
-        <div className="mt-1.5 text-[11.5px] text-paper-dim leading-relaxed border-l-2 border-border-soft pl-3 max-h-32 overflow-y-auto whitespace-pre-wrap">
-          {body.slice(0, 1000)}
-          {body.length > 1000 && "…"}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function LogViewer({ log, isRunning, logRef }: { log: string; isRunning: boolean; logRef: React.RefObject<HTMLPreElement | null> }) {
+function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunning: boolean; logRef: React.RefObject<HTMLPreElement | null>; onScroll: () => void }) {
   const [search, setSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [rawMode, setRawMode] = useState(false);
@@ -715,45 +649,54 @@ function LogViewer({ log, isRunning, logRef }: { log: string; isRunning: boolean
           </button>
         </div>
       )}
-      <pre ref={logRef} className="h-[50vh] overflow-auto p-4 text-[11.5px] leading-relaxed text-paper-dim bg-ink/70 font-mono whitespace-pre-wrap">
+      <pre ref={logRef} onScroll={onScroll} className="h-[50vh] overflow-auto p-4 text-[11.5px] leading-relaxed text-paper-dim bg-ink/70 font-mono whitespace-pre-wrap">
         {search.length >= 2 ? renderLog() : rawMode ? <AnsiLog text={log} /> : (clean || "(log empty — waiting for first write)")}
       </pre>
     </div>
   );
 }
 
-// ANSI color renderer — converts escape sequences to styled spans
+// ANSI color renderer — converts escape sequences to styled spans.
+//
+// Values are bare colors, not "color: #xxx" declarations. They used to be the
+// latter, spread into a React style object as `{ cssText: "color: #ff5c5c" }`
+// — but `cssText` is a DOM CSSStyleDeclaration property, not a React style
+// key, so React dropped it with a warning and every span rendered unstyled.
+// The "colored" toggle next to the log has therefore never coloured anything.
 const ANSI_COLORS: Record<number, string> = {
-  30: "color: #6b6557", 31: "color: #ff5c5c", 32: "color: #7fe83f",
-  33: "color: #ff9d2e", 34: "color: #5ec8ff", 35: "color: #d898ff",
-  36: "color: #5ec8ff", 37: "color: #ece5d1",
-  90: "color: #6b6557", 91: "color: #ff5c5c", 92: "color: #7fe83f",
-  93: "color: #ffb866", 94: "color: #5ec8ff", 95: "color: #d898ff",
-  96: "color: #5ec8ff", 97: "color: #ece5d1",
+  30: "#6b6557", 31: "#ff5c5c", 32: "#7fe83f",
+  33: "#ff9d2e", 34: "#5ec8ff", 35: "#d898ff",
+  36: "#5ec8ff", 37: "#ece5d1",
+  90: "#6b6557", 91: "#ff5c5c", 92: "#7fe83f",
+  93: "#ffb866", 94: "#5ec8ff", 95: "#d898ff",
+  96: "#5ec8ff", 97: "#ece5d1",
 };
 
 function AnsiLog({ text }: { text: string }) {
   const parts: React.ReactNode[] = [];
   const re = /\x1b\[([0-9;]*)m/g;
   let last = 0;
-  let style = "";
+  let color: string | undefined;
   let bold = false;
   let ki = 0;
 
   let match: RegExpExecArray | null;
   while ((match = re.exec(text)) !== null) {
     if (match.index > last) {
+      const style: React.CSSProperties | undefined =
+        color || bold
+          ? { ...(color ? { color } : {}), ...(bold ? { fontWeight: 600 } : {}) }
+          : undefined;
       parts.push(
-        <span key={ki++} style={style || bold ? { ...(style ? { cssText: style } : {}), ...(bold ? { fontWeight: 600 } : {}) } as React.CSSProperties : undefined}>
+        <span key={ki++} style={style}>
           {text.slice(last, match.index)}
-        </span>
+        </span>,
       );
     }
-    const codes = match[1].split(";").map(Number);
-    for (const c of codes) {
-      if (c === 0) { style = ""; bold = false; }
+    for (const c of match[1].split(";").map(Number)) {
+      if (c === 0) { color = undefined; bold = false; }
       else if (c === 1) bold = true;
-      else if (ANSI_COLORS[c]) style = ANSI_COLORS[c];
+      else if (ANSI_COLORS[c]) color = ANSI_COLORS[c];
     }
     last = match.index + match[0].length;
   }
@@ -1181,46 +1124,8 @@ function CommitMsgButton({
 }
 
 function SplitDiffView({ body }: { body: string }) {
-  // Parse hunks into before/after line pairs
-  const lines = body.split(/\r?\n/);
-  const hunks: Array<{ file: string; before: string[]; after: string[] }> = [];
-  let currentFile = "";
-  let before: string[] = [];
-  let after: string[] = [];
-
-  for (const line of lines) {
-    if (line.startsWith("--- a/")) continue;
-    if (line.startsWith("+++ b/")) {
-      if (currentFile && (before.length || after.length)) {
-        hunks.push({ file: currentFile, before: [...before], after: [...after] });
-      }
-      currentFile = line.slice(6);
-      before = [];
-      after = [];
-      continue;
-    }
-    if (line.startsWith("@@")) {
-      if (before.length || after.length) {
-        hunks.push({ file: currentFile, before: [...before], after: [...after] });
-        before = [];
-        after = [];
-      }
-      continue;
-    }
-    if (line.startsWith("-")) {
-      before.push(line.slice(1));
-    } else if (line.startsWith("+")) {
-      after.push(line.slice(1));
-    } else {
-      // Context line — add to both
-      const ctx = line.startsWith(" ") ? line.slice(1) : line;
-      before.push(ctx);
-      after.push(ctx);
-    }
-  }
-  if (currentFile && (before.length || after.length)) {
-    hunks.push({ file: currentFile, before, after });
-  }
+  // Parsing lives in lib/diff-view.ts so the alignment rule can be tested.
+  const hunks = useMemo(() => parseSplitHunks(body), [body]);
 
   return (
     <div className="max-h-[50vh] overflow-auto">
@@ -1230,16 +1135,8 @@ function SplitDiffView({ body }: { body: string }) {
             {h.file}
           </div>
           <div className="grid grid-cols-2 divide-x divide-border-soft">
-            <pre className="p-3 text-[11px] leading-snug font-mono bg-alert/5 overflow-x-auto">
-              {h.before.map((l, i) => (
-                <div key={i} className="whitespace-pre text-paper-dim">{l || "\u00a0"}</div>
-              ))}
-            </pre>
-            <pre className="p-3 text-[11px] leading-snug font-mono bg-ok/5 overflow-x-auto">
-              {h.after.map((l, i) => (
-                <div key={i} className="whitespace-pre text-paper-dim">{l || "\u00a0"}</div>
-              ))}
-            </pre>
+            <DiffPane lines={h.before} tone="before" />
+            <DiffPane lines={h.after} tone="after" />
           </div>
         </div>
       ))}
@@ -1247,31 +1144,28 @@ function SplitDiffView({ body }: { body: string }) {
   );
 }
 
-function DiffLine({ line }: { line: string }) {
-  // Coloring rules mirror GitHub's:
-  //   +++ / ---           file header (bold, paper)
-  //   @@                  hunk header (info tone)
-  //   +<text>             addition (green wash)
-  //   -<text>             deletion (red wash)
-  //   default             context (muted)
-  let cls = "text-paper-dim";
-  let bg = "";
-  if (line.startsWith("+++") || line.startsWith("---")) {
-    cls = "text-paper font-semibold";
-  } else if (line.startsWith("@@")) {
-    cls = "text-info";
-    bg = "bg-info/10";
-  } else if (line.startsWith("+")) {
-    cls = "text-ok";
-    bg = "bg-ok/10";
-  } else if (line.startsWith("-")) {
-    cls = "text-alert";
-    bg = "bg-alert/10";
-  }
+/** One side of the split view. A `null` row renders as an inert gutter so the
+ *  opposite side keeps its vertical position. */
+function DiffPane({ lines, tone }: { lines: DiffRow[]; tone: "before" | "after" }) {
   return (
-    <div className={cn("px-4 whitespace-pre", cls, bg)}>
-      {line || "\u00a0"}
-    </div>
+    <pre
+      className={cn(
+        "p-3 text-[11px] leading-snug font-mono overflow-x-auto",
+        tone === "before" ? "bg-alert/5" : "bg-ok/5",
+      )}
+    >
+      {lines.map((l, i) =>
+        l === null ? (
+          <div key={i} className="whitespace-pre bg-ink/40 select-none" aria-hidden>
+            {" "}
+          </div>
+        ) : (
+          <div key={i} className="whitespace-pre text-paper-dim">
+            {l || " "}
+          </div>
+        ),
+      )}
+    </pre>
   );
 }
 

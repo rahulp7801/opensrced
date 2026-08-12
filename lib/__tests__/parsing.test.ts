@@ -25,6 +25,7 @@ import {
   type Dispatch,
 } from "../dispatcher";
 import { sanitizeFilePath, sanitizeGitHubName } from "../sanitize";
+import { parseSplitHunks } from "../diff-view";
 
 const SAMPLE_DIFF = `--- a/src/util.ts
 +++ b/src/util.ts
@@ -459,5 +460,71 @@ describe("applyDiff containment", () => {
     assert.equal(res.ok, false, "a patch pointing outside the worktree must not apply");
     assert.equal(readFileSync(outside, "utf8"), "ORIGINAL\n");
     rmSync(parent, { recursive: true, force: true });
+  });
+});
+
+describe("parseSplitHunks", () => {
+  test("keeps the two panes the same height when a hunk is uneven", () => {
+    // 1 deletion replaced by 3 additions. Rendered side by side, the panes
+    // must stay row-aligned; before the padding rule the right pane ran two
+    // rows ahead and every line below claimed to pair with the wrong one.
+    const diff = [
+      "--- a/src/app.ts",
+      "+++ b/src/app.ts",
+      "@@ -1,3 +1,5 @@",
+      " const a = 1;",
+      "-const b = 2;",
+      "+const b = 3;",
+      "+const c = 4;",
+      "+const d = 5;",
+      " const e = 6;",
+    ].join("\n");
+
+    const [hunk] = parseSplitHunks(diff);
+    assert.equal(hunk.file, "src/app.ts");
+    assert.equal(
+      hunk.before.length,
+      hunk.after.length,
+      "panes must have equal row counts",
+    );
+    // The trailing context line has to land on the same row in both panes,
+    // which is the property the alignment exists to guarantee.
+    assert.equal(hunk.before.at(-1), "const e = 6;");
+    assert.equal(hunk.after.at(-1), "const e = 6;");
+    assert.equal(hunk.before[0], "const a = 1;");
+    assert.equal(hunk.after[0], "const a = 1;");
+  });
+
+  test("pads the shorter side with nulls, not with real lines", () => {
+    const diff = [
+      "--- a/f.ts",
+      "+++ b/f.ts",
+      "@@ -1,1 +1,2 @@",
+      "-one",
+      "+uno",
+      "+dos",
+    ].join("\n");
+
+    const [hunk] = parseSplitHunks(diff);
+    assert.deepEqual(hunk.before, ["one", null]);
+    assert.deepEqual(hunk.after, ["uno", "dos"]);
+  });
+
+  test("splits a multi-file diff into one hunk set per file", () => {
+    const diff = [
+      "--- a/one.ts",
+      "+++ b/one.ts",
+      "@@ -1 +1 @@",
+      "-a",
+      "+b",
+      "--- a/two.ts",
+      "+++ b/two.ts",
+      "@@ -1 +1 @@",
+      "-c",
+      "+d",
+    ].join("\n");
+
+    const files = parseSplitHunks(diff).map((h) => h.file);
+    assert.deepEqual(files, ["one.ts", "two.ts"]);
   });
 });

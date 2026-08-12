@@ -11,6 +11,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { gitAuthArgs } from "./git-auth";
+import { childEnv } from "./child-env";
 
 const execFileAsync = promisify(execFile);
 
@@ -58,8 +59,8 @@ export async function ensureRepoClone(
     if (existsSync(dir)) await rm(dir, { recursive: true, force: true });
     await mkdir(CACHE_ROOT, { recursive: true });
     const url = `https://github.com/${repoFull}.git`;
-    const env: NodeJS.ProcessEnv = { ...process.env };
-    if (token) env.GITHUB_TOKEN = token;
+    // Allowlisted env — git needs PATH and HOME, not AUTH0_SECRET.
+    const env = childEnv({ GITHUB_TOKEN: token ?? undefined });
     await execFileAsync("git", [...gitAuthArgs(token), "clone", "--depth=1", "--single-branch", url, dir], {
       maxBuffer: 50 * 1024 * 1024,
       env,
@@ -117,7 +118,7 @@ export async function triggerIndexBuild(
     const { stdout } = await execFileAsync(
       "git",
       ["-C", repoDir, "ls-files"],
-      { maxBuffer: 50 * 1024 * 1024, windowsHide: true },
+      { maxBuffer: 50 * 1024 * 1024, windowsHide: true, env: childEnv() },
     );
     const files = stdout.split("\n").filter(Boolean);
 

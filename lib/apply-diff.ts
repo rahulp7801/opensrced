@@ -25,10 +25,27 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
+import { childEnv } from "./child-env";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
+
+/** Resolve `rel` inside `dir`, or null if it escapes.
+ *
+ *  Every path here comes out of a model-generated diff — a `+++ b/…` header
+ *  or a filename mentioned in prose. `git apply` refuses paths containing
+ *  `..` on its own, but the direct-edit fallback below does its own file I/O
+ *  and had no such check: a diff claiming to patch `../../../.env` would be
+ *  joined onto the worktree and written, outside the throwaway checkout the
+ *  whole design assumes as its blast radius. */
+function containedPath(dir: string, rel: string): string | null {
+  if (!rel || rel.includes("\0")) return null;
+  const root = resolve(dir);
+  const abs = resolve(root, rel);
+  if (abs !== root && !abs.startsWith(root + sep)) return null;
+  return abs;
+}
 
 export type ApplyResult =
   | { ok: true; tier: string; files: string[] }
@@ -70,7 +87,7 @@ export function diffTouchedFiles(diff: string): string[] {
 async function run(cmd: string, args: string[], opts: { cwd?: string; env?: NodeJS.ProcessEnv }) {
   return execFileAsync(cmd, args, {
     cwd: opts.cwd,
-    env: opts.env ?? process.env,
+    env: opts.env ?? childEnv(),
     maxBuffer: 20 * 1024 * 1024,
     windowsHide: true,
   });
@@ -166,6 +183,10 @@ function msg(e: unknown): string {
 
 async function stage(dir: string, files: string[], env?: NodeJS.ProcessEnv) {
   for (const f of files) {
+    // Skip anything that resolves outside the worktree — `git add` would
+    // reject it anyway, but not staging it is the honest outcome and keeps
+    // the caller from committing a half-applied patch it thinks is whole.
+    if (!containedPath(dir, f)) continue;
     await run("git", ["-C", dir, "add", "--", f], { env }).catch(() => {});
   }
 }
@@ -185,19 +206,23 @@ async function tryDirectEdit(dir: string, rawDiff: string): Promise<boolean> {
     // Claude sometimes just mentions the file path in text before the diff
     /(?:in|file|modify|change)\s+[`"']?([^\s`"']+\.\w{1,5})[`"']?/im,
   ];
+  let absPath: string | null = null;
   for (const pat of filePatterns) {
     const m = rawDiff.match(pat);
     if (m && m[1] !== "/dev/null") {
       const candidate = m[1].replace(/^[ab]\//, "");
-      if (existsSync(join(dir, candidate))) {
+      // Containment check before existsSync, not after: a path that escapes
+      // the worktree must never be probed, let alone written.
+      const abs = containedPath(dir, candidate);
+      if (abs && existsSync(abs)) {
         filePath = candidate;
+        absPath = abs;
         break;
       }
     }
   }
-  if (!filePath) return false;
+  if (!filePath || !absPath) return false;
 
-  const absPath = join(dir, filePath);
   let content: string;
   try {
     content = await readFile(absPath, "utf8");

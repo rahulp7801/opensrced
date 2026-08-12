@@ -6,14 +6,32 @@ import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { graphHtmlPath, graphJsonPath } from "@/lib/graph";
 import { hasCrg } from "@/lib/graph-build";
+import { requireSession } from "@/lib/require-session";
+import { sanitizeGitHubName } from "@/lib/sanitize";
 
 export const dynamic = "force-dynamic";
+
+/** Validate both segments before either reaches a path join. `owner` and
+ *  `repo` are interpolated into a cache directory and then read off disk;
+ *  unvalidated, a `..` segment turns this into an arbitrary file read that
+ *  the route serves back as HTML. */
+function safeParams(owner: string, repo: string): { owner: string; repo: string } | null {
+  const o = sanitizeGitHubName(owner);
+  const r = sanitizeGitHubName(repo);
+  return o && r ? { owner: o, repo: r } : null;
+}
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ owner: string; repo: string }> },
 ) {
-  const { owner, repo } = await params;
+  const unauth = await requireSession();
+  if (unauth) return unauth;
+
+  const raw = await params;
+  const safe = safeParams(raw.owner, raw.repo);
+  if (!safe) return new Response("Invalid repo", { status: 400 });
+  const { owner, repo } = safe;
   const htmlPath = graphHtmlPath(owner, repo);
 
   if (existsSync(htmlPath)) {
@@ -87,7 +105,13 @@ export async function HEAD(
   _req: NextRequest,
   { params }: { params: Promise<{ owner: string; repo: string }> },
 ) {
-  const { owner, repo } = await params;
+  const unauth = await requireSession();
+  if (unauth) return new Response(null, { status: 401 });
+
+  const raw = await params;
+  const safe = safeParams(raw.owner, raw.repo);
+  if (!safe) return new Response(null, { status: 400 });
+  const { owner, repo } = safe;
 
   const hasGraphify = existsSync(graphHtmlPath(owner, repo)) || existsSync(graphJsonPath(owner, repo));
   const hasCrgData = hasCrg(owner, repo);

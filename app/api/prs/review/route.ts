@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { resolveGitHubToken } from "@/lib/github-token";
+import { ghEnv } from "@/lib/child-env";
 import { sanitizeRepoId, sanitizePrNumber } from "@/lib/sanitize";
 import { requireSession } from "@/lib/require-session";
 
@@ -37,8 +38,9 @@ export async function GET(req: NextRequest) {
   }
 
   const token = await resolveGitHubToken();
-  const env: NodeJS.ProcessEnv = { ...process.env };
-  if (token) env.GH_TOKEN = token;
+  // gh acts as the requesting user or as nobody — never as whatever
+  // credential the host happens to have on disk. See lib/child-env.ts.
+  const env = ghEnv(token);
 
   try {
     // Fetch PR metadata

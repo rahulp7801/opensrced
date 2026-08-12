@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { startAgenticDispatch } from "@/lib/agentic-dispatcher";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { resolveAnthropicKey, resolveGeminiKey, resolveMaxSpendUsd } from "@/lib/api-keys";
-import { requireSession } from "@/lib/require-session";
+import { sessionUserId } from "@/lib/require-session";
 
 export async function POST(req: NextRequest) {
-  const unauth = await requireSession();
-  if (unauth) return unauth;
+  const auth0UserId = await sessionUserId();
+  if (!auth0UserId) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
 
   const body = await req.json().catch(() => ({}));
   const repo_url: string | undefined = body?.repo_url;
@@ -20,8 +22,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Resolve the logged-in user's GitHub token (from Auth0 session or
-  // env fallback) so the agentic child process authenticates as THEM.
+  // Resolve the logged-in user's GitHub token from their Auth0 session so
+  // the agentic child process — and the auto-PR hook after it — authenticate
+  // as THEM. There is no env or gh-keychain fallback; see lib/github-token.ts.
   const token = await resolveGitHubToken();
   const anthropicKey = await resolveAnthropicKey();
   if (!anthropicKey) {
@@ -34,7 +37,13 @@ export async function POST(req: NextRequest) {
   try {
     const geminiKey = (await resolveGeminiKey()) ?? undefined;
     const maxSpendUsd = await resolveMaxSpendUsd();
-    const d = startAgenticDispatch(repo_url, issue_number, { token: token ?? undefined, anthropicKey, geminiKey, maxSpendUsd });
+    const d = startAgenticDispatch(repo_url, issue_number, {
+      token: token ?? undefined,
+      anthropicKey,
+      geminiKey,
+      maxSpendUsd,
+      auth0UserId,
+    });
     return NextResponse.json(
       {
         status: "running",

@@ -32,15 +32,59 @@ export function sanitizeRepoId(input: string): string | null {
 }
 
 /**
- * Sanitize a file path from user input.
- * Prevents path traversal and strips dangerous characters.
+ * Sanitize a file path from user input. Returns a repo-relative path, or
+ * null when the input can't be reduced to one.
+ *
+ * The previous version did a single pass of `.replace(/\.\.\//g, "")`, which
+ * is the classic strip-once bug: `....//` has its inner `../` removed and
+ * comes out as `../`. It also left absolute paths (`/etc/passwd`,
+ * `C:\Windows\…`) completely untouched, because it only ever looked for
+ * traversal segments.
+ *
+ * This version normalizes first, then rejects anything that still escapes:
+ * no leading separator, no drive letter, no `..` segment survives.
  */
-export function sanitizeFilePath(input: string): string {
-  return input
-    .replace(/\.\.\//g, "")
-    .replace(/\.\.\\/g, "")
-    .replace(/[<>"|?*\x00-\x1F]/g, "")
-    .slice(0, 500);
+export function sanitizeFilePath(input: string): string | null {
+  const cleaned = input.replace(/[<>"|?*\x00-\x1F]/g, "").trim().slice(0, 500);
+  if (!cleaned) return null;
+
+  // Windows drive-relative (C:foo) and drive-absolute (C:\foo, C:/foo) both
+  // escape a directory-relative read, and a UNC path (\\host\share) leaves
+  // the machine entirely. Reject on the drive letter alone, not on the
+  // separator after it.
+  if (/^[A-Za-z]:/.test(cleaned) || /^[\\/]{2}/.test(cleaned)) return null;
+
+  const parts = cleaned.replace(/\\/g, "/").split("/");
+  // A leading empty part means the path started with "/" — absolute.
+  if (parts[0] === "") return null;
+
+  const out: string[] = [];
+  for (const part of parts) {
+    if (part === "" || part === ".") continue;
+    // Reject rather than pop: silently resolving `a/../../b` to `b` turns a
+    // traversal attempt into a successful lookup of a different file.
+    //
+    // Any all-dots segment is rejected, not just "..". Win32 strips trailing
+    // dots from a path component, so "...." can collapse to ".." on the way
+    // to the filesystem — a segment that looks inert here and traverses
+    // there. No legitimate path needs one.
+    if (/^\.+$/.test(part)) return null;
+    out.push(part);
+  }
+  return out.length > 0 ? out.join("/") : null;
+}
+
+/**
+ * Sanitize a GitHub owner or repository name (one path segment).
+ * GitHub allows alphanumerics, hyphen, underscore and dot; nothing else can
+ * appear in a valid login or repo name, and anything else risks changing the
+ * shape of an API URL built from it.
+ */
+export function sanitizeGitHubName(input: string): string | null {
+  const trimmed = input.trim().replace(/\.git$/i, "");
+  if (!/^[A-Za-z0-9_.-]{1,100}$/.test(trimmed)) return null;
+  if (trimmed === "." || trimmed === ".." || trimmed.includes("..")) return null;
+  return trimmed;
 }
 
 /**

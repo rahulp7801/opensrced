@@ -24,6 +24,7 @@ import { promisify } from "node:util";
 import { gitAuthArgs } from "./git-auth";
 import { GEMINI_API_BASE, GEMINI_REVIEW_MODEL } from "./models";
 import { applyDiff } from "./apply-diff";
+import { childEnv } from "./child-env";
 
 const execFileAsync = promisify(execFile);
 
@@ -70,7 +71,7 @@ async function run(
 ) {
   const { stdout, stderr } = await execFileAsync(cmd, args, {
     cwd: opts.cwd,
-    env: opts.env ?? process.env,
+    env: opts.env ?? childEnv(),
     maxBuffer: 20 * 1024 * 1024,
     timeout: opts.timeout ?? 60_000,
     windowsHide: true,
@@ -194,6 +195,14 @@ export type CreatePrArgs = {
   // For security findings (advisory/dependabot), the finding ID
   // (CVE or GHSA) is used instead of issue_number for branch naming.
   findingId?: string;
+  // Public flows: the requesting user's GitHub OAuth token, captured when
+  // the dispatch started. Required — see the env construction below.
+  token?: string;
+  // The requesting user's Gemini key, for the self-review gate. Passed
+  // explicitly rather than read from process.env: with an allowlisted child
+  // env there is no ambient GEMINI_API_KEY, and the deployer's key should
+  // not be spent on a user's review anyway.
+  geminiKey?: string;
 };
 
 export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult> {
@@ -211,10 +220,26 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
     return { ok: false, reason: `shallow clone missing at ${clone} (agentic run did not touch MCP tools)` };
   }
 
-  const env: NodeJS.ProcessEnv = { ...process.env };
-  // gh uses GITHUB_TOKEN or its own keychain; both are fine. GIT_TERMINAL_PROMPT=0
-  // stops git from hanging on a credential prompt in headless mode.
-  env.GIT_TERMINAL_PROMPT = "0";
+  // Allowlisted environment with exactly the credentials this run is
+  // entitled to. Two things changed here:
+  //
+  //   1. It was `{ ...process.env }`, so every git/gh subprocess — and the
+  //      repo's own `npm install && npm test`, which runs a few steps below
+  //      under OPENSRCER_RUN_TESTS — saw AUTH0_SECRET, GITHUB_APP_PRIVATE_KEY
+  //      and GITHUB_APP_WEBHOOK_SECRET. A postinstall script in a target repo
+  //      only had to read its environment.
+  //   2. gh no longer falls back to "GITHUB_TOKEN or its own keychain". On a
+  //      deployed instance that keychain is the DEPLOYER's, so public-flow
+  //      forks and PRs were opened from the operator's account regardless of
+  //      who asked. The token is now passed in explicitly by the caller.
+  //
+  // GIT_TERMINAL_PROMPT=0 (set by childEnv) stops git from hanging on a
+  // credential prompt in headless mode.
+  const env: NodeJS.ProcessEnv = childEnv({
+    GITHUB_TOKEN: args.token,
+    GH_TOKEN: args.token,
+    OPENSRCER_CACHE_DIR: process.env.OPENSRCER_CACHE_DIR,
+  });
 
   // Crucible: swap in a fresh installation token if the caller passed
   // an org context. Done at PR-open time (not dispatch-start time) so a
@@ -233,6 +258,7 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
       };
     }
     env.GITHUB_TOKEN = resolved.token;
+    env.GH_TOKEN = resolved.token;
     // One-line audit: token source + 4-char prefix (safe to log; `ghs_`
     // identifies an installation token, `gho_`/`ghp_`/`ghu_` identify
     // user tokens). Never log the full token.
@@ -258,9 +284,20 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
   const pushAuth = isCrucible ? gitAuthArgs(env.GITHUB_TOKEN) : [];
 
   if (!isCrucible) {
+    // No inherited credential to fall back on: without the requesting
+    // user's token there is nobody to attribute the fork and PR to, and
+    // proceeding would mean opening it as the deployer.
+    if (!args.token) {
+      return {
+        ok: false,
+        reason:
+          "no GitHub token for this dispatch — log in with GitHub so the PR " +
+          "is opened from your account",
+      };
+    }
     ghUser = await currentGithubUser(env);
     if (!ghUser) {
-      return { ok: false, reason: "gh CLI not authenticated (gh api user failed)" };
+      return { ok: false, reason: "gh api user failed with the session's GitHub token" };
     }
 
     // 1. Ensure a fork exists on the user's account.
@@ -363,8 +400,8 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
   //     PR is a draft and the note is in the log for the human.
   //
   //     Set OPENSRCER_GEMINI_GATE=0 to go back to advisory-only.
-  if (env.GEMINI_API_KEY) {
-    const review = await geminiReviewDiff(diff, env.GEMINI_API_KEY);
+  if (args.geminiKey) {
+    const review = await geminiReviewDiff(diff, args.geminiKey);
     if (review) {
       await appendFile(
         args.logPath,
@@ -708,11 +745,14 @@ async function geminiReviewDiff(diff: string, apiKey: string): Promise<GeminiRev
   ].join("\n");
 
   try {
+    // Key goes in a header, not the query string. A `?key=` lands in proxy
+    // access logs, browser-style referrer chains and any intermediary that
+    // records URLs; the header does not.
     const res = await fetch(
-      `${GEMINI_API_BASE}/models/${GEMINI_REVIEW_MODEL}:generateContent?key=${apiKey}`,
+      `${GEMINI_API_BASE}/models/${GEMINI_REVIEW_MODEL}:generateContent`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: { maxOutputTokens: 1024 },

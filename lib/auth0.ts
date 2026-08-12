@@ -43,8 +43,15 @@ export const auth0 = new Auth0Client({
     // in the session can fork repos and open PRs. Only meaningful when the
     // user picks "Continue with GitHub"; email/password logins ignore it.
     //
+    // `read:org` is what lets the crucible install-callback verify that the
+    // caller actually administers the org they're claiming, via
+    // /user/memberships/orgs/:org. Without it that route has no way to tell
+    // an org admin from anyone who guessed an installation id. Sessions
+    // minted before this scope existed lack it — those users must log out
+    // and back in before they can connect an org.
+    //
     // In v3 this lived in handleLogin() inside the catch-all route. With the
     // route gone, it belongs on the client config.
-    connection_scope: "public_repo read:user user:email",
+    connection_scope: "public_repo read:user user:email read:org",
   },
 });

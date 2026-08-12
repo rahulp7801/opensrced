@@ -18,6 +18,8 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 
 import { sanitizeRepoId, sanitizeFilePath } from "@/lib/sanitize";
+import { childEnv } from "@/lib/child-env";
+import { resolveGitHubToken } from "@/lib/github-token";
 import { requireSession } from "@/lib/require-session";
 
 const execFileAsync = promisify(execFile);
@@ -260,7 +262,9 @@ export async function POST(req: NextRequest) {
           detail: "Building knowledge graph for impact analysis (first time only)...",
         });
 
-        const buildResult = await ensureGraph(m[1], m[2]);
+        // Clone as the requesting user — ensureGraph no longer falls back
+        // to the host GITHUB_TOKEN or gh keychain.
+        const buildResult = await ensureGraph(m[1], m[2], await resolveGitHubToken());
         // Remove the "building" placeholder
         checks.pop();
 
@@ -376,7 +380,7 @@ async function runCrgImpact(
     "python",
     [scriptPath, repoDir, ...changedFiles],
     {
-      env: { ...process.env, PYTHONPATH: pythonPath, PYTHONIOENCODING: "utf-8" },
+      env: childEnv({ PYTHONPATH: pythonPath, PYTHONIOENCODING: "utf-8" }),
       maxBuffer: 5 * 1024 * 1024,
       windowsHide: true,
       timeout: 30_000,

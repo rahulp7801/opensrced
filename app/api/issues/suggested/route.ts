@@ -5,15 +5,20 @@
 // tags=broad → also matches "beginner", "starter", "first-timers-only", "easy"
 
 import { NextRequest } from "next/server";
+import { requireSession } from "@/lib/require-session";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { resolveGitHubToken } from "@/lib/github-token";
+import { ghEnv } from "@/lib/child-env";
 
 const execFileAsync = promisify(execFile);
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  const unauth = await requireSession();
+  if (unauth) return unauth;
+
   const rawLanguages = req.nextUrl.searchParams.get("languages")?.split(",").filter(Boolean) ?? [];
   // Sanitize language names — only allow alphanumeric, hyphens, plus signs (e.g. "c++", "c#")
   const languages = rawLanguages
@@ -27,8 +32,9 @@ export async function GET(req: NextRequest) {
     : ["good first issue"];
 
   const token = await resolveGitHubToken();
-  const env: NodeJS.ProcessEnv = { ...process.env };
-  if (token) env.GH_TOKEN = token;
+  // gh acts as the requesting user or as nobody — never as whatever
+  // credential the host happens to have on disk. See lib/child-env.ts.
+  const env = ghEnv(token);
 
   try {
     // Build query plan — one (label × language) pair per call. We use gh's

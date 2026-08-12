@@ -21,6 +21,7 @@
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { childEnv } from "../child-env";
 
 export type TestStatus = "passed" | "failed" | "error" | "skipped";
 
@@ -145,7 +146,7 @@ async function runCommand(
 
     const child = spawn(cmd, args, {
       cwd: opts.cwd,
-      env: opts.env ?? process.env,
+      env: opts.env ?? childEnv(),
       windowsHide: true,
       // shell: true needed for PATH resolution of npm/pip/go/cargo on
       // Windows (npm is npm.cmd, not npm.exe) and is harmless here —

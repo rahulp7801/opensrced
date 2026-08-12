@@ -1,9 +1,15 @@
 // POST /api/fixes — save a fix and return a shareable ID
-// GET /api/fixes — list recent shared fixes
+//
+// There is deliberately no GET here. This route used to expose a listing of
+// the 20 most recent shares — id, repo, PR number — to anyone at all, since
+// /api/fixes is public so that shared /fix/<id> links resolve without a
+// login. That turned "share this link with whoever you choose" into "anyone
+// can enumerate what everybody shared", and GET /api/fixes/<id> hands back
+// the full comment body and diff. Nothing in the UI consumed the listing.
 
 import { NextRequest } from "next/server";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, writeFileSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { requireSession } from "@/lib/require-session";
 
@@ -13,8 +19,8 @@ const FIXES_DIR = join(process.cwd(), ".fixes");
 
 // Hard ceiling on stored fixes. Without it an authenticated client can grow
 // .fixes/ without bound — one small JSON per call, no natural expiry.
-// ponytail: oldest-first eviction by filename sort; swap for mtime if IDs
-// ever stop being creation-ordered.
+// Eviction is oldest-first by mtime: ids are random UUIDs now, so a filename
+// sort would evict an arbitrary fix rather than the stalest one.
 const MAX_FIXES = 1000;
 
 function ensureDir() {
@@ -23,8 +29,11 @@ function ensureDir() {
 
 function evictOldest() {
   try {
-    const files = readdirSync(FIXES_DIR).filter((f) => f.endsWith(".json")).sort();
-    for (const f of files.slice(0, files.length - MAX_FIXES)) {
+    const files = readdirSync(FIXES_DIR)
+      .filter((f) => f.endsWith(".json"))
+      .map((f) => ({ f, mtime: statSync(join(FIXES_DIR, f)).mtimeMs }))
+      .sort((a, b) => a.mtime - b.mtime);
+    for (const { f } of files.slice(0, files.length - MAX_FIXES)) {
       rmSync(join(FIXES_DIR, f), { force: true });
     }
   } catch {
@@ -33,8 +42,8 @@ function evictOldest() {
 }
 
 export async function POST(req: NextRequest) {
-  // Writes are authenticated; reads stay public so shared /fix/<id> links
-  // work for anyone the user sends them to.
+  // Writes are authenticated; reads of a specific id stay public so shared
+  // /fix/<id> links work for anyone the user sends them to.
   const unauth = await requireSession();
   if (unauth) return unauth;
 
@@ -52,7 +61,12 @@ export async function POST(req: NextRequest) {
   }
 
   ensureDir();
-  const id = randomUUID().slice(0, 8);
+  // Full UUID, not an 8-char slice. The id IS the access control for a
+  // public share link: 8 hex chars is 32 bits, brute-forceable in minutes
+  // against an endpoint that answers 404 vs 200. Eviction still sorts
+  // oldest-first by name, which no longer tracks creation order, so sort by
+  // mtime there instead — see evictOldest's ponytail note.
+  const id = randomUUID();
   const fix = {
     id,
     repo: body.repo,
@@ -68,20 +82,4 @@ export async function POST(req: NextRequest) {
   evictOldest();
 
   return Response.json({ id, url: `/fix/${id}` });
-}
-
-export async function GET() {
-  ensureDir();
-  try {
-    const files = readdirSync(FIXES_DIR).filter((f) => f.endsWith(".json")).sort().reverse().slice(0, 20);
-    const fixes = files.map((f) => {
-      try {
-        const data = JSON.parse(readFileSync(join(FIXES_DIR, f), "utf8"));
-        return { id: data.id, repo: data.repo, pr_number: data.pr_number, created_at: data.created_at };
-      } catch { return null; }
-    }).filter(Boolean);
-    return Response.json({ fixes });
-  } catch {
-    return Response.json({ fixes: [] });
-  }
 }

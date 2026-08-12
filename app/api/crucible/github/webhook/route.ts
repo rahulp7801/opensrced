@@ -8,11 +8,7 @@
 
 import crypto from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import {
-  deleteByInstallationId,
-  mappingByInstallationId,
-  saveMapping,
-} from "@/lib/crucible/orgs";
+import { deleteByInstallationId } from "@/lib/crucible/orgs";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -73,13 +69,11 @@ export async function POST(req: NextRequest) {
   }
 
   if (payload.action === "created") {
-    // install-callback will (or already has) written the mapping with the
-    // Auth0 user id it pulled from the state cookie. Here we can only
-    // upgrade `installer` from the placeholder to the real GitHub login.
-    const existing = mappingByInstallationId(installationId);
-    if (existing && payload.sender?.login) {
-      saveMapping({ ...existing, installer: payload.sender.login });
-    }
+    // Nothing to do. install-callback records the mapping only after it has
+    // verified, against the org's own membership API, that the caller is an
+    // active admin — and it stores that verified login as `installer`.
+    // Overwriting it here with the webhook's `sender.login` would replace a
+    // checked value with an unchecked one.
     return NextResponse.json({ ok: true, action: "created" });
   }
 

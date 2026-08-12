@@ -9,6 +9,7 @@
 // Public by design: no session required, no secrets in the payload.
 
 import { execFileSync } from "node:child_process";
+import { childEnv } from "@/lib/child-env";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -16,7 +17,12 @@ export const dynamic = "force-dynamic";
 
 function hasBin(cmd: string, args: string[] = ["--version"]): boolean {
   try {
-    execFileSync(cmd, args, { stdio: "pipe", timeout: 3000, windowsHide: true });
+    execFileSync(cmd, args, {
+      stdio: "pipe",
+      timeout: 3000,
+      windowsHide: true,
+      env: childEnv(),
+    });
     return true;
   } catch {
     return false;

@@ -3,6 +3,7 @@
 // classification is ~instant, costs nothing, and is "good enough" for picking.
 
 import { execFile } from "node:child_process";
+import { ghEnv } from "./child-env";
 import { promisify } from "node:util";
 import { existsSync } from "node:fs";
 import { classifyScope, type ScopeInfo } from "./scope";
@@ -188,14 +189,18 @@ export async function listIssues(
   repo: string,
   limit = 50,
   extraLabels: string[] = [],
+  /** The requesting user's GitHub token. Optional: these are public reads,
+   *  so an absent token means a lower rate limit, not a failure. What it
+   *  must never do is fall through to the host's own gh credential. */
+  token?: string | null,
 ): Promise<ScannedIssue[]> {
   // Recent batch: most recently created N issues regardless of label.
   // Label-filtered batches: ensures beginner-friendly issues show up even
   // on active repos where they're old (maintainers keep them open for
   // newcomers, so they're rarely in the recent N).
   const calls: Array<Promise<GhIssue[]>> = [
-    runListIssues(owner, repo, limit, []),
-    ...extraLabels.map((l) => runListIssues(owner, repo, limit, [l])),
+    runListIssues(owner, repo, limit, [], token),
+    ...extraLabels.map((l) => runListIssues(owner, repo, limit, [l], token)),
   ];
   const batches = await Promise.all(calls.map((p) => p.catch(() => [])));
 
@@ -217,6 +222,7 @@ async function runListIssues(
   repo: string,
   limit: number,
   labels: string[],
+  token?: string | null,
 ): Promise<GhIssue[]> {
   const args = [
     "issue",
@@ -235,6 +241,9 @@ async function runListIssues(
   }
   const { stdout } = await execFileAsync(ghBin(), args, {
     maxBuffer: 10 * 1024 * 1024,
+    // Not the inherited environment: gh has no use for AUTH0_SECRET or the
+    // GitHub App private key, and no business reading the host's keychain.
+    env: ghEnv(token),
   });
   return JSON.parse(stdout) as GhIssue[];
 }

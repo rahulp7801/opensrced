@@ -12,6 +12,8 @@ import { existsSync } from "node:fs";
 import { promisify } from "node:util";
 import { resolveAnthropicKey } from "@/lib/api-keys";
 import { resolveGitHubToken } from "@/lib/github-token";
+import { childEnv, ghEnv } from "@/lib/child-env";
+import { ALLOWED_TOOLS } from "@/lib/agentic-dispatcher";
 import { sanitizeForPrompt, sanitizeRepoId, sanitizeFilePath, sanitizeBranchName, sanitizePrNumber } from "@/lib/sanitize";
 import { acquireSlot, releaseSlot, activeSlots } from "@/lib/concurrency";
 import { requireSession } from "@/lib/require-session";
@@ -115,8 +117,8 @@ async function quickFix(
       }
 
       try {
-        const env: NodeJS.ProcessEnv = { ...process.env };
-        if (ghToken) env.GH_TOKEN = ghToken;
+        // gh runs as the requesting user or not at all. See lib/child-env.ts.
+        const env = ghEnv(ghToken);
 
         // 1. Read file from repo cache (same cache the MCP server uses)
         //    Falls back to GitHub API if cache miss.
@@ -364,6 +366,8 @@ CONSTRAINTS — these are hard rules, not suggestions:
     "--mcp-config",
     MCP_CONFIG,
     "--strict-mcp-config",
+    "--allowed-tools",
+    ALLOWED_TOOLS.join(","),
     "--permission-mode",
     "bypassPermissions",
     "--no-session-persistence",
@@ -376,11 +380,9 @@ CONSTRAINTS — these are hard rules, not suggestions:
     String(Math.min(body.budget ?? 0.25, 1)),
   ];
 
-  const env: NodeJS.ProcessEnv = { ...process.env };
-  delete env.ANTHROPIC_API_KEY;
-  delete env.GITHUB_TOKEN;
-  env.ANTHROPIC_API_KEY = apiKey;
-  if (ghToken) env.GITHUB_TOKEN = ghToken;
+  // Allowlisted env + a read-only toolbelt: this spawn embeds PR review
+  // comments, which are written by third parties, in its prompt.
+  const env = childEnv({ ANTHROPIC_API_KEY: apiKey, GITHUB_TOKEN: ghToken ?? undefined });
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({

@@ -18,7 +18,13 @@ import { extractFirstDiff, buildPrContent, parseGeminiVerdict } from "../agentic
 import { normalizeDiff, diffTouchedFiles, applyDiff } from "../apply-diff";
 import { gitAuthArgs } from "../git-auth";
 import { classifyScope } from "../scope";
-import { enrichWithPrStatus, type Dispatch } from "../dispatcher";
+import {
+  enrichWithPrStatus,
+  isValidDispatchId,
+  ownsDispatch,
+  type Dispatch,
+} from "../dispatcher";
+import { sanitizeFilePath, sanitizeGitHubName } from "../sanitize";
 
 const SAMPLE_DIFF = `--- a/src/util.ts
 +++ b/src/util.ts
@@ -353,5 +359,105 @@ describe("applyDiff", () => {
     // Called at most once even though two tiers want three-way.
     assert.equal(deepenCalls, 1);
     rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+// ── Security boundaries ───────────────────────────────────────────────
+// These four are the checks that fail loudly if a fix for a real finding
+// gets reverted or refactored away. They are here rather than in a separate
+// file because they test the same pure functions this suite already covers.
+
+describe("sanitizeFilePath", () => {
+  test("accepts an ordinary repo-relative path", () => {
+    assert.equal(sanitizeFilePath("src/lib/util.ts"), "src/lib/util.ts");
+    assert.equal(sanitizeFilePath("./src/util.ts"), "src/util.ts");
+    assert.equal(sanitizeFilePath(String.raw`src\win\path.ts`), "src/win/path.ts");
+  });
+
+  test("rejects traversal, including the strip-once bypass", () => {
+    assert.equal(sanitizeFilePath("../../../etc/passwd"), null);
+    // The old implementation removed the inner "../" and returned "../",
+    // which is a traversal it had just been asked to prevent.
+    assert.equal(sanitizeFilePath("....//etc/passwd"), null);
+    assert.equal(sanitizeFilePath("src/../../secrets"), null);
+  });
+
+  test("rejects absolute paths on both platforms", () => {
+    assert.equal(sanitizeFilePath("/etc/passwd"), null);
+    assert.equal(sanitizeFilePath(String.raw`C:\Windows\win.ini`), null);
+    // Drive-relative: no separator after the colon, still not repo-relative.
+    assert.equal(sanitizeFilePath("C:Windows"), null);
+    assert.equal(sanitizeFilePath(String.raw`\\host\share\f.txt`), null);
+  });
+});
+
+describe("sanitizeGitHubName", () => {
+  test("accepts real logins and repo names", () => {
+    assert.equal(sanitizeGitHubName("torvalds"), "torvalds");
+    assert.equal(sanitizeGitHubName("next.js"), "next.js");
+    assert.equal(sanitizeGitHubName("some-repo_2"), "some-repo_2");
+  });
+
+  test("rejects anything that could reshape an API URL", () => {
+    for (const bad of ["a/b", "..", "../org", "a?b", "a b", "a#b", ""]) {
+      assert.equal(sanitizeGitHubName(bad), null, `expected ${JSON.stringify(bad)} to be rejected`);
+    }
+  });
+});
+
+describe("dispatch ownership", () => {
+  const base: Dispatch = {
+    id: "d_2026-01-01T00-00-00_abc123",
+    repo_url: "https://github.com/o/r",
+    mode: "agentic",
+    dry_run: true,
+    started_at: new Date(0).toISOString(),
+    status: "succeeded",
+    log_path: "/tmp/x.log",
+  };
+
+  test("only the owner sees their dispatch", () => {
+    const mine = { ...base, auth0_user_id: "auth0|alice" };
+    assert.equal(ownsDispatch(mine, "auth0|alice"), true);
+    assert.equal(ownsDispatch(mine, "auth0|mallory"), false);
+    assert.equal(ownsDispatch(mine, null), false);
+  });
+
+  test("an unowned legacy record is visible to nobody", () => {
+    // Not "visible to everyone" — that is the leak the field exists for.
+    assert.equal(ownsDispatch(base, "auth0|alice"), false);
+  });
+
+  test("only minted-shape ids reach the filesystem", () => {
+    assert.equal(isValidDispatchId("d_2026-01-01T00-00-00_abc123"), true);
+    for (const bad of ["../../package", "d_../x", "", "x_123", "d_" + "a".repeat(65)]) {
+      assert.equal(isValidDispatchId(bad), false, `expected ${JSON.stringify(bad)} to be rejected`);
+    }
+  });
+});
+
+describe("applyDiff containment", () => {
+  test("a diff aimed outside the worktree writes nothing outside it", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "opensrcer-escape-"));
+    const dir = join(parent, "worktree");
+    mkdirSync(dir);
+    execFileSync("git", ["-C", dir, "init", "-q"], { stdio: "pipe" });
+    execFileSync("git", ["-C", dir, "config", "user.email", "t@t.t"], { stdio: "pipe" });
+    execFileSync("git", ["-C", dir, "config", "user.name", "t"], { stdio: "pipe" });
+    writeFileSync(join(dir, "keep.txt"), "inside\n");
+    execFileSync("git", ["-C", dir, "add", "-A"], { stdio: "pipe" });
+    execFileSync("git", ["-C", dir, "commit", "-qm", "init"], { stdio: "pipe" });
+
+    // The target exists and the content matches, so the direct-edit tier
+    // would happily rewrite it — if containment were not checked first.
+    const outside = join(parent, "secret.txt");
+    writeFileSync(outside, "ORIGINAL\n");
+
+    const escaping = "--- a/../secret.txt\n+++ b/../secret.txt\n-ORIGINAL\n+PWNED\n";
+    const res = await applyDiff(dir, escaping, join(parent, "escape.patch"));
+
+    assert.equal(res.ok, false, "a patch pointing outside the worktree must not apply");
+    assert.equal(readFileSync(outside, "utf8"), "ORIGINAL\n");
+    rmSync(parent, { recursive: true, force: true });
   });
 });

@@ -4,15 +4,19 @@
 
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
-import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { graphCacheDir, graphJsonPath } from "./graph";
 import { gitAuthArgs } from "./git-auth";
+import { childEnv } from "./child-env";
 export { graphCacheDir };
 
 export async function ensureGraph(
   owner: string,
   repo: string,
+  /** The requesting user's GitHub token, resolved by the calling route.
+   *  Omitted means an anonymous clone, which is correct for a public repo
+   *  and a clean failure for a private one. */
+  token?: string | null,
 ): Promise<{ built: boolean; cached: boolean; error?: string }> {
   // Already exists — skip
   const jsonPath = graphJsonPath(owner, repo);
@@ -27,17 +31,11 @@ export async function ensureGraph(
     if (!existsSync(`${cacheDir}/.git`)) {
       mkdirSync(cacheDir, { recursive: true });
 
-      // Resolve token without cookies (this runs outside request context).
-      // Check env var first, then gh CLI.
-      let token: string | null = process.env.GITHUB_TOKEN ?? null;
-      if (!token) {
-        try {
-          token = execFileSync("gh", ["auth", "token"], {
-            stdio: "pipe", timeout: 5000, windowsHide: true,
-          }).toString().trim() || null;
-        } catch { /* no gh CLI */ }
-      }
-
+      // The token comes from the caller — this used to read the deployer's
+      // GITHUB_TOKEN and then shell out to `gh auth token` for their
+      // keychain, so a graph build kicked off by any user cloned with the
+      // operator's credential and could reach private repos the requester
+      // has no access to.
       const cloneUrl = `https://github.com/${owner}/${repo}.git`;
 
       await execAsync("git", [...gitAuthArgs(token), "clone", "--depth", "1", cloneUrl, "."], {
@@ -110,10 +108,14 @@ export async function buildCrg(cwd: string): Promise<void> {
       "CRG_PYTHONPATH is not set — graph features need the code-review-graph package. See README → Environment Variables.",
     );
   }
-  await execAsync("python", [
-    "-c",
-    `import sys; sys.path.insert(0, r'${pythonPath}'); sys.argv=['code-review-graph','build']; from code_review_graph.cli import main; main()`,
-  ], { cwd, timeout: 300_000 });
+  // pythonPath goes in PYTHONPATH, not spliced into a Python string
+  // literal. The old form broke outright on a path containing a quote and
+  // was one config change away from being an injection point.
+  await execAsync(
+    "python",
+    ["-c", "import sys; sys.argv=['code-review-graph','build']; from code_review_graph.cli import main; main()"],
+    { cwd, timeout: 300_000, env: childEnv({ PYTHONPATH: pythonPath, PYTHONIOENCODING: "utf-8" }) },
+  );
 }
 
 export function crgDbPath(owner: string, repo: string): string {
@@ -127,13 +129,16 @@ export function hasCrg(owner: string, repo: string): boolean {
 function execAsync(
   cmd: string,
   args: string[],
-  opts: { cwd?: string; timeout?: number },
+  opts: { cwd?: string; timeout?: number; env?: NodeJS.ProcessEnv },
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn(cmd, args, {
       cwd: opts.cwd,
       windowsHide: true,
       stdio: "pipe",
+      // Allowlisted by default — git and graphify need PATH and HOME, not
+      // the app's secrets.
+      env: opts.env ?? childEnv(),
     });
 
     let stderr = "";

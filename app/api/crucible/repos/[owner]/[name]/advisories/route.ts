@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
 import { mappingForOrg } from "@/lib/crucible/orgs";
 import { listAdvisories, listDependabotAlerts } from "@/lib/crucible/advisories";
+import { sanitizeGitHubName } from "@/lib/sanitize";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,15 @@ export async function GET(
   const sub = session?.user?.sub;
   if (!sub) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
-  const { owner, name } = await params;
+  const raw = await params;
+  // Both segments are interpolated straight into a GitHub API URL. Validate
+  // the shape before that happens rather than trusting the router.
+  const owner = sanitizeGitHubName(raw.owner);
+  const name = sanitizeGitHubName(raw.name);
+  if (!owner || !name) {
+    return NextResponse.json({ error: "invalid repo" }, { status: 400 });
+  }
+
   const mapping = mappingForOrg(sub, owner);
   if (!mapping) {
     return NextResponse.json({ error: "org not connected" }, { status: 404 });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { listIssues } from "@/lib/issues";
 import { recordScan } from "@/lib/stats";
 import { requireSession } from "@/lib/require-session";
+import { resolveGitHubToken } from "@/lib/github-token";
 
 function parseRepo(url: string): { owner: string; repo: string } | null {
   const m = /github\.com[:/]+([^/]+)\/([^/?#\s]+?)(?:\.git)?$/.exec(url.trim());
@@ -37,7 +38,10 @@ export async function GET(req: NextRequest) {
       "first-timers-only",
       "easy",
     ];
-    const issues = await listIssues(parsed.owner, parsed.repo, 50, beginnerLabels);
+    // Scan as the requesting user. Without a token this still works against
+    // public repos, just at the unauthenticated rate limit.
+    const token = await resolveGitHubToken();
+    const issues = await listIssues(parsed.owner, parsed.repo, 50, beginnerLabels, token);
     // Fire-and-forget stats bump — failure here must not break the scan.
     void recordScan(`${parsed.owner}/${parsed.repo}`).catch(() => {});
     return NextResponse.json({

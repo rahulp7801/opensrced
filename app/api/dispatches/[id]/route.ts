@@ -11,17 +11,21 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getDispatch, readLogSince } from "@/lib/dispatcher";
-import { requireSession } from "@/lib/require-session";
+import { sessionUserId } from "@/lib/require-session";
 
 export async function GET(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
-  const unauth = await requireSession();
-  if (unauth) return unauth;
+  const viewerId = await sessionUserId();
+  if (!viewerId) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
 
   const { id } = await ctx.params;
-  const d = getDispatch(id);
+  // getDispatch returns undefined for "no such id" and "not yours" alike,
+  // so the 404 below doesn't confirm that someone else's dispatch exists.
+  const d = getDispatch(id, viewerId);
   if (!d) return NextResponse.json({ error: "not found" }, { status: 404 });
 
   const sinceRaw = req.nextUrl.searchParams.get("since");

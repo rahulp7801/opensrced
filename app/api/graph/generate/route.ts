@@ -10,6 +10,7 @@ import { resolveGitHubToken } from "@/lib/github-token";
 import { sanitizeRepoId } from "@/lib/sanitize";
 import { requireSession } from "@/lib/require-session";
 import { gitAuthArgs } from "@/lib/git-auth";
+import { childEnv } from "@/lib/child-env";
 
 export const dynamic = "force-dynamic";
 
@@ -155,7 +156,7 @@ export async function POST(req: NextRequest) {
           const proc = spawn(cmd, cmdArgs, {
             cwd: cacheDir,
             windowsHide: true,
-            env: { ...process.env },
+            env: childEnv(),
           });
 
           let stderr = "";

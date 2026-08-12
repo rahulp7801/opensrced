@@ -84,6 +84,10 @@ export async function POST(req: NextRequest) {
       anthropicKey,
       geminiKey,
       maxSpendUsd,
+      // Owner of the resulting dispatch. Crucible logs carry private-repo
+      // source and diffs, so this is the field that keeps them out of other
+      // users' /api/dispatches listings.
+      auth0UserId: sub,
     };
     const d = isSecurityFinding
       ? startFindingDispatch(repo_url, finding!, sharedOpts)

@@ -17,8 +17,13 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
+import { assertAuthConfig, authDisabled } from "@/lib/require-session";
 
-const AUTH_DISABLED = process.env.AUTH_DISABLED === "1";
+// Throws on a production build with AUTH_DISABLED=1 — that combination
+// switches off this gate and every per-route guard simultaneously.
+assertAuthConfig();
+
+const AUTH_DISABLED = authDisabled();
 
 // Paths that must remain public regardless of auth state.
 const PUBLIC_PATHS = [
@@ -46,7 +51,10 @@ const PUBLIC_PATHS = [
   "/repos",
   "/crucible",
   "/demo",
-  // Public shared fix viewer + API
+  // Public shared fix viewer + the single-fix read API behind it. The
+  // enumeration endpoint that used to live at GET /api/fixes is gone — it
+  // listed the most recent shares to anyone who asked, which made the
+  // unguessable-link model of /fix/<id> meaningless. See app/api/fixes.
   "/fix",
   "/api/fixes",
 ];

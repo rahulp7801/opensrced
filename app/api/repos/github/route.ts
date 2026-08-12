@@ -2,9 +2,11 @@
 // Fetches repos from the authenticated user's GitHub account with pagination.
 
 import { NextRequest } from "next/server";
+import { requireSession } from "@/lib/require-session";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { resolveGitHubToken } from "@/lib/github-token";
+import { ghEnv } from "@/lib/child-env";
 
 const execFileAsync = promisify(execFile);
 
@@ -13,13 +15,17 @@ export const dynamic = "force-dynamic";
 const DEFAULT_PER_PAGE = 15;
 
 export async function GET(req: NextRequest) {
+  const unauth = await requireSession();
+  if (unauth) return unauth;
+
   const tab = req.nextUrl.searchParams.get("tab") ?? "contributed";
   const page = Math.max(1, parseInt(req.nextUrl.searchParams.get("page") ?? "1"));
   const perPage = Math.min(30, Math.max(5, parseInt(req.nextUrl.searchParams.get("per_page") ?? String(DEFAULT_PER_PAGE))));
 
   const token = await resolveGitHubToken();
-  const env: NodeJS.ProcessEnv = { ...process.env };
-  if (token) env.GH_TOKEN = token;
+  // gh acts as the requesting user or as nobody — never as whatever
+  // credential the host happens to have on disk. See lib/child-env.ts.
+  const env = ghEnv(token);
 
   type Repo = {
     nameWithOwner: string;

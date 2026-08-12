@@ -12,6 +12,7 @@ import { resolveGitHubToken } from "@/lib/github-token";
 import { sanitizeRepoId, sanitizeBranchName, sanitizeCommitMessage } from "@/lib/sanitize";
 import { acquireSlot, releaseSlot, activeSlots } from "@/lib/concurrency";
 import { gitAuthArgs } from "@/lib/git-auth";
+import { childEnv, ghEnv } from "@/lib/child-env";
 import { requireSession } from "@/lib/require-session";
 import { applyDiff, diffTouchedFiles } from "@/lib/apply-diff";
 
@@ -28,7 +29,7 @@ async function run(
 ): Promise<string> {
   const { stdout } = await execFileAsync(cmd, args, {
     cwd: opts.cwd,
-    env: opts.env ?? process.env,
+    env: opts.env ?? childEnv(),
     maxBuffer: 10 * 1024 * 1024,
     windowsHide: true,
   });
@@ -82,7 +83,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const env: NodeJS.ProcessEnv = { ...process.env, GH_TOKEN: token };
+  // gh/git act as the requesting user only. See lib/child-env.ts.
+  const env = ghEnv(token);
   let tmpDir: string | null = null;
 
   try {

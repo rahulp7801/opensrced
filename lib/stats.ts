@@ -18,6 +18,7 @@
 //   cached in .dispatches/repo-stars.json with a 7-day TTL.
 
 import { execFile } from "node:child_process";
+import { ghEnv } from "./child-env";
 import { existsSync, readdirSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -191,7 +192,9 @@ async function starsForRepos(
         const { stdout } = await execFileAsync(
           ghBin(),
           ["api", `repos/${r}`, "--jq", ".stargazers_count"],
-          { maxBuffer: 1 * 1024 * 1024, timeout: 15_000 },
+          // Public star counts: no token, and no inherited environment for
+          // gh to find one in. See lib/child-env.ts.
+          { maxBuffer: 1 * 1024 * 1024, timeout: 15_000, env: ghEnv(null) },
         );
         const n = Number(stdout.trim());
         if (Number.isFinite(n)) {

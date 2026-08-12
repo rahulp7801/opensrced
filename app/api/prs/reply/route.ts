@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { resolveGitHubToken } from "@/lib/github-token";
+import { ghEnv } from "@/lib/child-env";
 import { sanitizeRepoId, sanitizeForPrompt, sanitizePrNumber } from "@/lib/sanitize";
 import { requireSession } from "@/lib/require-session";
 
@@ -43,7 +44,8 @@ export async function POST(req: NextRequest) {
   if (!token) {
     return Response.json({ error: "No GitHub token" }, { status: 401 });
   }
-  const env: NodeJS.ProcessEnv = { ...process.env, GH_TOKEN: token };
+  // gh runs as the requesting user or not at all. See lib/child-env.ts.
+  const env = ghEnv(token);
 
   try {
     if (body.type === "review" && body.comment_id) {

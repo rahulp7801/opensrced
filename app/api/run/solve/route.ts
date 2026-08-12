@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { canDispatchLocally, startDispatch } from "@/lib/dispatcher";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { resolveAnthropicKey } from "@/lib/api-keys";
-import { requireSession } from "@/lib/require-session";
+import { sessionUserId } from "@/lib/require-session";
 
 export async function POST(req: NextRequest) {
-  const unauth = await requireSession();
-  if (unauth) return unauth;
+  const auth0UserId = await sessionUserId();
+  if (!auth0UserId) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
 
   const body = await req.json().catch(() => ({}));
   const repo_url: string | undefined = body?.repo_url;
@@ -34,7 +36,11 @@ export async function POST(req: NextRequest) {
   const anthropicKey = (await resolveAnthropicKey()) ?? undefined;
 
   try {
-    const d = startDispatch(repo_url, dry_run, "solve", extra, { token: token ?? undefined, anthropicKey });
+    const d = startDispatch(repo_url, dry_run, "solve", extra, {
+      token: token ?? undefined,
+      anthropicKey,
+      auth0UserId,
+    });
     return NextResponse.json(
       {
         status: "running",

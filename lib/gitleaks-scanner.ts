@@ -7,6 +7,7 @@
 // the current working tree state after the patch is applied).
 
 import { execFile } from "node:child_process";
+import { childEnv } from "./child-env";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -107,6 +108,9 @@ export async function scanSecrets(
         timeout,
         maxBuffer: 10 * 1024 * 1024,
         windowsHide: true,
+        // The scanner reads a directory; it needs no credentials, so it
+        // gets none. See lib/child-env.ts.
+        env: childEnv(),
       },
     );
 

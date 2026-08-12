@@ -10,6 +10,7 @@ import { createWriteStream, mkdirSync, readFileSync, readdirSync, existsSync, wr
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { listAll as listSidecars, persist, read as readSidecar } from "./dispatch-store";
+import { childEnv, ghEnv } from "./child-env";
 
 const DISPATCH_DIR = join(process.cwd(), ".dispatches");
 
@@ -30,6 +31,18 @@ export type PrStatus =
 
 export type Dispatch = {
   id: string;
+  /** Auth0 `sub` of the user who started this dispatch.
+   *
+   *  Dispatches are per-user resources: the log holds the target repo's
+   *  source, the generated diff, the issue body, and for crucible runs all
+   *  of that from a PRIVATE repo. Without an owner every authenticated user
+   *  could read, and cancel, every other user's runs — /api/dispatches
+   *  listed all of them and /api/dispatches/<id> returned the full log.
+   *
+   *  Optional because dispatches written before this field existed don't
+   *  have it. Those are treated as owned by nobody and hidden from every
+   *  user rather than shown to all of them — see ownsDispatch(). */
+  auth0_user_id?: string;
   repo_url: string;
   mode: DispatchMode;
   dry_run: boolean;
@@ -63,6 +76,25 @@ export type Dispatch = {
 // In-memory registry. Surviving logs are reconstructed from disk on read.
 const registry = new Map<string, Dispatch>();
 const children = new Map<string, ChildProcess>();
+
+// Dispatch ids are minted here and nowhere else, so they have a known shape.
+// Every function below joins an id onto DISPATCH_DIR to build a filesystem
+// path; validating the shape once means none of them can be handed `../..`
+// from a route parameter.
+const DISPATCH_ID_RE = /^d_[A-Za-z0-9_-]{1,64}$/;
+
+export function isValidDispatchId(id: string): boolean {
+  return DISPATCH_ID_RE.test(id);
+}
+
+/** Can `viewerId` see this dispatch? Records with no owner (written before
+ *  the field existed) belong to nobody and are visible to nobody — the log
+ *  files are still on disk, they just stop being served. Showing them to
+ *  everyone instead is the exact leak this field exists to close. */
+export function ownsDispatch(d: Dispatch, viewerId: string | null): boolean {
+  if (!viewerId) return false;
+  return d.auth0_user_id === viewerId;
+}
 
 /** Register a dispatch + its child so cancelDispatch() can find them.
  *
@@ -128,7 +160,9 @@ function fetchIssueTitleAsync(repoFull: string, issueNumber: number): void {
   const child = spawn(
     gh,
     ["issue", "view", String(issueNumber), "--repo", repoFull, "--json", "title"],
-    { windowsHide: true },
+    // Title lookup for the dashboard: a public read, with no inherited
+    // environment for gh to find the host credential in.
+    { windowsHide: true, env: ghEnv(null) },
   );
   let out = "";
   child.stdout.on("data", (d: Buffer) => { out += d.toString(); });
@@ -249,6 +283,9 @@ export type StartDispatchOpts = {
   token?: string;
   // User-provided Anthropic API key (from encrypted cookie).
   anthropicKey?: string;
+  // Auth0 `sub` of the requesting user — recorded on the dispatch so only
+  // they can read its log or cancel it.
+  auth0UserId?: string;
 };
 
 export function startDispatch(
@@ -272,13 +309,15 @@ export function startDispatch(
   const config = process.env.CONTRIBAI_CONFIG;
   if (config) args.push("--config", config);
 
-  const env: NodeJS.ProcessEnv = { ...process.env };
-  delete env.GITHUB_TOKEN;
-  delete env.ANTHROPIC_API_KEY;
-  delete env.GEMINI_API_KEY;
+  // Allowlisted environment: the child gets PATH, HOME and friends plus the
+  // credentials this one user supplied — never AUTH0_SECRET, the GitHub App
+  // private key, or the webhook secret. See lib/child-env.ts.
   const token = opts.token;
-  if (token) env.GITHUB_TOKEN = token;
-  if (opts.anthropicKey) env.ANTHROPIC_API_KEY = opts.anthropicKey;
+  const env: NodeJS.ProcessEnv = childEnv({
+    GITHUB_TOKEN: token,
+    ANTHROPIC_API_KEY: opts.anthropicKey,
+    CONTRIBAI_CONFIG: process.env.CONTRIBAI_CONFIG,
+  });
 
   // On dry-run solves, tell contribai to dump each generated contribution as JSON
   // to .dispatches/<id>/draft-*.json so the UI can preview it before going live.
@@ -324,6 +363,7 @@ export function startDispatch(
   }
   const dispatch: Dispatch = {
     id,
+    auth0_user_id: opts.auth0UserId,
     repo_url: repoUrl,
     mode,
     dry_run: dryRun,
@@ -367,9 +407,22 @@ export function startDispatch(
 
 const cancelRequested = new Set<string>();
 
-/** Cancel a running dispatch. Kills the child process tree on Windows. */
-export function cancelDispatch(id: string): { ok: boolean; message: string } {
-  const d = registry.get(id);
+/** Cancel a running dispatch. Kills the child process tree on Windows.
+ *
+ *  Scoped to the viewer: killing someone else's run is a destructive action,
+ *  and this used to accept any id from any authenticated caller. */
+export function cancelDispatch(
+  id: string,
+  viewerId: string | null,
+): { ok: boolean; message: string } {
+  if (!isValidDispatchId(id)) {
+    return { ok: false, message: `No running process found for dispatch ${id}` };
+  }
+  const d = registry.get(id) ?? readSidecar(id) ?? undefined;
+  if (!d || !ownsDispatch(d, viewerId)) {
+    // Same message as a genuine miss — don't confirm the id exists.
+    return { ok: false, message: `No running process found for dispatch ${id}` };
+  }
   const child = children.get(id);
 
   if (child && !child.killed) {
@@ -408,6 +461,7 @@ export function cancelDispatch(id: string): { ok: boolean; message: string } {
 }
 
 export function listDrafts(id: string): Array<{ issue_number: number; title: string; path: string }> {
+  if (!isValidDispatchId(id)) return [];
   const draftDir = join(DISPATCH_DIR, id);
   if (!existsSync(draftDir)) return [];
   const out: Array<{ issue_number: number; title: string; path: string }> = [];
@@ -427,6 +481,7 @@ export function listDrafts(id: string): Array<{ issue_number: number; title: str
 }
 
 export function readDraft(id: string, issueNumber: number) {
+  if (!isValidDispatchId(id) || !Number.isInteger(issueNumber) || issueNumber < 0) return null;
   const path = join(DISPATCH_DIR, id, `issue-${issueNumber}.json`);
   if (!existsSync(path)) return null;
   try {
@@ -436,7 +491,7 @@ export function readDraft(id: string, issueNumber: number) {
   }
 }
 
-export function listDispatches(): Dispatch[] {
+export function listDispatches(viewerId: string | null): Dispatch[] {
   // Sidecars are the fast path: one small JSON per dispatch, written at
   // each state transition. Anything with a sidecar never needs its log
   // opened. See lib/dispatch-store.ts.
@@ -529,9 +584,14 @@ export function listDispatches(): Dispatch[] {
     ...fromFs,
   ];
 
+  // Ownership filter runs BEFORE the enrichment below — enrichWithPrStatus
+  // and lookupTitle both do I/O (log reads, background `gh` calls) that
+  // there's no reason to spend on records the caller can't see anyway.
+  const visible = merged.filter((d) => ownsDispatch(d, viewerId));
+
   // Backfill issue titles from the cache, and only fall back to reading
   // the log for records whose PR outcome isn't already recorded.
-  const list = merged.map((d) => {
+  const list = visible.map((d) => {
     let out = d;
     if (!out.issue_title && out.issue_number !== undefined) {
       const repoFull = parseRepoFull(out.repo_url);
@@ -544,17 +604,27 @@ export function listDispatches(): Dispatch[] {
   return list;
 }
 
-export function getDispatch(id: string): Dispatch | undefined {
-  const fromRegistry = registry.get(id);
-  if (fromRegistry) {
-    return fromRegistry.pr_status ? fromRegistry : enrichWithPrStatus(fromRegistry);
-  }
-  const sidecar = readSidecar(id);
-  if (sidecar) return sidecar.pr_status ? sidecar : enrichWithPrStatus(sidecar);
-  const logPath = join(DISPATCH_DIR, `${id}.log`);
-  if (!existsSync(logPath)) return undefined;
-  // Legacy record with no sidecar — reconstruct from the log.
-  return listDispatches().find((d) => d.id === id);
+/** Fetch a dispatch, or undefined when it doesn't exist OR isn't the
+ *  viewer's. Both cases return the same "not found" to the caller — telling
+ *  an unauthorized viewer that an id exists is itself a small leak. */
+export function getDispatch(id: string, viewerId: string | null): Dispatch | undefined {
+  if (!isValidDispatchId(id)) return undefined;
+
+  const found = ((): Dispatch | undefined => {
+    const fromRegistry = registry.get(id);
+    if (fromRegistry) {
+      return fromRegistry.pr_status ? fromRegistry : enrichWithPrStatus(fromRegistry);
+    }
+    const sidecar = readSidecar(id);
+    if (sidecar) return sidecar.pr_status ? sidecar : enrichWithPrStatus(sidecar);
+    const logPath = join(DISPATCH_DIR, `${id}.log`);
+    if (!existsSync(logPath)) return undefined;
+    // Legacy record with no sidecar — reconstruct from the log.
+    return listDispatches(viewerId).find((d) => d.id === id);
+  })();
+
+  if (!found || !ownsDispatch(found, viewerId)) return undefined;
+  return found;
 }
 
 /** Read the log from a byte offset — the incremental path used by polling.
@@ -571,6 +641,7 @@ export function readLogSince(
   since: number,
   maxBytes = 200_000,
 ): { chunk: string; size: number; reset: boolean } {
+  if (!isValidDispatchId(id)) return { chunk: "", size: 0, reset: false };
   const logPath = join(DISPATCH_DIR, `${id}.log`);
   if (!existsSync(logPath)) return { chunk: "", size: 0, reset: false };
   const buf = readFileSync(logPath);
@@ -596,6 +667,7 @@ export function readLogSince(
 }
 
 export function readLog(id: string, maxBytes = 200_000): string {
+  if (!isValidDispatchId(id)) return "";
   const logPath = join(DISPATCH_DIR, `${id}.log`);
   if (!existsSync(logPath)) return "";
   const buf = readFileSync(logPath);

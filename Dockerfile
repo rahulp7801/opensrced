@@ -7,12 +7,14 @@
 #   docker build -t opensrcer .
 #   docker run -p 3000:3000 --env-file .env.local \
 #     -v opensrcer-dispatches:/app/.dispatches \
-#     -v opensrcer-repos:/root/.contribai/repos \
+#     -v opensrcer-repos:/home/node/.contribai/repos \
 #     opensrcer
 #
 # Both volumes matter: .dispatches holds the run history the dashboard reads,
 # and ~/.contribai/repos is the shallow-clone cache. Without them a container
-# restart loses history and re-clones every repo.
+# restart loses history and re-clones every repo. The container runs as the
+# non-root `node` user (uid 1000), so both volumes must be writable by it —
+# hence /home/node rather than /root.
 
 FROM node:22-bookworm-slim
 
@@ -70,6 +72,20 @@ RUN AUTH0_SECRET=build-time-placeholder-not-a-real-secret \
     AUTH0_DOMAIN=example.us.auth0.com \
     AUTH0_CLIENT_ID=build AUTH0_CLIENT_SECRET=build \
     npm run build
+
+# Drop root. This container runs the target repository's own test suite
+# (OPENSRCER_RUN_TESTS) and an LLM agent that shells out — both are code this
+# image did not write. As root, a malicious postinstall script owns the
+# container; as `node` it is confined to the app's own files and volumes.
+#
+# The two mounted volumes must be writable by uid 1000 (the `node` user):
+#   /app/.dispatches            dispatch logs + sidecars
+#   /home/node/.contribai/repos shallow-clone cache
+# Note the cache path moved with HOME — update the -v flag in the header
+# comment above accordingly when running as non-root.
+RUN mkdir -p /app/.dispatches /app/.fixes /home/node/.contribai/repos \
+    && chown -R node:node /app /home/node/.contribai
+USER node
 
 ENV NODE_ENV=production
 EXPOSE 3000

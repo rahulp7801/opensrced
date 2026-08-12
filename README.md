@@ -269,7 +269,7 @@ Storage: zero database. All state derived from:
 ### Key Design Decisions
 
 - **No database.** All state is derived from append-only log files and small JSON caches in `.dispatches/`. Dispatches survive process restarts (logs on disk), but lose process handles (can't cancel a dispatch owned by a previous server instance).
-- **No env fallbacks for secrets.** GitHub tokens, Anthropic keys, Gemini keys — all come from the authenticated user's session or encrypted cookie. The server's own env vars are `delete`d before spawning child processes. This prevents accidental credential leakage across users.
+- **No env fallbacks for secrets.** GitHub tokens, Anthropic keys, Gemini keys — all come from the authenticated user's session or encrypted cookie. Child processes get an **allowlisted** environment (`lib/child-env.ts`): PATH, HOME and a handful of tuning vars, plus exactly the credentials that one user supplied. Nothing else is inherited, so `AUTH0_SECRET`, `GITHUB_APP_PRIVATE_KEY` and `GITHUB_APP_WEBHOOK_SECRET` never reach a subprocess.
 - **Two dispatch paths.** The deterministic path (contribai.exe) does pre-attach context collection + a single LLM one-shot — fast, cheap, but limited to well-scoped leaf fixes. The agentic path (claude -p + MCP) lets the AI drive its own exploration loop — slower, more expensive, but handles multi-file problems and unfamiliar codebases.
 - **Layered clone caching.** The MCP server clones once and reuses for 24 hours. Worktrees provide isolated checkouts for each dispatch without disturbing the shared clone that the MCP server keeps indexing from.
 - **Multi-tier resilience.** Diff application, definition lookup, graph building, and test execution all have explicit fallback chains. The system degrades gracefully — missing tools are skipped rather than causing failures.
@@ -711,7 +711,15 @@ Both are cached in-memory with a 60-second TTL. Also exposes `listInstallationRe
 
 ### No Env Fallbacks
 
-All sensitive tokens (GitHub, Anthropic, Gemini) come exclusively from the authenticated user's session or encrypted cookie. Before spawning any child process, the server explicitly `delete`s its own `GITHUB_TOKEN`, `ANTHROPIC_API_KEY`, and `GEMINI_API_KEY` from the env, then injects only the requesting user's credentials.
+All sensitive tokens (GitHub, Anthropic, Gemini) come exclusively from the authenticated user's session or encrypted cookie. `lib/github-token.ts` resolves the GitHub token from the Auth0 session and **nowhere else** — the `GITHUB_TOKEN` env var and `gh auth token` keychain fallbacks are gone. They read as local-dev conveniences, but on a deployed instance a user whose session carried no GitHub claim silently borrowed the operator's credential, which made `POST /api/prs/push` (arbitrary repo, branch and diff) a write into anything the operator could write to.
+
+Child process environments are built from an **allowlist** (`lib/child-env.ts::childEnv`), not a denylist. `{ ...process.env }` minus three keys still handed every subprocess `AUTH0_SECRET` — which decrypts every user's stored API keys — plus `GITHUB_APP_PRIVATE_KEY` and `GITHUB_APP_WEBHOOK_SECRET`. `ghEnv()` additionally points `GH_CONFIG_DIR` at an empty directory, so `gh` has no host-stored credential to fall back to either.
+
+### Agent Tool Allowlist
+
+Every `claude -p` spawn passes `--allowed-tools` naming exactly the read-only MCP repo tools (`lib/agentic-dispatcher.ts::ALLOWED_TOOLS`). This matters because the same spawns use `--permission-mode bypassPermissions`, which auto-approves every tool the CLI exposes, and `--strict-mcp-config` constrains only which MCP *servers* load — the built-in Bash/Write/Edit/WebFetch tools stay armed without an allowlist.
+
+The prompts embed GitHub issue bodies, PR review comments, and free-text user queries. All of that is written by third parties, so without the allowlist an issue filed on any targeted repo was remote code execution on the host. Untrusted text is also passed through `sanitizeForPrompt` and wrapped in an explicit `untrusted="true"` boundary, but that is the second layer — the allowlist is the control.
 
 ### Identity
 
@@ -764,7 +772,7 @@ User-provided API keys (Anthropic, Gemini, spend cap) are stored in an **encrypt
 ### Secret Leak Prevention
 
 - **Gitleaks scanning** runs on every generated patch before pushing, blocking PRs with detected secrets
-- **Env sanitization** — server env vars are deleted before spawning child processes
+- **Env allowlist** — subprocesses receive only PATH/HOME-class vars plus the requesting user's own credentials (`lib/child-env.ts`)
 - **Token redaction** — only the 4-char prefix of tokens is logged (safe: `ghs_` identifies installation tokens, `gho_`/`ghp_` identify user tokens)
 - **Crucible origin URL cleanup** — installation tokens are stripped from git config after push
 

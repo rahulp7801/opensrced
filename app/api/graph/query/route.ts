@@ -9,9 +9,10 @@
 
 import { NextRequest } from "next/server";
 import { existsSync } from "node:fs";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { childEnv } from "@/lib/child-env";
 import {
   loadGraph,
   routeQuery,
@@ -30,6 +31,51 @@ import { CLAUDE_FAST_MODEL } from "@/lib/models";
 const execFileAsync = promisify(execFile);
 
 export const dynamic = "force-dynamic";
+
+/** Run a Python script with argv and optional stdin, capturing stdout.
+ *
+ *  `args` are passed as argv — never spliced into Python source. `stdin`
+ *  is written to the child's pipe, which is what replaced the previous
+ *  `python -c "…exec(open('<path>').read())"` construction. */
+function runPython(
+  scriptPath: string,
+  args: string[],
+  stdin?: string,
+  opts: { env?: NodeJS.ProcessEnv; timeoutMs?: number; maxBytes?: number } = {},
+): Promise<{ stdout: string }> {
+  const maxBytes = opts.maxBytes ?? 5 * 1024 * 1024;
+  return new Promise((resolvePromise, reject) => {
+    const child = spawn("python", [scriptPath, ...args], {
+      env: opts.env ?? childEnv(),
+      windowsHide: true,
+    });
+    let stdout = "";
+    let stderr = "";
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new Error("python script timed out"));
+    }, opts.timeoutMs ?? 30_000);
+
+    child.stdout.on("data", (d: Buffer) => {
+      if (stdout.length < maxBytes) stdout += d.toString();
+    });
+    child.stderr.on("data", (d: Buffer) => {
+      if (stderr.length < 8192) stderr += d.toString();
+    });
+    child.on("error", (e) => {
+      clearTimeout(timer);
+      reject(e);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (code === 0) resolvePromise({ stdout });
+      else reject(new Error(`python exited ${code}: ${stderr.slice(0, 300)}`));
+    });
+
+    if (stdin !== undefined) child.stdin.end(stdin);
+    else child.stdin.end();
+  });
+}
 
 export async function POST(req: NextRequest) {
   const unauth = await requireSession();
@@ -345,16 +391,12 @@ async function tryCrgCommand(
   if (!pythonPath) return null; // CRG not configured — caller falls back
 
   try {
-    const { stdout } = await execFileAsync(
-      "python",
-      [scriptPath, repoDir, filePath],
-      {
-        env: { ...process.env, PYTHONPATH: pythonPath, PYTHONIOENCODING: "utf-8" },
-        maxBuffer: 5 * 1024 * 1024,
-        windowsHide: true,
-        timeout: 30_000,
-      },
-    );
+    // childEnv, not {...process.env}: the CRG helper needs PYTHONPATH, not
+    // AUTH0_SECRET or the GitHub App private key.
+    const { stdout } = await runPython(scriptPath, [repoDir, filePath], undefined, {
+      env: childEnv({ PYTHONPATH: pythonPath, PYTHONIOENCODING: "utf-8" }),
+      timeoutMs: 30_000,
+    });
 
     const data = JSON.parse(stdout) as {
       total_affected?: number;
@@ -440,30 +482,15 @@ async function compressWithLLMLingua(text: string): Promise<CompressionResult> {
   }
 
   try {
-    const { writeFile: wf, mkdtemp, rm } = await import("node:fs/promises");
-    const { tmpdir } = await import("node:os");
-    const tmpDir = await mkdtemp(join(tmpdir(), "llmlingua-"));
-    const inputPath = join(tmpDir, "input.txt");
-    await wf(inputPath, text);
-
     const scriptPath = join(process.cwd(), "lib", "compress-prompt.py");
-    // Pipe via file since execFile doesn't support stdin
-    const { stdout } = await execFileAsync(
-      "python",
-      ["-c", `
-import sys, json
-with open(r'${inputPath.replace(/\\/g, "\\\\")}', 'r', encoding='utf-8') as f:
-    sys.stdin = f
-    exec(open(r'${scriptPath.replace(/\\/g, "\\\\")}').read())
-`],
-      {
-        maxBuffer: 5 * 1024 * 1024,
-        windowsHide: true,
-        timeout: 60_000,
-      },
-    );
 
-    rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+    // The script reads its input from stdin. This used to build a `python -c`
+    // program by string-concatenating file paths into Python source and
+    // calling exec(open(...).read()) on the result — a code-construction
+    // pattern that is one refactor away from injection, and that needed a
+    // temp file purely because execFile has no stdin. spawn does, so write
+    // the text to the child's stdin and skip both problems.
+    const { stdout } = await runPython(scriptPath, [], text);
 
     const result = JSON.parse(stdout) as {
       compressed_prompt: string;
@@ -494,14 +521,14 @@ async function getCrgSummary(owner: string, repo: string, full = false): Promise
   if (!pythonPath) return ""; // CRG not configured — no structural context
 
   try {
-    const { stdout } = await execFileAsync(
-      "python",
-      [scriptPath, repoDir, ...(full ? ["--full"] : [])],
+    const { stdout } = await runPython(
+      scriptPath,
+      [repoDir, ...(full ? ["--full"] : [])],
+      undefined,
       {
-        env: { ...process.env, PYTHONPATH: pythonPath, PYTHONIOENCODING: "utf-8" },
-        maxBuffer: 20 * 1024 * 1024,
-        windowsHide: true,
-        timeout: 30_000,
+        env: childEnv({ PYTHONPATH: pythonPath, PYTHONIOENCODING: "utf-8" }),
+        timeoutMs: 30_000,
+        maxBytes: 20 * 1024 * 1024,
       },
     );
 

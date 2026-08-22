@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
 import { useToast } from "@/components/toast";
 import { recordContribution } from "@/components/contribution-streaks";
 import { cn } from "@/lib/utils";
+import { parseSplitHunks, parseUnifiedRows, type UnifiedKind } from "@/lib/diff-view";
+import { sseEvents } from "@/lib/sse";
+import { parseMarkdownBlocks } from "@/lib/graph-view";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -523,65 +526,54 @@ export default function PrDetailPage() {
         }),
       });
 
-      const reader = res.body?.getReader();
-      if (!reader) return;
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const p = JSON.parse(line.slice(6)) as {
-              text?: string;
-              tool?: string;
-              detail?: string;
-              cost?: number;
-              done?: boolean;
-              error?: string;
-            };
-            if (p.tool) {
-              // Update step based on tool being used
-              const stepMap: Record<string, string> = {
-                read_file: `Reading ${p.detail || "file"}`,
-                grep: `Searching for ${p.detail || "pattern"}`,
-                find_definition: `Finding definition of ${p.detail || "symbol"}`,
-                find_references: `Finding references to ${p.detail || "symbol"}`,
-                list_files: `Listing files ${p.detail || ""}`,
-                repo_info: "Fetching repository info",
-              };
-              const step = stepMap[p.tool] || `Running ${p.tool}`;
-              setFixState((prev) =>
-                prev ? { ...prev, tools: [...prev.tools, { tool: p.tool!, detail: p.detail ?? "" }], step } : prev,
-              );
-            }
-            if (p.text) {
-              setFixState((prev) => (prev ? { ...prev, response: prev.response + p.text, step: "Generating fix..." } : prev));
-            }
-            if (p.cost !== undefined) {
-              setFixState((prev) => (prev ? { ...prev, cost: p.cost as number } : prev));
-            }
-            if (p.done) {
-              setFixState((prev) => (prev ? { ...prev, status: "done", step: "Complete" } : prev));
-              toast("Fix generated successfully", "ok");
-            }
-            if (p.error) {
-              setFixState((prev) => (prev ? { ...prev, response: p.error!, status: "error", step: "Failed" } : prev));
-              toast("Fix generation failed", "alert");
-            }
-          } catch { /* skip */ }
+      for await (const p of sseEvents<{
+        text?: string;
+        tool?: string;
+        detail?: string;
+        cost?: number;
+        done?: boolean;
+        error?: string;
+      }>(res)) {
+        if (p.tool) {
+          // Update step based on tool being used
+          const stepMap: Record<string, string> = {
+            read_file: `Reading ${p.detail || "file"}`,
+            grep: `Searching for ${p.detail || "pattern"}`,
+            find_definition: `Finding definition of ${p.detail || "symbol"}`,
+            find_references: `Finding references to ${p.detail || "symbol"}`,
+            list_files: `Listing files ${p.detail || ""}`,
+            repo_info: "Fetching repository info",
+          };
+          const step = stepMap[p.tool] || `Running ${p.tool}`;
+          setFixState((prev) =>
+            prev ? { ...prev, tools: [...prev.tools, { tool: p.tool!, detail: p.detail ?? "" }], step } : prev,
+          );
+        }
+        if (p.text) {
+          setFixState((prev) => (prev ? { ...prev, response: prev.response + p.text, step: "Generating fix..." } : prev));
+        }
+        if (p.cost !== undefined) {
+          setFixState((prev) => (prev ? { ...prev, cost: p.cost as number } : prev));
+        }
+        if (p.done) {
+          setFixState((prev) => (prev ? { ...prev, status: "done", step: "Complete" } : prev));
+          toast("Fix generated successfully", "ok");
+        }
+        if (p.error) {
+          setFixState((prev) => (prev ? { ...prev, response: p.error!, status: "error", step: "Failed" } : prev));
+          toast("Fix generation failed", "alert");
         }
       }
 
-      setFixState((prev) =>
-        prev && prev.status === "generating" ? { ...prev, status: "done", step: "Complete" } : prev,
-      );
+      // A stream that ended while still generating produced nothing. Reporting
+      // that as "Complete" was how a 429 or a 500 surfaced: a finished-looking
+      // fix with an empty body and no hint that anything went wrong.
+      setFixState((prev) => {
+        if (!prev || prev.status !== "generating") return prev;
+        return prev.response
+          ? { ...prev, status: "done", step: "Complete" }
+          : { ...prev, status: "error", step: "Failed", response: "The fix stream ended without producing anything." };
+      });
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") return;
       setFixState((prev) =>
@@ -1046,15 +1038,7 @@ export default function PrDetailPage() {
                   <SplitDiffView diff={prDiff} />
                 ) : (
                   <pre className="px-4 py-3 text-[10.5px] font-mono leading-snug">
-                    {prDiff.split("\n").map((line, i) => {
-                      let cls = "text-paper-dim";
-                      let bg = "";
-                      if (line.startsWith("+") && !line.startsWith("+++")) { cls = "text-ok"; bg = "bg-ok/5"; }
-                      else if (line.startsWith("-") && !line.startsWith("---")) { cls = "text-alert"; bg = "bg-alert/5"; }
-                      else if (line.startsWith("@@")) { cls = "text-info"; bg = "bg-info/5"; }
-                      else if (line.startsWith("diff ") || line.startsWith("index ")) { cls = "text-paper-faint"; }
-                      return <div key={i} className={cn("whitespace-pre-wrap", cls, bg)}>{line || "\u00a0"}</div>;
-                    })}
+                    <DiffLines diff={prDiff} />
                   </pre>
                 )
               ) : (
@@ -1742,78 +1726,92 @@ export default function PrDetailPage() {
 
 // ── Split diff view ──────────────────────────────────────────────────
 
+// Colours for one line of an inline diff. Shared by the three places that
+// render one, each of which used to classify by prefix and so greyed out a
+// real deletion whose text began with "--" as though it were a file header.
+const DIFF_LINE_CLASS: Record<UnifiedKind, string> = {
+  add: "text-ok bg-ok/5",
+  del: "text-alert bg-alert/5",
+  hunk: "text-info bg-info/5",
+  meta: "text-paper-faint",
+  context: "text-paper-dim",
+};
+
+// A fix response renders its diff on a darker ground, so the tints are heavier.
+const DIFF_LINE_CLASS_STRONG: Record<UnifiedKind, string> = {
+  ...DIFF_LINE_CLASS,
+  add: "text-ok bg-ok/10",
+  del: "text-alert bg-alert/10",
+  hunk: "text-info bg-info/10",
+};
+
+function DiffLines({ diff, strong }: { diff: string; strong?: boolean }) {
+  const rows = useMemo(() => parseUnifiedRows(diff), [diff]);
+  const map = strong ? DIFF_LINE_CLASS_STRONG : DIFF_LINE_CLASS;
+  return (
+    <>
+      {rows.map((row, i) => (
+        <div key={i} className={cn("whitespace-pre-wrap", map[row.kind])}>
+          {row.text || "\u00a0"}
+        </div>
+      ))}
+    </>
+  );
+}
+
 function SplitDiffView({ diff }: { diff: string }) {
-  const lines = diff.split("\n");
-  const pairs: Array<{ left: string; right: string; type: "context" | "change" | "header" }> = [];
-
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i];
-
-    if (line.startsWith("diff ") || line.startsWith("index ") || line.startsWith("---") || line.startsWith("+++") || line.startsWith("@@")) {
-      pairs.push({ left: line, right: "", type: "header" });
-      i++;
-      continue;
-    }
-
-    // Collect consecutive removals and additions
-    if (line.startsWith("-")) {
-      const removals: string[] = [];
-      const additions: string[] = [];
-      while (i < lines.length && lines[i].startsWith("-")) { removals.push(lines[i].slice(1)); i++; }
-      while (i < lines.length && lines[i].startsWith("+")) { additions.push(lines[i].slice(1)); i++; }
-      const max = Math.max(removals.length, additions.length);
-      for (let j = 0; j < max; j++) {
-        pairs.push({
-          left: j < removals.length ? removals[j] : "",
-          right: j < additions.length ? additions[j] : "",
-          type: "change",
-        });
-      }
-      continue;
-    }
-
-    if (line.startsWith("+")) {
-      pairs.push({ left: "", right: line.slice(1), type: "change" });
-      i++;
-      continue;
-    }
-
-    // Context line
-    const ctx = line.startsWith(" ") ? line.slice(1) : line;
-    pairs.push({ left: ctx, right: ctx, type: "context" });
-    i++;
-  }
+  // Parsing lives in lib/diff-view.ts, shared with the runs view. It is the
+  // part that can be silently wrong — two panes drifting out of step still
+  // render perfectly while describing a change that did not happen — so it is
+  // tested there rather than reimplemented here. This copy used to treat any
+  // line starting with "---" or "+++" as a file header, which swallowed the
+  // deletion of a line like `-- note` and the addition of `++i;`.
+  const hunks = useMemo(() => parseSplitHunks(diff), [diff]);
 
   return (
     <div className="grid grid-cols-2 text-[10.5px] font-mono leading-snug">
-      {pairs.map((p, i) => (
-        <React.Fragment key={i}>
-          <div className={cn(
-            "px-3 py-px whitespace-pre-wrap border-r border-border-soft",
-            p.type === "header" ? "text-paper-faint bg-ink/50 col-span-2" : "",
-            p.type === "change" && p.left ? "text-alert bg-alert/5" : "",
-            p.type === "context" ? "text-paper-dim" : "",
-          )}>
-            {p.type === "header" ? p.left : p.left || "\u00a0"}
+      {hunks.map((hunk, hi) => (
+        <React.Fragment key={hi}>
+          <div className="col-span-2 px-3 py-px text-paper-faint bg-ink/50">
+            {hunk.file === hunks[hi - 1]?.file ? "\u22ef" : hunk.file}
           </div>
-          {p.type !== "header" && (
-            <div className={cn(
-              "px-3 py-px whitespace-pre-wrap",
-              p.type === "change" && p.right ? "text-ok bg-ok/5" : "",
-              p.type === "context" ? "text-paper-dim" : "",
-            )}>
-              {p.right || "\u00a0"}
-            </div>
-          )}
+          {hunk.before.map((left, i) => {
+            const right = hunk.after[i];
+            const changed = left !== right;
+            return (
+              <React.Fragment key={i}>
+                <div
+                  className={cn(
+                    "px-3 py-px whitespace-pre-wrap border-r border-border-soft",
+                    left === null
+                      ? "bg-ink/40"
+                      : changed
+                        ? "text-alert bg-alert/5"
+                        : "text-paper-dim",
+                  )}
+                >
+                  {left ?? "\u00a0"}
+                </div>
+                <div
+                  className={cn(
+                    "px-3 py-px whitespace-pre-wrap",
+                    right === null
+                      ? "bg-ink/40"
+                      : changed
+                        ? "text-ok bg-ok/5"
+                        : "text-paper-dim",
+                  )}
+                >
+                  {right ?? "\u00a0"}
+                </div>
+              </React.Fragment>
+            );
+          })}
         </React.Fragment>
       ))}
     </div>
   );
 }
-
-// Need React for Fragment in SplitDiffView
-import React from "react";
 
 // ── Diff preview component ───────────────────────────────────────────
 
@@ -1840,14 +1838,7 @@ function DiffPreview({ diff }: { diff: string }) {
         </div>
       </div>
       <pre className="px-3 py-2 text-[10.5px] font-mono leading-snug">
-        {diff.split("\n").map((line, i) => {
-          let cls = "text-paper-dim";
-          let bg = "";
-          if (line.startsWith("+") && !line.startsWith("+++")) { cls = "text-ok"; bg = "bg-ok/5"; }
-          else if (line.startsWith("-") && !line.startsWith("---")) { cls = "text-alert"; bg = "bg-alert/5"; }
-          else if (line.startsWith("@@")) { cls = "text-info"; bg = "bg-info/5"; }
-          return <div key={i} className={cn("whitespace-pre-wrap", cls, bg)}>{line || "\u00a0"}</div>;
-        })}
+        <DiffLines diff={diff} />
       </pre>
     </>
   );
@@ -1933,7 +1924,7 @@ function LoadingDots() {
 // ── Fix response renderer ────────────────────────────────────────────
 
 function FixResponse({ text }: { text: string }) {
-  const blocks = parseBlocks(text);
+  const blocks = parseMarkdownBlocks(text);
   return (
     <div className="space-y-2.5 text-[12px] leading-relaxed text-paper-dim break-words">
       {blocks.map((block, i) => {
@@ -1945,17 +1936,15 @@ function FixResponse({ text }: { text: string }) {
                 <span className="font-mono">{block.lang || (isDiff ? "diff" : "code")}</span>
               </div>
               <pre className="overflow-x-auto px-3 py-2.5 bg-ink/60 border border-border-soft text-[11px] leading-snug font-mono">
-                {block.content.split("\n").map((line, li) => {
-                  if (isDiff) {
-                    let cls = "text-paper-dim";
-                    let bg = "";
-                    if (line.startsWith("+") && !line.startsWith("+++")) { cls = "text-ok"; bg = "bg-ok/10"; }
-                    else if (line.startsWith("-") && !line.startsWith("---")) { cls = "text-alert"; bg = "bg-alert/10"; }
-                    else if (line.startsWith("@@")) { cls = "text-info"; bg = "bg-info/10"; }
-                    return <div key={li} className={cn("whitespace-pre-wrap", cls, bg)}>{line || "\u00a0"}</div>;
-                  }
-                  return <div key={li} className="whitespace-pre-wrap text-paper-dim">{line || "\u00a0"}</div>;
-                })}
+                {isDiff ? (
+                  <DiffLines diff={block.content} strong />
+                ) : (
+                  block.content.split("\n").map((line, li) => (
+                    <div key={li} className="whitespace-pre-wrap text-paper-dim">
+                      {line || "\u00a0"}
+                    </div>
+                  ))
+                )}
               </pre>
             </div>
           );
@@ -1969,32 +1958,6 @@ function FixResponse({ text }: { text: string }) {
   );
 }
 
-type Block = { type: "paragraph" | "heading" | "bullet"; content: string } | { type: "code"; content: string; lang: string };
-
-function parseBlocks(text: string): Block[] {
-  const blocks: Block[] = [];
-  const lines = text.split("\n");
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i];
-    if (line.startsWith("```")) {
-      const lang = line.slice(3).trim();
-      i++;
-      const code: string[] = [];
-      while (i < lines.length && !lines[i].startsWith("```")) { code.push(lines[i]); i++; }
-      if (i < lines.length) i++;
-      blocks.push({ type: "code", content: code.join("\n"), lang });
-      continue;
-    }
-    if (/^#{1,4}\s/.test(line)) { blocks.push({ type: "heading", content: line.replace(/^#+\s*/, "") }); i++; continue; }
-    if (/^\s*[-*]\s/.test(line)) { blocks.push({ type: "bullet", content: line.replace(/^\s*[-*]\s+/, "") }); i++; continue; }
-    if (!line.trim()) { i++; continue; }
-    const para: string[] = [];
-    while (i < lines.length && lines[i].trim() && !lines[i].startsWith("```") && !/^#{1,4}\s/.test(lines[i]) && !/^\s*[-*]\s/.test(lines[i])) { para.push(lines[i]); i++; }
-    blocks.push({ type: "paragraph", content: para.join(" ") });
-  }
-  return blocks;
-}
 
 // ── Skeleton ─────────────────────────────────────────────────────────
 

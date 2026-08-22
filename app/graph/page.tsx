@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { PageHeading } from "@/components/page-heading";
 import { generateFollowUps, parseMarkdownBlocks } from "@/lib/graph-view";
 import { cn } from "@/lib/utils";
+import { sseEvents } from "@/lib/sse";
 
 type QueryResult = {
   query: string;
@@ -36,47 +37,6 @@ function parseRepo(
   const name = m?.[2] ?? m?.[4];
   if (!owner || !name) return null;
   return { owner, name };
-}
-
-/**
- * Yield the parsed `data:` payloads of an SSE response.
- *
- * Both callers used to inline this, and both inlined the same trap with it:
- * the API returns SSE only on the happy path and plain `Response.json({error})`
- * for 400/401/404/500, which carries no `data:` lines at all. Draining that
- * body silently yields nothing and the caller's loop just ends, leaving the UI
- * pinned to its in-flight state. So the status check lives here, once, and a
- * non-OK response throws with the server's own message rather than returning.
- */
-async function* sseEvents<T>(res: Response): AsyncGenerator<T> {
-  if (!res.ok) {
-    const detail = await res
-      .json()
-      .then((d: { error?: string }) => d?.error)
-      .catch(() => null);
-    throw new Error(detail ?? `Request failed (${res.status})`);
-  }
-
-  const reader = res.body?.getReader();
-  if (!reader) throw new Error("Empty response from server");
-
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      try {
-        yield JSON.parse(line.slice(6)) as T;
-      } catch {
-        /* a partial or malformed event is not worth failing the stream over */
-      }
-    }
-  }
 }
 
 export default function GraphPage() {

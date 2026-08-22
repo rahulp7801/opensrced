@@ -26,6 +26,7 @@ import {
 } from "../dispatcher";
 import { sanitizeFilePath, sanitizeGitHubName } from "../sanitize";
 import { parseSplitHunks } from "../diff-view";
+import { sseEvents } from "../sse";
 import { parseMarkdownBlocks, generateFollowUps } from "../graph-view";
 
 const SAMPLE_DIFF = `--- a/src/util.ts
@@ -528,6 +529,76 @@ describe("parseSplitHunks", () => {
     const files = parseSplitHunks(diff).map((h) => h.file);
     assert.deepEqual(files, ["one.ts", "two.ts"]);
   });
+
+  test("keeps a deleted line whose text starts with dashes", () => {
+    // Deleting the SQL comment "-- old note" emits "--- old note". Read as a
+    // file header, the deletion vanished and the pane claimed nothing was
+    // removed — a diff that renders cleanly and describes the wrong change.
+    const diff = [
+      "diff --git a/q.sql b/q.sql",
+      "--- a/q.sql",
+      "+++ b/q.sql",
+      "@@ -1,3 +1,3 @@",
+      "SELECT 1;",
+      "--- old note",
+      "+++ new note",
+      "SELECT 2;",
+    ].join("\n");
+
+    const [hunk] = parseSplitHunks(diff);
+    assert.equal(hunk.file, "q.sql");
+    assert.deepEqual(hunk.before, ["SELECT 1;", "-- old note", "SELECT 2;"]);
+    assert.deepEqual(hunk.after, ["SELECT 1;", "++ new note", "SELECT 2;"]);
+  });
+
+  test("keeps an added line whose text starts with plusses", () => {
+    const diff = [
+      "--- a/loop.cpp",
+      "+++ b/loop.cpp",
+      "@@ -1,2 +1,2 @@",
+      "-i = i + 1;",
+      "+++i;",
+      "return i;",
+    ].join("\n");
+
+    const [hunk] = parseSplitHunks(diff);
+    assert.deepEqual(hunk.before, ["i = i + 1;", "return i;"]);
+    assert.deepEqual(hunk.after, ["++i;", "return i;"]);
+  });
+
+  test("git metadata never reaches a pane", () => {
+    // index/mode lines sit between "diff --git" and the hunk. Treated as
+    // context they were rendered into both panes as if they were source.
+    const diff = [
+      "diff --git a/new.ts b/new.ts",
+      "new file mode 100644",
+      "index 0000000..e69de29",
+      "--- /dev/null",
+      "+++ b/new.ts",
+      "@@ -0,0 +1 @@",
+      "+export const x = 1;",
+    ].join("\n");
+
+    const [hunk] = parseSplitHunks(diff);
+    assert.equal(hunk.file, "new.ts");
+    assert.deepEqual(hunk.before, [null]);
+    assert.deepEqual(hunk.after, ["export const x = 1;"]);
+  });
+
+  test("drops the no-newline annotation", () => {
+    const diff = [
+      "--- a/x.txt",
+      "+++ b/x.txt",
+      "@@ -1 +1 @@",
+      "-old",
+      "\\ No newline at end of file",
+      "+new",
+    ].join("\n");
+
+    const [hunk] = parseSplitHunks(diff);
+    assert.deepEqual(hunk.before, ["old"]);
+    assert.deepEqual(hunk.after, ["new"]);
+  });
 });
 
 describe("parseMarkdownBlocks", () => {
@@ -639,5 +710,56 @@ describe("generateFollowUps", () => {
     const stats = "GRAPH STATISTICS\n  Modules:\n    src/billing: 42\n    src/auth: 9";
     assert.ok(generateFollowUps("stats", stats).includes("explain src/billing"));
     assert.ok(generateFollowUps("stats", "no modules here").includes("explain src"));
+  });
+});
+
+describe("sseEvents", () => {
+  const stream = (body: string, init?: ResponseInit) =>
+    new Response(body, { headers: { "content-type": "text/event-stream" }, ...init });
+
+  const drain = async (res: Response) => {
+    const out: unknown[] = [];
+    for await (const e of sseEvents(res)) out.push(e);
+    return out;
+  };
+
+  test("yields each data payload in order", async () => {
+    const res = stream(
+      'data: {"text":"a"}\n\ndata: {"text":"b"}\n\ndata: {"done":true}\n\n',
+    );
+    assert.deepEqual(await drain(res), [{ text: "a" }, { text: "b" }, { done: true }]);
+  });
+
+  test("throws the server's own message on a non-OK response", async () => {
+    // This is the case every hand-rolled copy got wrong: the API answers
+    // errors with JSON, not SSE, so draining it for "data:" lines yielded
+    // nothing and the caller carried on as if the stream had succeeded.
+    const res = new Response(JSON.stringify({ error: "Rate limited" }), {
+      status: 429,
+      headers: { "content-type": "application/json" },
+    });
+    await assert.rejects(drain(res), /Rate limited/);
+  });
+
+  test("falls back to the status code when the body has no error field", async () => {
+    const res = new Response("<html>502</html>", { status: 502 });
+    await assert.rejects(drain(res), /502/);
+  });
+
+  test("skips a malformed event without dropping the rest", async () => {
+    const res = stream('data: {"text":"a"}\n\ndata: {not json\n\ndata: {"text":"b"}\n\n');
+    assert.deepEqual(await drain(res), [{ text: "a" }, { text: "b" }]);
+  });
+
+  test("ignores non-data lines and handles a payload split across chunks", async () => {
+    const body = new ReadableStream({
+      start(c) {
+        const enc = new TextEncoder();
+        c.enqueue(enc.encode(": keepalive\nevent: msg\ndata: {\"te"));
+        c.enqueue(enc.encode('xt":"split"}\n\n'));
+        c.close();
+      },
+    });
+    assert.deepEqual(await drain(new Response(body)), [{ text: "split" }]);
   });
 });

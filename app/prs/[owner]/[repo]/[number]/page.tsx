@@ -932,7 +932,7 @@ export default function PrDetailPage() {
   // ── Render ─────────────────────────────────────────────────────────
 
   return (
-    <div className="mx-auto w-full max-w-[1200px] px-4 sm:px-6 py-6" style={{ minHeight: "calc(100vh - 56px)" }}>
+    <div className="mx-auto w-full max-w-[1200px] px-4 sm:px-6 py-6">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-[11px] text-paper-muted mb-3">
         <Link href="/prs" className="hover:text-signal transition-colors">PRs</Link>

@@ -12,7 +12,7 @@ export default async function LoginPage({
   const loginHref = `/auth/login?returnTo=${encodeURIComponent(returnTo)}`;
 
   return (
-    <div className="flex min-h-svh items-center justify-center px-4 py-12">
+    <div className="flex flex-1 items-center justify-center px-4 py-12">
       <div className="w-full max-w-lg">
         <div className="text-center">
           <svg width="36" height="36" viewBox="0 0 32 32" fill="none" className="mx-auto" aria-hidden>

@@ -52,7 +52,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </div>
               <ApiKeyGate />
               <Onboarding />
-              <main className="flex-1">{children}</main>
+              {/* A flex column, so a page that wants to fill the window can say flex-1
+                  instead of guessing how tall the chrome above it is. */}
+              <main className="flex flex-1 flex-col">{children}</main>
               <SiteFooter />
             </div>
           </ToastProvider>

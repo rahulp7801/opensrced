@@ -130,7 +130,7 @@ ${body.diff_hunk ?? ""}
   }
 }
 
-function deepFix(
+async function deepFix(
   body: {
     repo: string | null;
     pr_number: number | null;
@@ -153,6 +153,16 @@ function deepFix(
     );
   }
 
+  let head: { sha: string; repo: { full_name: string } | null };
+  try {
+    head = (await githubApi<{ head: typeof head }>(`/repos/${body.repo}/pulls/${body.pr_number}`, ghToken)).head;
+    if (!head.repo) throw new Error("The PR source repository is no longer available.");
+  } catch (error) {
+    releaseSlot("fix");
+    return Response.json({ error: error instanceof Error ? error.message : "Could not read the PR head." }, { status: 502 });
+  }
+  const sourceRepo = head.repo!.full_name;
+
   const fileContext = body.file_path
     ? `\nThe comment is on file: ${body.file_path}${body.line ? ` at line ${body.line}` : ""}.`
     : "";
@@ -167,7 +177,7 @@ REVIEW COMMENT from maintainer:
 ${fileContext}${hunkContext}
 
 INSTRUCTIONS:
-1. Use the MCP tools to read the file and understand the context. All MCP tools take repo: "${body.repo}".
+1. Use the MCP tools to read the file and understand the context. All MCP tools take repo: "${sourceRepo}". The worker is pinned to PR head ${head.sha}.
 2. Understand what the reviewer is asking for.
 3. Generate the SMALLEST possible fix — ideally under 10 lines changed.
 4. Output your fix as a fenced \`\`\`diff block with proper --- a/ and +++ b/ headers.
@@ -203,12 +213,12 @@ CONSTRAINTS — these are hard rules, not suggestions:
 
   if (cloudExecution()) {
     releaseSlot("fix");
-    return cloudExplore(args, { ANTHROPIC_API_KEY: apiKey, ...(ghToken ? { GITHUB_TOKEN: ghToken } : {}) }, signal);
+    return cloudExplore(args, { OPENSRCER_ALLOWED_REPO: sourceRepo, OPENSRCER_REPO_REF: head.sha, ANTHROPIC_API_KEY: apiKey, ...(ghToken ? { GITHUB_TOKEN: ghToken } : {}) }, signal);
   }
 
   // Allowlisted env + a read-only toolbelt: this spawn embeds PR review
   // comments, which are written by third parties, in its prompt.
-  const env = childEnv({ ANTHROPIC_API_KEY: apiKey, GITHUB_TOKEN: ghToken ?? undefined });
+  const env = childEnv({ OPENSRCER_ALLOWED_REPO: sourceRepo, OPENSRCER_REPO_REF: head.sha, ANTHROPIC_API_KEY: apiKey, GITHUB_TOKEN: ghToken ?? undefined });
 
   return localClaudeStream(args, env, signal, () => releaseSlot("fix"));
 }

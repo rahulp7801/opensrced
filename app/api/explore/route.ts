@@ -137,6 +137,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (cloudExecution()) return cloudExplore(args, {
+    OPENSRCER_ALLOWED_REPO: repoFull,
     ANTHROPIC_API_KEY: anthropicKey,
     ...(githubToken ? { GITHUB_TOKEN: githubToken } : {}),
   }, req.signal);

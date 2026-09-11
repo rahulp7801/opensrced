@@ -49,30 +49,40 @@ export type RepoRef = { owner: string; name: string; full: string };
 
 export function parseRepo(repo: string): RepoRef {
   // Accept "owner/name", "https://github.com/owner/name", "git@github.com:owner/name.git"
+  if (typeof repo !== "string") throw new Error("Invalid repository");
   const trimmed = repo.trim().replace(/\.git$/i, "");
   const m =
-    /^(?:https?:\/\/github\.com\/|git@github\.com:)?([^/\s:]+)\/([^/\s]+)$/i.exec(
+    /^(?:https?:\/\/github\.com\/|git@github\.com:)?([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/i.exec(
       trimmed,
     );
-  if (!m) throw new Error(`Unrecognized repo: ${repo}`);
+  if (!m || m[1].includes("..") || m[2].includes("..") || m[1] === "." || m[2] === ".") throw new Error("Invalid GitHub repository");
   return { owner: m[1], name: m[2], full: `${m[1]}/${m[2]}` };
 }
 
+function pinnedRef(): string | undefined {
+  const ref = process.env.OPENSRCER_REPO_REF;
+  if (ref && !/^[a-f0-9]{40}$/i.test(ref)) throw new Error("Invalid pinned revision");
+  return ref;
+}
+
 function repoDir(r: RepoRef): string {
-  return path.join(cacheRoot(), `${r.owner}__${r.name}`);
+  const ref = pinnedRef();
+  return path.join(cacheRoot(), `${r.owner}__${r.name}${ref ? `__${ref}` : ""}`);
 }
 
 const locks = new Map<string, Promise<string>>();
 
 export async function ensureRepo(repo: string): Promise<{ ref: RepoRef; dir: string }> {
   const ref = parseRepo(repo);
+  const allowed = process.env.OPENSRCER_ALLOWED_REPO;
+  if (allowed && ref.full.toLowerCase() !== parseRepo(allowed).full.toLowerCase()) throw new Error("This worker can only read the requested repository.");
   const dir = repoDir(ref);
   const inflight = locks.get(dir);
   if (inflight) return { ref, dir: await inflight };
 
   const job = (async () => {
     const gitDir = path.join(dir, ".git");
-    let needsClone = !existsSync(gitDir);
+    let needsClone = !existsSync(gitDir) || Boolean(pinnedRef() && !existsSync(path.join(dir, ".opensrcer-cloned-at")));
     if (!needsClone) {
       try {
         // Age is read from the clone stamp, NOT from .git's mtime — git
@@ -166,6 +176,8 @@ async function waitForLock(dir: string): Promise<void> {
 }
 
 async function doClone(ref: RepoRef, dir: string): Promise<string> {
+  const relative = path.relative(path.resolve(cacheRoot()), path.resolve(dir));
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("Unsafe repository cache path");
   // Blow away anything stale so a half-broken clone can't poison the cache
   // indefinitely. Re-clone is slow (~1–30s on a small repo) but deterministic.
   if (existsSync(dir)) await rm(dir, { recursive: true, force: true });
@@ -177,8 +189,13 @@ async function doClone(ref: RepoRef, dir: string): Promise<string> {
   await execFileAsync(
     "git",
     [...gitAuthArgs(process.env.GITHUB_TOKEN), "clone", "--depth=1", "--single-branch", url, dir],
-    { maxBuffer: 50 * 1024 * 1024 },
+    { maxBuffer: 50 * 1024 * 1024, timeout: 60_000, windowsHide: true },
   );
+  const revision = pinnedRef();
+  if (revision) {
+    await execFileAsync("git", [...gitAuthArgs(process.env.GITHUB_TOKEN), "-C", dir, "fetch", "--depth=1", "origin", revision], { timeout: 60_000, windowsHide: true });
+    await execFileAsync("git", ["-C", dir, "checkout", "--detach", revision], { timeout: 15_000, windowsHide: true });
+  }
   // Freshness stamp — see the TTL check in ensureRepo for why .git's mtime
   // can't be used.
   await writeFile(path.join(dir, ".opensrcer-cloned-at"), new Date().toISOString());

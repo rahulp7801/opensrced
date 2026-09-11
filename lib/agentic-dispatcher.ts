@@ -609,6 +609,7 @@ async function spawnDispatch(
   // user's stored API keys — plus GITHUB_APP_PRIVATE_KEY and the webhook
   // secret. See lib/child-env.ts.
   const env: NodeJS.ProcessEnv = childEnv({
+    OPENSRCER_ALLOWED_REPO: repoFull,
     GITHUB_TOKEN: token,
     ANTHROPIC_API_KEY: opts.anthropicKey,
     GEMINI_API_KEY: opts.geminiKey,

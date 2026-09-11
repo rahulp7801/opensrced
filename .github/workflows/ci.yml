@@ -54,6 +54,7 @@ jobs:
           npm ci
           npm audit --audit-level=high
           npm run build
+          node --test test/*.test.mjs
 
       # No lint step: this repo has no ESLint config, so `next lint` drops into
       # an interactive setup prompt and would hang the job. (It's also

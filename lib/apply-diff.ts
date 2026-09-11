@@ -23,7 +23,7 @@
 // tiers are skipped rather than failing the whole apply.
 
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, lstatSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 import { childEnv } from "./child-env";
@@ -40,10 +40,19 @@ const execFileAsync = promisify(execFile);
  *  joined onto the worktree and written, outside the throwaway checkout the
  *  whole design assumes as its blast radius. */
 function containedPath(dir: string, rel: string): string | null {
-  if (!rel || rel.includes("\0")) return null;
+  if (!rel || /[\0:"]/.test(rel)) return null;
+  const parts = rel.replaceAll("\\", "/").split("/");
+  if (parts.some(part => /^\.git[ .]*$/i.test(part))) return null;
   const root = resolve(dir);
   const abs = resolve(root, rel);
-  if (abs !== root && !abs.startsWith(root + sep)) return null;
+  if (abs === root || !abs.startsWith(root + sep)) return null;
+  // A lexically contained path can still escape through a repository symlink.
+  let current = root;
+  for (const part of abs.slice(root.length + 1).split(sep)) {
+    current = join(current, part);
+    try { if (lstatSync(current).isSymbolicLink()) return null; }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") return null; }
+  }
   return abs;
 }
 
@@ -79,9 +88,9 @@ export function normalizeDiff(raw: string): string {
 
 /** Every file path the diff claims to touch. */
 export function diffTouchedFiles(diff: string): string[] {
-  return [...diff.matchAll(/^\+\+\+ (?:b\/)?(\S+)/gm)]
+  return [...new Set([...diff.matchAll(/^(?:\+\+\+|---) (?:[ab]\/)?(\S+)/gm)]
     .map((m) => m[1])
-    .filter((p) => p !== "/dev/null");
+    .filter((p) => p !== "/dev/null"))];
 }
 
 async function run(cmd: string, args: string[], opts: { cwd?: string; env?: NodeJS.ProcessEnv }) {
@@ -90,6 +99,7 @@ async function run(cmd: string, args: string[], opts: { cwd?: string; env?: Node
     env: opts.env ?? childEnv(),
     maxBuffer: 20 * 1024 * 1024,
     windowsHide: true,
+    timeout: 30_000,
   });
 }
 
@@ -110,6 +120,9 @@ export async function applyDiff(
   await writeFile(patchPath, normalized);
 
   const files = diffTouchedFiles(normalized);
+  if (files.some(file => !containedPath(dir, file)) || /^(?:(?:new|deleted) file mode|(?:old|new) mode) 120000$/m.test(normalized)) {
+    return { ok: false, errors: ["Patch contains an unsafe path, Git metadata, or a symbolic link."] };
+  }
   const errors: string[] = [];
 
   const base = ["-C", dir, "apply", "--index", "--recount", "--whitespace=nowarn"];

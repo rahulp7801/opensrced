@@ -135,7 +135,6 @@ async function scanLogs(owner: string): Promise<LogRecord[]> {
       }
       const repoM = REPO_RE.exec(text);
       const issueM = ISSUE_RE.exec(text);
-      const prM = PR_URL_RE.exec(text);
       const exitM = EXIT_RE.exec(text);
       const startM = STARTED_RE.exec(text);
       let status: LogRecord["status"] = "running";
@@ -149,7 +148,7 @@ async function scanLogs(owner: string): Promise<LogRecord[]> {
         id,
         repoFull: repoM ? repoM[1].replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "") : null,
         issueNumber: issueM ? Number(issueM[1]) : null,
-        prUrl: prM ? `https://github.com/${prM[1]}/pull/${prM[2]}` : null,
+        prUrl: readDispatch(id)?.pr_url ?? null,
         status,
         startedAt: startM ? startM[1] : null,
         costUsd: costM ? parseFloat(costM[1]) : null,

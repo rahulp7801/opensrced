@@ -429,14 +429,14 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
     const { scanSecrets, formatLogBlock: fmtGitleaks } = await import("./gitleaks-scanner");
     const scanResult = await scanSecrets(worktreeDir);
     await appendFile(args.logPath, fmtGitleaks(scanResult)).catch(() => {});
-    if (scanResult.status === "leaks_found") {
+    if (scanResult.status !== "clean") {
       await cleanupWorktree();
       return {
         ok: false,
-        reason: `gitleaks found ${scanResult.findingCount} secret(s) in generated code — PR blocked`,
+        reason: `Secret scan did not pass (${scanResult.status}; ${scanResult.findingCount} findings) in generated code — PR blocked`,
       };
     }
-    // clean, skipped (not installed), or error: continue
+    // Only a completed, clean scan permits publishing.
   }
 
   // 4.5 Test runner — the thing that makes "Verified" mean something.

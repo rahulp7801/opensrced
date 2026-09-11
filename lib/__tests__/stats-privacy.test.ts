@@ -23,6 +23,14 @@ test("activity excludes other users and preserves simultaneous scan counters", a
     assert.ok(!JSON.stringify(summary).includes("private-org"));
     assert.equal((await stats.getStatsSummary("bob")).scans, 1);
     assert.equal((await stats.getStatsSummary("unknown")).dispatches, 0);
+    const { loadPRsFromLogs } = await import("../pr-loader");
+    for (const [id, owner, repo] of [["own", "alice", "alice/project"], ["private", "bob", "private-org/secret"]]) {
+      writeFileSync(`.dispatches/${id}.json`, JSON.stringify({ id, auth0_user_id: owner, pr_url: `https://github.com/${repo}/pull/1` }));
+    }
+    const prs = await loadPRsFromLogs("alice");
+    assert.equal(prs.length, 1);
+    assert.equal(prs[0].repo, "alice/project");
+    assert.equal((await loadPRsFromLogs("unknown")).length, 0);
   } finally {
     process.chdir(original);
     rmSync(root, { recursive: true, force: true });

@@ -100,6 +100,7 @@ export async function scanSecrets(
         "--report-path",
         "-",
         "--no-banner",
+        "--redact=100",
         "--no-color",
         "--exit-code",
         "1",

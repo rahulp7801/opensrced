@@ -164,9 +164,9 @@ describe("normalizeDiff / diffTouchedFiles", () => {
     assert.ok(out.endsWith("\n"));
   });
 
-  test("lists touched files and ignores /dev/null", () => {
+  test("lists modified and deleted files and ignores /dev/null", () => {
     const diff = "--- a/x.ts\n+++ b/x.ts\n--- a/y.ts\n+++ /dev/null\n";
-    assert.deepEqual(diffTouchedFiles(diff), ["x.ts"]);
+    assert.deepEqual(diffTouchedFiles(diff), ["x.ts", "y.ts"]);
   });
 });
 

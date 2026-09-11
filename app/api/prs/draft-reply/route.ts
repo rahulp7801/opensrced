@@ -4,11 +4,11 @@
 
 import { NextRequest } from "next/server";
 import { resolveAnthropicKey } from "@/lib/api-keys";
-import { getCached, setCached } from "@/lib/llm-cache";
 import { sanitizeForPrompt, sanitizeRepoId, sanitizeFilePath } from "@/lib/sanitize";
 import { requireSession } from "@/lib/require-session";
-import { CLAUDE_FAST_MODEL } from "@/lib/models";
+import { anthropicStream } from "@/lib/anthropic-stream";
 
+export const maxDuration = 120;
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
@@ -23,6 +23,8 @@ export async function POST(req: NextRequest) {
     comment_author?: string;
     file_path?: string | null;
   };
+
+  if ([raw.repo, raw.pr_title, raw.comment_body, raw.comment_author, raw.file_path].some(value => value != null && typeof value !== "string")) return Response.json({ error: "Invalid text fields" }, { status: 400 });
 
   const body = {
     repo: raw.repo ? sanitizeRepoId(raw.repo) : null,
@@ -54,93 +56,7 @@ Rules:
 - Don't be defensive or overly apologetic
 - Don't use emojis`;
 
-  const model = CLAUDE_FAST_MODEL;
   const userMsg = `Reviewer ${body.comment_author ?? "someone"} wrote:\n"${body.comment_body}"\n\nDraft a reply:`;
 
-  // Check cache first
-  const cached = await getCached(model, systemPrompt, userMsg);
-  if (cached) {
-    return Response.json({ result: cached.response, cached: true });
-  }
-
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream({
-    async start(controller) {
-      function send(data: Record<string, unknown>) {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
-      }
-
-      try {
-        const res = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": apiKey,
-            "anthropic-version": "2023-06-01",
-          },
-          body: JSON.stringify({
-            model: CLAUDE_FAST_MODEL,
-            max_tokens: 300,
-            system: systemPrompt,
-            stream: true,
-            messages: [{ role: "user", content: userMsg }],
-          }),
-        });
-
-        if (!res.ok) {
-          send({ error: `API error: ${res.status}` });
-          send({ done: true });
-          controller.close();
-          return;
-        }
-
-        const reader = res.body?.getReader();
-        if (!reader) { send({ done: true }); controller.close(); return; }
-
-        const decoder = new TextDecoder();
-        let buf = "";
-        let fullResponse = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buf += decoder.decode(value, { stream: true });
-          const lines = buf.split("\n");
-          buf = lines.pop() ?? "";
-
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            const data = line.slice(6).trim();
-            if (data === "[DONE]") continue;
-            try {
-              const evt = JSON.parse(data) as {
-                type?: string;
-                delta?: { text?: string };
-              };
-              if (evt.type === "content_block_delta" && evt.delta?.text) {
-                fullResponse += evt.delta.text;
-                send({ text: evt.delta.text });
-              }
-            } catch { /* skip */ }
-          }
-        }
-
-        send({ done: true });
-
-        // Cache for future identical queries
-        if (fullResponse) {
-          setCached(model, systemPrompt, userMsg, fullResponse, 0, 0).catch(() => {});
-        }
-      } catch (err) {
-        send({ error: err instanceof Error ? err.message : String(err) });
-        send({ done: true });
-      } finally {
-        controller.close();
-      }
-    },
-  });
-
-  return new Response(stream, {
-    headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" },
-  });
+  return anthropicStream(apiKey, systemPrompt, userMsg, 300, req.signal);
 }

@@ -37,6 +37,24 @@ export async function githubApi<T>(path: string, token?: string | null, body?: u
   return (await githubResponse(path, token, body)).json() as Promise<T>;
 }
 
+export async function githubText(path: string, token: string | null, accept: string, maxBytes: number): Promise<string> {
+  const response = await githubResponse(path, token, undefined, accept);
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("GitHub returned an empty response.");
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      size += chunk.value.byteLength;
+      if (size > maxBytes) throw new Error("This content is too large to load here. Open it on GitHub.");
+      chunks.push(chunk.value);
+    }
+  } finally { await reader.cancel(); }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 export async function githubGraphql<T>(query: string, variables: Record<string, unknown>, token: string): Promise<T> {
   const result = await githubApi<{ data?: T; errors?: unknown[] }>("/graphql", token, { query, variables });
   if (result.errors?.length || !result.data) throw new Error("GitHub could not complete this query. Check repository access and try again.");

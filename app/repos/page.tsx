@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
 import { cn } from "@/lib/utils";
@@ -45,21 +45,27 @@ export default function ReposPage() {
   });
   const [search, setSearch] = useState("");
 
+  const requests = useRef(new Map<Tab, AbortController>());
+  useEffect(() => () => { for (const request of requests.current.values()) request.abort(); }, []);
   const current = states[tab];
 
   const fetchPage = useCallback(async (t: Tab, page: number) => {
+    if (requests.current.get(t) && !requests.current.get(t)!.signal.aborted) return;
+    const controller = new AbortController();
+    requests.current.set(t, controller);
     setStates((prev) => ({
       ...prev,
       [t]: { ...prev[t], loading: true, error: null },
     }));
 
     try {
-      const res = await fetch(`/api/repos/github?tab=${t}&page=${page}&per_page=15`);
+      const res = await fetch(`/api/repos/github?tab=${t}&page=${page}&per_page=15`, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(45_000)]) });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error ?? "Request failed");
       }
       const data = (await res.json()) as { repos: GitHubRepo[]; hasMore: boolean };
+      if (controller.signal.aborted) return;
       setStates((prev) => ({
         ...prev,
         [t]: {
@@ -71,19 +77,22 @@ export default function ReposPage() {
         },
       }));
     } catch (err) {
+      if (controller.signal.aborted) return;
       setStates((prev) => ({
         ...prev,
         [t]: { ...prev[t], loading: false, error: err instanceof Error ? err.message : String(err) },
       }));
+    } finally {
+      if (requests.current.get(t) === controller) requests.current.delete(t);
     }
   }, []);
 
   // Auto-fetch page 1 when switching to a tab that hasn't loaded
   useEffect(() => {
-    if (current.page === 0 && !current.loading) {
+    if (current.page === 0 && !current.loading && !current.error) {
       fetchPage(tab, 1);
     }
-  }, [tab, current.page, current.loading, fetchPage]);
+  }, [tab, current.page, current.loading, current.error, fetchPage]);
 
   const filtered = search
     ? current.repos.filter((r) =>
@@ -101,7 +110,7 @@ export default function ReposPage() {
       />
 
       {/* Tabs */}
-      <div className="mt-4 flex items-center gap-0 border-b border-border">
+      <div className="mt-4 flex flex-wrap items-center gap-y-2 border-b border-border">
         {([
           { key: "contributed" as Tab, label: "Contributed to" },
           { key: "starred" as Tab, label: "Starred" },
@@ -124,12 +133,12 @@ export default function ReposPage() {
           </button>
         ))}
 
-        <div className="ml-auto flex items-center gap-2 border border-border bg-ink px-2.5 py-1 focus-within:border-signal/50 transition-colors">
+        <div className="w-full sm:w-auto sm:ml-auto flex items-center gap-2 border border-border bg-ink px-2.5 py-1 focus-within:border-signal/50 transition-colors">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="filter repos..."
-            className="w-48 bg-transparent text-[12px] text-paper placeholder:text-paper-faint focus:outline-none"
+            className="w-full sm:w-48 bg-transparent text-[12px] text-paper placeholder:text-paper-faint focus:outline-none"
           />
         </div>
       </div>
@@ -137,7 +146,10 @@ export default function ReposPage() {
       {/* Content */}
       <div className="mt-4">
         {current.error && (
-          <div className="border border-alert/30 bg-alert/5 px-4 py-3 text-[12px] text-alert mb-3">{current.error}</div>
+          <div role="alert" className="border border-alert/30 bg-alert/5 px-4 py-3 text-[12px] text-alert mb-3">
+            {current.error}
+            <button className="ml-3 underline" disabled={current.loading} onClick={() => fetchPage(tab, current.page + 1)}>Retry</button>
+          </div>
         )}
 
         {current.page === 0 && current.loading && (

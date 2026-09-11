@@ -95,6 +95,7 @@ jobs:
           node scripts/smoke-session.mjs
           node scripts/smoke-browser.mjs
           node scripts/smoke-review.mjs
+          node scripts/smoke-lists.mjs
 
   graph:
     runs-on: ubuntu-latest

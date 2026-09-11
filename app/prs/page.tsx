@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
 import { useToast } from "@/components/toast";
+import { pollJson } from "@/lib/poll-json";
 import { cn } from "@/lib/utils";
 
 type GitHubPr = {
@@ -29,6 +30,7 @@ type StatusFilter = "all" | "changes_requested" | "approved" | "review_needed" |
 const PAGE_SIZE = 10;
 
 export default function PRsPage() {
+  const [refresh, setRefresh] = useState(0);
   const [tab, setTab] = useState<Tab>("inbox");
   const [githubPrs, setGithubPrs] = useState<GitHubPr[]>([]);
   const [githubLogin, setGithubLogin] = useState("");
@@ -40,19 +42,16 @@ export default function PRsPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    if ((tab === "github" || tab === "inbox") && githubPrs.length === 0) {
-      setLoading(true);
-      setError(null);
-      fetch("/api/prs/github")
-        .then((r) => (r.ok ? r.json() : r.json().then((e) => Promise.reject(e.error))))
-        .then((data: { login: string; prs: GitHubPr[] }) => {
-          setGithubLogin(data.login);
-          setGithubPrs(data.prs);
-        })
-        .catch((err) => setError(typeof err === "string" ? err : String(err)))
-        .finally(() => setLoading(false));
-    }
-  }, [tab, githubPrs.length]);
+    setLoading(true);
+    setError(null);
+    return pollJson<{ login: string; prs: GitHubPr[] }>("/api/prs/github", result => {
+      setLoading(false);
+      if (result.error !== null) { setError(result.error); return; }
+      setGithubLogin(result.data.login);
+      setGithubPrs(result.data.prs);
+      if (refresh > 0) toast("PRs refreshed", "ok");
+    });
+  }, [refresh, toast]);
 
   // Filter + search
   const filtered = useMemo(() => {
@@ -84,23 +83,7 @@ export default function PRsPage() {
   // Reset page when filter changes
   useEffect(() => { setPage(0); }, [statusFilter, searchQuery]);
 
-  function handleRefresh() {
-    setLoading(true);
-    setError(null);
-    setGithubPrs([]);
-    fetch("/api/prs/github")
-      .then((r) => (r.ok ? r.json() : r.json().then((e) => Promise.reject(e.error))))
-      .then((data: { login: string; prs: GitHubPr[] }) => {
-        setGithubLogin(data.login);
-        setGithubPrs(data.prs);
-        toast("PRs refreshed", "ok");
-      })
-      .catch((err) => {
-        setError(typeof err === "string" ? err : String(err));
-        toast("Failed to load PRs", "alert");
-      })
-      .finally(() => setLoading(false));
-  }
+  function handleRefresh() { setRefresh(value => value + 1); }
 
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 py-6">
@@ -370,6 +353,7 @@ export default function PRsPage() {
                   </div>
                   <button
                     onClick={handleRefresh}
+                    disabled={loading}
                     className="text-[10px] text-paper-dim hover:text-signal border border-border px-2 py-1 transition"
                   >
                     refresh

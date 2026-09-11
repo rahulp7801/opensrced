@@ -9,14 +9,16 @@ try {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   let repos = 0, prs = 0;
+  const cursors = [];
   await page.route('**/auth/profile', route => route.fulfill({ json: { sub: 'list-test', name: 'List tester' } }));
   await page.route('**/api/**', route => {
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/settings/keys') return route.fulfill({ json: { anthropic: true, gemini: false } });
     if (path === '/api/repos/github') {
       repos++;
+      cursors.push(new URL(route.request().url()).searchParams.get("cursor"));
       if (repos === 1) return route.fulfill({ status: 503, json: { error: 'Repository service unavailable.' } });
-      return route.fulfill({ json: { repos: [{ nameWithOwner: 'acme/example-project', description: 'Example repo', language: 'TypeScript', stars: 1, forks: 0, updatedAt: new Date().toISOString(), isPrivate: false, source: 'contributed' }], hasMore: false } });
+      return route.fulfill({ json: { repos: [{ nameWithOwner: repos === 3 ? 'acme/second-project' : 'acme/example-project', description: 'Example repo', language: 'TypeScript', stars: 1, forks: 0, updatedAt: new Date().toISOString(), isPrivate: false, source: 'contributed' }], hasMore: repos === 2, nextCursor: repos === 2 ? 'cursor+page/2==' : null } });
     }
     if (path === '/api/discover') return route.fulfill({ json: { repos: [], issues: [], repo_count: 0, issue_count: 0, warnings: ['Some repositories could not be scanned.'] } });
     if (path === '/api/prs/github') {
@@ -35,6 +37,10 @@ try {
   await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await page.getByRole('link', { name: 'acme/example-project', exact: true }).waitFor();
   assert.equal(repos, 2);
+  await page.getByRole('button', { name: 'load more', exact: true }).click();
+  await page.getByRole('link', { name: 'acme/second-project', exact: true }).waitFor();
+  assert.equal(repos, 3);
+  assert.equal(cursors[2], 'cursor+page/2==');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'repository controls fit mobile screens');
   await page.goto(base + '/prs');
   await page.getByText('Fix an issue', { exact: true }).waitFor();
@@ -49,6 +55,6 @@ try {
   await page.getByRole('button', { name: 'Discover', exact: true }).click();
   await page.getByRole('status').filter({ hasText: 'Partial results:' }).waitFor();
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ repositoryRetry: true, mobileRepos: true, singlePrRefresh: true, partialDiscovery: true }));
+  console.log(JSON.stringify({ repositoryRetry: true, cursorPagination: true, mobileRepos: true, singlePrRefresh: true, partialDiscovery: true }));
   await context.close();
 } finally { await browser.close(); }

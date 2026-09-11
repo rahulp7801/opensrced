@@ -22,6 +22,7 @@ type TabState = {
   repos: GitHubRepo[];
   page: number;
   hasMore: boolean;
+  nextCursor: string | null;
   loading: boolean;
   error: string | null;
 };
@@ -34,7 +35,7 @@ const LANG_COLORS: Record<string, string> = {
   Kotlin: "#A97BFF", Swift: "#F05138",
 };
 
-const EMPTY_STATE: TabState = { repos: [], page: 0, hasMore: true, loading: false, error: null };
+const EMPTY_STATE: TabState = { repos: [], page: 0, hasMore: true, nextCursor: null, loading: false, error: null };
 
 export default function ReposPage() {
   const [tab, setTab] = useState<Tab>("contributed");
@@ -49,7 +50,7 @@ export default function ReposPage() {
   useEffect(() => () => { for (const request of requests.current.values()) request.abort(); }, []);
   const current = states[tab];
 
-  const fetchPage = useCallback(async (t: Tab, page: number) => {
+  const fetchPage = useCallback(async (t: Tab, page: number, cursor: string | null = null) => {
     if (requests.current.get(t) && !requests.current.get(t)!.signal.aborted) return;
     const controller = new AbortController();
     requests.current.set(t, controller);
@@ -59,12 +60,12 @@ export default function ReposPage() {
     }));
 
     try {
-      const res = await fetch(`/api/repos/github?tab=${t}&page=${page}&per_page=15`, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(45_000)]) });
+      const res = await fetch(`/api/repos/github?tab=${t}&page=${page}&per_page=15${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(45_000)]) });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error ?? "Request failed");
       }
-      const data = (await res.json()) as { repos: GitHubRepo[]; hasMore: boolean };
+      const data = (await res.json()) as { repos: GitHubRepo[]; hasMore: boolean; nextCursor?: string | null };
       if (controller.signal.aborted) return;
       setStates((prev) => ({
         ...prev,
@@ -72,6 +73,7 @@ export default function ReposPage() {
           repos: page === 1 ? data.repos : [...prev[t].repos, ...data.repos],
           page,
           hasMore: data.hasMore,
+          nextCursor: data.nextCursor ?? null,
           loading: false,
           error: null,
         },
@@ -148,7 +150,7 @@ export default function ReposPage() {
         {current.error && (
           <div role="alert" className="border border-alert/30 bg-alert/5 px-4 py-3 text-[12px] text-alert mb-3">
             {current.error}
-            <button className="ml-3 underline" disabled={current.loading} onClick={() => fetchPage(tab, current.page + 1)}>Retry</button>
+            <button className="ml-3 underline" disabled={current.loading} onClick={() => fetchPage(tab, current.page + 1, current.nextCursor)}>Retry</button>
           </div>
         )}
 
@@ -221,7 +223,7 @@ export default function ReposPage() {
         {current.hasMore && current.page > 0 && (
           <div className="mt-3 text-center">
             <button
-              onClick={() => fetchPage(tab, current.page + 1)}
+              onClick={() => fetchPage(tab, current.page + 1, current.nextCursor)}
               disabled={current.loading}
               className={cn(
                 "px-6 py-2 text-[11px] uppercase tracking-[0.12em] border transition",

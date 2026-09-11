@@ -17,3 +17,8 @@ export function gitAuthArgs(token?: string | null): string[] {
   const basic = Buffer.from(`x-access-token:${token}`).toString("base64");
   return ["-c", `http.extraheader=AUTHORIZATION: basic ${basic}`];
 }
+
+/** execFile errors echo argv, including one-shot git authentication headers. */
+export function redactGitCredentials(message: string): string {
+  return message.replace(/(authorization:\s*(?:basic|bearer)\s+)[A-Za-z0-9_+/.=-]+/gi, "$1[redacted]");
+}

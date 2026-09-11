@@ -60,7 +60,7 @@ async function verifyOrgAdmin(
   };
 
   // Who is the caller? `/user` also proves the token is live.
-  const meRes = await fetch("https://api.github.com/user", { headers });
+  const meRes = await fetch("https://api.github.com/user", { headers, signal: AbortSignal.timeout(15_000), redirect: "error", cache: "no-store" });
   if (!meRes.ok) return { ok: false, reason: `github_user_lookup_failed_${meRes.status}` };
   const me = (await meRes.json()) as { login?: string };
   if (!me.login) return { ok: false, reason: "github_user_has_no_login" };
@@ -132,6 +132,7 @@ export async function GET(req: NextRequest) {
   const metaRes = await fetch(
     `https://api.github.com/app/installations/${installationId}`,
     {
+      signal: AbortSignal.timeout(15_000), redirect: "error", cache: "no-store",
       headers: {
         Authorization: `Bearer ${appJwt()}`,
         Accept: "application/vnd.github+json",

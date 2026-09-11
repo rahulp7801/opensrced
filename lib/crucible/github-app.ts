@@ -1,36 +1,10 @@
-// Mints GitHub App JWTs and exchanges them for installation tokens.
-// Tokens live 60 min; we cache with a 55-min TTL both in-process and on
-// disk at .dispatches/crucible-tokens-cache.json so a dev-server restart
-// doesn't stampede GitHub for fresh tokens.
-
+// GitHub App credentials stay in memory; serverless deployments have no writable app directory.
 import crypto from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
+import { githubApi } from "../github-api";
 
-const CACHE_PATH = path.join(process.cwd(), ".dispatches", "crucible-tokens-cache.json");
 const TOKEN_TTL_MS = 55 * 60 * 1000;
-
-type CacheEntry = { token: string; expiresAt: number };
-type Cache = Record<string, CacheEntry>;
-
-let memCache: Cache | null = null;
-
-function loadCache(): Cache {
-  if (memCache) return memCache;
-  try {
-    const raw = fs.readFileSync(CACHE_PATH, "utf8");
-    memCache = JSON.parse(raw) as Cache;
-  } catch {
-    memCache = {};
-  }
-  return memCache!;
-}
-
-function saveCache(cache: Cache) {
-  memCache = cache;
-  fs.mkdirSync(path.dirname(CACHE_PATH), { recursive: true });
-  fs.writeFileSync(CACHE_PATH, JSON.stringify(cache, null, 2));
-}
+const tokens = new Map<number, { token: string; expiresAt: number }>();
+const pending = new Map<number, Promise<string>>();
 
 function getPrivateKey(): string {
   const raw = process.env.GITHUB_APP_PRIVATE_KEY;
@@ -69,69 +43,47 @@ export function appJwt(): string {
 }
 
 export async function mintInstallationToken(installationId: number): Promise<string> {
-  const jwt = appJwt();
-  const res = await fetch(
-    `https://api.github.com/app/installations/${installationId}/access_tokens`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${jwt}`,
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-    }
-  );
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`mintInstallationToken failed: ${res.status} ${body}`);
-  }
-  const json = (await res.json()) as { token: string };
+  if (!Number.isSafeInteger(installationId) || installationId <= 0) throw new Error("Invalid installation ID");
+  const json = await githubApi<{ token: string }>(`/app/installations/${installationId}/access_tokens`, appJwt(), {});
+  if (typeof json.token !== "string" || !json.token) throw new Error("GitHub returned no installation token");
   return json.token;
 }
 
 export async function getInstallationToken(installationId: number): Promise<string> {
-  const cache = loadCache();
-  const key = String(installationId);
-  const entry = cache[key];
-  if (entry && entry.expiresAt > Date.now()) return entry.token;
-
-  const token = await mintInstallationToken(installationId);
-  cache[key] = { token, expiresAt: Date.now() + TOKEN_TTL_MS };
-  saveCache(cache);
-  return token;
+  const cached = tokens.get(installationId);
+  if (cached && cached.expiresAt > Date.now()) return cached.token;
+  const existing = pending.get(installationId);
+  if (existing) return existing;
+  const request = mintInstallationToken(installationId).then(token => {
+    tokens.delete(installationId);
+    if (tokens.size >= 100) tokens.delete(tokens.keys().next().value!);
+    tokens.set(installationId, { token, expiresAt: Date.now() + TOKEN_TTL_MS });
+    return token;
+  }).finally(() => pending.delete(installationId));
+  pending.set(installationId, request);
+  return request;
 }
 
-// Small fetch wrapper that signs with the App JWT (not an installation
-// token). Used by the install-callback flow to call /orgs/:org/memberships
-// and to fetch installation metadata before we've picked an installation.
+function githubUrl(url: string): void {
+  const parsed = new URL(url);
+  if (parsed.origin !== "https://api.github.com" || parsed.username || parsed.password) throw new Error("Invalid GitHub API URL");
+}
+
+function authenticatedFetch(url: string, token: string, init: RequestInit): Promise<Response> {
+  const headers = new Headers(init.headers);
+  headers.set("Authorization", `Bearer ${token}`);
+  headers.set("Accept", "application/vnd.github+json");
+  headers.set("X-GitHub-Api-Version", "2022-11-28");
+  return fetch(url, { ...init, headers, cache: "no-store", redirect: "error",
+    signal: init.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000) });
+}
+
 export async function appFetch(url: string, init: RequestInit = {}): Promise<Response> {
-  const jwt = appJwt();
-  return fetch(url, {
-    ...init,
-    headers: {
-      ...(init.headers || {}),
-      Authorization: `Bearer ${jwt}`,
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-  });
+  githubUrl(url);
+  return authenticatedFetch(url, appJwt(), init);
 }
 
-// Installation-token fetch wrapper. Used everywhere we act on behalf of
-// an org (advisories, repo listing, etc.).
-export async function installationFetch(
-  installationId: number,
-  url: string,
-  init: RequestInit = {}
-): Promise<Response> {
-  const token = await getInstallationToken(installationId);
-  return fetch(url, {
-    ...init,
-    headers: {
-      ...(init.headers || {}),
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-  });
+export async function installationFetch(installationId: number, url: string, init: RequestInit = {}): Promise<Response> {
+  githubUrl(url);
+  return authenticatedFetch(url, await getInstallationToken(installationId), init);
 }

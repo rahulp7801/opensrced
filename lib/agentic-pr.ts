@@ -21,7 +21,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { gitAuthArgs } from "./git-auth";
+import { gitAuthArgs, redactGitCredentials } from "./git-auth";
 import { GEMINI_API_BASE, GEMINI_REVIEW_MODEL } from "./models";
 import { applyDiff } from "./apply-diff";
 import { childEnv } from "./child-env";
@@ -69,14 +69,18 @@ async function run(
   args: string[],
   opts: { cwd?: string; env?: NodeJS.ProcessEnv; timeout?: number } = {},
 ) {
-  const { stdout, stderr } = await execFileAsync(cmd, args, {
-    cwd: opts.cwd,
-    env: opts.env ?? childEnv(),
-    maxBuffer: 20 * 1024 * 1024,
-    timeout: opts.timeout ?? 60_000,
-    windowsHide: true,
-  });
-  return { stdout: stdout.toString(), stderr: stderr.toString() };
+  try {
+    const { stdout, stderr } = await execFileAsync(cmd, args, {
+      cwd: opts.cwd,
+      env: opts.env ?? childEnv(),
+      maxBuffer: 20 * 1024 * 1024,
+      timeout: opts.timeout ?? 60_000,
+      windowsHide: true,
+    });
+    return { stdout: stdout.toString(), stderr: stderr.toString() };
+  } catch (error) {
+    throw new Error(redactGitCredentials(error instanceof Error ? error.message : String(error)));
+  }
 }
 
 async function currentGithubUser(env: NodeJS.ProcessEnv): Promise<string | null> {
@@ -553,6 +557,8 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
         `https://api.github.com/repos/${args.repoFull}/pulls`,
         {
           method: "POST",
+          signal: AbortSignal.timeout(30_000),
+          redirect: "error",
           headers: {
             Authorization: `Bearer ${env.GITHUB_TOKEN}`,
             Accept: "application/vnd.github+json",
@@ -754,6 +760,8 @@ async function geminiReviewDiff(diff: string, apiKey: string): Promise<GeminiRev
       `${GEMINI_API_BASE}/models/${GEMINI_REVIEW_MODEL}:generateContent`,
       {
         method: "POST",
+        signal: AbortSignal.timeout(30_000),
+        redirect: "error",
         headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],

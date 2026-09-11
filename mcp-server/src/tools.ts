@@ -11,7 +11,7 @@
 
 import { execFile } from "node:child_process";
 import { readFile, stat } from "node:fs/promises";
-import path from "node:path";
+import { safeRepoPath } from "./safe-path.js";
 import { promisify } from "node:util";
 import { ensureRepo } from "./repo-cache.js";
 import { findByName, getIndex } from "./indexer.js";
@@ -24,18 +24,6 @@ const MAX_FILE_BYTES = 400_000;
 function truncate(s: string, cap = MAX_OUTPUT): string {
   if (s.length <= cap) return s;
   return s.slice(0, cap) + `\n\n[…truncated, ${s.length - cap} more chars]`;
-}
-
-function safeJoin(dir: string, rel: string): string {
-  // Reject absolute paths and traversals; everything must stay inside the
-  // cached clone. Belt-and-braces since git output is trusted but tool args
-  // come from the model.
-  if (path.isAbsolute(rel)) throw new Error(`path must be repo-relative: ${rel}`);
-  const abs = path.resolve(dir, rel);
-  if (!abs.startsWith(path.resolve(dir) + path.sep) && abs !== path.resolve(dir)) {
-    throw new Error(`path escapes repo: ${rel}`);
-  }
-  return abs;
 }
 
 /** list_files — globby-ish via `git ls-files`. Respects .gitignore for free. */
@@ -61,7 +49,7 @@ export async function readFileTool(args: {
   line_end?: number;
 }) {
   const { dir } = await ensureRepo(args.repo);
-  const abs = safeJoin(dir, args.path);
+  const abs = await safeRepoPath(dir, args.path);
   const s = await stat(abs);
   if (!s.isFile()) throw new Error(`not a file: ${args.path}`);
   if (s.size > MAX_FILE_BYTES) {

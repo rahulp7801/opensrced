@@ -16,9 +16,8 @@
 // auto-PR hook) is identical and now lives in one place.
 
 import { execFileSync, spawn } from "node:child_process";
-import { createWriteStream, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync } from "node:fs";
 import { appendFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { randomUUID } from "node:crypto";
@@ -26,7 +25,6 @@ import { parseRunTarget } from "./run-target";
 import { registerDispatch, type Dispatch } from "./dispatcher";
 import { patch, persist } from "./dispatch-store";
 import { createDraftPrFromLog } from "./agentic-pr";
-import { ensureRepoClone, triggerIndexBuild, buildSymbolMap } from "./pre-index";
 import { classifyScope, type ScopeInfo } from "./scope";
 import { sanitizeForPrompt } from "./sanitize";
 import { childEnv } from "./child-env";
@@ -279,28 +277,11 @@ function buildLeafPrompt(
   ].join("\n");
 }
 
-function buildPrompt(repoFull: string, issueNumber: number, issueBody: string, symbolMap?: string): string {
+function buildPrompt(repoFull: string, issueNumber: number, issueBody: string): string {
   // The system/user prompt drives the agent through the MCP tools. We lean
   // on Claude's own judgment for exploration depth rather than prescribing a
   // fixed plan — the whole point of v2 is that it can decide when it has
   // enough context.
-  //
-  // When a symbol map is available (pre-built AST index), we inject it so
-  // Claude can jump directly to the right file:line instead of reading
-  // entire files to discover the codebase structure. This saves 10-50x
-  // tokens on the exploration phase.
-  const symbolSection = symbolMap
-    ? [
-        `## Codebase symbol index (pre-built AST)`,
-        ``,
-        `The repo has been pre-indexed. Below is every function, class, method, type, and constant with its file and line number. **Use this to jump directly to relevant code via \`read_file\` with \`line_start\`/\`line_end\` — do NOT read entire files to discover structure.**`,
-        ``,
-        "```",
-        symbolMap,
-        "```",
-        ``,
-      ]
-    : [];
 
   return [
     `You are fixing issue #${issueNumber} in the GitHub repository \`${repoFull}\`.`,
@@ -309,14 +290,13 @@ function buildPrompt(repoFull: string, issueNumber: number, issueBody: string, s
     ``,
     issueBody,
     ``,
-    ...symbolSection,
     `## Your tools`,
     ``,
     `The MCP server \`opensrcer-repo-tools\` is configured. Every tool takes \`repo: "${repoFull}"\`. Use them to explore the codebase; the repo is shallow-cloned and cached locally.`,
     ``,
     `- \`repo_info\` — orient on an unfamiliar repo first.`,
     `- \`list_files\` — directory/glob listing.`,
-    `- \`read_file\` — read a specific file (pass \`line_start\`/\`line_end\` for large files).${symbolMap ? " **Use the symbol index above to target specific line ranges.**" : ""}`,
+    `- \`read_file\` — read a specific file (pass \`line_start\`/\`line_end\` for large files).`,
     `- \`grep\` — regex search.`,
     `- \`find_definition\` — heuristic def-site lookup for a symbol.`,
     `- \`find_references\` — every mention of a symbol, with per-file counts.`,
@@ -382,9 +362,7 @@ type DispatchTarget =
   | { kind: "issue"; issueNumber: number }
   | { kind: "finding"; finding: FindingInput };
 
-/** Build the prompt + log header for a target, and load the AST symbol map
- *  when one is useful. Issue dispatches get scope triage and pre-indexing;
- *  findings go straight to the remediation prompt. */
+/** Build the prompt and triage scope. Repository access and indexing belong to MCP. */
 async function prepare(
   repoFull: string,
   target: DispatchTarget,
@@ -415,56 +393,10 @@ async function prepare(
     `[triage] scope=${scope.bucket} confidence=${scope.confidence} files=${scope.files.length} → ${fastPath ? "FAST PATH (minimal prompt, reduced budget)" : "full agentic"}\n`,
   );
 
-  // Pre-index: clone repo + build AST index BEFORE spawning Claude. This
-  // gives Claude a symbol map so it can jump directly to file:line instead
-  // of reading entire files. Saves 10-50x tokens.
-  let symbolMap: string | undefined;
-  try {
-    out.write(`[pre-index] Building AST index for ${repoFull}...\n`);
-    const cacheDir = join(
-      process.env.OPENSRCER_CACHE_DIR || join(homedir(), ".contribai", "repos"),
-      repoFull.replace("/", "__"),
-    );
-    const indexPath = join(cacheDir, ".opensrcer-index.json");
-    if (existsSync(indexPath)) {
-      try {
-        const indexData = JSON.parse(readFileSync(indexPath, "utf8"));
-        symbolMap = buildSymbolMap(indexData);
-        out.write(
-          `[pre-index] Loaded cached index: ${indexData.symbols?.length ?? 0} symbols from ${indexData.fileCount ?? 0} files\n`,
-        );
-      } catch {
-        out.write(`[pre-index] Cached index unreadable, will build fresh\n`);
-      }
-    }
-    if (!symbolMap) {
-      // Trigger async index build — runs in background. If it finishes
-      // before Claude needs it, great; if not, Claude falls back to normal
-      // tool exploration.
-      ensureRepoClone(repoFull, token)
-        .then((dir) => triggerIndexBuild(dir, repoFull))
-        .then((index) => {
-          if (index && !out.writableEnded && !out.destroyed) {
-            out.write(
-              `[pre-index] Index built: ${index.symbols.length} symbols from ${index.fileCount} files\n`,
-            );
-          }
-        })
-        .catch((err) => {
-          if (out.writableEnded || out.destroyed) return;
-          out.write(
-            `[pre-index] Index build failed (non-fatal): ${err instanceof Error ? err.message : String(err)}\n`,
-          );
-        });
-    }
-  } catch (err) {
-    out.write(`[pre-index] Failed (non-fatal): ${err instanceof Error ? err.message : String(err)}\n`);
-  }
-
   return {
     prompt: fastPath
       ? buildLeafPrompt(repoFull, issueNumber, issue.formatted, scope)
-      : buildPrompt(repoFull, issueNumber, issue.formatted, symbolMap),
+      : buildPrompt(repoFull, issueNumber, issue.formatted),
     headerLine: `repo: ${repoFull}  issue: #${issueNumber}`,
     fastPath,
   };

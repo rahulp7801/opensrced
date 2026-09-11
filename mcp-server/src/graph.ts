@@ -4,7 +4,8 @@
 import { parseRepo, authorizeRepo } from "./repo-cache.js";
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { safeRepoPath } from "./safe-path.js";
 import { homedir } from "node:os";
 
 interface GraphNode {
@@ -55,7 +56,9 @@ async function loadGraph(repo: string): Promise<GraphData> {
   await authorizeRepo(repo);
   const path = findGraphJson(repo);
   if (!path) throw new Error("Graph not found. Build it first via the Graph page in the opensrcer UI.");
-  const raw = await readFile(path, "utf8");
+  const root = dirname(dirname(path));
+  const safePath = await safeRepoPath(root, "graphify-out/graph.json");
+  const raw = await readFile(safePath, "utf8");
   return JSON.parse(raw) as GraphData;
 }
 

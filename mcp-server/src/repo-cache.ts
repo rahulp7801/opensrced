@@ -126,7 +126,7 @@ export async function ensureRepo(repo: string): Promise<{ ref: RepoRef; dir: str
     }
     if (needsClone) {
       // Another process may be mid-dispatch against this clone — the MCP
-      // server, lib/pre-index.ts and agentic-pr's worktree all share this
+      // server and agentic-pr's worktree can share this
       // directory, and the in-process `locks` map above only serialises
       // callers inside THIS process. Blowing the directory away underneath
       // a live worktree corrupts that run, so take a cross-process lock
@@ -232,6 +232,9 @@ async function doClone(ref: RepoRef, dir: string): Promise<string> {
   }
   // Freshness stamp — see the TTL check in ensureRepo for why .git's mtime
   // can't be used.
-  await writeFile(path.join(dir, ".opensrcer-cloned-at"), new Date().toISOString());
+  const stamp = path.join(dir, ".opensrcer-cloned-at");
+  // A repository can commit a link at this path. Remove it before exclusive creation.
+  await rm(stamp, { force: true });
+  await writeFile(stamp, new Date().toISOString(), { flag: "wx" });
   return dir;
 }

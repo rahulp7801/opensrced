@@ -18,13 +18,11 @@
 //   buildIndex(repoDir) → Index { symbols: Array<Symbol>, byName: Map<…> }
 //   findByName(index, name) → Symbol[]
 //
-// The index is cached on disk as <repoDir>/.opensrcer-index.json so
-// subsequent tool calls skip the reparse. Invalidated when the clone is
-// refreshed (the index file is wiped with the rest of the dir in
-// repo-cache.ts's re-clone path).
+// Indexes live only in this worker; repository-controlled cache files are not trusted.
 
-import { readFile, stat, writeFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { safeRepoPath } from "./safe-path.js";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -172,7 +170,6 @@ export type Index = {
   byName: Map<string, Symbol[]>;
 };
 
-const INDEX_FILENAME = ".opensrcer-index.json";
 const MAX_FILE_BYTES = 2_000_000; // skip monster files — they're usually generated
 
 // Parser.init() is one-time. Cache it across calls.
@@ -231,9 +228,9 @@ async function parseFile(
   repoDir: string,
   relPath: string,
 ): Promise<Symbol[]> {
-  const abs = path.join(repoDir, relPath);
   let buf: Buffer;
   try {
+    const abs = await safeRepoPath(repoDir, relPath);
     const s = await stat(abs);
     if (!s.isFile() || s.size > MAX_FILE_BYTES) return [];
     buf = await readFile(abs);
@@ -280,16 +277,6 @@ async function parseFile(
   return out;
 }
 
-async function loadCachedIndex(repoDir: string): Promise<Index | undefined> {
-  try {
-    const raw = await readFile(path.join(repoDir, INDEX_FILENAME), "utf8");
-    const parsed = JSON.parse(raw) as { builtAt: number; fileCount: number; symbols: Symbol[] };
-    return makeIndex(parsed.symbols, parsed.builtAt, parsed.fileCount);
-  } catch {
-    return undefined;
-  }
-}
-
 function makeIndex(symbols: Symbol[], builtAt: number, fileCount: number): Index {
   const byName = new Map<string, Symbol[]>();
   for (const s of symbols) {
@@ -298,15 +285,6 @@ function makeIndex(symbols: Symbol[], builtAt: number, fileCount: number): Index
     else byName.set(s.name, [s]);
   }
   return { builtAt, fileCount, symbols, byName };
-}
-
-async function saveIndex(repoDir: string, index: Index): Promise<void> {
-  const body = JSON.stringify({
-    builtAt: index.builtAt,
-    fileCount: index.fileCount,
-    symbols: index.symbols,
-  });
-  await writeFile(path.join(repoDir, INDEX_FILENAME), body);
 }
 
 // Per-repo in-memory cache + an inflight-lock so two concurrent tool calls
@@ -318,9 +296,6 @@ export async function getIndex(repoDir: string): Promise<Index> {
   if (cached) return cached;
 
   const job = (async () => {
-    const onDisk = await loadCachedIndex(repoDir);
-    if (onDisk) return onDisk;
-
     await initParserOnce();
     const files = await listTrackedFiles(repoDir);
 
@@ -365,8 +340,6 @@ export async function getIndex(repoDir: string): Promise<Index> {
     }
 
     const index = makeIndex(symbols, Date.now(), touched);
-    // Best-effort save; a write failure shouldn't break the tool call.
-    saveIndex(repoDir, index).catch(() => {});
     return index;
   })();
 

@@ -56,7 +56,9 @@ export function parseRepo(repo: string): RepoRef {
       trimmed,
     );
   if (!m || m[1].includes("..") || m[2].includes("..") || m[1] === "." || m[2] === ".") throw new Error("Invalid GitHub repository");
-  return { owner: m[1], name: m[2], full: `${m[1]}/${m[2]}` };
+  const full = `${m[1]}/${m[2]}`;
+  if (process.env.OPENSRCER_ALLOWED_REPO && full.toLowerCase() !== process.env.OPENSRCER_ALLOWED_REPO.toLowerCase()) throw new Error("This worker can only read the requested repository.");
+  return { owner: m[1], name: m[2], full };
 }
 
 function pinnedRef(): string | undefined {

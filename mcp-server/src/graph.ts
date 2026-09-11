@@ -1,6 +1,7 @@
 // Lightweight graph query functions for the MCP server.
 // Reads graphify's graph.json and performs pure JS traversal.
 
+import { parseRepo } from "./repo-cache.js";
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -35,12 +36,9 @@ const CALL_RELATIONS = new Set([
 ]);
 
 function findGraphJson(repo: string): string | null {
-  // Parse owner/name
-  const m = /^(?:https?:\/\/github\.com\/|git@github\.com:)?([^/\s:]+)\/([^/\s]+)$/i.exec(
-    repo.trim().replace(/\.git$/i, ""),
-  );
-  if (!m) return null;
-  const [, owner, name] = m;
+  const { owner, name } = parseRepo(repo);
+  // A default-branch graph must not describe a pinned PR revision.
+  if (process.env.OPENSRCER_REPO_REF) return null;
 
   // Check opensrcer graph cache
   const cacheDir = join(homedir(), ".opensrcer", "graph-cache", `${owner}__${name}`, "graphify-out", "graph.json");

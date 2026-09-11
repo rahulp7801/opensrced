@@ -558,6 +558,7 @@ export default function GraphPage() {
               </a>
             </div>
             <iframe
+              sandbox="allow-scripts"
               src={`/api/graph/${owner}/${repo}/viz`}
               className="w-full flex-1 border-0"
               title="Codebase Knowledge Graph"

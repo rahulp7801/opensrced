@@ -24,6 +24,8 @@ import { requireSession } from "@/lib/require-session";
 
 const execFileAsync = promisify(execFile);
 
+import { githubApi } from "@/lib/github-api";
+
 export const dynamic = "force-dynamic";
 
 type Check = {
@@ -207,6 +209,8 @@ export async function POST(req: NextRequest) {
   // Uses code-review-graph (preferred — defensive, capped traversal) or
   // graphify (fallback) to check downstream impact of the change.
   if (body.repo) {
+    try { await githubApi(`/repos/${body.repo}`, await resolveGitHubToken()); }
+    catch { return Response.json({ error: "Repository not accessible" }, { status: 403 }); }
     const m = body.repo.match(/^([^/]+)\/([^/]+)$/);
     if (m) {
       // Try code-review-graph first (handles large repos, SQLite-backed)

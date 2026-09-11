@@ -12,6 +12,8 @@ import { requireSession } from "@/lib/require-session";
 import { gitAuthArgs } from "@/lib/git-auth";
 import { childEnv } from "@/lib/child-env";
 
+import { githubApi } from "@/lib/github-api";
+
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
@@ -32,6 +34,10 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "Invalid repo URL" }, { status: 400 });
   }
   const [owner, name] = repoId.split("/");
+
+  const token = await resolveGitHubToken();
+  try { await githubApi(`/repos/${owner}/${name}`, token); }
+  catch { return Response.json({ error: "Repository not accessible" }, { status: 403 }); }
 
   const cacheDir = graphCacheDir(owner, name);
 
@@ -66,7 +72,7 @@ export async function POST(req: NextRequest) {
             const proc = spawn(
               "git",
               [...gitAuthArgs(token), "clone", "--depth", "1", cloneUrl, "."],
-              { cwd: cacheDir, windowsHide: true },
+              { cwd: cacheDir, windowsHide: true, env: childEnv(), timeout: 60_000 },
             );
             let stderr = "";
             proc.stderr.on("data", (chunk: Buffer) => {

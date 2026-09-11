@@ -30,6 +30,9 @@ import { CLAUDE_FAST_MODEL } from "@/lib/models";
 
 const execFileAsync = promisify(execFile);
 
+import { githubApi } from "@/lib/github-api";
+import { resolveGitHubToken } from "@/lib/github-token";
+
 export const dynamic = "force-dynamic";
 
 /** Run a Python script with argv and optional stdin, capturing stdout.
@@ -102,6 +105,9 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
+
+  try { await githubApi(`/repos/${body.owner}/${body.repo}`, await resolveGitHubToken()); }
+  catch { return Response.json({ error: "Repository not accessible" }, { status: 403 }); }
 
   const jsonPath = graphJsonPath(body.owner, body.repo);
   const hasCrgData = hasCrg(body.owner, body.repo);

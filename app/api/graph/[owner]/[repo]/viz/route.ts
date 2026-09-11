@@ -9,6 +9,10 @@ import { hasCrg } from "@/lib/graph-build";
 import { requireSession } from "@/lib/require-session";
 import { sanitizeGitHubName } from "@/lib/sanitize";
 
+import { githubApi } from "@/lib/github-api";
+import { resolveGitHubToken } from "@/lib/github-token";
+import { graphHtmlResponse } from "@/lib/graph-html";
+
 export const dynamic = "force-dynamic";
 
 /** Validate both segments before either reaches a path join. `owner` and
@@ -32,16 +36,13 @@ export async function GET(
   const safe = safeParams(raw.owner, raw.repo);
   if (!safe) return new Response("Invalid repo", { status: 400 });
   const { owner, repo } = safe;
+  try { await githubApi(`/repos/${owner}/${repo}`, await resolveGitHubToken()); }
+  catch { return new Response("Repository not accessible", { status: 403 }); }
   const htmlPath = graphHtmlPath(owner, repo);
 
   if (existsSync(htmlPath)) {
     const html = await readFile(htmlPath, "utf8");
-    return new Response(html, {
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        "Cache-Control": "public, max-age=3600",
-      },
-    });
+    return graphHtmlResponse(html);
   }
 
   // graph.json exists but graph.html doesn't — repo too large for vis.js
@@ -62,9 +63,7 @@ export async function GET(
   chat panel to run trace, impact, explain, and other commands.
   All graph data is available.</p>
 </div></body></html>`;
-    return new Response(fallbackHtml, {
-      headers: { "Content-Type": "text/html; charset=utf-8" },
-    });
+    return graphHtmlResponse(fallbackHtml);
   }
 
   // CRG-only repo — no graphify output at all, but graph.db exists
@@ -89,9 +88,7 @@ export async function GET(
   graph data as context.</p>
   <p class="dim">Visualization is available for repos under 800 files.</p>
 </div></body></html>`;
-    return new Response(crgHtml, {
-      headers: { "Content-Type": "text/html; charset=utf-8" },
-    });
+    return graphHtmlResponse(crgHtml);
   }
 
   return new Response(
@@ -112,6 +109,8 @@ export async function HEAD(
   const safe = safeParams(raw.owner, raw.repo);
   if (!safe) return new Response(null, { status: 400 });
   const { owner, repo } = safe;
+  try { await githubApi(`/repos/${owner}/${repo}`, await resolveGitHubToken()); }
+  catch { return new Response("Repository not accessible", { status: 403 }); }
 
   const hasGraphify = existsSync(graphHtmlPath(owner, repo)) || existsSync(graphJsonPath(owner, repo));
   const hasCrgData = hasCrg(owner, repo);

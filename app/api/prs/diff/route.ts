@@ -1,15 +1,13 @@
 // GET /api/prs/diff?repo=owner/name&pr=123
-// Fetches the PR diff via gh CLI. Loaded lazily by the review page.
+// Fetches the PR diff via the GitHub API. Loaded lazily by the review page.
 
 import { NextRequest } from "next/server";
 import { requireSession } from "@/lib/require-session";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { resolveGitHubToken } from "@/lib/github-token";
-import { ghEnv } from "@/lib/child-env";
 import { sanitizeRepoId, sanitizePrNumber } from "@/lib/sanitize";
 
-const execFileAsync = promisify(execFile);
+
+import { githubResponse } from "@/lib/github-api";
 
 export const dynamic = "force-dynamic";
 
@@ -23,23 +21,28 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: "Missing repo or pr" }, { status: 400 });
   }
   const repo = sanitizeRepoId(rawRepo);
-  const pr = String(sanitizePrNumber(parseInt(rawPr)));
+  const pr = sanitizePrNumber(rawPr);
   if (!repo || !pr) {
     return Response.json({ error: "Invalid repo or pr" }, { status: 400 });
   }
 
   const token = await resolveGitHubToken();
-  // gh acts as the requesting user or as nobody — never as whatever
-  // credential the host happens to have on disk. See lib/child-env.ts.
-  const env = ghEnv(token);
-
   try {
-    const { stdout } = await execFileAsync(
-      "gh",
-      ["pr", "diff", pr, "--repo", repo],
-      { env, maxBuffer: 10 * 1024 * 1024, windowsHide: true, timeout: 15000 },
-    );
-    return Response.json({ diff: stdout });
+    const response = await githubResponse(`/repos/${repo}/pulls/${pr}`, token, undefined, "application/vnd.github.diff");
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("GitHub returned an empty diff response.");
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    try {
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        size += chunk.value.byteLength;
+        if (size > 4_000_000) throw new Error("This diff is too large to display here. Open it on GitHub.");
+        chunks.push(chunk.value);
+      }
+    } finally { await reader.cancel(); }
+    return Response.json({ diff: Buffer.concat(chunks).toString("utf8") });
   } catch (err) {
     return Response.json(
       { error: err instanceof Error ? err.message : String(err) },

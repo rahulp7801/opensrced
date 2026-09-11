@@ -2,14 +2,12 @@
 // Posts a reply to a PR review comment or a general PR comment.
 
 import { NextRequest } from "next/server";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { resolveGitHubToken } from "@/lib/github-token";
-import { ghEnv } from "@/lib/child-env";
-import { sanitizeRepoId, sanitizeForPrompt, sanitizePrNumber } from "@/lib/sanitize";
+import { sanitizeRepoId, sanitizePrNumber } from "@/lib/sanitize";
 import { requireSession } from "@/lib/require-session";
 
-const execFileAsync = promisify(execFile);
+
+import { githubApi } from "@/lib/github-api";
 
 export const dynamic = "force-dynamic";
 
@@ -26,14 +24,14 @@ export async function POST(req: NextRequest) {
   };
 
   const body = {
-    repo: raw.repo ? sanitizeRepoId(raw.repo) : null,
+    repo: typeof raw.repo === "string" ? sanitizeRepoId(raw.repo) : null,
     pr_number: raw.pr_number ? sanitizePrNumber(raw.pr_number) : null,
     comment_id: raw.comment_id,
-    body: raw.body ? sanitizeForPrompt(raw.body) : null,
+    body: typeof raw.body === "string" ? raw.body.trim() : null,
     type: raw.type === "review" ? "review" as const : "issue" as const,
   };
 
-  if (!body.repo || !body.body || !body.pr_number) {
+  if (!body.repo || !body.body || body.body.length > 20_000 || !body.pr_number || (body.type === "review" && (!Number.isSafeInteger(body.comment_id) || body.comment_id! < 1))) {
     return Response.json(
       { error: "Missing repo, pr_number, or body" },
       { status: 400 },
@@ -44,35 +42,11 @@ export async function POST(req: NextRequest) {
   if (!token) {
     return Response.json({ error: "No GitHub token" }, { status: 401 });
   }
-  // gh runs as the requesting user or not at all. See lib/child-env.ts.
-  const env = ghEnv(token);
-
   try {
-    if (body.type === "review" && body.comment_id) {
-      // Reply to an inline review comment
-      await execFileAsync(
-        "gh",
-        [
-          "api",
-          `repos/${body.repo}/pulls/comments/${body.comment_id}/replies`,
-          "-f",
-          `body=${body.body}`,
-        ],
-        { env, maxBuffer: 1 * 1024 * 1024, windowsHide: true },
-      );
-    } else {
-      // Post a general comment on the PR (issue comment)
-      await execFileAsync(
-        "gh",
-        [
-          "api",
-          `repos/${body.repo}/issues/${body.pr_number}/comments`,
-          "-f",
-          `body=${body.body}`,
-        ],
-        { env, maxBuffer: 1 * 1024 * 1024, windowsHide: true },
-      );
-    }
+    const path = body.type === "review"
+      ? `/repos/${body.repo}/pulls/${body.pr_number}/comments/${body.comment_id}/replies`
+      : `/repos/${body.repo}/issues/${body.pr_number}/comments`;
+    await githubApi(path, token, { body: body.body });
 
     return Response.json({ ok: true });
   } catch (err) {

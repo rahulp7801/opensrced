@@ -102,8 +102,9 @@ export function sanitizeCommitMessage(input: string): string {
  * Sanitize a PR number.
  */
 export function sanitizePrNumber(input: string | number): number | null {
-  const n = typeof input === "string" ? parseInt(input, 10) : input;
-  if (!Number.isFinite(n) || n < 1 || n > 999999) return null;
+  if (typeof input === "string" && !/^[1-9]\d*$/.test(input)) return null;
+  const n = typeof input === "string" ? Number(input) : input;
+  if (!Number.isSafeInteger(n) || n < 1) return null;
   return n;
 }
 

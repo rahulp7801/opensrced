@@ -1,16 +1,15 @@
 // GET /api/prs/review?repo=owner/name&pr=123
-// Fetches review comments for a PR using the gh CLI.
+// Fetches review comments for a PR using the GitHub API.
 
 import { NextRequest } from "next/server";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { resolveGitHubToken } from "@/lib/github-token";
-import { ghEnv } from "@/lib/child-env";
 import { sanitizeRepoId, sanitizePrNumber } from "@/lib/sanitize";
 import { requireSession } from "@/lib/require-session";
 
-const execFileAsync = promisify(execFile);
 
+import { githubApi } from "@/lib/github-api";
+
+export const maxDuration = 180;
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
@@ -28,7 +27,7 @@ export async function GET(req: NextRequest) {
   }
 
   const repo = sanitizeRepoId(rawRepo);
-  const pr = String(sanitizePrNumber(parseInt(rawPr)));
+  const pr = sanitizePrNumber(rawPr);
 
   if (!repo || !pr) {
     return Response.json(
@@ -38,73 +37,24 @@ export async function GET(req: NextRequest) {
   }
 
   const token = await resolveGitHubToken();
-  // gh acts as the requesting user or as nobody — never as whatever
-  // credential the host happens to have on disk. See lib/child-env.ts.
-  const env = ghEnv(token);
-
   try {
-    // Fetch PR metadata
-    const { stdout: prJson } = await execFileAsync(
-      "gh",
-      [
-        "pr",
-        "view",
-        pr,
-        "--repo",
-        repo,
-        "--json",
-        "title,state,url,body,headRefName,baseRefName,author",
-      ],
-      { env, maxBuffer: 5 * 1024 * 1024, windowsHide: true },
-    );
-    const prData = JSON.parse(prJson) as {
-      title: string;
-      state: string;
-      url: string;
-      body: string;
-      headRefName: string;
-      baseRefName: string;
-      author: { login: string };
-    };
-
-    // Fetch inline review comments (code-level feedback)
-    const { stdout: commentsJson } = await execFileAsync(
-      "gh",
-      [
-        "api",
-        `repos/${repo}/pulls/${pr}/comments`,
-        "--paginate",
-      ],
-      { env, maxBuffer: 10 * 1024 * 1024, windowsHide: true },
-    );
-    const rawComments = JSON.parse(commentsJson) as Array<{
-      id: number;
-      user: { login: string };
-      body: string;
-      path: string;
-      line: number | null;
-      original_line: number | null;
-      diff_hunk: string;
-      created_at: string;
-      in_reply_to_id?: number;
-    }>;
-
-    // Also fetch general issue comments (non-inline)
-    const { stdout: issueCommentsJson } = await execFileAsync(
-      "gh",
-      [
-        "api",
-        `repos/${repo}/issues/${pr}/comments`,
-        "--paginate",
-      ],
-      { env, maxBuffer: 10 * 1024 * 1024, windowsHide: true },
-    );
-    const rawIssueComments = JSON.parse(issueCommentsJson) as Array<{
-      id: number;
-      user: { login: string };
-      body: string;
-      created_at: string;
-    }>;
+    type Comment = { id: number; user: { login: string }; body: string; path: string; line: number | null; original_line: number | null; diff_hunk: string; created_at: string; in_reply_to_id?: number };
+    async function comments(path: string): Promise<Comment[]> {
+      const all: Comment[] = [];
+      for (let page = 1; page <= 10; page++) {
+        const batch = await githubApi<Comment[]>(`${path}?per_page=100&page=${page}`, token);
+        all.push(...batch);
+        if (batch.length < 100) return all;
+      }
+      throw new Error("This PR has too many comments to load here. Open the conversation on GitHub.");
+    }
+    const [pull, rawComments, rawIssueComments, viewer] = await Promise.all([
+      githubApi<{ title: string; state: string; merged: boolean; html_url: string; head: { ref: string }; base: { ref: string }; user: { login: string } }>(`/repos/${repo}/pulls/${pr}`, token),
+      comments(`/repos/${repo}/pulls/${pr}/comments`),
+      comments(`/repos/${repo}/issues/${pr}/comments`),
+      token ? githubApi<{ login: string }>("/user", token) : Promise.resolve(null),
+    ]);
+    const prData = { title: pull.title, state: pull.merged ? "MERGED" : pull.state.toUpperCase(), url: pull.html_url, headRefName: pull.head.ref, baseRefName: pull.base.ref, author: pull.user };
 
     // Filter out bots — match both exact names and [bot] suffix
     function isBot(login: string): boolean {
@@ -145,7 +95,7 @@ export async function GET(req: NextRequest) {
         createdAt: c.created_at,
         type: "issue" as const,
         inReplyTo: null as number | null,
-        isOwnComment: c.user.login === prData.author.login,
+        isOwnComment: c.user.login === viewer?.login,
       }));
 
     return Response.json({

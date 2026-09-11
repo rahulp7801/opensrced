@@ -1,16 +1,17 @@
 /** GitHub requests use only the caller's token, never a host CLI credential. */
-export async function githubApi<T>(
+export async function githubResponse(
   path: string,
   token?: string | null,
   body?: unknown,
-): Promise<T> {
+  accept = "application/vnd.github+json",
+): Promise<Response> {
   if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\")) {
     throw new Error("Invalid GitHub API path");
   }
   const response = await fetch(`https://api.github.com${path}`, {
     method: body === undefined ? "GET" : "POST",
     headers: {
-      Accept: "application/vnd.github+json",
+      Accept: accept,
       "X-GitHub-Api-Version": "2022-11-28",
       "User-Agent": "opensrcer",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -29,7 +30,11 @@ export async function githubApi<T>(
       : `GitHub request failed (${response.status}).`;
     throw new Error(message);
   }
-  return response.json() as Promise<T>;
+  return response;
+}
+
+export async function githubApi<T>(path: string, token?: string | null, body?: unknown): Promise<T> {
+  return (await githubResponse(path, token, body)).json() as Promise<T>;
 }
 
 export async function githubGraphql<T>(query: string, variables: Record<string, unknown>, token: string): Promise<T> {

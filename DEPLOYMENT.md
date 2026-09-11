@@ -20,9 +20,9 @@ Workers stop after 40 minutes; abandoned records expire after 45 minutes.
    key storage, preview, cancellation, and controlled live PR creation.
 
 The cloud path has passed local compilation and unit tests; it has not yet been
-provisioned or exercised against Vercel. Exploration, graph tools, PR follow-up
-actions, and activity statistics still need their remaining local-process or
-filesystem dependencies migrated. Do not treat deployment alone as release
+provisioned or exercised against Vercel. Graph tools, PR fix generation, and pushing PR follow-up
+changes still need their remaining local-process or filesystem dependencies
+migrated. Exploration uses sandbox streaming and activity is owner-scoped. Do not treat deployment alone as release
 acceptance. Repository test execution remains off inside workers because tests
 could access user credentials supplied to the agent.
 

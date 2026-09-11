@@ -1,8 +1,23 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { githubApi, githubGraphql } from "../github-api";
+import { githubApi, githubGraphql, githubResponse } from "../github-api";
+import { sanitizePrNumber } from "../sanitize";
 import { listIssues } from "../issues";
 import { discover } from "../discover";
+
+test("PR numbers reject partial strings, fractions and unsafe integers", () => {
+  for (const value of ["12junk", "1/../../user", "1.5", 1.5, 0, NaN, Number.MAX_SAFE_INTEGER + 1]) assert.equal(sanitizePrNumber(value), null);
+  assert.equal(sanitizePrNumber("1234567"), 1234567);
+});
+
+test("GitHub diff responses preserve text and request the diff media type", async (t) => {
+  t.mock.method(globalThis, "fetch", async (_url: string, options: RequestInit) => {
+    assert.equal(new Headers(options.headers).get("Accept"), "application/vnd.github.diff");
+    assert.equal(new Headers(options.headers).get("Authorization"), "Bearer test-user-token");
+    return new Response("diff --git a/file b/file\n");
+  });
+  assert.equal(await (await githubResponse("/repos/acme/app/pulls/1", "test-user-token", undefined, "application/vnd.github.diff")).text(), "diff --git a/file b/file\n");
+});
 
 test("GitHub requests use caller credentials, a deadline, and reject redirects", async (t) => {
   const requests: RequestInit[] = [];

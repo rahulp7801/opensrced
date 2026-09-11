@@ -1,10 +1,7 @@
-// Minimal stale-while-revalidate hook for client-side data fetching.
-// Shows cached data instantly, revalidates in the background.
-// No external dependencies.
-
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { pollJson } from "./poll-json";
 
 type SWRState<T> = {
   data: T | null;
@@ -13,61 +10,36 @@ type SWRState<T> = {
   isValidating: boolean;
 };
 
-const memCache = new Map<string, { data: unknown; ts: number }>();
+const memCache = new Map<string, unknown>();
+
+function initialState<T>(url: string | null): SWRState<T> {
+  const data = url ? (memCache.get(url) as T | undefined) ?? null : null;
+  return { data, error: null, isLoading: !!url && data === null, isValidating: !!url };
+}
 
 export function useSwrFetch<T>(
   url: string | null,
   opts: { refreshInterval?: number; dedupingInterval?: number } = {},
 ): SWRState<T> {
   const { refreshInterval = 0, dedupingInterval = 5000 } = opts;
-  const [state, setState] = useState<SWRState<T>>(() => {
-    const hit = url ? memCache.get(url) : null;
-    return {
-      data: hit ? (hit.data as T) : null,
-      error: null,
-      isLoading: !hit,
-      isValidating: true,
-    };
-  });
-  const lastFetch = useRef(0);
+  const [state, setState] = useState(() => ({ url, ...initialState<T>(url) }));
 
   useEffect(() => {
+    setState({ url, ...initialState<T>(url) });
     if (!url) return;
-    let live = true;
-
-    async function revalidate() {
-      const now = Date.now();
-      if (now - lastFetch.current < dedupingInterval) return;
-      lastFetch.current = now;
-
-      setState((s) => ({ ...s, isValidating: true }));
-      try {
-        const res = await fetch(url!, { cache: "no-store" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = (await res.json()) as T;
-        if (live) {
-          memCache.set(url!, { data, ts: now });
-          setState({ data, error: null, isLoading: false, isValidating: false });
-        }
-      } catch (e) {
-        if (live) {
-          setState((s) => ({
-            ...s,
-            error: e instanceof Error ? e.message : String(e),
-            isLoading: false,
-            isValidating: false,
-          }));
-        }
+    return pollJson<T>(url, (result) => {
+      if (result.error !== null) {
+        setState((s) => ({ ...s, error: result.error, isLoading: false, isValidating: false }));
+      } else {
+        // Bound memory across URL changes in a long-lived tab.
+        memCache.delete(url);
+        memCache.set(url, result.data);
+        if (memCache.size > 100) memCache.delete(memCache.keys().next().value!);
+        setState({ url, data: result.data, error: null, isLoading: false, isValidating: false });
       }
-    }
-
-    revalidate();
-    const id = refreshInterval > 0 ? setInterval(revalidate, refreshInterval) : undefined;
-    return () => {
-      live = false;
-      if (id) clearInterval(id);
-    };
+    }, refreshInterval > 0 ? Math.max(refreshInterval, dedupingInterval) : 0);
   }, [url, refreshInterval, dedupingInterval]);
 
-  return state;
+  // Never show another URL's result while waiting for its effect to run.
+  return state.url === url ? state : initialState<T>(url);
 }

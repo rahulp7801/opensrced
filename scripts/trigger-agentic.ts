@@ -43,7 +43,7 @@ import { startAgenticDispatch } from "../lib/agentic-dispatcher.ts";
 console.log(`[test] AUTO_PR suppressed: process.env.OPENSRCER_AGENTIC_AUTO_PR=${process.env.OPENSRCER_AGENTIC_AUTO_PR}`);
 console.log(`[test] target: ${repo} #${issueNumber}`);
 
-const d = startAgenticDispatch(repo, issueNumber, {
+const d = await startAgenticDispatch(repo, issueNumber, {
   anthropicKey: process.env.ANTHROPIC_API_KEY,
   // No org context, no maxSpend override — leaf-path budget will apply
   // automatically if the issue classifies as leaf/doc.

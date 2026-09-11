@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
+import { CapacityError } from "@/lib/concurrency";
 import { startAgenticDispatch, startFindingDispatch } from "@/lib/agentic-dispatcher";
 import { mappingForOrg } from "@/lib/crucible/orgs";
 import { resolveGithubToken } from "@/lib/crucible/tokens";
@@ -89,9 +90,9 @@ export async function POST(req: NextRequest) {
       // users' /api/dispatches listings.
       auth0UserId: sub,
     };
-    const d = isSecurityFinding
+    const d = await (isSecurityFinding
       ? startFindingDispatch(repo_url, finding!, sharedOpts)
-      : startAgenticDispatch(repo_url, issue_number!, sharedOpts);
+      : startAgenticDispatch(repo_url, issue_number!, sharedOpts));
     const label = isSecurityFinding
       ? `${finding!.kind} ${finding!.id}`
       : `issue #${issue_number}`;
@@ -111,7 +112,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     return NextResponse.json(
       { status: "error", message: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
+      { status: err instanceof CapacityError ? 429 : 500 },
     );
   }
 }

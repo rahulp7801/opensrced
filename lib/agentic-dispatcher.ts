@@ -15,7 +15,8 @@
 // is named. Everything else (guardrails, kill switch, close handling,
 // auto-PR hook) is identical and now lives in one place.
 
-import { execFileSync, spawn } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
+import { promisify } from "node:util";
 import { createWriteStream, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { appendFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -28,7 +29,10 @@ import { createDraftPrFromLog } from "./agentic-pr";
 import { ensureRepoClone, triggerIndexBuild, buildSymbolMap } from "./pre-index";
 import { classifyScope, type ScopeInfo } from "./scope";
 import { sanitizeForPrompt } from "./sanitize";
-import { childEnv } from "./child-env";
+import { childEnv, ghEnv } from "./child-env";
+import { reserveSlot } from "./concurrency";
+
+const execAsync = promisify(execFile);
 
 const DISPATCH_DIR = join(process.cwd(), ".dispatches");
 const MCP_CONFIG = join(process.cwd(), ".mcp.json");
@@ -105,19 +109,15 @@ type FetchedIssue = {
   formatted: string; // pre-formatted block used in the prompt
 };
 
-function fetchIssue(
+async function fetchIssue(
   repoFull: string,
   issueNumber: number,
   token: string | undefined,
-): FetchedIssue {
-  const gh = process.env.GH_CLI;
+): Promise<FetchedIssue> {
+  const gh = process.env.GH_CLI ?? "gh";
   const fallbackTitle = `Issue #${issueNumber}`;
-  const fallbackBody = `(gh CLI not available; body could not be fetched for ${repoFull}#${issueNumber})`;
-  if (!gh || !existsSync(gh)) {
-    return { title: fallbackTitle, body: "", formatted: fallbackBody };
-  }
   try {
-    const raw = execFileSync(
+    const { stdout: raw } = await execAsync(
       gh,
       ["issue", "view", String(issueNumber), "--repo", repoFull, "--json", "title,body,labels,url"],
       {
@@ -129,7 +129,8 @@ function fetchIssue(
         // has no use for either. It also read whatever credential the host
         // happened to have; now it authenticates as the requesting user or
         // not at all.
-        env: childEnv({ GITHUB_TOKEN: token, GH_TOKEN: token }),
+        env: ghEnv(token),
+        windowsHide: true,
       },
     );
     const parsed = JSON.parse(raw) as {
@@ -420,12 +421,12 @@ type DispatchTarget =
 /** Build the prompt + log header for a target, and load the AST symbol map
  *  when one is useful. Issue dispatches get scope triage and pre-indexing;
  *  findings go straight to the remediation prompt. */
-function prepare(
+async function prepare(
   repoFull: string,
   target: DispatchTarget,
   token: string | undefined,
   out: import("node:fs").WriteStream,
-): { prompt: string; headerLine: string; fastPath: boolean } {
+): Promise<{ prompt: string; headerLine: string; fastPath: boolean }> {
   if (target.kind === "finding") {
     const label = target.finding.cve_id ?? target.finding.id;
     return {
@@ -436,7 +437,7 @@ function prepare(
   }
 
   const { issueNumber } = target;
-  const issue = fetchIssue(repoFull, issueNumber, token);
+  const issue = await fetchIssue(repoFull, issueNumber, token);
 
   // Triage: classify the scope of the issue from its title + body. If the
   // scope is leaf or doc, we swap in a much more constrained prompt that
@@ -505,11 +506,28 @@ function prepare(
 }
 
 /** Shared spawn core for both entry points. */
-function startDispatch(
+async function startDispatch(
   repoUrl: string,
   target: DispatchTarget,
   opts: StartAgenticOpts,
-): Dispatch {
+): Promise<Dispatch> {
+  // Bound both public and private dispatches, including their PR post-hooks.
+  // Single-process deployment only; multiple replicas need a durable queue.
+  const release = reserveSlot("agentic", 3);
+  try {
+    return await spawnDispatch(repoUrl, target, opts, release);
+  } catch (error) {
+    release();
+    throw error;
+  }
+}
+
+async function spawnDispatch(
+  repoUrl: string,
+  target: DispatchTarget,
+  opts: StartAgenticOpts,
+  release: () => void,
+): Promise<Dispatch> {
   if (!existsSync(MCP_CONFIG)) {
     throw new Error(`Missing ${MCP_CONFIG} — build the MCP server first (cd mcp-server && npm run build).`);
   }
@@ -525,7 +543,13 @@ function startDispatch(
   // env/CLI fallback here — a background dispatch must never silently run
   // as the deployer.
   const token = opts.token;
-  const prepared = prepare(repoFull, target, token, out);
+  let prepared: Awaited<ReturnType<typeof prepare>>;
+  try {
+    prepared = await prepare(repoFull, target, token, out);
+  } catch (error) {
+    out.end();
+    throw error;
+  }
   const { headerLine, fastPath } = prepared;
   const prompt = prepared.prompt + (opts.notes ? `\nUser guidance:\n${sanitizeForPrompt(opts.notes)}` : "");
 
@@ -661,8 +685,10 @@ function startDispatch(
 
   pipeStreamJson(child.stdout, out);
   child.stderr.on("data", () => {}); // swallow stderr (MCP startup noise)
+  let spawnFailed = false;
   child.on("close", (code, signal) => {
     clearTimeout(timeoutHandle);
+    if (spawnFailed) return;
     dispatch.ended_at = new Date().toISOString();
     dispatch.exit_code = code ?? undefined;
     const wasKilled = signal === "SIGKILL" || signal === "SIGTERM" || killedByTimeout;
@@ -726,11 +752,18 @@ function startDispatch(
           const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
           await appendFile(logPath, `[agentic-pr] unexpected error: ${msg}\n`).catch(() => {});
           patch(id, { pr_status: "failed", pr_failure_reason: msg.slice(0, 500) });
+        } finally {
+          release();
         }
       })();
+    } else {
+      release();
     }
   });
   child.on("error", (err) => {
+    spawnFailed = true;
+    clearTimeout(timeoutHandle);
+    release();
     dispatch.ended_at = new Date().toISOString();
     dispatch.status = "failed";
     out.write(`\n[agentic-dispatcher] spawn error: ${err.message}\n`);
@@ -746,7 +779,7 @@ export function startAgenticDispatch(
   repoUrl: string,
   issueNumber: number,
   opts: StartAgenticOpts = {},
-): Dispatch {
+): Promise<Dispatch> {
   return startDispatch(repoUrl, { kind: "issue", issueNumber }, opts);
 }
 
@@ -755,6 +788,6 @@ export function startFindingDispatch(
   repoUrl: string,
   finding: FindingInput,
   opts: StartAgenticOpts = {},
-): Dispatch {
+): Promise<Dispatch> {
   return startDispatch(repoUrl, { kind: "finding", finding }, opts);
 }

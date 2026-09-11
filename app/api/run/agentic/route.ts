@@ -4,6 +4,7 @@ import { resolveGitHubToken } from "@/lib/github-token";
 import { resolveAnthropicKey, resolveGeminiKey, resolveMaxSpendUsd } from "@/lib/api-keys";
 import { sessionUserId } from "@/lib/require-session";
 import { parseRunTarget } from "@/lib/run-target";
+import { CapacityError } from "@/lib/concurrency";
 
 export async function POST(req: NextRequest) {
   const auth0UserId = await sessionUserId();
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
   try {
     const geminiKey = (await resolveGeminiKey()) ?? undefined;
     const maxSpendUsd = await resolveMaxSpendUsd();
-    const d = startAgenticDispatch(repo_url, issue_number, {
+    const d = await startAgenticDispatch(repo_url, issue_number, {
       token: token ?? undefined,
       anthropicKey,
       geminiKey,
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     return NextResponse.json(
       { status: "error", message: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
+      { status: err instanceof CapacityError ? 429 : 500 },
     );
   }
 }

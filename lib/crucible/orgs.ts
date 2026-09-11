@@ -69,3 +69,11 @@ export async function saveMapping(mapping: OrgMapping) {
 export async function deleteByInstallationId(installationId: number) {
   return mutate((rows) => rows.filter((r) => r.installation_id !== installationId));
 }
+
+/** User disconnects leave other members' connections intact. */
+export async function deleteMappingsForUser(auth0UserId: string, installationId?: number) {
+  if (!auth0UserId) throw new Error("User identity is required");
+  return mutate((rows) => rows.filter((r) =>
+    r.auth0_user_id !== auth0UserId || (installationId !== undefined && r.installation_id !== installationId)
+  ));
+}

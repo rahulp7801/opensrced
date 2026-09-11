@@ -1,15 +1,11 @@
 // POST /api/auth/revoke-all
-// Nuclear option: deletes ALL org mappings for the current user, clears
-// all cached tokens, then redirects to Auth0 logout (which destroys the
-// session). After this, the user is fully disconnected — no tokens, no
-// mappings, no session.
+// Disconnect this user from all organizations and clear their provider keys.
+// Existing running jobs and the GitHub App installation are not revoked.
 
 import { NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
-import { listOrgsFor, deleteByInstallationId } from "@/lib/crucible/orgs";
+import { listOrgsFor, deleteMappingsForUser } from "@/lib/crucible/orgs";
 import { clearStoredKeys } from "@/lib/api-keys";
-import fs from "node:fs";
-import path from "node:path";
 
 export const dynamic = "force-dynamic";
 
@@ -20,19 +16,7 @@ export async function POST() {
 
   // 1. Delete all org mappings for this user
   const orgs = await listOrgsFor(sub);
-  for (const org of orgs) {
-    // Clear cached token
-    const cachePath = path.join(process.cwd(), ".dispatches", "crucible-tokens-cache.json");
-    try {
-      const raw = fs.readFileSync(cachePath, "utf8");
-      const cache = JSON.parse(raw) as Record<string, unknown>;
-      delete cache[String(org.installation_id)];
-      fs.writeFileSync(cachePath, JSON.stringify(cache, null, 2));
-    } catch { /* no cache */ }
-
-    // Delete the mapping
-    await deleteByInstallationId(org.installation_id);
-  }
+  await deleteMappingsForUser(sub);
 
   // 2. Clear stored API keys
   await clearStoredKeys();

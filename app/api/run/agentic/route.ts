@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: "Invalid GitHub repository URL" }, { status: 400 });
   }
   if ((body.dry_run !== undefined && typeof body.dry_run !== "boolean") ||
-      (body.notes !== undefined && typeof body.notes !== "string")) {
+      (body.notes !== undefined && (typeof body.notes !== "string" || body.notes.length > 5000))) {
     return NextResponse.json({ message: "Invalid dry_run or notes" }, { status: 400 });
   }
 

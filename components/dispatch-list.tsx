@@ -279,7 +279,7 @@ export function DispatchList() {
                         deep
                       </span>
                     )}
-                    {d.mode !== "agentic" && d.dry_run && (
+                    {d.dry_run && (
                       <span className="ml-auto text-[9px] tracking-[0.12em] uppercase text-info border border-info/40 px-1 py-px leading-none">
                         dry
                       </span>
@@ -432,7 +432,7 @@ export function DispatchList() {
             })()}
 
             {/* Diff preview */}
-            <DiffPreviewFromLog log={detail.log} prOpened={!!prInfo} />
+            <DiffPreviewFromLog log={detail.log} prOpened={!!prInfo} dryRun={detail.dry_run} />
 
             {/* Log */}
             <LogViewer log={detail.log} isRunning={detail.status === "running"} logRef={logRef} onScroll={onLogScroll} />
@@ -456,7 +456,7 @@ function RetryButton({ dispatch }: { dispatch: DispatchWithLog }) {
   const showRetry = dispatch.status === "failed" || dispatch.status === "killed" ||
     dispatch.pr_status === "failed" || dispatch.pr_status === "tests_failed";
   if (!showRetry) return null;
-  if (!dispatch.issue_number && !dispatch.repo_url) return null;
+  if (!dispatch.issue_number || !dispatch.repo_url) return null;
 
   async function retry() {
     setPending(true);
@@ -468,9 +468,11 @@ function RetryButton({ dispatch }: { dispatch: DispatchWithLog }) {
         body: JSON.stringify({
           repo_url: dispatch.repo_url,
           issue_number: dispatch.issue_number,
+          dry_run: dispatch.dry_run,
         }),
       });
-      const json = (await res.json().catch(() => ({}))) as { dispatch_id?: string };
+      const json = (await res.json().catch(() => ({}))) as { dispatch_id?: string; message?: string; error?: string };
+      if (!res.ok || !json.dispatch_id) throw new Error(json.message ?? json.error ?? "Could not restart this run.");
       if (json.dispatch_id) {
         window.location.href = `/dispatches?dispatch=${json.dispatch_id}`;
       }
@@ -947,7 +949,7 @@ function extractLogSection(log: string, headingAlt: string): string | null {
   return re.exec(log)?.[1]?.trim() ?? null;
 }
 
-function DiffPreviewFromLog({ log, prOpened }: { log: string; prOpened: boolean }) {
+function DiffPreviewFromLog({ log, prOpened, dryRun }: { log: string; prOpened: boolean; dryRun: boolean }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -1075,7 +1077,7 @@ function DiffPreviewFromLog({ log, prOpened }: { log: string; prOpened: boolean 
                   </a>
                 ) : prOpened ? null : (
                   <span className="text-[11px] text-paper-faint">
-                    PR will be opened automatically if tests pass
+                    {dryRun ? "Preview only: no code will be pushed and no PR will open." : "A draft PR opens only after the configured checks pass."}
                   </span>
                 )}
               </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { cacheGet, cacheSet } from "@/lib/client-cache";
@@ -56,6 +56,7 @@ export function IssueScanner() {
   const [age, setAge] = useState<"recent" | "any">("recent");
   const [beginner, setBeginner] = useState<"any" | "good-first">("any");
   const [dispatchingNumber, setDispatchingNumber] = useState<number | null>(null);
+  const scanRequest = useRef<AbortController | null>(null);
   // Row expansion — one issue at a time, showing the full body + scope
   // details inline. Auto-opens when ?issue=N is in the URL (used by the
   // discover page's row link).
@@ -67,6 +68,7 @@ export function IssueScanner() {
 
   useEffect(() => {
     if (initial) void runScan(initial);
+    return () => { scanRequest.current?.abort(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -88,6 +90,9 @@ export function IssueScanner() {
   }, [scan, expandedNumber]);
 
   async function runScan(url: string, force = false) {
+    scanRequest.current?.abort();
+    const request = new AbortController();
+    scanRequest.current = request;
     const key = url.trim().toLowerCase();
 
     if (!force) {
@@ -95,6 +100,7 @@ export function IssueScanner() {
       if (cached) {
         setScan(cached);
         setErr(null);
+        setLoading(false);
         return;
       }
     }
@@ -105,46 +111,21 @@ export function IssueScanner() {
     try {
       const res = await fetch(`/api/issues/scan?repo=${encodeURIComponent(url)}`, {
         cache: "no-store",
+        signal: AbortSignal.any([request.signal, AbortSignal.timeout(60_000)]),
       });
       const data = await res.json();
+      if (request.signal.aborted) return;
       if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
       setScan(data);
       cacheSet("issue-scan", key, data);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      if (!request.signal.aborted) setErr(e instanceof Error ? e.message : String(e));
     } finally {
-      setLoading(false);
+      if (!request.signal.aborted) setLoading(false);
     }
   }
 
   async function solve(n: number, dryRun: boolean) {
-    if (!scan) return;
-    setDispatchingNumber(n);
-    try {
-      const res = await fetch("/api/run/solve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          repo_url: `https://github.com/${scan.repo}`,
-          issue_number: n,
-          dry_run: dryRun,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message ?? `HTTP ${res.status}`);
-      router.push(`/dispatches`);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setDispatchingNumber(null);
-    }
-  }
-
-  // v2: agentic path — runs Claude Code headless against our MCP server
-  // instead of the deterministic contribai pipeline. Useful when scope >
-  // "leaf" and the fixed pre-attach budget would miss context. Higher
-  // token cost per run; no PR auto-open (preview-only for now).
-  async function solveAgentic(n: number) {
     if (!scan) return;
     setDispatchingNumber(n);
     try {
@@ -154,11 +135,12 @@ export function IssueScanner() {
         body: JSON.stringify({
           repo_url: `https://github.com/${scan.repo}`,
           issue_number: n,
+          dry_run: dryRun,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.message ?? `HTTP ${res.status}`);
-      router.push(`/dispatches`);
+      if (!res.ok) throw new Error(data?.message ?? data?.error ?? `HTTP ${res.status}`);
+      router.push(`/dispatches?dispatch=${encodeURIComponent(data.dispatch_id)}`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -435,8 +417,7 @@ export function IssueScanner() {
                                 disabled={dispatchingNumber !== null}
                                 dispatching={dispatchingNumber === issue.number}
                                 onPreview={() => solve(issue.number, true)}
-                                onQuick={() => solve(issue.number, false)}
-                                onDeep={() => solveAgentic(issue.number)}
+                                onSolve={() => solve(issue.number, false)}
                               />
                             ) : (
                               <span className="text-[10px] text-paper-muted italic" title={issue.reason}>
@@ -454,8 +435,7 @@ export function IssueScanner() {
                                 disabled={dispatchingNumber !== null}
                                 dispatching={dispatchingNumber === issue.number}
                                 onPreview={() => solve(issue.number, true)}
-                                onQuick={() => solve(issue.number, false)}
-                                onDeep={() => solveAgentic(issue.number)}
+                                onSolve={() => solve(issue.number, false)}
                               />
                             </td>
                           </tr>
@@ -518,7 +498,7 @@ function fmtRelative(iso: string, now: number) {
   return `${years}y ago`;
 }
 
-type ActionKind = "preview" | "quick" | "deep";
+type ActionKind = "preview" | "solve";
 
 type Recommendation = {
   action: ActionKind;
@@ -526,76 +506,25 @@ type Recommendation = {
   reason: string;    // one-sentence why
 };
 
-// Scope-bucket → recommended path.
-//   doc/leaf      → quick solve: single-file scope, deterministic pipeline
-//                   + its pre-attach regex reliably finds the target.
-//   cross-file    → deep solve: the 10-file pre-attach ceiling starts
-//                   biting; Claude's MCP exploration finds callers.
-//   refactor      → preview: multi-file change; the LLM should be
-//                   sanity-checked by a human before anything pushes.
-//   unknown       → deep solve: no files/symbols in the issue body → need
-//                   exploration just to orient.
 function recommendFor(issue: Issue): Recommendation {
-  switch (issue.scope.bucket) {
-    case "doc":
-      return {
-        action: "quick",
-        headline: "Quick solve",
-        reason: "Doc/packaging fix — single file, deterministic pipeline handles it.",
-      };
-    case "leaf":
-      return {
-        action: "quick",
-        headline: "Quick solve",
-        reason: "Leaf-scope change — one file named in the issue, pre-attach lands it reliably.",
-      };
-    case "cross-file":
-      return {
-        action: "deep",
-        headline: "Deep solve",
-        reason: "Multiple files involved. Agentic exploration reaches callers the quick path's fixed budget would miss.",
-      };
-    case "new-file":
-      return {
-        action: "deep",
-        headline: "Deep solve",
-        reason:
-          "Issue asks to create a new artifact — quick solve would anchor the new content to an existing file and ship it in the wrong place. Claude can pick the right path and filename.",
-      };
-    case "refactor":
-      return {
-        action: "preview",
-        headline: "Preview first",
-        reason: "Refactor scope — review the plan before any commit. Either path needs human judgment on structure.",
-      };
-    case "unknown":
-    default:
-      return {
-        action: "deep",
-        headline: "Deep solve",
-        reason: "Not enough signal in the issue body to pinpoint a file. Let Claude explore the repo.",
-      };
+  if (issue.scope.bucket === "refactor" || issue.scope.bucket === "unknown") {
+    return { action: "preview", headline: "Preview first", reason: "Review a patch before publishing changes when the scope is broad or uncertain." };
   }
+  return { action: "solve", headline: "Solve & open PR", reason: "Explore the repository and generate a fix. A draft PR opens only after the configured checks pass." };
 }
 
 const ACTION_META: Record<ActionKind, { label: string; tooltip: string; iconColor: string }> = {
   preview: {
     label: "preview",
     tooltip:
-      "Plan the fix and preview the diff locally. Nothing gets pushed — review the patch in the Dispatches tab, then approve to open the PR. Safest option.",
+      "Generate a patch without pushing code or opening a PR. Review and copy the patch in Dispatches.",
     iconColor: "text-paper-dim",
   },
-  quick: {
-    label: "quick solve",
+  solve: {
+    label: "solve & open PR",
     tooltip:
-      "Deterministic one-shot. Pre-attaches likely files, Sonnet writes the fix, draft PR opens automatically. Cheapest & fastest; best for doc/leaf fixes.",
+      "Explore the repository, generate a fix, and open a draft PR if the configured checks pass.",
     iconColor: "text-signal",
-  },
-  deep: {
-    label: "deep solve",
-    tooltip:
-      "Claude Code explores the repo (list_files / grep / find_definition / find_references) via the opensrcer MCP server before patching. Higher cost; best for cross-file fixes.",
-    iconColor: "text-info",
   },
 };
 
@@ -604,24 +533,20 @@ function ActionButtons({
   disabled,
   dispatching,
   onPreview,
-  onQuick,
-  onDeep,
+  onSolve,
 }: {
   recommended: ActionKind;
   disabled: boolean;
   dispatching: boolean;
   onPreview: () => void;
-  onQuick: () => void;
-  onDeep: () => void;
+  onSolve: () => void;
 }) {
   return (
     <div className="flex gap-1.5 justify-end">
       <ActionButton kind="preview" recommended={recommended === "preview"}
         disabled={disabled} dispatching={dispatching && recommended === "preview"} onClick={onPreview} />
-      <ActionButton kind="quick" recommended={recommended === "quick"}
-        disabled={disabled} dispatching={dispatching && recommended === "quick"} onClick={onQuick} />
-      <ActionButton kind="deep" recommended={recommended === "deep"}
-        disabled={disabled} dispatching={dispatching && recommended === "deep"} onClick={onDeep} />
+      <ActionButton kind="solve" recommended={recommended === "solve"}
+        disabled={disabled} dispatching={dispatching && recommended === "solve"} onClick={onSolve} />
     </div>
   );
 }
@@ -647,8 +572,7 @@ function ActionButton({
   // colorblind users still spot it.
   const recStyle = {
     preview: "border-paper-dim text-paper bg-surface-2",
-    quick: "border-signal bg-signal/15 text-paper",
-    deep: "border-info bg-info/15 text-info",
+    solve: "border-signal bg-signal/15 text-paper",
   }[kind];
   const base = large
     ? "px-4 py-2 text-[12px]"
@@ -669,7 +593,7 @@ function ActionButton({
       {recommended && (
         <span
           aria-hidden
-          className={cn("h-1.5 w-1.5 rounded-full", kind === "quick" ? "bg-signal" : kind === "deep" ? "bg-info" : "bg-paper-dim")}
+          className={cn("h-1.5 w-1.5 rounded-full", kind === "solve" ? "bg-signal" : "bg-paper-dim")}
         />
       )}
       {dispatching ? "…" : meta.label}
@@ -683,16 +607,14 @@ function IssueDetail({
   disabled,
   dispatching,
   onPreview,
-  onQuick,
-  onDeep,
+  onSolve,
 }: {
   issue: Issue;
   rec: Recommendation;
   disabled: boolean;
   dispatching: boolean;
   onPreview: () => void;
-  onQuick: () => void;
-  onDeep: () => void;
+  onSolve: () => void;
 }) {
   const body = (issue.body ?? "").trim() || "(issue has no body)";
   return (
@@ -711,13 +633,12 @@ function IssueDetail({
           <div className="mono-label text-paper-muted mb-2">recommendation</div>
           <div className={cn(
             "border p-3",
-            rec.action === "quick" ? "border-signal/50 bg-signal/5" :
-            rec.action === "deep" ? "border-info/50 bg-info/5" :
+            rec.action === "solve" ? "border-signal/50 bg-signal/5" :
             "border-border-strong bg-surface-2",
           )}>
             <div className={cn(
               "text-[13px] font-medium",
-              rec.action === "quick" ? "text-signal" : rec.action === "deep" ? "text-info" : "text-paper",
+              rec.action === "solve" ? "text-signal" : "text-paper",
             )}>
               {rec.headline}
             </div>
@@ -730,18 +651,14 @@ function IssueDetail({
         <div>
           <div className="mono-label text-paper-muted mb-2">run the pipeline</div>
           <div className="flex flex-col gap-2">
-            <ActionButton kind="quick" recommended={rec.action === "quick"}
-              disabled={disabled} dispatching={dispatching && rec.action === "quick"} onClick={onQuick} large />
-            <ActionButton kind="deep" recommended={rec.action === "deep"}
-              disabled={disabled} dispatching={dispatching && rec.action === "deep"} onClick={onDeep} large />
+            <ActionButton kind="solve" recommended={rec.action === "solve"}
+              disabled={disabled} dispatching={dispatching && rec.action === "solve"} onClick={onSolve} large />
             <ActionButton kind="preview" recommended={rec.action === "preview"}
               disabled={disabled} dispatching={dispatching && rec.action === "preview"} onClick={onPreview} large />
           </div>
           <div className="mt-2 text-[10.5px] text-paper-faint leading-snug">
-            <span className="text-paper-muted">Three paths:</span>{" "}
-            <span className="text-signal">quick solve</span> = deterministic one-shot (draft PR auto-opens).{" "}
-            <span className="text-info">deep solve</span> = Claude explores repo via MCP (draft PR auto-opens; ~5–20× cost).{" "}
-            <span className="text-paper">preview</span> = plan + show diff, no push until you approve in Dispatches.
+            <span className="text-signal">Solve &amp; open PR</span> = generate a fix and open a draft PR after checks.{" "}
+            <span className="text-paper">preview</span> = generate a patch without pushing or opening a PR.
           </div>
         </div>
 

@@ -91,7 +91,7 @@ export function DraftPreview({
     setSubmitting(true);
     setResult(null);
     try {
-      const res = await fetch("/api/run/solve", {
+      const res = await fetch("/api/run/agentic", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -101,9 +101,9 @@ export function DraftPreview({
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.message ?? `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(data?.message ?? data?.error ?? `HTTP ${res.status}`);
       setResult({ tone: "ok", msg: `Live run queued. Navigating to dispatch…` });
-      setTimeout(() => router.push("/dispatches"), 900);
+      router.push(`/dispatches?dispatch=${encodeURIComponent(data.dispatch_id)}`);
     } catch (e) {
       setResult({ tone: "alert", msg: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -238,7 +238,7 @@ export function DraftPreview({
                 disabled={submitting || !draft}
                 className="inline-flex items-center gap-2 border border-signal bg-signal/10 px-4 py-2 text-[12px] text-paper hover:bg-signal/20 disabled:opacity-50"
               >
-                {submitting ? "queuing…" : "Approve & submit live PR"}
+                {submitting ? "queuing…" : "Regenerate & open draft PR"}
                 <IconArrow />
               </button>
             </div>

@@ -1,4 +1,5 @@
 import { spawn, execFile } from "node:child_process";
+import { StringDecoder } from "node:string_decoder";
 import { claudeEvents } from "./claude-events";
 
 export function localClaudeStream(args: string[], env: NodeJS.ProcessEnv, requestSignal: AbortSignal, release: () => void): Response {
@@ -8,8 +9,10 @@ export function localClaudeStream(args: string[], env: NodeJS.ProcessEnv, reques
   const stream = new ReadableStream({
     start(controller) {
       const child = spawn("claude", args, { env, windowsHide: true, detached: process.platform !== "win32" });
-      let finished = false;
+      let finished = false, completed = false, failed = false;
+      const decoder = new StringDecoder("utf8");
       const send = (event: Record<string, unknown>) => {
+        if (event.error) failed = true;
         if (!cancelled && !finished) controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
       };
       stop = () => {
@@ -29,19 +32,25 @@ export function localClaudeStream(args: string[], env: NodeJS.ProcessEnv, reques
         finished = true;
         if (!cancelled) controller.close();
       };
+      const consume = (line: string) => {
+        for (const event of claudeEvents(line)) {
+          if (event.done) completed = true;
+          else send(event);
+        }
+      };
       let buffer = "";
       child.stdout.on("data", (chunk: Buffer) => {
-        buffer += chunk.toString();
+        buffer += decoder.write(chunk);
         if (buffer.length > 1_000_000) { send({ error: "Exploration output exceeded its limit." }); stop(); return; }
         const lines = buffer.split("\n");
         buffer = lines.pop() ?? "";
-        for (const line of lines) for (const event of claudeEvents(line)) send(event);
+        for (const line of lines) consume(line);
       });
       child.stderr.resume();
       child.on("close", code => {
-        for (const event of claudeEvents(buffer)) send(event);
-        if (code !== 0) send({ error: "Exploration failed. Check provider access and retry." });
-        finish({ done: true, exit_code: code });
+        consume(buffer + decoder.end());
+        if (code !== 0 || !completed || failed) finish({ error: "Exploration did not complete. Check provider access and retry." });
+        else finish({ done: true, exit_code: code });
       });
       child.on("error", () => finish({ error: "Could not start the exploration worker." }));
       if (requestSignal.aborted) disconnect();

@@ -525,6 +525,7 @@ export default function PrDetailPage() {
         error?: string;
       }>(res)) {
         if (controller.signal.aborted) return;
+        if (p.error) throw new Error(p.error);
         if (p.tool) {
           // Update step based on tool being used
           const stepMap: Record<string, string> = {
@@ -549,10 +550,7 @@ export default function PrDetailPage() {
         if (p.done) {
           setFixState((prev) => (prev ? { ...prev, status: "done", step: "Complete" } : prev));
           toast("Fix generated successfully", "ok");
-        }
-        if (p.error) {
-          setFixState((prev) => (prev ? { ...prev, response: p.error!, status: "error", step: "Failed" } : prev));
-          toast("Fix generation failed", "alert");
+          return;
         }
       }
 

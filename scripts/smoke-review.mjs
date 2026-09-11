@@ -28,7 +28,7 @@ try {
       if (fixes === 3) {
         await new Promise(resolve => { releaseFix = resolve; thirdStarted(); });
       }
-      return route.fulfill({ contentType: 'text/event-stream', body: sse(fixes === 2 ? [{ text: patch }] : [{ text: patch }, { done: true }]) }).catch(() => {});
+      return route.fulfill({ contentType: 'text/event-stream', body: sse(fixes === 2 ? [{ text: patch }] : fixes === 4 ? [{ text: patch }, { error: 'Provider rejected this fix.' }, { done: true }] : [{ text: patch }, { done: true }]) }).catch(() => {});
     }
     if (path === '/api/prs/verify') { verifications++; return route.fulfill({ status: 503, json: { error: 'Verification service unavailable.' } }); }
     if (path === '/api/prs/draft-reply' && route.request().postDataJSON().comment_body === 'Handle the empty array.') {
@@ -62,6 +62,10 @@ try {
   await page.getByText('Cancelled', { exact: true }).first().waitFor();
   assert.equal(explanations, 1);
   assert.equal(verifications, 1);
+  await page.getByRole('button', { name: 'quick fix', exact: true }).click();
+  await page.getByText('Provider rejected this fix.', { exact: true }).first().waitFor();
+  await page.getByText('failed', { exact: true }).first().waitFor();
+  assert.equal(await page.getByText('Complete', { exact: true }).count(), 0, 'a later done event cannot erase a provider error');
   await page.getByRole('button', { name: 'draft reply', exact: true }).click();
   await page.getByText('Draft provider failed.', { exact: true }).first().waitFor();
   assert.equal(await page.getByRole('button', { name: 'send reply', exact: true }).count(), 0);
@@ -72,6 +76,6 @@ try {
   assert.ok((await page.locator('textarea').evaluateAll(nodes => nodes.map(node => node.value))).includes('I added the empty-array guard.'));
   assert.equal(drafts, 3);
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ commentRefreshes: 3, explanations, verificationFailureHandled: true, truncatedFixRejected: true, cancellation: true, draftRecovery: true }));
+  console.log(JSON.stringify({ commentRefreshes: 3, explanations, verificationFailureHandled: true, truncatedFixRejected: true, cancellation: true, draftRecovery: true, terminalFailure: true }));
   await context.close();
 } finally { releaseFix?.(); await browser.close(); }

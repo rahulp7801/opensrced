@@ -20,8 +20,16 @@ export async function cloudExplore(args: string[], credentials: Record<string, s
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
+      let completed = false, failed = false;
       const send = (event: Record<string, unknown>) => {
+        if (event.error) failed = true;
         if (!cancelled && !requestSignal.aborted) controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+      };
+      const consume = (line: string) => {
+        for (const event of claudeEvents(line)) {
+          if (event.done) completed = true;
+          else send(event);
+        }
       };
       try {
         sandbox = await Sandbox.create({ source: { type: "snapshot", snapshotId }, persistent: false, timeout: 3 * 60_000, signal });
@@ -33,11 +41,11 @@ export async function cloudExplore(args: string[], credentials: Record<string, s
           if (buffer.length > 1_000_000) throw new Error("Exploration output exceeded its limit");
           const lines = buffer.split("\n");
           buffer = lines.pop() ?? "";
-          for (const line of lines) for (const event of claudeEvents(line)) send(event);
+          for (const line of lines) consume(line);
         }
-        for (const event of claudeEvents(buffer)) send(event);
+        consume(buffer);
         const result = await command.wait({ signal });
-        if (result.exitCode !== 0) send({ error: "Exploration failed. Check provider access and retry." });
+        if (result.exitCode !== 0 || !completed || failed) throw new Error("Exploration did not complete.");
         send({ done: true, exit_code: result.exitCode });
       } catch {
         send({ error: signal.aborted ? "Exploration time limit reached." : "Exploration failed. Please retry." });

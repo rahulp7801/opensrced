@@ -502,7 +502,7 @@ const CRUCIBLE_LOG = [
   { t: "", d: 5500 },
   { t: "[gemini-review] Fix correctly revokes old key on rotation.", d: 5700 },
   { t: "[crucible-tests] 83 tests passed, 0 failed", d: 6100 },
-  { t: "[agentic-pr] token: orgCtx=acme-corp source=installation prefix=ghs_", d: 6500 },
+  { t: "[agentic-pr] authenticated with a demo organization installation", d: 6500 },
   { t: "[agentic-pr] opened draft PR: https://github.com/acme-corp/api-gateway/pull/15", d: 6900 },
 ];
 

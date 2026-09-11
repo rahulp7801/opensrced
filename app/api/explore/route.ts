@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
     github_org?: string;
   };
 
-  if (typeof body.repo_url !== "string" || typeof body.query !== "string" || !body.query.trim() || (body.budget !== undefined && (typeof body.budget !== "number" || !Number.isFinite(body.budget))) || (body.github_org !== undefined && typeof body.github_org !== "string")) {
+  if (!body || typeof body.repo_url !== "string" || typeof body.query !== "string" || !body.query.trim() || (body.budget !== undefined && (typeof body.budget !== "number" || !Number.isFinite(body.budget))) || (body.github_org !== undefined && typeof body.github_org !== "string")) {
     return new Response(
       JSON.stringify({ error: "Missing repo_url or query" }),
       { status: 400, headers: { "Content-Type": "application/json" } },

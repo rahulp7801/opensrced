@@ -23,6 +23,8 @@ export async function POST(req: NextRequest) {
     type?: "review" | "issue";
   };
 
+  if (!raw) return Response.json({ error: "Invalid request" }, { status: 400 });
+
   const body = {
     repo: typeof raw.repo === "string" ? sanitizeRepoId(raw.repo) : null,
     pr_number: raw.pr_number ? sanitizePrNumber(raw.pr_number) : null,

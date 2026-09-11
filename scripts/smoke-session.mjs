@@ -46,8 +46,11 @@ assert.equal((await own.json()).anthropic, true);
 const other = await request('/api/settings/keys', bob + '; ' + keys);
 assert.equal(other.status, 200);
 assert.equal((await other.json()).anthropic, false, 'An account cannot reuse another account\'s key cookie');
-const invalid = await request('/api/settings/keys', alice, { method: 'POST', body: 'null' });
-assert.equal(invalid.status, 400);
+for (const path of ['/api/settings/keys', '/api/explore', '/api/fixes', '/api/prs/fix', '/api/prs/reply', '/api/prs/draft-reply', '/api/prs/verify', '/api/prs/push', '/api/crucible/run/agentic', '/api/run/agentic', '/api/graph/query', '/api/graph/generate']) {
+  const invalid = await request(path, alice, { method: 'POST', body: 'null' });
+  assert.equal(invalid.status, 400, path + ' must reject invalid JSON values without crashing');
+  await invalid.text();
+}
 const cleared = await request('/api/settings/keys', alice + '; ' + keys, { method: 'DELETE' });
 assert.equal(cleared.status, 200);
 assert.ok(cleared.headers.getSetCookie().some(value => value.startsWith('opensrcer-keys=;')));

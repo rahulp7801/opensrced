@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     explainer?: string;
   };
 
-  if (typeof body.fix_response !== "string" || !body.fix_response || typeof body.repo !== "string" || !body.repo || body.repo.length > 200 || [body.comment_body, body.diff, body.explainer].some(v => v !== undefined && typeof v !== "string") || (body.pr_number !== undefined && (!Number.isSafeInteger(body.pr_number) || body.pr_number < 1))) {
+  if (!body || typeof body.fix_response !== "string" || !body.fix_response || typeof body.repo !== "string" || !body.repo || body.repo.length > 200 || [body.comment_body, body.diff, body.explainer].some(v => v !== undefined && typeof v !== "string") || (body.pr_number !== undefined && (!Number.isSafeInteger(body.pr_number) || body.pr_number < 1))) {
     return Response.json({ error: "Missing fix_response or repo" }, { status: 400 });
   }
 

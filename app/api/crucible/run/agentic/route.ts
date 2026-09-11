@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       affected_versions?: string;
     };
   };
-  const { repo_url, issue_number, github_org, kind, finding } = body;
+  const { repo_url, issue_number, github_org, kind, finding } = body ?? {};
   if (!repo_url || !github_org) {
     return NextResponse.json(
       { status: "error", message: "Missing required fields: repo_url, github_org" },

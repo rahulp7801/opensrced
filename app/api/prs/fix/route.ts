@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     mode?: "quick" | "deep";
   };
 
-  if ([raw.repo, raw.branch, raw.comment_body, raw.file_path, raw.diff_hunk].some(value => value != null && typeof value !== "string") || (raw.budget !== undefined && (!Number.isFinite(raw.budget) || raw.budget < 0.01)) || (raw.line != null && (!Number.isSafeInteger(raw.line) || raw.line < 1))) return Response.json({ error: "Invalid fix inputs" }, { status: 400 });
+  if (!raw || [raw.repo, raw.branch, raw.comment_body, raw.file_path, raw.diff_hunk].some(value => value != null && typeof value !== "string") || (raw.budget !== undefined && (!Number.isFinite(raw.budget) || raw.budget < 0.01)) || (raw.line != null && (!Number.isSafeInteger(raw.line) || raw.line < 1))) return Response.json({ error: "Invalid fix inputs" }, { status: 400 });
 
   const body = {
     repo: raw.repo ? sanitizeRepoId(raw.repo) : null,

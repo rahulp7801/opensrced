@@ -1,0 +1,54 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { githubApi, githubGraphql } from "../github-api";
+import { listIssues } from "../issues";
+import { discover } from "../discover";
+
+test("GitHub requests use caller credentials, a deadline, and reject redirects", async (t) => {
+  const requests: RequestInit[] = [];
+  t.mock.method(globalThis, "fetch", async (url: string, options: RequestInit) => {
+    assert.equal(new URL(url).origin, "https://api.github.com");
+    requests.push(options);
+    return Response.json({ ok: true });
+  });
+  await githubApi("/user", "test-user-token");
+  await githubApi("/repos/acme/app");
+  assert.equal(new Headers(requests[0].headers).get("Authorization"), "Bearer test-user-token");
+  assert.equal(new Headers(requests[1].headers).has("Authorization"), false);
+  assert.equal(requests[0].redirect, "error");
+  assert.ok(requests[0].signal);
+  await assert.rejects(githubApi("//evil.example"), /Invalid/);
+});
+
+test("GitHub failures are not reported as successful empty issue scans", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => Response.json({ message: "private upstream details" }, { status: 403 }));
+  await assert.rejects(listIssues("acme", "app"), /rate limit/);
+});
+
+test("GraphQL errors are rejected even with HTTP 200", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => Response.json({ errors: [{ message: "denied" }] }));
+  await assert.rejects(githubGraphql("query {}", {}, "test-token"), /could not complete/);
+});
+
+test("anonymous issue scans filter PRs and retain comment counts", async (t) => {
+  const issue = { number: 1, title: "Fix typo in README", body: "A documentation typo", labels: ["documentation"],
+    state: "open", user: { login: "alice" }, html_url: "https://github.com/acme/app/issues/1",
+    created_at: "2026-09-01", updated_at: "2026-09-01", assignees: [], comments: 12 };
+  t.mock.method(globalThis, "fetch", async () => Response.json([issue, { ...issue, number: 2, pull_request: {} }]));
+  const issues = await listIssues("acme", "app");
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].comments, 12);
+});
+
+test("discovery carries the caller token through search and issue queries", async (t) => {
+  const urls: string[] = [];
+  t.mock.method(globalThis, "fetch", async (url: string, options: RequestInit) => {
+    urls.push(url);
+    assert.equal(new Headers(options.headers).get("Authorization"), "Bearer test-user-token");
+    return url.includes("/graphql")
+      ? Response.json({ data: { repository: { issues: { nodes: [] } } } })
+      : Response.json({ items: [{ full_name: "acme/app", owner: { login: "acme" }, name: "app", open_issues_count: 1 }] });
+  });
+  await discover({ minStars: 10 }, "test-user-token");
+  assert.equal(urls.length, 2);
+});

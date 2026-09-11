@@ -1,172 +1,64 @@
-// GET /api/repos/github?tab=contributed|starred|owned&page=1&per_page=15
-// Fetches repos from the authenticated user's GitHub account with pagination.
-
 import { NextRequest } from "next/server";
 import { requireSession } from "@/lib/require-session";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { resolveGitHubToken } from "@/lib/github-token";
-import { ghEnv } from "@/lib/child-env";
-
-const execFileAsync = promisify(execFile);
+import { githubApi, githubGraphql } from "@/lib/github-api";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
-const DEFAULT_PER_PAGE = 15;
+type Repo = { nameWithOwner: string; description: string | null; primaryLanguage: { name: string } | null;
+  stargazerCount: number; forkCount: number; updatedAt: string; isPrivate: boolean };
 
 export async function GET(req: NextRequest) {
   const unauth = await requireSession();
   if (unauth) return unauth;
-
-  const tab = req.nextUrl.searchParams.get("tab") ?? "contributed";
-  const page = Math.max(1, parseInt(req.nextUrl.searchParams.get("page") ?? "1"));
-  const perPage = Math.min(30, Math.max(5, parseInt(req.nextUrl.searchParams.get("per_page") ?? String(DEFAULT_PER_PAGE))));
-
   const token = await resolveGitHubToken();
-  // gh acts as the requesting user or as nobody — never as whatever
-  // credential the host happens to have on disk. See lib/child-env.ts.
-  const env = ghEnv(token);
-
-  type Repo = {
-    nameWithOwner: string;
-    description: string;
-    language: string;
-    stars: number;
-    forks: number;
-    updatedAt: string;
-    isPrivate: boolean;
-    source: string;
-  };
-
+  if (!token) return Response.json({ error: "Sign in with GitHub to view your repositories." }, { status: 401 });
+  const tab = req.nextUrl.searchParams.get("tab") ?? "contributed";
+  const page = Number(req.nextUrl.searchParams.get("page") ?? 1);
+  const perPage = Number(req.nextUrl.searchParams.get("per_page") ?? 15);
+  if (!["contributed", "starred", "owned"].includes(tab) || !Number.isInteger(page) || page < 1 || page > 20 ||
+      !Number.isInteger(perPage) || perPage < 5 || perPage > 30) {
+    return Response.json({ error: "Invalid repository tab or pagination." }, { status: 400 });
+  }
   try {
-    let repos: Repo[];
-    let hasMore = false;
-
-    if (tab === "starred") {
-      // GitHub starred API supports pagination natively
-      const { stdout } = await execFileAsync(
-        "gh",
-        [
-          "api",
-          `user/starred?per_page=${perPage}&page=${page}`,
-          "--jq",
-          "[.[] | {nameWithOwner: .full_name, description: (.description // \"\"), language: (.language // \"\"), stars: .stargazers_count, forks: .forks_count, updatedAt: .updated_at, isPrivate: .private}]",
-        ],
-        { env, maxBuffer: 5 * 1024 * 1024, windowsHide: true, timeout: 15000 },
-      );
-      const parsed = JSON.parse(stdout || "[]") as Repo[];
-      repos = parsed.map((r) => ({ ...r, source: "starred" }));
-      hasMore = repos.length === perPage;
-    } else if (tab === "owned") {
-      // gh repo list supports --limit but not offset, so we fetch limit*(page) and slice
-      const fetchLimit = perPage * page;
-      const { stdout } = await execFileAsync(
-        "gh",
-        [
-          "repo",
-          "list",
-          "--limit",
-          String(fetchLimit + 1), // +1 to detect hasMore
-          "--json",
-          "nameWithOwner,description,primaryLanguage,stargazerCount,forkCount,updatedAt,isPrivate",
-        ],
-        { env, maxBuffer: 10 * 1024 * 1024, windowsHide: true, timeout: 15000 },
-      );
-      const raw = JSON.parse(stdout) as Array<{
-        nameWithOwner: string;
-        description: string;
-        primaryLanguage: { name: string } | null;
-        stargazerCount: number;
-        forkCount: number;
-        updatedAt: string;
-        isPrivate: boolean;
-      }>;
-      const start = (page - 1) * perPage;
-      const sliced = raw.slice(start, start + perPage);
-      hasMore = raw.length > start + perPage;
-      repos = sliced.map((r) => ({
-        nameWithOwner: r.nameWithOwner,
-        description: r.description ?? "",
-        language: r.primaryLanguage?.name ?? "",
-        stars: r.stargazerCount,
-        forks: r.forkCount,
-        updatedAt: r.updatedAt,
-        isPrivate: r.isPrivate,
-        source: "owned",
-      }));
-    } else {
-      // Contributed to — search PRs, dedupe repos, paginate
-      const { stdout: login } = await execFileAsync(
-        "gh",
-        ["api", "user", "--jq", ".login"],
-        { env, maxBuffer: 1 * 1024 * 1024, windowsHide: true },
-      );
-      const fetchLimit = perPage * page + 10; // fetch extra for dedup
-      const { stdout } = await execFileAsync(
-        "gh",
-        [
-          "search",
-          "prs",
-          "--author",
-          login.trim(),
-          "--limit",
-          String(Math.min(fetchLimit * 3, 200)), // PRs per repo > 1, so overfetch
-          "--json",
-          "repository",
-        ],
-        { env, maxBuffer: 10 * 1024 * 1024, windowsHide: true, timeout: 15000 },
-      );
-      const raw = JSON.parse(stdout) as Array<{ repository: { nameWithOwner: string } }>;
-
-      // Deduplicate
-      const seen = new Set<string>();
-      const uniqueRepos: string[] = [];
-      for (const pr of raw) {
-        const name = pr.repository.nameWithOwner;
-        if (!seen.has(name)) { seen.add(name); uniqueRepos.push(name); }
+    let raw: Repo[];
+    let hasMore: boolean;
+    if (tab === "contributed") {
+      type Result = { viewer: { repositoriesContributedTo: { nodes: Repo[]; pageInfo: { hasNextPage: boolean; endCursor: string } } } };
+      let after: string | null = null;
+      let connection: Result["viewer"]["repositoriesContributedTo"];
+      for (let current = 1; ; current++) {
+        const result: Result = await githubGraphql<Result>(`query Repos($first: Int!, $after: String) {
+          viewer { repositoriesContributedTo(first: $first, after: $after, contributionTypes: [PULL_REQUEST], includeUserRepositories: true, orderBy: {field: UPDATED_AT, direction: DESC}) {
+            nodes { nameWithOwner description primaryLanguage { name } stargazerCount forkCount updatedAt isPrivate }
+            pageInfo { hasNextPage endCursor }
+          } }
+        }`, { first: perPage, after }, token);
+        connection = result.viewer.repositoriesContributedTo;
+        if (current === page) break;
+        if (!connection.pageInfo.hasNextPage) return Response.json({ repos: [], page, per_page: perPage, hasMore: false, tab });
+        after = connection.pageInfo.endCursor;
       }
-
-      const start = (page - 1) * perPage;
-      const pageRepos = uniqueRepos.slice(start, start + perPage);
-      hasMore = uniqueRepos.length > start + perPage;
-
-      // Fetch details for this page only
-      repos = await Promise.all(
-        pageRepos.map(async (name) => {
-          try {
-            const { stdout: detail } = await execFileAsync(
-              "gh",
-              ["repo", "view", name, "--json", "nameWithOwner,description,primaryLanguage,stargazerCount,forkCount,updatedAt,isPrivate"],
-              { env, maxBuffer: 1 * 1024 * 1024, windowsHide: true, timeout: 10000 },
-            );
-            const d = JSON.parse(detail) as {
-              nameWithOwner: string; description: string;
-              primaryLanguage: { name: string } | null;
-              stargazerCount: number; forkCount: number;
-              updatedAt: string; isPrivate: boolean;
-            };
-            return {
-              nameWithOwner: d.nameWithOwner, description: d.description ?? "",
-              language: d.primaryLanguage?.name ?? "", stars: d.stargazerCount,
-              forks: d.forkCount, updatedAt: d.updatedAt, isPrivate: d.isPrivate,
-              source: "contributed" as const,
-            };
-          } catch {
-            return {
-              nameWithOwner: name, description: "", language: "",
-              stars: 0, forks: 0, updatedAt: "", isPrivate: false,
-              source: "contributed" as const,
-            };
-          }
-        }),
-      );
+      raw = connection.nodes;
+      hasMore = connection.pageInfo.hasNextPage;
+    } else {
+      type RestRepo = { full_name: string; description: string | null; language: string | null;
+        stargazers_count: number; forks_count: number; updated_at: string; private: boolean };
+      const endpoint = tab === "starred" ? "/user/starred" : "/user/repos";
+      const params = new URLSearchParams({ per_page: String(perPage), page: String(page), sort: "updated", direction: "desc" });
+      if (tab === "owned") params.set("affiliation", "owner");
+      const items = await githubApi<RestRepo[]>(`${endpoint}?${params}`, token);
+      hasMore = items.length === perPage;
+      raw = items.map((item) => ({ nameWithOwner: item.full_name, description: item.description,
+        primaryLanguage: item.language ? { name: item.language } : null, stargazerCount: item.stargazers_count,
+        forkCount: item.forks_count, updatedAt: item.updated_at, isPrivate: item.private }));
     }
-
-    return Response.json({ repos, page, perPage, hasMore });
-  } catch (err) {
-    return Response.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
-    );
+    const repos = raw.map((repo) => ({ nameWithOwner: repo.nameWithOwner, description: repo.description ?? "",
+      language: repo.primaryLanguage?.name ?? "", stars: repo.stargazerCount, forks: repo.forkCount,
+      updatedAt: repo.updatedAt, isPrivate: repo.isPrivate, source: tab }));
+    return Response.json({ repos, page, per_page: perPage, hasMore, tab });
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "GitHub request failed." }, { status: 502 });
   }
 }

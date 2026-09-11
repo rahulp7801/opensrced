@@ -6,12 +6,8 @@
 
 import { NextRequest } from "next/server";
 import { requireSession } from "@/lib/require-session";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { resolveGitHubToken } from "@/lib/github-token";
-import { ghEnv } from "@/lib/child-env";
-
-const execFileAsync = promisify(execFile);
+import { githubApi } from "@/lib/github-api";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +30,6 @@ export async function GET(req: NextRequest) {
   const token = await resolveGitHubToken();
   // gh acts as the requesting user or as nobody — never as whatever
   // credential the host happens to have on disk. See lib/child-env.ts.
-  const env = ghEnv(token);
 
   try {
     // Build query plan — one (label × language) pair per call. We use gh's
@@ -66,60 +61,43 @@ export async function GET(req: NextRequest) {
 
     const perCall = Math.ceil(limit / Math.max(plan.length, 1));
 
+    let failures = 0;
     for (const q of plan) {
       try {
-        const args = [
-          "search",
-          "issues",
-          "--label",
-          q.label,
-          "--state",
-          "open",
-          "--sort",
-          "updated",
-          "--limit",
-          String(perCall),
-          "--json",
-          "repository,title,number,url,labels,createdAt,updatedAt,commentsCount",
-        ];
-        if (q.language) {
-          args.push("--language", q.language);
-        }
-        const { stdout } = await execFileAsync(
-          "gh",
-          args,
-          { env, maxBuffer: 10 * 1024 * 1024, windowsHide: true, timeout: 15000 },
-        );
-
-        const raw = JSON.parse(stdout) as Array<{
-          repository: { nameWithOwner: string; stargazerCount?: number; primaryLanguage?: { name: string } };
+        const query = [`is:issue`, `is:open`, `label:${JSON.stringify(q.label)}`];
+        if (q.language) query.push(`language:${JSON.stringify(q.language)}`);
+        const params = new URLSearchParams({ q: query.join(" "), sort: "updated", order: "desc", per_page: String(perCall) });
+        const raw = await githubApi<{ items: Array<{
+          repository_url: string;
           title: string;
           number: number;
-          url: string;
+          html_url: string;
           labels: Array<{ name: string }>;
-          createdAt: string;
-          updatedAt: string;
-          commentsCount: number;
-        }>;
+          created_at: string;
+          updated_at: string;
+          comments: number;
+        }> }>(`/search/issues?${params}`, token);
 
-        for (const issue of raw) {
+        for (const issue of raw.items) {
           allIssues.push({
-            repo: issue.repository.nameWithOwner,
+            repo: new URL(issue.repository_url).pathname.replace(/^\/repos\//, ""),
             title: issue.title,
             number: issue.number,
-            url: issue.url,
+            url: issue.html_url,
             labels: issue.labels.map((l) => l.name),
-            createdAt: issue.createdAt,
-            updatedAt: issue.updatedAt,
-            comments: issue.commentsCount,
-            language: issue.repository.primaryLanguage?.name ?? "",
-            stars: issue.repository.stargazerCount ?? 0,
+            createdAt: issue.created_at,
+            updatedAt: issue.updated_at,
+            comments: issue.comments,
+            language: q.language ?? "",
+            stars: 0,
           });
         }
       } catch {
+        failures++;
         // Individual language query failed — continue with others
       }
     }
+    if (failures === plan.length) throw new Error("GitHub suggestions could not be loaded. Check access and rate limits.");
 
     // Deduplicate by URL
     const seen = new Set<string>();

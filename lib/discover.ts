@@ -15,17 +15,9 @@
 // is 30/min). `gh issue list` uses the REST API, limit 5000/hr. Reasonable
 // caps: 12 repos × 20 issues = 240 issues, at most ~13 gh calls per scan.
 
-import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
-import { promisify } from "node:util";
+import { githubApi } from "./github-api";
 import { classifyScope, type ScopeInfo } from "./scope";
 
-const execFileAsync = promisify(execFile);
-
-function ghBin(): string {
-  if (process.env.GH_CLI && existsSync(process.env.GH_CLI)) return process.env.GH_CLI;
-  return "gh";
-}
 
 export type DiscoverRepo = {
   fullName: string;  // "owner/name"
@@ -76,18 +68,18 @@ export type DiscoverFilters = {
 import { listIssues } from "./issues";
 
 type GhRepo = {
-  fullName: string;
+  full_name: string;
   owner: { login: string };
   name: string;
   description: string | null;
-  stargazersCount: number;
+  stargazers_count: number;
   language: string | null;
-  updatedAt: string;
-  url: string;
-  openIssuesCount: number;
+  updated_at: string;
+  html_url: string;
+  open_issues_count: number;
 };
 
-async function searchRepos(filters: DiscoverFilters): Promise<DiscoverRepo[]> {
+async function searchRepos(filters: DiscoverFilters, token?: string | null): Promise<DiscoverRepo[]> {
   const limit = Math.min(Math.max(filters.repoLimit ?? 12, 1), 20);
   // `gh search repos` accepts inline qualifiers in the positional query.
   // We assemble the search string here; using the typed flags directly
@@ -99,51 +91,41 @@ async function searchRepos(filters: DiscoverFilters): Promise<DiscoverRepo[]> {
     filters.maxStars && filters.maxStars > filters.minStars
       ? `stars:${filters.minStars}..${filters.maxStars}`
       : `stars:>=${filters.minStars}`;
-  const args = [
-    "search", "repos",
-    starQualifier,
-    "--limit", String(limit),
-    "--sort", "stars",
-    "--order", "desc",
-    "--json",
-    "fullName,owner,name,description,stargazersCount,language,updatedAt,url,openIssuesCount",
-  ];
-  if (filters.language) args.push("--language", filters.language);
+  const query = [starQualifier, "archived:false"];
+  if (filters.language) query.push(`language:${JSON.stringify(filters.language)}`);
   if (filters.maxRepoAgeDays && filters.maxRepoAgeDays > 0) {
     const cutoff = new Date(Date.now() - filters.maxRepoAgeDays * 86_400_000)
       .toISOString()
       .slice(0, 10);
-    args.push(`pushed:>=${cutoff}`);
+    query.push(`pushed:>=${cutoff}`);
   }
 
-  const { stdout } = await execFileAsync(ghBin(), args, {
-    maxBuffer: 10 * 1024 * 1024,
-    timeout: 30_000,
-  });
-  const raw: GhRepo[] = JSON.parse(stdout);
-  return raw
-    .filter((r) => r.openIssuesCount > 0) // silent repos aren't useful
+  const params = new URLSearchParams({ q: query.join(" "), per_page: String(limit), sort: "stars", order: "desc" });
+  const raw = await githubApi<{ items: GhRepo[] }>(`/search/repositories?${params}`, token);
+  return raw.items
+    .filter((r) => r.open_issues_count > 0)
     .map((r) => ({
-      fullName: r.fullName,
+      fullName: r.full_name,
       owner: r.owner.login,
       name: r.name,
       description: r.description ?? "",
-      stars: r.stargazersCount,
+      stars: r.stargazers_count,
       language: r.language,
-      updatedAt: r.updatedAt,
-      url: r.url,
-      openIssuesCount: r.openIssuesCount,
+      updatedAt: r.updated_at,
+      url: r.html_url,
+      openIssuesCount: r.open_issues_count,
     }));
 }
 
-export async function discover(filters: DiscoverFilters): Promise<{
+export async function discover(filters: DiscoverFilters, token?: string | null): Promise<{
   repos: DiscoverRepo[];
   issues: DiscoverIssue[];
+  warnings: string[];
 }> {
   const issuesPerRepo = Math.min(Math.max(filters.issuesPerRepo ?? 20, 1), 50);
 
-  const repos = await searchRepos(filters);
-  if (repos.length === 0) return { repos: [], issues: [] };
+  const repos = await searchRepos(filters, token);
+  if (repos.length === 0) return { repos: [], issues: [], warnings: [] };
 
   // Fan out to listIssues(). Capped concurrency: the REST issue-list API is
   // more forgiving than code-search, but 12 parallel calls is still polite.
@@ -151,13 +133,14 @@ export async function discover(filters: DiscoverFilters): Promise<{
   const MAX_PARALLEL = 4;
   const queue = [...repos];
   const issues: DiscoverIssue[] = [];
+  const warnings: string[] = [];
 
   async function worker() {
     while (queue.length > 0) {
       const repo = queue.shift();
       if (!repo) break;
       try {
-        const scored = await listIssues(repo.owner, repo.name, issuesPerRepo);
+        const scored = await listIssues(repo.owner, repo.name, issuesPerRepo, [], token);
         for (const i of scored) {
           issues.push({
             repo,
@@ -180,6 +163,7 @@ export async function discover(filters: DiscoverFilters): Promise<{
           });
         }
       } catch {
+        warnings.push(`Could not scan ${repo.fullName}.`);
         // A single repo failing (e.g. transient rate limit) shouldn't kill
         // the whole scan. Skip and move on.
       }
@@ -191,7 +175,8 @@ export async function discover(filters: DiscoverFilters): Promise<{
   // Sort newest-first; client-side filters refine further.
   issues.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
 
-  return { repos, issues };
+  if (warnings.length === repos.length) throw new Error("GitHub issue scans failed. Check access and rate limits, then try again.");
+  return { repos, issues, warnings };
 }
 
 // Re-export for route handler convenience.

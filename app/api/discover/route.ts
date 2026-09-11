@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { discover } from "@/lib/discover";
 import { recordDiscoverRun } from "@/lib/stats";
 import { requireSession } from "@/lib/require-session";
+import { resolveGitHubToken } from "@/lib/github-token";
 
 // GET /api/discover?min_stars=500&language=python&repo_limit=12&issues_per_repo=20&max_repo_age_days=180
 // Returns { repos, issues } — no LLM, no Anthropic spend.
@@ -21,6 +22,10 @@ export async function GET(req: NextRequest) {
     : undefined;
 
   try {
+    const numeric = [minStars, maxStars, repoLimit, issuesPerRepo, maxRepoAgeDays];
+    if (numeric.some((value) => value !== undefined && (!Number.isFinite(value) || value < 0))) {
+      return NextResponse.json({ error: "Search limits must be finite non-negative numbers." }, { status: 400 });
+    }
     const result = await discover({
       minStars,
       maxStars,
@@ -28,7 +33,7 @@ export async function GET(req: NextRequest) {
       repoLimit,
       issuesPerRepo,
       maxRepoAgeDays,
-    });
+    }, await resolveGitHubToken());
     void recordDiscoverRun().catch(() => {});
     return NextResponse.json({
       query: { minStars, maxStars, language, repoLimit, issuesPerRepo, maxRepoAgeDays },

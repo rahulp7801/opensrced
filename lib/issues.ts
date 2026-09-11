@@ -2,10 +2,8 @@
 // with deterministic heuristics (labels + title/body signal). No LLM here:
 // classification is ~instant, costs nothing, and is "good enough" for picking.
 
-import { execFile } from "node:child_process";
-import { ghEnv } from "./child-env";
-import { promisify } from "node:util";
-import { existsSync } from "node:fs";
+import { githubApi, githubGraphql } from "./github-api";
+import { sanitizeGitHubName } from "./sanitize";
 import { classifyScope, type ScopeInfo } from "./scope";
 
 // ── Stale-open detection ────────────────────────────────────────────────
@@ -120,7 +118,6 @@ function detectResolved(
   return null;
 }
 
-const execFileAsync = promisify(execFile);
 
 export type IssueCategory =
   | "bug"
@@ -176,13 +173,8 @@ type GhIssue = {
   // gh --json comments returns full bodies inline; we use them for
   // stale-open detection so the scanner skips issues resolved in a comment.
   comments: GhComment[];
+  commentCount?: number;
 };
-
-function ghBin(): string {
-  const env = process.env.GH_CLI;
-  if (env && existsSync(env)) return env;
-  return "gh"; // falls through to PATH on systems where gh is on PATH
-}
 
 export async function listIssues(
   owner: string,
@@ -202,7 +194,7 @@ export async function listIssues(
     runListIssues(owner, repo, limit, [], token),
     ...extraLabels.map((l) => runListIssues(owner, repo, limit, [l], token)),
   ];
-  const batches = await Promise.all(calls.map((p) => p.catch(() => [])));
+  const batches = await Promise.all(calls);
 
   // Dedupe by issue number — first occurrence wins
   const seen = new Set<number>();
@@ -224,28 +216,47 @@ async function runListIssues(
   labels: string[],
   token?: string | null,
 ): Promise<GhIssue[]> {
-  const args = [
-    "issue",
-    "list",
-    "--repo",
-    `${owner}/${repo}`,
-    "--state",
-    "open",
-    "--limit",
-    String(limit),
-    "--json",
-    "number,title,body,labels,state,author,url,createdAt,updatedAt,assignees,comments",
-  ];
-  for (const l of labels) {
-    args.push("--label", l);
+  if (!sanitizeGitHubName(owner) || !sanitizeGitHubName(repo)) throw new Error("Invalid GitHub repository");
+  const first = Math.min(100, Math.max(1, Number.isFinite(limit) ? Math.floor(limit) : 50));
+  if (token) {
+    type IssueNode = Omit<GhIssue, "labels" | "assignees" | "comments"> & {
+      labels: { nodes: GhIssue["labels"] };
+      assignees: { nodes: GhIssue["assignees"] };
+      comments: { nodes: GhComment[]; totalCount: number };
+    };
+    const data = await githubGraphql<{ repository: { issues: { nodes: IssueNode[] } } | null }>(`
+      query Issues($owner: String!, $repo: String!, $first: Int!, $labels: [String!]) {
+        repository(owner: $owner, name: $repo) {
+          issues(first: $first, states: OPEN, labels: $labels, orderBy: {field: CREATED_AT, direction: DESC}) {
+            nodes {
+              number title body state url createdAt updatedAt author { login }
+              labels(first: 100) { nodes { name } }
+              assignees(first: 100) { nodes { login } }
+              comments(last: 100) { totalCount nodes { body author { login } authorAssociation createdAt } }
+            }
+          }
+        }
+      }`, { owner, repo, first, labels: labels.length ? labels : null }, token);
+    if (!data.repository) throw new Error("GitHub repository was not found or is not accessible.");
+    return data.repository.issues.nodes.map((issue) => ({ ...issue,
+      labels: issue.labels.nodes, assignees: issue.assignees.nodes,
+      comments: issue.comments.nodes, commentCount: issue.comments.totalCount,
+    }));
   }
-  const { stdout } = await execFileAsync(ghBin(), args, {
-    maxBuffer: 10 * 1024 * 1024,
-    // Not the inherited environment: gh has no use for AUTH0_SECRET or the
-    // GitHub App private key, and no business reading the host's keychain.
-    env: ghEnv(token),
-  });
-  return JSON.parse(stdout) as GhIssue[];
+  // Anonymous public reads use REST; comment bodies require an authenticated scan.
+  type RestIssue = { number: number; title: string; body: string | null; state: string;
+    labels: Array<string | { name: string }>; user: { login: string } | null;
+    html_url: string; created_at: string; updated_at: string; comments: number;
+    assignees: Array<{ login: string }>; pull_request?: unknown };
+  const params = new URLSearchParams({ state: "open", sort: "created", direction: "desc", per_page: String(first) });
+  if (labels.length) params.set("labels", labels.join(","));
+  const issues = await githubApi<RestIssue[]>(`/repos/${owner}/${repo}/issues?${params}`, token);
+  return issues.filter((issue) => !issue.pull_request).map((issue) => ({
+    number: issue.number, title: issue.title, body: issue.body ?? "", state: issue.state,
+    labels: issue.labels.map((label) => typeof label === "string" ? { name: label } : label),
+    author: issue.user, url: issue.html_url, createdAt: issue.created_at, updatedAt: issue.updated_at,
+    assignees: issue.assignees, comments: [], commentCount: issue.comments,
+  }));
 }
 
 function scoreIssue(i: GhIssue): ScannedIssue {
@@ -254,7 +265,7 @@ function scoreIssue(i: GhIssue): ScannedIssue {
   const body = (i.body ?? "").toLowerCase();
   const all = `${title}\n${body}`;
   const commentList = Array.isArray(i.comments) ? i.comments : [];
-  const comments = commentList.length;
+  const comments = i.commentCount ?? commentList.length;
 
   // ── Category ────────────────────────────────────────
   const category: IssueCategory = (() => {

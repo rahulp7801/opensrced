@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
 import { getStoredKeys, setStoredKeys, clearStoredKeys } from "@/lib/api-keys";
+import { validStoredKeys } from "@/lib/key-cookie";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,9 @@ export async function POST(req: NextRequest) {
     gemini?: string;
     maxSpendUsd?: number;
   };
+  if (!validStoredKeys(body)) {
+    return NextResponse.json({ error: "Keys must be at most 512 printable characters; the task budget must be between $0.50 and $10." }, { status: 400 });
+  }
 
   const existing = await getStoredKeys();
   const updated = { ...existing };

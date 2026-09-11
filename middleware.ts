@@ -71,6 +71,7 @@ export async function middleware(req: NextRequest) {
   // 1. Let the SDK serve /auth/* and refresh the session cookie. `authRes`
   //    holds any Set-Cookie the refresh produced — carry it forward.
   const authRes = await auth0.middleware(req);
+  if (pathname === "/auth/logout") authRes.cookies.delete("opensrcer-keys");
 
   // The SDK owns /auth/* entirely (login, logout, callback, profile).
   // Returning early also keeps the gate below from redirecting the login

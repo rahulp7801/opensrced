@@ -119,3 +119,5 @@ the container build where applicable. No actual credential was identified in
 this scan; automated scanning cannot establish that every possible secret or
 sensitive value is absent. If one is later identified, revoke it first and
 coordinate history removal rather than merely deleting the current file.
+
+API-key cookie upgrade: saved provider keys are now cryptographically bound to the signed-in account and expire after 30 days. Users with an older cookie must enter their keys again; an unbound legacy cookie is deliberately rejected. Logout deletes the key cookie.

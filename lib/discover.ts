@@ -79,7 +79,7 @@ type GhRepo = {
   open_issues_count: number;
 };
 
-async function searchRepos(filters: DiscoverFilters, token?: string | null): Promise<DiscoverRepo[]> {
+async function searchRepos(filters: DiscoverFilters, token?: string | null, signal?: AbortSignal): Promise<DiscoverRepo[]> {
   const limit = Math.min(Math.max(filters.repoLimit ?? 12, 1), 20);
   // `gh search repos` accepts inline qualifiers in the positional query.
   // We assemble the search string here; using the typed flags directly
@@ -101,7 +101,7 @@ async function searchRepos(filters: DiscoverFilters, token?: string | null): Pro
   }
 
   const params = new URLSearchParams({ q: query.join(" "), per_page: String(limit), sort: "stars", order: "desc" });
-  const raw = await githubApi<{ items: GhRepo[] }>(`/search/repositories?${params}`, token);
+  const raw = await githubApi<{ items: GhRepo[] }>(`/search/repositories?${params}`, token, undefined, signal);
   return raw.items
     .filter((r) => r.open_issues_count > 0)
     .map((r) => ({
@@ -117,14 +117,14 @@ async function searchRepos(filters: DiscoverFilters, token?: string | null): Pro
     }));
 }
 
-export async function discover(filters: DiscoverFilters, token?: string | null): Promise<{
+export async function discover(filters: DiscoverFilters, token?: string | null, signal?: AbortSignal): Promise<{
   repos: DiscoverRepo[];
   issues: DiscoverIssue[];
   warnings: string[];
 }> {
   const issuesPerRepo = Math.min(Math.max(filters.issuesPerRepo ?? 20, 1), 50);
 
-  const repos = await searchRepos(filters, token);
+  const repos = await searchRepos(filters, token, signal);
   if (repos.length === 0) return { repos: [], issues: [], warnings: [] };
 
   // Fan out to listIssues(). Capped concurrency: the REST issue-list API is
@@ -134,13 +134,15 @@ export async function discover(filters: DiscoverFilters, token?: string | null):
   const queue = [...repos];
   const issues: DiscoverIssue[] = [];
   const warnings: string[] = [];
+  let completed = 0;
 
   async function worker() {
-    while (queue.length > 0) {
+    while (queue.length > 0 && !signal?.aborted) {
       const repo = queue.shift();
       if (!repo) break;
       try {
-        const scored = await listIssues(repo.owner, repo.name, issuesPerRepo, [], token);
+        const scored = await listIssues(repo.owner, repo.name, issuesPerRepo, [], token, signal);
+        completed++;
         for (const i of scored) {
           issues.push({
             repo,
@@ -175,7 +177,8 @@ export async function discover(filters: DiscoverFilters, token?: string | null):
   // Sort newest-first; client-side filters refine further.
   issues.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
 
-  if (warnings.length === repos.length) throw new Error("GitHub issue scans failed. Check access and rate limits, then try again.");
+  if (completed === 0) throw new Error("GitHub issue scans failed. Check access and rate limits, then try again.");
+  if (queue.length) warnings.push(`${queue.length} repositories were not scanned before the search deadline.`);
   return { repos, issues, warnings };
 }
 

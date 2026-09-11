@@ -56,8 +56,8 @@ export async function githubText(path: string, token: string | null, accept: str
   return Buffer.concat(chunks).toString("utf8");
 }
 
-export async function githubGraphql<T>(query: string, variables: Record<string, unknown>, token: string): Promise<T> {
-  const result = await githubApi<{ data?: T; errors?: unknown[] }>("/graphql", token, { query, variables });
+export async function githubGraphql<T>(query: string, variables: Record<string, unknown>, token: string, signal?: AbortSignal): Promise<T> {
+  const result = await githubApi<{ data?: T; errors?: unknown[] }>("/graphql", token, { query, variables }, signal);
   if (result.errors?.length || !result.data) throw new Error("GitHub could not complete this query. Check repository access and try again.");
   return result.data;
 }

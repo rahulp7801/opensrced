@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
     // Scan as the requesting user. Without a token this still works against
     // public repos, just at the unauthenticated rate limit.
     const token = await resolveGitHubToken();
-    const issues = await listIssues(parsed.owner, parsed.repo, 50, beginnerLabels, token);
+    const issues = await listIssues(parsed.owner, parsed.repo, 50, beginnerLabels, token, req.signal);
     // Fire-and-forget stats bump — failure here must not break the scan.
     await recordScan(`${parsed.owner}/${parsed.repo}`, owner).catch(() => {});
     return NextResponse.json({

@@ -77,3 +77,28 @@ test("caller cancellation stops an in-flight GitHub request", async (t) => {
   controller.abort(new Error("request cancelled"));
   await assert.rejects(request, /request cancelled/);
 });
+
+test("discovery cancellation stops queued scans and preserves completed results", { timeout: 2000 }, async (t) => {
+  let calls = 0, active = 0, peak = 0;
+  let started!: () => void;
+  const busy = new Promise<void>(resolve => { started = resolve; });
+  t.mock.method(globalThis, "fetch", (url: string, options: RequestInit) => {
+    if (!url.includes("/graphql")) return Promise.resolve(Response.json({ items: Array.from({ length: 10 }, (_, i) => ({ full_name: `acme/app${i}`, owner: { login: "acme" }, name: `app${i}`, open_issues_count: 1 })) }));
+    calls++;
+    if (calls === 1) return Promise.resolve(Response.json({ data: { repository: { issues: { nodes: [] } } } }));
+    peak = Math.max(peak, ++active);
+    if (calls === 5) started();
+    return new Promise((_resolve, reject) => {
+      options.signal!.addEventListener("abort", () => { active--; reject(options.signal!.reason); }, { once: true });
+    });
+  });
+  const controller = new AbortController();
+  const result = discover({ minStars: 10, repoLimit: 10 }, "test-token", controller.signal);
+  await busy;
+  controller.abort();
+  const partial = await result;
+  assert.equal(calls, 5, "the five queued repositories must not start after cancellation");
+  assert.equal(active, 0);
+  assert.equal(peak, 4);
+  assert.ok(partial.warnings.some(warning => warning.includes("5 repositories were not scanned")));
+});

@@ -18,6 +18,7 @@ try {
       if (repos === 1) return route.fulfill({ status: 503, json: { error: 'Repository service unavailable.' } });
       return route.fulfill({ json: { repos: [{ nameWithOwner: 'acme/example-project', description: 'Example repo', language: 'TypeScript', stars: 1, forks: 0, updatedAt: new Date().toISOString(), isPrivate: false, source: 'contributed' }], hasMore: false } });
     }
+    if (path === '/api/discover') return route.fulfill({ json: { repos: [], issues: [], repo_count: 0, issue_count: 0, warnings: ['Some repositories could not be scanned.'] } });
     if (path === '/api/prs/github') {
       prs++;
       return route.fulfill({ json: { login: 'tester', prs: [{ repo: 'acme/example-project', title: 'Fix an issue', number: 1, url: 'https://github.com/acme/example-project/pull/1', state: 'OPEN', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), branch: 'fix', base: 'main', additions: 1, deletions: 1, reviewDecision: 'REVIEW_REQUIRED', isDraft: false, commentCount: 0 }] } });
@@ -44,7 +45,10 @@ try {
   await page.getByText('PRs refreshed', { exact: true }).waitFor();
   await settle();
   assert.equal(prs, 2, 'refresh issues exactly one request');
+  await page.goto(base + '/discover');
+  await page.getByRole('button', { name: 'Discover', exact: true }).click();
+  await page.getByRole('status').filter({ hasText: 'Partial results:' }).waitFor();
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ repositoryRetry: true, mobileRepos: true, singlePrRefresh: true }));
+  console.log(JSON.stringify({ repositoryRetry: true, mobileRepos: true, singlePrRefresh: true, partialDiscovery: true }));
   await context.close();
 } finally { await browser.close(); }

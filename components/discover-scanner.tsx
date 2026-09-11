@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { StatusChip } from "./status-dot";
@@ -47,6 +47,7 @@ type DiscoverIssue = {
 
 type DiscoverResponse = {
   query: unknown;
+  warnings?: string[];
   repo_count: number;
   issue_count: number;
   repos: DiscoverRepo[];
@@ -98,7 +99,13 @@ export function DiscoverScanner() {
   );
   const [solvableOnly, setSolvableOnly] = useState(true);
 
+  const request = useRef<AbortController | null>(null);
+  useEffect(() => () => request.current?.abort(), []);
+
   async function runDiscover() {
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
     setLoading(true);
     setErr(null);
     setData(null);
@@ -111,14 +118,15 @@ export function DiscoverScanner() {
       if (maxStars.trim() && Number(maxStars) > 0) params.set("max_stars", maxStars.trim());
       if (language) params.set("language", language);
       if (repoAgeDays) params.set("max_repo_age_days", repoAgeDays);
-      const res = await fetch(`/api/discover?${params.toString()}`, { cache: "no-store" });
+      const res = await fetch(`/api/discover?${params.toString()}`, { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(55_000)]) });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? `HTTP ${res.status}`);
-      setData(json);
+      if (!controller.signal.aborted) setData(json);
     } catch (e) {
+      if (controller.signal.aborted) return;
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }
 
@@ -199,6 +207,12 @@ export function DiscoverScanner() {
           </button>
         </div>
       </div>
+
+      {!!data?.warnings?.length && (
+        <div role="status" className="mt-4 border border-alert/30 bg-alert/5 p-3 text-[12px] text-alert">
+          Partial results: {data.warnings.join(" ")}
+        </div>
+      )}
 
       {err && (
         <div className="mt-3 border border-alert/40 bg-alert/5 p-3 text-[12px] text-alert">

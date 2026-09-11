@@ -185,14 +185,15 @@ export async function listIssues(
    *  so an absent token means a lower rate limit, not a failure. What it
    *  must never do is fall through to the host's own gh credential. */
   token?: string | null,
+  signal?: AbortSignal,
 ): Promise<ScannedIssue[]> {
   // Recent batch: most recently created N issues regardless of label.
   // Label-filtered batches: ensures beginner-friendly issues show up even
   // on active repos where they're old (maintainers keep them open for
   // newcomers, so they're rarely in the recent N).
   const calls: Array<Promise<GhIssue[]>> = [
-    runListIssues(owner, repo, limit, [], token),
-    ...extraLabels.map((l) => runListIssues(owner, repo, limit, [l], token)),
+    runListIssues(owner, repo, limit, [], token, signal),
+    ...extraLabels.map((l) => runListIssues(owner, repo, limit, [l], token, signal)),
   ];
   const batches = await Promise.all(calls);
 
@@ -215,6 +216,7 @@ async function runListIssues(
   limit: number,
   labels: string[],
   token?: string | null,
+  signal?: AbortSignal,
 ): Promise<GhIssue[]> {
   if (!sanitizeGitHubName(owner) || !sanitizeGitHubName(repo)) throw new Error("Invalid GitHub repository");
   const first = Math.min(100, Math.max(1, Number.isFinite(limit) ? Math.floor(limit) : 50));
@@ -236,7 +238,7 @@ async function runListIssues(
             }
           }
         }
-      }`, { owner, repo, first, labels: labels.length ? labels : null }, token);
+      }`, { owner, repo, first, labels: labels.length ? labels : null }, token, signal);
     if (!data.repository) throw new Error("GitHub repository was not found or is not accessible.");
     return data.repository.issues.nodes.map((issue) => ({ ...issue,
       labels: issue.labels.nodes, assignees: issue.assignees.nodes,
@@ -250,7 +252,7 @@ async function runListIssues(
     assignees: Array<{ login: string }>; pull_request?: unknown };
   const params = new URLSearchParams({ state: "open", sort: "created", direction: "desc", per_page: String(first) });
   if (labels.length) params.set("labels", labels.join(","));
-  const issues = await githubApi<RestIssue[]>(`/repos/${owner}/${repo}/issues?${params}`, token);
+  const issues = await githubApi<RestIssue[]>(`/repos/${owner}/${repo}/issues?${params}`, token, undefined, signal);
   return issues.filter((issue) => !issue.pull_request).map((issue) => ({
     number: issue.number, title: issue.title, body: issue.body ?? "", state: issue.state,
     labels: issue.labels.map((label) => typeof label === "string" ? { name: label } : label),

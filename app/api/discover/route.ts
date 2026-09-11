@@ -4,6 +4,8 @@ import { recordDiscoverRun } from "@/lib/stats";
 import { sessionUserId } from "@/lib/require-session";
 import { resolveGitHubToken } from "@/lib/github-token";
 
+export const maxDuration = 60;
+
 // GET /api/discover?min_stars=500&language=python&repo_limit=12&issues_per_repo=20&max_repo_age_days=180
 // Returns { repos, issues } — no LLM, no Anthropic spend.
 export async function GET(req: NextRequest) {
@@ -33,7 +35,7 @@ export async function GET(req: NextRequest) {
       repoLimit,
       issuesPerRepo,
       maxRepoAgeDays,
-    }, await resolveGitHubToken());
+    }, await resolveGitHubToken(), AbortSignal.any([req.signal, AbortSignal.timeout(45_000)]));
     await recordDiscoverRun(owner).catch(() => {});
     return NextResponse.json({
       query: { minStars, maxStars, language, repoLimit, issuesPerRepo, maxRepoAgeDays },

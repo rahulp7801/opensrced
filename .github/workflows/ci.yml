@@ -71,3 +71,20 @@ jobs:
           AUTH0_DOMAIN: example.us.auth0.com
           AUTH0_CLIENT_ID: ci
           AUTH0_CLIENT_SECRET: ci
+
+      - name: Production HTTP and concurrency smoke test
+        env:
+          AUTH0_SECRET: ci-build-only-not-a-real-secret
+          APP_BASE_URL: http://localhost:3100
+          AUTH0_DOMAIN: example.us.auth0.com
+          AUTH0_CLIENT_ID: ci
+          AUTH0_CLIENT_SECRET: ci
+        run: |
+          npm start -- --port 3100 > "$RUNNER_TEMP/opensrcer.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://localhost:3100/api/health > /dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/smoke-production.mjs

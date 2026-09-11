@@ -5,9 +5,8 @@ mcp-server/node_modules
 .git
 .dispatches
 .fixes
-.env
-.env.local
-.env*.local
+.env*
+!.env.example
 *.pem
 .npm-cache
 .audit-*.json

@@ -1,5 +1,8 @@
 # opensrcer
 
+For the current deployment configuration, repeatable checks, and remaining
+release gates, see [DEPLOYMENT.md](DEPLOYMENT.md).
+
 **Find bugs. Fix them. Prove it works.**
 
 opensrcer is an AI-powered autonomous contribution agent. Point it at any GitHub repository — public or private — and it scans for vulnerabilities, open issues, and Dependabot alerts. When it finds something actionable, it dispatches an agentic AI pipeline that:

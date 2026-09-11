@@ -1,0 +1,29 @@
+services:
+  app:
+    build: .
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      AUTH0_SECRET: ${AUTH0_SECRET:?Set AUTH0_SECRET}
+      APP_BASE_URL: ${APP_BASE_URL:?Set the public HTTPS origin}
+      AUTH0_DOMAIN: ${AUTH0_DOMAIN:?Set AUTH0_DOMAIN}
+      AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID:?Set AUTH0_CLIENT_ID}
+      AUTH0_CLIENT_SECRET: ${AUTH0_CLIENT_SECRET:?Set AUTH0_CLIENT_SECRET}
+      OPENSRCER_RUN_TESTS: "off"
+    volumes:
+      - dispatches:/app/.dispatches
+      - fixes:/app/.fixes
+      - repos:/home/node/.contribai/repos
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health',{signal:AbortSignal.timeout(5000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 6s
+      start_period: 30s
+      retries: 3
+
+volumes:
+  dispatches:
+  fixes:
+  repos:

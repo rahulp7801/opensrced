@@ -26,6 +26,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { createHash } from "node:crypto";
 
 const execFileAsync = promisify(execFile);
 
@@ -73,9 +74,35 @@ function repoDir(r: RepoRef): string {
 }
 
 const locks = new Map<string, Promise<string>>();
+const accessChecks = new Map<string, { expiresAt: number; check: Promise<void> }>();
+
+/** Cached files never confer access. Recheck using this worker's credential. */
+export async function authorizeRepo(repo: string): Promise<RepoRef> {
+  const ref = parseRepo(repo);
+  const token = process.env.GITHUB_TOKEN;
+  const key = createHash("sha256").update(`${ref.full.toLowerCase()}\0${token ?? ""}`).digest("hex");
+  let entry = accessChecks.get(key);
+  if (!entry || entry.expiresAt <= Date.now()) {
+    entry = { expiresAt: Date.now() + 60_000, check: Promise.resolve().then(async () => {
+      const response = await fetch(`https://api.github.com/repos/${ref.full}`, {
+        headers: { Accept: "application/vnd.github+json", "User-Agent": "opensrcer-mcp", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        redirect: "error", cache: "no-store", signal: AbortSignal.timeout(15_000),
+      });
+      await response.body?.cancel();
+      if (!response.ok) throw new Error("Repository access denied");
+    }).catch(() => {
+      if (accessChecks.get(key) === entry) accessChecks.delete(key);
+      throw new Error("Repository is not accessible with this worker's GitHub credentials.");
+    }) };
+    if (accessChecks.size >= 100) accessChecks.delete(accessChecks.keys().next().value!);
+    accessChecks.set(key, entry);
+  }
+  await entry.check;
+  return ref;
+}
 
 export async function ensureRepo(repo: string): Promise<{ ref: RepoRef; dir: string }> {
-  const ref = parseRepo(repo);
+  const ref = await authorizeRepo(repo);
   const allowed = process.env.OPENSRCER_ALLOWED_REPO;
   if (allowed && ref.full.toLowerCase() !== parseRepo(allowed).full.toLowerCase()) throw new Error("This worker can only read the requested repository.");
   const dir = repoDir(ref);
@@ -188,15 +215,20 @@ async function doClone(ref: RepoRef, dir: string): Promise<string> {
   // lands in .git/config and persists in the cache long after the run that
   // needed it. See lib/git-auth.ts in the parent app.
   const url = `https://github.com/${ref.full}.git`;
-  await execFileAsync(
-    "git",
-    [...gitAuthArgs(process.env.GITHUB_TOKEN), "clone", "--depth=1", "--single-branch", url, dir],
-    { maxBuffer: 50 * 1024 * 1024, timeout: 60_000, windowsHide: true },
-  );
-  const revision = pinnedRef();
-  if (revision) {
-    await execFileAsync("git", [...gitAuthArgs(process.env.GITHUB_TOKEN), "-C", dir, "fetch", "--depth=1", "origin", revision], { timeout: 60_000, windowsHide: true });
-    await execFileAsync("git", ["-C", dir, "checkout", "--detach", revision], { timeout: 15_000, windowsHide: true });
+  try {
+    await execFileAsync(
+      "git",
+      [...gitAuthArgs(process.env.GITHUB_TOKEN), "clone", "--depth=1", "--single-branch", url, dir],
+      { maxBuffer: 50 * 1024 * 1024, timeout: 60_000, windowsHide: true },
+    );
+    const revision = pinnedRef();
+    if (revision) {
+      await execFileAsync("git", [...gitAuthArgs(process.env.GITHUB_TOKEN), "-C", dir, "fetch", "--depth=1", "origin", revision], { timeout: 60_000, windowsHide: true });
+      await execFileAsync("git", ["-C", dir, "checkout", "--detach", revision], { timeout: 15_000, windowsHide: true });
+    }
+  } catch {
+    // execFile errors include argv, which contains the encoded authorization header.
+    throw new Error("Could not prepare repository. Check GitHub access and retry.");
   }
   // Freshness stamp — see the TTL check in ensureRepo for why .git's mtime
   // can't be used.

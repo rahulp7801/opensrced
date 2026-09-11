@@ -140,6 +140,7 @@ export async function POST(req: NextRequest) {
   // Allowlisted env — the child has no business seeing AUTH0_SECRET or the
   // GitHub App private key. See lib/child-env.ts.
   const env: NodeJS.ProcessEnv = childEnv({
+    OPENSRCER_ALLOWED_REPO: repoFull,
     ANTHROPIC_API_KEY: anthropicKey,
     GITHUB_TOKEN: githubToken,
   });

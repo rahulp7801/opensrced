@@ -9,6 +9,7 @@ import path from 'node:path';
 test('repository tools enforce scope and pin separate caches to PR revisions', async t => {
   const root = await mkdtemp(path.join(tmpdir(), 'opensrcer-mcp-'));
   const calls = [];
+  t.mock.method(globalThis, 'fetch', async () => Response.json({}));
   const keys = ['OPENSRCER_CACHE_DIR', 'OPENSRCER_ALLOWED_REPO', 'OPENSRCER_REPO_REF'];
   const previous = keys.map(key => process.env[key]);
   const originalExecFile = childProcess.execFile;

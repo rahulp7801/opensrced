@@ -1,7 +1,7 @@
 // Lightweight graph query functions for the MCP server.
 // Reads graphify's graph.json and performs pure JS traversal.
 
-import { parseRepo } from "./repo-cache.js";
+import { parseRepo, authorizeRepo } from "./repo-cache.js";
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -52,6 +52,7 @@ function findGraphJson(repo: string): string | null {
 }
 
 async function loadGraph(repo: string): Promise<GraphData> {
+  await authorizeRepo(repo);
   const path = findGraphJson(repo);
   if (!path) throw new Error("Graph not found. Build it first via the Graph page in the opensrcer UI.");
   const raw = await readFile(path, "utf8");

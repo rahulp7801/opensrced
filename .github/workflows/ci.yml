@@ -93,6 +93,7 @@ jobs:
           done
           node scripts/smoke-production.mjs
           node scripts/smoke-browser.mjs
+          node scripts/smoke-review.mjs
 
   graph:
     runs-on: ubuntu-latest

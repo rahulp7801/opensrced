@@ -33,19 +33,24 @@ export async function* sseEvents<T>(res: Response): AsyncGenerator<T> {
 
   const decoder = new TextDecoder();
   let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      try {
-        yield JSON.parse(line.slice(6)) as T;
-      } catch {
-        /* a partial or malformed event is not worth failing the stream over */
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      if (buffer.length > 1_000_000) throw new Error("Stream event exceeded its size limit.");
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.startsWith("data:")) continue;
+        let event: T;
+        try { event = JSON.parse(line.slice(5).trimStart()) as T; }
+        catch { continue; }
+        yield event;
       }
     }
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
   }
 }

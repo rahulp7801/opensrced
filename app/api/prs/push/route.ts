@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     commit_message?: string;
   };
 
-  if ([raw.repo, raw.branch, raw.diff, raw.commit_message].some(value => value !== undefined && typeof value !== "string") || (typeof raw.diff === "string" && Buffer.byteLength(raw.diff) > 100_000)) return Response.json({ error: "Invalid push input or patch too large" }, { status: 400 });
+  if (!raw || [raw.repo, raw.branch, raw.diff, raw.commit_message].some(value => value !== undefined && typeof value !== "string") || (typeof raw.diff === "string" && Buffer.byteLength(raw.diff) > 100_000)) return Response.json({ error: "Invalid push input or patch too large" }, { status: 400 });
 
   const body = {
     repo: raw.repo ? sanitizeRepoId(raw.repo) : null,

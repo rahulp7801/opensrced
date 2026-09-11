@@ -37,7 +37,7 @@ type PrInfo = {
 
 type FixState = {
   commentId: number | "all";
-  status: "generating" | "done" | "error";
+  status: "generating" | "done" | "error" | "cancelled";
   response: string;
   tools: { tool: string; detail: string }[];
   cost: number | null;
@@ -155,6 +155,7 @@ export default function PrDetailPage() {
   // Verification
   const [verifyResult, setVerifyResult] = useState<VerifyResult>(null);
   const [verifying, setVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
 
   // Ask/chat
   const [askOpen, setAskOpen] = useState(false);
@@ -195,6 +196,8 @@ export default function PrDetailPage() {
 
   // Refs
   const abortRef = useRef<AbortController | null>(null);
+  const commentsAbort = useRef<AbortController | null>(null);
+  useEffect(() => () => { abortRef.current?.abort(); commentsAbort.current?.abort(); }, [repoFull, prNumber]);
   const fixRef = useRef<HTMLDivElement>(null);
   const commentRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
@@ -216,11 +219,15 @@ export default function PrDetailPage() {
   // ── Data loading ───────────────────────────────────────────────────
 
   const fetchComments = useCallback(async (silent = false) => {
+    commentsAbort.current?.abort();
+    const controller = new AbortController();
+    commentsAbort.current = controller;
     if (!silent) { setLoading(true); setError(null); }
     try {
-      const r = await fetch(`/api/prs/review?repo=${encodeURIComponent(repoFull)}&pr=${prNumber}`);
+      const r = await fetch(`/api/prs/review?repo=${encodeURIComponent(repoFull)}&pr=${prNumber}`, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]) });
       if (!r.ok) { const e = await r.json(); throw new Error(e.error); }
       const data: { pr: PrInfo; comments: ReviewComment[] } = await r.json();
+      if (controller.signal.aborted) return;
       setPr(data.pr);
 
       if (silent && data.comments.length > lastCommentCount.current) {
@@ -232,19 +239,21 @@ export default function PrDetailPage() {
       setComments(data.comments);
       lastCommentCount.current = data.comments.length;
     } catch (err) {
-      if (!silent) setError(err instanceof Error ? err.message : String(err));
+      if (!silent && !controller.signal.aborted) setError(err instanceof Error ? err.message : String(err));
     } finally {
-      if (!silent) setLoading(false);
+      if (!silent && !controller.signal.aborted) setLoading(false);
     }
   }, [repoFull, prNumber, toast]);
 
-  // Initial load
-  useEffect(() => { fetchComments(); }, [fetchComments]);
-
-  // Auto-refresh every 30s
   useEffect(() => {
-    const interval = setInterval(() => fetchComments(true), 30_000);
-    return () => clearInterval(interval);
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    async function tick(silent = false) {
+      await fetchComments(silent);
+      if (!stopped) timer = setTimeout(() => tick(true), 30_000);
+    }
+    void tick();
+    return () => { stopped = true; clearTimeout(timer); commentsAbort.current?.abort(); };
   }, [fetchComments]);
 
   // Scroll to fix output
@@ -261,45 +270,48 @@ export default function PrDetailPage() {
     }
   }, [fixState?.status, fixState?.cost]);
 
-  // Auto-run verification when fix is done
+  const fixComment = typeof fixState?.commentId === "number" ? comments.find(c => c.id === fixState.commentId) : null;
+  const fixCommentBody = fixComment?.body ?? null;
+  const fixCommentPath = fixComment?.path ?? null;
+
   useEffect(() => {
     if (fixState?.status !== "done") return;
     const diff = extractDiff(fixState.response);
     if (!diff) return;
-
+    const controller = new AbortController();
     setVerifying(true);
     setVerifyResult(null);
-
-    const comment = typeof fixState.commentId === "number"
-      ? comments.find((c) => c.id === fixState.commentId)
-      : null;
-
+    setVerifyError(null);
     fetch("/api/prs/verify", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        diff,
-        comment_body: comment?.body ?? null,
-        file_path: comment?.path ?? null,
-        repo: repoFull,
-      }),
-    })
-      .then((r) => r.json())
-      .then((data: VerifyResult) => setVerifyResult(data))
-      .catch(() => {})
-      .finally(() => setVerifying(false));
+      method: "POST", headers: { "content-type": "application/json" },
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(60_000)]),
+      body: JSON.stringify({ diff, comment_body: fixCommentBody, file_path: fixCommentPath, repo: repoFull }),
+    }).then(async response => {
+      const data = await response.json();
+      if (!response.ok || !Array.isArray(data.checks) || !data.summary) throw new Error(data.error ?? "Verification unavailable.");
+      if (!controller.signal.aborted) setVerifyResult(data);
+    }).catch(error => {
+      if (!controller.signal.aborted) setVerifyError(error instanceof Error ? error.message : "Verification unavailable.");
+    }).finally(() => { if (!controller.signal.aborted) setVerifying(false); });
+    return () => controller.abort();
+  }, [fixState?.status, fixState?.response, fixCommentBody, fixCommentPath, repoFull]);
 
-    // Auto-generate explainer in background
-    if (diff && fixState.response.length > 50) {
-      generateExplainer(fixState.response);
-    }
-  }, [fixState?.status, fixState?.response, fixState?.commentId, comments, repoFull]);
+  // Comment polling must never buy another explanation of the same patch.
+  useEffect(() => {
+    if (fixState?.status !== "done" || fixState.response.length <= 50 || !extractDiff(fixState.response)) return;
+    const controller = new AbortController();
+    setAutoExplainer("");
+    void generateExplainer(fixState.response, controller.signal);
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fixState?.status, fixState?.response, repoFull]);
 
   // Generate a "why this fix" explainer
-  async function generateExplainer(fixResponse: string) {
+  async function generateExplainer(fixResponse: string, signal: AbortSignal) {
     try {
       const res = await fetch("/api/prs/draft-reply", {
         method: "POST",
+        signal: AbortSignal.any([signal, AbortSignal.timeout(90_000)]),
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           repo: repoFull,
@@ -308,28 +320,17 @@ export default function PrDetailPage() {
           comment_author: "me",
         }),
       });
+      if (!res.ok) return;
       const contentType = res.headers.get("content-type") ?? "";
       if (contentType.includes("application/json")) {
         const data = (await res.json()) as { result?: string };
-        if (data.result) setAutoExplainer(data.result);
+        if (!signal.aborted && data.result) setAutoExplainer(data.result);
       } else {
-        const reader = res.body?.getReader();
-        if (!reader) return;
-        const decoder = new TextDecoder();
-        let buf = "", text = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buf += decoder.decode(value, { stream: true });
-          const lines = buf.split("\n");
-          buf = lines.pop() ?? "";
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            try {
-              const p = JSON.parse(line.slice(6)) as { text?: string };
-              if (p.text) { text += p.text; setAutoExplainer(text); }
-            } catch { /* skip */ }
-          }
+        let text = "";
+        for await (const event of sseEvents<{ text?: string; error?: string }>(res)) {
+          if (signal.aborted) return;
+          if (event.error) return;
+          if (event.text) { text += event.text; setAutoExplainer(text); }
         }
       }
     } catch { /* non-critical */ }
@@ -493,7 +494,7 @@ export default function PrDetailPage() {
   function cancelGeneration() {
     abortRef.current?.abort();
     abortRef.current = null;
-    setFixState((prev) => prev && prev.status === "generating" ? { ...prev, status: "done", step: "Cancelled" } : prev);
+    setFixState((prev) => prev && prev.status === "generating" ? { ...prev, status: "cancelled", step: "Cancelled" } : prev);
     setAskLoading(false);
     setFollowUpGenerating(false);
     toast("Generation cancelled", "signal");
@@ -513,7 +514,7 @@ export default function PrDetailPage() {
       const res = await fetch("/api/prs/fix", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        signal: controller.signal,
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(240_000)]),
         body: JSON.stringify({
           repo: repoFull,
           pr_number: parseInt(prNumber),
@@ -534,6 +535,7 @@ export default function PrDetailPage() {
         done?: boolean;
         error?: string;
       }>(res)) {
+        if (controller.signal.aborted) return;
         if (p.tool) {
           // Update step based on tool being used
           const stepMap: Record<string, string> = {
@@ -570,12 +572,10 @@ export default function PrDetailPage() {
       // fix with an empty body and no hint that anything went wrong.
       setFixState((prev) => {
         if (!prev || prev.status !== "generating") return prev;
-        return prev.response
-          ? { ...prev, status: "done", step: "Complete" }
-          : { ...prev, status: "error", step: "Failed", response: "The fix stream ended without producing anything." };
+        return { ...prev, status: "error", step: "Interrupted", response: prev.response + "\n\nThe fix stream ended before completion. Retry before using this patch." };
       });
     } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") return;
+      if (controller.signal.aborted) return;
       setFixState((prev) =>
         prev ? { ...prev, response: err instanceof Error ? err.message : "Network error", status: "error", step: "Failed" } : prev,
       );
@@ -1305,6 +1305,7 @@ export default function PrDetailPage() {
                 {fixState.status === "done" && fixState.cost !== null && (
                   <span className="ml-auto text-[10px] text-paper-muted tabular-nums">{costLabel(fixState.cost)}</span>
                 )}
+                {fixState.status === "cancelled" && <span className="ml-auto text-[10px] text-paper-muted">Cancelled</span>}
                 {fixState.status === "error" && (
                   <span className="ml-auto text-[10px] text-alert">failed</span>
                 )}
@@ -1476,6 +1477,7 @@ export default function PrDetailPage() {
                 </div>
               )}
 
+              {verifyError && <p role="alert" className="px-4 py-3 text-xs text-alert">Verification could not finish: {verifyError}</p>}
               {/* Verification results */}
               {fixState.status === "done" && extractDiff(fixState.response) && (
                 <div className="px-4 py-3 border-t border-border-soft">

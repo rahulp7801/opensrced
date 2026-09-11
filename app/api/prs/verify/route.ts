@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     repo?: string;
   };
 
-  if ([raw.diff, raw.comment_body, raw.file_path, raw.repo].some(value => value != null && typeof value !== "string") || (raw.diff?.length ?? 0) > 200_000) return Response.json({ error: "Invalid verification input or diff too large" }, { status: 400 });
+  if (!raw || [raw.diff, raw.comment_body, raw.file_path, raw.repo].some(value => value != null && typeof value !== "string") || (raw.diff?.length ?? 0) > 200_000) return Response.json({ error: "Invalid verification input or diff too large" }, { status: 400 });
 
   const body = {
     diff: raw.diff?.slice(0, 200_000) ?? null, // cap diff size

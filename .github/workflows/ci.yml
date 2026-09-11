@@ -92,6 +92,7 @@ jobs:
             sleep 1
           done
           node scripts/smoke-production.mjs
+          node scripts/smoke-session.mjs
           node scripts/smoke-browser.mjs
           node scripts/smoke-review.mjs
 

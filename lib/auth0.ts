@@ -21,6 +21,7 @@
 // AUTH0_SECRET / AUTH0_CLIENT_ID / AUTH0_CLIENT_SECRET are unchanged.
 
 import { Auth0Client } from "@auth0/nextjs-auth0/server";
+import { prepareSession } from "./auth-session";
 
 /** Accept the v3 spelling of the two renamed vars so an existing .env.local
  *  keeps working. AUTH0_DOMAIN wants a bare host, but AUTH0_ISSUER_BASE_URL
@@ -36,6 +37,7 @@ function domain(): string | undefined {
 
 export const auth0 = new Auth0Client({
   domain: domain(),
+  beforeSessionSaved: prepareSession,
   appBaseUrl: process.env.APP_BASE_URL ?? process.env.AUTH0_BASE_URL,
   authorizationParameters: {
     // `connection_scope` asks Auth0 to request these extra scopes from the

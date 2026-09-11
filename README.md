@@ -728,7 +728,7 @@ The prompts embed GitHub issue bodies, PR review comments, and free-text user qu
 
 - **Auth0** brokers all identity — opensrcer never sees your password
 - **GitHub Social Connection** — Auth0 performs the OAuth flow and returns a scoped token
-- **Custom claim** `https://opensrcer.dev/github_token` — the user's GitHub token, embedded in the Auth0 session by a Rule
+- **Custom claim** `https://opensrcer.dev/github_token` must contain the GitHub provider token from your Auth0 login customization. The session save hook stores it separately from the public user profile; `/auth/profile` never returns it. Existing sessions without the token require signing in again.
 
 ### Authentication Middleware (`middleware.ts`)
 

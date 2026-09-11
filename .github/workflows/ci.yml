@@ -73,7 +73,10 @@ jobs:
           AUTH0_CLIENT_ID: ci
           AUTH0_CLIENT_SECRET: ci
 
-      - name: Production HTTP and concurrency smoke test
+      - name: Install browser runtime
+        run: npx playwright install --with-deps chromium
+
+      - name: Production HTTP, browser, and concurrency smoke tests
         env:
           AUTH0_SECRET: ci-build-only-not-a-real-secret
           APP_BASE_URL: http://localhost:3100
@@ -89,6 +92,7 @@ jobs:
             sleep 1
           done
           node scripts/smoke-production.mjs
+          node scripts/smoke-browser.mjs
 
   graph:
     runs-on: ubuntu-latest

@@ -4,6 +4,7 @@ import "./globals.css";
 import { SiteHeader } from "@/components/header";
 import { SectionNav } from "@/components/section-nav";
 import { SiteFooter } from "@/components/footer";
+import { SessionGate } from "@/components/session-gate";
 import { ApiKeyGate } from "@/components/api-key-gate";
 import { Onboarding } from "@/components/onboarding";
 import { ToastProvider } from "@/components/toast";
@@ -54,7 +55,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Onboarding />
               {/* A flex column, so a page that wants to fill the window can say flex-1
                   instead of guessing how tall the chrome above it is. */}
-              <main className="flex flex-1 flex-col">{children}</main>
+              <main className="flex flex-1 flex-col"><SessionGate allowAnonymous={process.env.AUTH_DISABLED === "1" && process.env.NODE_ENV !== "production"}>{children}</SessionGate></main>
               <SiteFooter />
             </div>
           </ToastProvider>

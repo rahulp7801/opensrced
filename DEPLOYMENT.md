@@ -77,11 +77,16 @@ node scripts/smoke-graph.mjs
 # In another terminal, with Auth0 configured:
 npm start -- --port 3100
 node scripts/smoke-production.mjs
+npx playwright install chromium
+node scripts/smoke-browser.mjs
 ```
 
 The HTTP smoke script checks six pages, anonymous authorization including
 middleware-bypass headers, and 200 health requests with 20 concurrent clients.
 It does not call an AI provider, open a PR, or prove authenticated workflows.
+The browser smoke test covers public pages at desktop/mobile widths, demo tabs,
+login prompts, and authentication-link prefetching. Mocked API interactions check
+preview retries and both issue actions without starting real jobs.
 Set `SMOKE_BASE_URL` to test a staging deployment. CI runs the same checks.
 
 Next.js stays on the patched 15.x line. Its pinned PostCSS dependency is

@@ -11,7 +11,7 @@ export default function TriggerPage() {
         description={
           <>
             Paste a GitHub repo or issue URL. The AI agent will explore the codebase,
-            generate a fix, run tests, and open a draft PR. Use Preview mode to see what
+            generate a fix and open a draft PR after the configured checks. Use Preview mode to see what
             the agent finds without opening a PR.
           </>
         }
@@ -38,12 +38,12 @@ export default function TriggerPage() {
             {
               code: "02",
               title: "Fix",
-              body: "Diagnoses the root cause, generates a minimal patch, and verifies it won't break existing code.",
+              body: "Diagnoses the issue and generates a patch for you to review.",
             },
             {
               code: "03",
               title: "Ship",
-              body: "Forks the repo, commits the fix, runs the test suite, and opens a draft PR with full context.",
+              body: "In live mode, commits the fix and opens a draft PR after checks. Hosted runs do not execute repository tests; run them before merging.",
             },
           ].map((step) => (
             <div key={step.code} className="border border-border bg-surface/40 p-5">

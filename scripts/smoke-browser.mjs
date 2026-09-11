@@ -1,0 +1,78 @@
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright';
+const base = process.env.SMOKE_BASE_URL || 'http://localhost:3100';
+const browser = await chromium.launch({ headless: true });
+let pagesChecked = 0;
+try {
+  for (const width of [1440, 390]) {
+    const context = await browser.newContext({ viewport: { width, height: 900 } });
+    const page = await context.newPage();
+    const errors = [];
+    const authNavigations = [];
+    page.on('pageerror', error => errors.push(error.message));
+    page.on('request', request => { if (/\/auth\/(login|logout)/.test(request.url())) authNavigations.push(request.url()); });
+    for (const path of ['/', '/demo', '/login', '/issues', '/dispatches', '/trigger', '/stats']) {
+      await page.goto(base + path, { waitUntil: 'domcontentloaded' });
+      const main = page.locator('main');
+      await main.locator('h1').first().waitFor({ state: 'visible' });
+      if (['/issues', '/dispatches', '/trigger', '/stats'].includes(path)) {
+        await main.getByRole('heading', { name: 'Sign in to continue', exact: true }).waitFor();
+        assert.equal(await main.getByText(/HTTP 401|Retrying/).count(), 0);
+      }
+      if (path === '/demo') {
+        for (const name of ['Codebase explorer', 'Security scan', 'Private repo flow', 'Bug fix pipeline']) {
+          await page.getByRole('button', { name, exact: true }).click();
+          await main.getByRole('button', { name: name === 'Security scan' ? /Start scan/ : name === 'Private repo flow' ? /Connect GitHub Org/ : /Start walkthrough/ }).waitFor();
+        }
+      }
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, `overflow ${width} ${path}`);
+      assert.deepEqual(errors, [], `client errors ${path}`);
+      pagesChecked++;
+    }
+    assert.deepEqual(authNavigations, [], 'login/logout must not be prefetched');
+    await context.close();
+  }
+
+  // Client interaction test only: fake session/data, intercept every mutation.
+  // Real Auth0 and provider workflows remain a separate deployment release gate.
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.route('**/auth/profile', route => route.fulfill({ json: { sub: 'test-user', name: 'Test User' } }));
+  const run = { id: 'test-preview', repo_url: 'https://github.com/acme/app', mode: 'agentic', dry_run: true, issue_number: 1, started_at: new Date().toISOString(), status: 'failed', log: '', log_size: 0 };
+  const submissions = [];
+  await page.route('**/api/**', async route => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/run/agentic') {
+      submissions.push(route.request().postDataJSON());
+      return route.fulfill({ status: 202, json: { dispatch_id: 'test-preview' } });
+    }
+    if (url.pathname === '/api/dispatches') return route.fulfill({ json: { dispatches: [run] } });
+    if (url.pathname === '/api/dispatches/test-preview') return route.fulfill({ json: run });
+    if (url.pathname === '/api/issues/suggested') return route.fulfill({ json: { issues: [], filteredOut: 0 } });
+    if (url.pathname === '/api/issues/scan') return route.fulfill({ json: { repo: 'acme/app', total: 1, solvable: 1, issues: [{ number: 1, title: 'Fix parser error', body: 'Fix the parser.', labels: ['bug'], url: 'https://github.com/acme/app/issues/1', author: 'test', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), comments: 0, category: 'bug', severity: 'low', complexity: 1, est_minutes: 5, solvable: true, reason: 'Small fix', scope: { bucket: 'leaf', confidence: 'high', files: ['parser.ts'], symbols: [], reason: 'Parser file' } }] } });
+    if (url.pathname === '/api/settings/keys') return route.fulfill({ json: { anthropic: true, gemini: true } });
+    return route.fulfill({ json: {} });
+  });
+  await page.goto(base + '/dispatches?dispatch=test-preview');
+  await Promise.all([
+    page.waitForResponse(response => response.url().endsWith('/api/run/agentic')),
+    page.getByRole('button', { name: 'retry', exact: true }).click(),
+  ]);
+  await page.waitForURL('**/dispatches?dispatch=test-preview');
+  assert.equal(submissions.length, 1);
+  assert.equal(submissions[0].dry_run, true, 'retry must preserve preview');
+  assert.equal(submissions[0].issue_number, 1);
+  for (const preview of [true, false]) {
+    await page.goto(base + '/issues?repo=acme/app');
+    await Promise.all([
+      page.waitForResponse(response => response.url().endsWith('/api/run/agentic')),
+      page.getByRole('button', { name: preview ? 'preview' : 'solve & open PR', exact: true }).click(),
+    ]);
+    assert.equal(submissions.at(-1).dry_run, preview);
+    assert.equal(submissions.at(-1).issue_number, 1);
+    await page.waitForURL('**/dispatches?dispatch=test-preview');
+  }
+  assert.equal(submissions.length, 3);
+  await context.close();
+  console.log(JSON.stringify({ pagesChecked, viewports: [1440, 390], previewRetry: true, issueActions: 2, authPrefetch: false }));
+} finally { await browser.close(); }

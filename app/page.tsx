@@ -13,12 +13,12 @@ export default function LandingPage() {
         <h1 className="serif text-[48px] md:text-[72px] leading-[0.95] tracking-tight text-paper">
           Find bugs.<br />
           Fix them.<br />
-          <span className="text-signal">Prove it works.</span>
+          <span className="text-signal">Review the patch.</span>
         </h1>
         <p className="mt-6 max-w-xl mx-auto text-[14px] leading-relaxed text-paper-dim">
           opensrcer scans repositories for real bugs and security advisories,
-          generates verified patches using AI, and opens draft PRs — only
-          after the repo&apos;s own test suite passes.
+          generates patches using AI, and opens draft PRs for review.
+          Preview changes before publishing, and see which checks actually ran.
         </p>
         <div className="mt-10 flex flex-wrap justify-center gap-3">
           <Link
@@ -51,7 +51,7 @@ export default function LandingPage() {
       <section className="mt-24">
         <div className="text-center mb-12">
           <h2 className="serif text-[28px] text-paper tracking-tight">How it works</h2>
-          <p className="mt-2 text-[13px] text-paper-dim">Three steps to verified patches.</p>
+          <p className="mt-2 text-[13px] text-paper-dim">Three steps from issue to draft PR.</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-0 border border-border">
           <Step
@@ -67,8 +67,8 @@ export default function LandingPage() {
           />
           <Step
             number="03"
-            title="Verify"
-            description="Before opening a PR, the patch runs against the repo's own test suite. Only verified patches get pushed. Failed tests block the PR and show you why."
+            title="Review"
+            description="Review the diff and check results. Secret scanning blocks unsafe patches. Target-repository tests are currently off in hosted runs; run them before merging."
             border
           />
         </div>
@@ -101,7 +101,7 @@ export default function LandingPage() {
         <div className="text-center mb-8">
           <h2 className="serif text-[28px] text-paper tracking-tight">Watch it solve a real issue</h2>
           <p className="mt-2 text-[13px] text-paper-dim">
-            From issue to verified PR in under 5 minutes. Here&apos;s what a dispatch looks like.
+            An illustrative dispatch, with example code and results. Run times and check results vary by repository.
           </p>
         </div>
         <div className="border border-border bg-surface/40">
@@ -265,20 +265,19 @@ export default function LandingPage() {
             </div>
             <h2 className="serif text-[32px] text-paper tracking-tight leading-tight">
               Private repos.<br />
-              Verified patches.
+              Reviewable patches.
             </h2>
             <p className="mt-4 max-w-lg text-[13px] text-paper-dim leading-relaxed">
               Connect your GitHub Organization through a dedicated GitHub App.
               opensrcer scans your private repos for vulnerabilities and open
-              issues, then lands draft PRs whose patches have been verified
-              against the repo&apos;s own test suite — all using short-lived
-              installation tokens. No long-lived credentials, no ambient access.
+              issues, then prepares draft PRs using short-lived installation tokens.
+              Review the patch and run your repository tests before merging.
             </p>
           </div>
           <div className="border-t border-border grid grid-cols-1 sm:grid-cols-3">
             <Feature title="GitHub App auth" detail="Short-lived tokens, per-org scope, revocable anytime" />
-            <Feature title="Test-gated PRs" detail="Patches only land if the repo's tests pass" border />
-            <Feature title="Zero storage" detail="API keys encrypted in cookies, never on our servers" border />
+            <Feature title="Visible check results" detail="See which checks passed, failed, or did not run" border />
+            <Feature title="Protected provider keys" detail="Encrypted cookies bound to your signed-in account" border />
           </div>
         </div>
       </section>
@@ -290,8 +289,8 @@ export default function LandingPage() {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-0 border border-border">
           <SecurityItem
-            title="No stored credentials"
-            detail="GitHub tokens and API keys live in encrypted browser cookies (AES-256-GCM). The server decrypts in memory only to make API calls, then discards. Nothing is written to disk or a database."
+            title="Scoped credentials"
+            detail="Provider keys are encrypted in account-bound browser cookies. Isolated jobs receive only the credentials needed for that job. Run logs and results are stored privately."
           />
           <SecurityItem
             title="Auth0 identity"
@@ -300,7 +299,7 @@ export default function LandingPage() {
           />
           <SecurityItem
             title="Spend controls"
-            detail="Set a hard cap on AI spend per task ($0.50–$10). The model stops cleanly when the limit is reached. No surprise bills."
+            detail="Set a Claude agent budget of $0.50 to $10 per run. Other provider calls, such as review and chat, are billed separately by your API providers."
             borderTop
           />
           <SecurityItem

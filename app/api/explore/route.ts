@@ -4,7 +4,7 @@
 // Budget is capped low ($0.15) since this is read-only exploration.
 
 import { NextRequest } from "next/server";
-import { spawn } from "node:child_process";
+import { spawn, execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { resolveAnthropicKey } from "@/lib/api-keys";
@@ -12,13 +12,19 @@ import { resolveGitHubToken } from "@/lib/github-token";
 import { auth0 } from "@/lib/auth0";
 import { mappingForOrg } from "@/lib/crucible/orgs";
 import { resolveGithubToken } from "@/lib/crucible/tokens";
-import { acquireSlot, releaseSlot, activeSlots } from "@/lib/concurrency";
+import { reserveSlot } from "@/lib/concurrency";
 import { CLAUDE_AGENT_MODEL } from "@/lib/models";
 import { requireSession } from "@/lib/require-session";
 import { sanitizeForPrompt } from "@/lib/sanitize";
 import { childEnv } from "@/lib/child-env";
 import { ALLOWED_TOOLS } from "@/lib/agentic-dispatcher";
 
+import { cloudExecution } from "@/lib/cloud-run-state";
+import { cloudExplore } from "@/lib/cloud-explore";
+import { parseRunTarget } from "@/lib/run-target";
+import { claudeEvents } from "@/lib/claude-events";
+
+export const maxDuration = 240;
 export const dynamic = "force-dynamic";
 
 const MAX_CONCURRENT_EXPLORE = 3;
@@ -57,14 +63,14 @@ export async function POST(req: NextRequest) {
     github_org?: string;
   };
 
-  if (!body.repo_url || !body.query) {
+  if (typeof body.repo_url !== "string" || typeof body.query !== "string" || !body.query.trim() || (body.budget !== undefined && (typeof body.budget !== "number" || !Number.isFinite(body.budget))) || (body.github_org !== undefined && typeof body.github_org !== "string")) {
     return new Response(
       JSON.stringify({ error: "Missing repo_url or query" }),
       { status: 400, headers: { "Content-Type": "application/json" } },
     );
   }
 
-  if (!existsSync(MCP_CONFIG)) {
+  if (!cloudExecution() && !existsSync(MCP_CONFIG)) {
     return new Response(
       JSON.stringify({ error: "MCP server not built. Run: cd mcp-server && npm run build" }),
       { status: 500, headers: { "Content-Type": "application/json" } },
@@ -79,38 +85,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Parse owner/name from URL and sanitize
-  const m = /github\.com[:/]+([^/]+)\/([^/?#\s.]+)|^([^/\s]+)\/([^/\s]+)$/.exec(
-    body.repo_url.trim().replace(/\.git$/i, ""),
-  );
-  const rawOwner = m?.[1] ?? m?.[3];
-  const rawName = m?.[2] ?? m?.[4];
-  if (!rawOwner || !rawName) {
-    return new Response(
-      JSON.stringify({ error: "Invalid repo URL" }),
-      { status: 400, headers: { "Content-Type": "application/json" } },
-    );
-  }
-  const { sanitizeRepoId: sanitizeRepo } = await import("@/lib/sanitize");
-  const repoFull = sanitizeRepo(`${rawOwner}/${rawName}`);
-  if (!repoFull) {
-    return new Response(
-      JSON.stringify({ error: "Invalid repo identifier" }),
-      { status: 400, headers: { "Content-Type": "application/json" } },
-    );
-  }
-  const [owner, name] = repoFull.split("/");
-
-  // Concurrency limit. Acquired LAST, after every cheap rejection above —
-  // the slot is only released once the stream closes, so any early return
-  // between acquire and stream-start leaks it for the process lifetime.
-  // Four returns above used to sit inside that window.
-  if (!acquireSlot("explore", MAX_CONCURRENT_EXPLORE)) {
-    return new Response(
-      JSON.stringify({ error: `Too many concurrent explorations (${activeSlots("explore")}/${MAX_CONCURRENT_EXPLORE}). Wait for one to finish.` }),
-      { status: 429, headers: { "Content-Type": "application/json" } },
-    );
-  }
+  let repoFull: string;
+  try { repoFull = parseRunTarget(body.repo_url).repo; }
+  catch { return Response.json({ error: "Invalid repository URL" }, { status: 400 }); }
 
   const prompt = buildExplorePrompt(repoFull, body.query);
 
@@ -124,7 +101,7 @@ export async function POST(req: NextRequest) {
     "-p",
     prompt,
     "--mcp-config",
-    MCP_CONFIG,
+    cloudExecution() ? "/vercel/sandbox/.mcp.json" : MCP_CONFIG,
     "--strict-mcp-config",
     "--allowed-tools",
     ALLOWED_TOOLS.join(","),
@@ -143,6 +120,7 @@ export async function POST(req: NextRequest) {
   // Private repo support — use installation token if org is specified.
   let githubToken: string | undefined;
   if (body.github_org) {
+    if (repoFull.split("/")[0].toLowerCase() !== body.github_org.toLowerCase()) return Response.json({ error: "Repository must belong to the connected organization." }, { status: 400 });
     const session = await auth0.getSession();
     const sub = session?.user?.sub;
     if (sub) {
@@ -154,9 +132,19 @@ export async function POST(req: NextRequest) {
     }
   }
   // Public repos — use the user's GitHub OAuth token from Auth0
+  if (body.github_org && !githubToken) return Response.json({ error: "Organization is not connected or its token is unavailable." }, { status: 403 });
   if (!githubToken) {
     githubToken = (await resolveGitHubToken()) ?? undefined;
   }
+
+  if (cloudExecution()) return cloudExplore(args, {
+    ANTHROPIC_API_KEY: anthropicKey,
+    ...(githubToken ? { GITHUB_TOKEN: githubToken } : {}),
+  }, req.signal);
+
+  let release: () => void;
+  try { release = reserveSlot("explore", MAX_CONCURRENT_EXPLORE); }
+  catch { return Response.json({ error: "Three explorations are running. Try again when one finishes." }, { status: 429 }); }
 
   // Allowlisted env — the child has no business seeing AUTH0_SECRET or the
   // GitHub App private key. See lib/child-env.ts.
@@ -166,104 +154,50 @@ export async function POST(req: NextRequest) {
   });
 
   const encoder = new TextEncoder();
+  let cancelled = false;
+  let stop = () => {};
   const stream = new ReadableStream({
     start(controller) {
-      const child = spawn("claude", args, { env, windowsHide: true });
-
-      const timeout = setTimeout(() => {
-        if (!child.killed && child.pid) {
-          if (process.platform === "win32") {
-            try {
-              require("node:child_process").execFileSync(
-                "taskkill", ["/F", "/T", "/PID", String(child.pid)],
-                { stdio: "pipe" },
-              );
-            } catch {
-              child.kill("SIGKILL");
-            }
-          } else {
-            child.kill("SIGKILL");
-          }
-        }
-      }, 3 * 60 * 1000); // 3 min max
-
-      let lineBuf = "";
+      const child = spawn("claude", args, { env, windowsHide: true, detached: process.platform !== "win32" });
+      let finished = false;
+      const send = (event: Record<string, unknown>) => {
+        if (!cancelled && !finished) controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+      };
+      stop = () => {
+        if (!child.pid || child.exitCode !== null) return;
+        if (process.platform === "win32") execFile("taskkill", ["/F", "/T", "/PID", String(child.pid)], { windowsHide: true }, () => {});
+        else { try { process.kill(-child.pid, "SIGKILL"); } catch { child.kill("SIGKILL"); } }
+      };
+      const disconnect = () => { cancelled = true; stop(); };
+      req.signal.addEventListener("abort", disconnect, { once: true });
+      const timeout = setTimeout(() => { send({ error: "Exploration time limit reached." }); stop(); }, 3 * 60_000);
+      const finish = (event: Record<string, unknown>) => {
+        if (finished) return;
+        clearTimeout(timeout);
+        req.signal.removeEventListener("abort", disconnect);
+        release();
+        send(event);
+        finished = true;
+        if (!cancelled) controller.close();
+      };
+      let buffer = "";
       child.stdout.on("data", (chunk: Buffer) => {
-        lineBuf += chunk.toString();
-        const lines = lineBuf.split("\n");
-        lineBuf = lines.pop() ?? "";
-
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const evt = JSON.parse(line);
-
-            // Tool use events — Claude calling MCP tools
-            // Structure: { type: "assistant", message: { content: [{ type: "tool_use", name, input }] } }
-            if (evt.type === "assistant" && evt.message?.content) {
-              for (const block of evt.message.content) {
-                if (block.type === "tool_use" && block.name) {
-                  const toolName = block.name.replace(/^mcp__opensrcer-repo-tools__/, "");
-                  const input = block.input ?? {};
-                  let detail = "";
-                  if (toolName === "grep" && input.pattern) detail = `/${input.pattern}/`;
-                  else if (toolName === "read_file" && input.path) detail = String(input.path);
-                  else if (toolName === "find_definition" && input.symbol) detail = String(input.symbol);
-                  else if (toolName === "find_references" && input.symbol) detail = String(input.symbol);
-                  else if (toolName === "list_files" && input.glob) detail = String(input.glob);
-                  else if (toolName === "list_files") detail = "root";
-                  else if (toolName === "repo_info") detail = "overview";
-
-                  controller.enqueue(encoder.encode(
-                    `data: ${JSON.stringify({ tool: toolName, detail })}\n\n`,
-                  ));
-                }
-
-                // Text blocks in assistant messages
-                if (block.type === "text" && block.text) {
-                  controller.enqueue(encoder.encode(
-                    `data: ${JSON.stringify({ text: block.text })}\n\n`,
-                  ));
-                }
-              }
-            }
-
-            // Final result — cost only, text already streamed above
-            if (evt.type === "result") {
-              if (typeof evt.total_cost_usd === "number") {
-                controller.enqueue(encoder.encode(
-                  `data: ${JSON.stringify({ cost: evt.total_cost_usd })}\n\n`,
-                ));
-              }
-            }
-          } catch {
-            // Not JSON — skip
-          }
-        }
+        buffer += chunk.toString();
+        if (buffer.length > 1_000_000) { send({ error: "Exploration output exceeded its limit." }); stop(); return; }
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) for (const event of claudeEvents(line)) send(event);
       });
-
-      child.stderr.on("data", () => {
-        // Swallow stderr
+      child.stderr.resume();
+      child.on("close", code => {
+        for (const event of claudeEvents(buffer)) send(event);
+        if (code !== 0) send({ error: "Exploration failed. Check provider access and retry." });
+        finish({ done: true, exit_code: code });
       });
-
-      child.on("close", (code) => {
-        clearTimeout(timeout);
-        releaseSlot("explore");
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ done: true, exit_code: code })}\n\n`),
-        );
-        controller.close();
-      });
-
-      child.on("error", (err) => {
-        clearTimeout(timeout);
-        releaseSlot("explore");
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ error: err.message })}\n\n`),
-        );
-        controller.close();
-      });
+      child.on("error", () => finish({ error: "Could not start the exploration worker." }));
+      if (req.signal.aborted) disconnect();
     },
+    cancel() { cancelled = true; stop(); },
   });
 
   return new Response(stream, {

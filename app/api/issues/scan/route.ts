@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listIssues } from "@/lib/issues";
 import { recordScan } from "@/lib/stats";
-import { requireSession } from "@/lib/require-session";
+import { sessionUserId } from "@/lib/require-session";
 import { resolveGitHubToken } from "@/lib/github-token";
 
 function parseRepo(url: string): { owner: string; repo: string } | null {
@@ -13,8 +13,8 @@ function parseRepo(url: string): { owner: string; repo: string } | null {
 }
 
 export async function GET(req: NextRequest) {
-  const unauth = await requireSession();
-  if (unauth) return unauth;
+  const owner = await sessionUserId();
+  if (!owner) return Response.json({ error: "Not authenticated" }, { status: 401 });
 
   const url = req.nextUrl.searchParams.get("repo");
   if (!url) {
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     const token = await resolveGitHubToken();
     const issues = await listIssues(parsed.owner, parsed.repo, 50, beginnerLabels, token);
     // Fire-and-forget stats bump — failure here must not break the scan.
-    void recordScan(`${parsed.owner}/${parsed.repo}`).catch(() => {});
+    await recordScan(`${parsed.owner}/${parsed.repo}`, owner).catch(() => {});
     return NextResponse.json({
       repo: `${parsed.owner}/${parsed.repo}`,
       total: issues.length,

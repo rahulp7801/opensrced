@@ -17,6 +17,11 @@
 //   Stars are fetched via `gh api repos/:owner/:name` on first sight and
 //   cached in .dispatches/repo-stars.json with a 7-day TTL.
 
+import { createHash } from "node:crypto";
+import { cloudExecution } from "./cloud-run-state";
+import { listCloudRuns } from "./cloud-runs";
+import { readJson, updateJson } from "./blob-store";
+import { read as readDispatch } from "./dispatch-store";
 import { execFile } from "node:child_process";
 import { ghEnv } from "./child-env";
 import { existsSync, readdirSync } from "node:fs";
@@ -27,7 +32,10 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const DISPATCH_DIR = join(process.cwd(), ".dispatches");
-const STATS_FILE = join(DISPATCH_DIR, "stats.json");
+function statsPath(owner: string) {
+  if (!owner) throw new Error("Activity owner is required");
+  return `stats/${createHash("sha256").update(owner).digest("hex")}.json`;
+}
 const STARS_FILE = join(DISPATCH_DIR, "repo-stars.json");
 const STARS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -48,9 +56,10 @@ async function ensureDir() {
   if (!existsSync(DISPATCH_DIR)) await mkdir(DISPATCH_DIR, { recursive: true });
 }
 
-async function loadStatsFile(): Promise<StatsFile> {
+async function loadStatsFile(owner: string): Promise<StatsFile> {
+  if (cloudExecution()) return (await readJson<StatsFile>(statsPath(owner)))?.value ?? { scans: 0, discoverRuns: 0, scanHistory: [] };
   try {
-    const raw = await readFile(STATS_FILE, "utf8");
+    const raw = await readFile(join(DISPATCH_DIR, statsPath(owner)), "utf8");
     const parsed = JSON.parse(raw) as Partial<StatsFile>;
     return {
       scans: parsed.scans ?? 0,
@@ -62,33 +71,29 @@ async function loadStatsFile(): Promise<StatsFile> {
   }
 }
 
-async function saveStatsFile(s: StatsFile) {
+async function saveStatsFile(s: StatsFile, owner: string) {
   await ensureDir();
   // Cap history to 200 entries — plenty for a "recent" feed, bounded size.
   if (s.scanHistory.length > 200) {
     s.scanHistory = s.scanHistory.slice(-200);
   }
-  await writeFile(STATS_FILE, JSON.stringify(s));
+  await mkdir(join(DISPATCH_DIR, "stats"), { recursive: true });
+  await writeFile(join(DISPATCH_DIR, statsPath(owner)), JSON.stringify(s));
 }
 
-/** Called from /api/issues/scan. */
-export async function recordScan(repo: string | null): Promise<void> {
-  const s = await loadStatsFile();
-  s.scans += 1;
-  s.scanHistory.push({ ts: new Date().toISOString(), repo: repo ?? undefined, kind: "scan" });
-  await saveStatsFile(s);
-}
+const pendingStats = new Map<string, Promise<void>>();
 
-/** Called from /api/discover. */
-export async function recordDiscoverRun(): Promise<void> {
-  const s = await loadStatsFile();
-  s.scans += 1;
-  s.discoverRuns += 1;
-  s.scanHistory.push({ ts: new Date().toISOString(), kind: "discover" });
-  await saveStatsFile(s);
+async function recordActivity(owner: string, kind: "scan" | "discover", repo?: string) {
+  const update = (s: StatsFile): StatsFile => ({ scans: s.scans + 1, discoverRuns: s.discoverRuns + Number(kind === "discover"), scanHistory: [...s.scanHistory, { ts: new Date().toISOString(), repo, kind }].slice(-200) });
+  if (cloudExecution()) return updateJson(statsPath(owner), { scans: 0, discoverRuns: 0, scanHistory: [] } as StatsFile, update);
+  const pending = (pendingStats.get(owner) ?? Promise.resolve()).catch(() => {}).then(async () => {
+    await saveStatsFile(update(await loadStatsFile(owner)), owner);
+  });
+  pendingStats.set(owner, pending);
+  try { await pending; } finally { if (pendingStats.get(owner) === pending) pendingStats.delete(owner); }
 }
-
-// ── Log scrape ───────────────────────────────────────────────────────────
+export async function recordScan(repo: string | null, owner: string): Promise<void> { await recordActivity(owner, "scan", repo ?? undefined); }
+export async function recordDiscoverRun(owner: string): Promise<void> { await recordActivity(owner, "discover"); }
 
 type LogRecord = {
   id: string;           // dispatch id (filename w/o .log)
@@ -111,9 +116,14 @@ const EXIT_RE = /exited at\s+(\S+)\s+·\s+status=(\w+)/;
 const STARTED_RE = /^\[(?:agentic-)?dispatcher\]\s+(\d{4}-\d{2}-\d{2}T[^\s]+)/;
 const COST_RE = /total_cost_usd=([\d.]+)/;
 
-async function scanLogs(): Promise<LogRecord[]> {
+async function scanLogs(owner: string): Promise<LogRecord[]> {
+  if (cloudExecution()) return (await listCloudRuns(owner)).map(run => ({
+    id: run.id, repoFull: run.repo_url.replace(/^https:\/\/github.com\//, "").replace(/\.git$/, ""),
+    issueNumber: run.issue_number ?? null, prUrl: run.pr_url ?? null, status: run.status,
+    startedAt: run.started_at, costUsd: Number(COST_RE.exec(run.log)?.[1] ?? 0), hasDiff: /```(?:diff|patch)/.test(run.log),
+  }));
   if (!existsSync(DISPATCH_DIR)) return [];
-  const files = readdirSync(DISPATCH_DIR).filter((f) => f.endsWith(".log"));
+  const files = readdirSync(DISPATCH_DIR).filter((f) => f.endsWith(".log") && readDispatch(f.slice(0, -4))?.auth0_user_id === owner);
   const records = await Promise.all(
     files.map(async (f): Promise<LogRecord> => {
       const id = f.replace(/\.log$/, "");
@@ -239,6 +249,7 @@ async function starsForReposCached(
 // ── Public aggregator ───────────────────────────────────────────────────
 
 export type StatsSummary = {
+  dispatchWindow: number | null;
   scans: number;
   discoverRuns: number;
   dispatches: number;
@@ -266,8 +277,8 @@ export type StatsSummary = {
 };
 
 /** One-stop aggregate for /api/stats. */
-export async function getStatsSummary(): Promise<StatsSummary> {
-  const [file, logs] = await Promise.all([loadStatsFile(), scanLogs()]);
+export async function getStatsSummary(owner: string): Promise<StatsSummary> {
+  const [file, logs] = await Promise.all([loadStatsFile(owner), scanLogs(owner)]);
 
   const dispatches = logs.length;
   const prLogs = logs.filter((l) => l.prUrl);
@@ -276,14 +287,22 @@ export async function getStatsSummary(): Promise<StatsSummary> {
   const totalCostUsd = logs.reduce((sum, l) => sum + (l.costUsd ?? 0), 0);
   const patchesGenerated = logs.filter((l) => l.hasDiff).length;
   const completed = logs.filter((l) => l.status === "succeeded" || l.status === "failed").length;
-  const successRate = completed > 0 ? patchesGenerated / completed : 0;
-  const prRate = completed > 0 ? prsCreated / completed : 0;
+  const successRate = completed > 0 ? logs.filter(l => l.hasDiff && (l.status === "succeeded" || l.status === "failed")).length / completed : 0;
+  const prRate = dispatches > 0 ? prsCreated / dispatches : 0;
 
   // Gather unique repos that produced a PR. Use cached stars only —
   // never block the stats page on GitHub API calls. Stale/missing stars
   // are fetched in the background for the next request.
   const prRepos = Array.from(new Set(prLogs.map((l) => l.repoFull).filter((r): r is string => !!r)));
-  const stars = prRepos.length > 0 ? await starsForReposCached(prRepos) : {};
+  const stars: Record<string, number> = cloudExecution()
+    ? Object.fromEntries(await Promise.all(prRepos.slice(0, 10).map(async repo => {
+        try {
+          const response = await fetch(`https://api.github.com/repos/${repo}`, { next: { revalidate: 3600 }, signal: AbortSignal.timeout(5000), redirect: "error" });
+          return [repo, response.ok ? (await response.json()).stargazers_count : 0];
+        }
+        catch { return [repo, 0]; }
+      })))
+    : prRepos.length > 0 ? await starsForReposCached(prRepos) : {};
   const biggestContributions = prLogs
     .map((l) => ({
       prUrl: l.prUrl!,
@@ -317,6 +336,7 @@ export async function getStatsSummary(): Promise<StatsSummary> {
     .slice(0, 20);
 
   return {
+    dispatchWindow: cloudExecution() ? 50 : null,
     scans: file.scans,
     discoverRuns: file.discoverRuns,
     dispatches,

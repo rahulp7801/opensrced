@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { discover } from "@/lib/discover";
 import { recordDiscoverRun } from "@/lib/stats";
-import { requireSession } from "@/lib/require-session";
+import { sessionUserId } from "@/lib/require-session";
 import { resolveGitHubToken } from "@/lib/github-token";
 
 // GET /api/discover?min_stars=500&language=python&repo_limit=12&issues_per_repo=20&max_repo_age_days=180
 // Returns { repos, issues } — no LLM, no Anthropic spend.
 export async function GET(req: NextRequest) {
-  const unauth = await requireSession();
-  if (unauth) return unauth;
+  const owner = await sessionUserId();
+  if (!owner) return Response.json({ error: "Not authenticated" }, { status: 401 });
 
   const sp = req.nextUrl.searchParams;
   const minStars = Math.max(10, Number(sp.get("min_stars") ?? 500));
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
       issuesPerRepo,
       maxRepoAgeDays,
     }, await resolveGitHubToken());
-    void recordDiscoverRun().catch(() => {});
+    await recordDiscoverRun(owner).catch(() => {});
     return NextResponse.json({
       query: { minStars, maxStars, language, repoLimit, issuesPerRepo, maxRepoAgeDays },
       repo_count: result.repos.length,

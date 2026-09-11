@@ -22,6 +22,7 @@ type ActivityItem = {
 };
 
 type StatsData = {
+  dispatchWindow: number | null;
   scans: number;
   discoverRuns: number;
   dispatches: number;
@@ -75,12 +76,13 @@ export function StatsBoard() {
 
   return (
     <div className="space-y-10">
+      {data.dispatchWindow && <p className="text-[12px] text-paper-muted">Dispatch, patch, PR, and spend figures cover your latest {data.dispatchWindow} runs. Scan counts cover your recorded history.</p>}
       {/* Big counter strip */}
       <div className="grid grid-cols-2 lg:grid-cols-5 border-t border-b border-border">
-        <Counter label="dispatches" value={data.dispatches} tone="info" sub="all time" />
+        <Counter label="dispatches" value={data.dispatches} tone="info" sub={data.dispatchWindow ? "recent runs" : "your history"} />
         <Counter label="patches" value={data.patchesGenerated} tone="signal" sub={`${Math.round(data.successRate * 100)}% success rate`} />
         <Counter label="PRs opened" value={data.prsCreated} tone="ok" sub={`${Math.round(data.prRate * 100)}% of dispatches`} />
-        <Counter label="total spend" value={data.totalCostUsd} tone="signal" format="currency" sub="Anthropic API" />
+        <Counter label="recorded spend" value={data.totalCostUsd} tone="signal" format="currency" sub="Anthropic API" />
         <Counter label="scans" value={data.scans} tone="paper" sub={`${data.discoverRuns} via Discover`} />
       </div>
 
@@ -95,8 +97,8 @@ export function StatsBoard() {
             <div className="text-[13px] text-paper">No 1k★ PRs yet.</div>
             <p className="mt-2 text-[11.5px] text-paper-muted leading-snug">
               Open a draft PR on a repo with more than 1000 stars via the agentic or solve pipeline —
-              it&apos;ll show up here automatically. Stars are fetched live via <code>gh api</code> and
-              cached for a week.
+              it&apos;ll show up here automatically. Public star counts are fetched from GitHub and
+              cached.
             </p>
           </div>
         ) : (

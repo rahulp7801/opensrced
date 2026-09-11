@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     file_path?: string | null;
   };
 
-  if ([raw.repo, raw.pr_title, raw.comment_body, raw.comment_author, raw.file_path].some(value => value != null && typeof value !== "string")) return Response.json({ error: "Invalid text fields" }, { status: 400 });
+  if (!raw || [raw.repo, raw.pr_title, raw.comment_body, raw.comment_author, raw.file_path].some(value => value != null && typeof value !== "string")) return Response.json({ error: "Invalid text fields" }, { status: 400 });
 
   const body = {
     repo: raw.repo ? sanitizeRepoId(raw.repo) : null,

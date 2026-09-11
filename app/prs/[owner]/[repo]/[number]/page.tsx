@@ -8,7 +8,7 @@ import { useToast } from "@/components/toast";
 import { recordContribution } from "@/components/contribution-streaks";
 import { cn } from "@/lib/utils";
 import { parseSplitHunks, parseUnifiedRows, type UnifiedKind } from "@/lib/diff-view";
-import { sseEvents } from "@/lib/sse";
+import { sseEvents, readTextResponse } from "@/lib/sse";
 import { parseMarkdownBlocks } from "@/lib/graph-view";
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -320,20 +320,9 @@ export default function PrDetailPage() {
           comment_author: "me",
         }),
       });
-      if (!res.ok) return;
-      const contentType = res.headers.get("content-type") ?? "";
-      if (contentType.includes("application/json")) {
-        const data = (await res.json()) as { result?: string };
-        if (!signal.aborted && data.result) setAutoExplainer(data.result);
-      } else {
-        let text = "";
-        for await (const event of sseEvents<{ text?: string; error?: string }>(res)) {
-          if (signal.aborted) return;
-          if (event.error) return;
-          if (event.text) { text += event.text; setAutoExplainer(text); }
-        }
-      }
-    } catch { /* non-critical */ }
+      const text = await readTextResponse(res, () => {});
+      if (!signal.aborted) setAutoExplainer(text);
+    } catch { /* non-critical; incomplete explanations stay hidden */ }
   }
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────
@@ -702,6 +691,9 @@ export default function PrDetailPage() {
   // ── Draft reply ────────────────────────────────────────────────────
 
   async function handleDraftReply(comment: ReviewComment) {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setFixState({
       commentId: comment.id,
       status: "generating",
@@ -714,6 +706,7 @@ export default function PrDetailPage() {
     try {
       const res = await fetch("/api/prs/draft-reply", {
         method: "POST",
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(100_000)]),
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           repo: repoFull,
@@ -724,49 +717,15 @@ export default function PrDetailPage() {
         }),
       });
 
-      const contentType = res.headers.get("content-type") ?? "";
-
-      if (contentType.includes("application/json")) {
-        const data = (await res.json()) as { result?: string; error?: string };
-        setFixState((prev) => prev ? {
-          ...prev,
-          response: data.result ?? data.error ?? "",
-          status: data.error ? "error" : "done",
-          step: data.error ? "Failed" : "Complete",
-        } : prev);
-      } else {
-        const reader = res.body?.getReader();
-        if (!reader) return;
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            try {
-              const p = JSON.parse(line.slice(6)) as { text?: string; done?: boolean; error?: string };
-              if (p.text) setFixState((prev) => prev ? { ...prev, response: prev.response + p.text } : prev);
-              if (p.done) setFixState((prev) => prev ? { ...prev, status: "done", step: "Complete" } : prev);
-              if (p.error) setFixState((prev) => prev ? { ...prev, response: p.error!, status: "error", step: "Failed" } : prev);
-            } catch { /* skip */ }
-          }
-        }
-      }
-
-      setFixState((prev) => {
-        if (prev && prev.status !== "error") {
-          setReplyTexts((rt) => new Map(rt).set(comment.id, prev.response));
-          setShowReplyFor(comment.id);
-        }
-        return prev ? { ...prev, status: "done", step: "Complete" } : prev;
+      const text = await readTextResponse(res, response => {
+        if (!controller.signal.aborted) setFixState(prev => prev ? { ...prev, response } : prev);
       });
+      if (controller.signal.aborted) return;
+      setReplyTexts(prev => new Map(prev).set(comment.id, text));
+      setShowReplyFor(comment.id);
+      setFixState(prev => prev ? { ...prev, response: text, status: "done", step: "Complete" } : prev);
     } catch (err) {
+      if (controller.signal.aborted) return;
       setFixState((prev) =>
         prev ? { ...prev, response: err instanceof Error ? err.message : "Error", status: "error", step: "Failed" } : prev,
       );
@@ -787,7 +746,7 @@ export default function PrDetailPage() {
       const res = await fetch("/api/prs/draft-reply", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        signal: controller.signal,
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(100_000)]),
         body: JSON.stringify({
           repo: repoFull,
           pr_title: pr?.title,
@@ -796,34 +755,12 @@ export default function PrDetailPage() {
         }),
       });
 
-      const contentType = res.headers.get("content-type") ?? "";
-      if (contentType.includes("application/json")) {
-        const data = (await res.json()) as { result?: string };
-        setFollowUpComment(data.result ?? "");
-      } else {
-        const reader = res.body?.getReader();
-        if (!reader) return;
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let text = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            try {
-              const p = JSON.parse(line.slice(6)) as { text?: string };
-              if (p.text) { text += p.text; setFollowUpComment(text); }
-            } catch { /* skip */ }
-          }
-        }
-      }
-    } catch {
-      setFollowUpComment("Failed to generate comment.");
+      await readTextResponse(res, text => {
+        if (!controller.signal.aborted) setFollowUpComment(text);
+      });
+    } catch (err) {
+      setFollowUpComment("");
+      if (!controller.signal.aborted) toast(err instanceof Error ? err.message : "Failed to generate comment.", "alert");
     } finally {
       setFollowUpGenerating(false);
     }
@@ -860,6 +797,7 @@ export default function PrDetailPage() {
 
   async function handleAsk() {
     if (!askInput.trim() || !fixState?.response || askLoading) return;
+    abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
     const question = askInput.trim();
@@ -870,7 +808,7 @@ export default function PrDetailPage() {
     try {
       const res = await fetch("/api/prs/draft-reply", {
         method: "POST",
-        signal: controller.signal,
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(100_000)]),
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           repo: repoFull,
@@ -880,41 +818,12 @@ export default function PrDetailPage() {
         }),
       });
 
-      const contentType = res.headers.get("content-type") ?? "";
-      if (contentType.includes("application/json")) {
-        const data = (await res.json()) as { result?: string; error?: string };
-        setAskMessages((prev) => [...prev, { role: "ai", text: data.result ?? data.error ?? "No response" }]);
-      } else {
-        const reader = res.body?.getReader();
-        if (!reader) return;
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let aiText = "";
-        setAskMessages((prev) => [...prev, { role: "ai", text: "" }]);
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            try {
-              const p = JSON.parse(line.slice(6)) as { text?: string };
-              if (p.text) {
-                aiText += p.text;
-                setAskMessages((prev) => {
-                  const copy = [...prev];
-                  copy[copy.length - 1] = { role: "ai", text: aiText };
-                  return copy;
-                });
-              }
-            } catch { /* skip */ }
-          }
-        }
-      }
+      setAskMessages(prev => [...prev, { role: "ai", text: "" }]);
+      await readTextResponse(res, text => {
+        if (!controller.signal.aborted) setAskMessages(prev => [...prev.slice(0, -1), { role: "ai", text }]);
+      });
     } catch (err) {
+      if (controller.signal.aborted) return;
       setAskMessages((prev) => [...prev, { role: "ai", text: `Error: ${err instanceof Error ? err.message : "failed"}` }]);
     } finally {
       setAskLoading(false);

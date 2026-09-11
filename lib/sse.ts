@@ -54,3 +54,23 @@ export async function* sseEvents<T>(res: Response): AsyncGenerator<T> {
     reader.releaseLock();
   }
 }
+
+/** Read a text generation only as successful after its terminal event. */
+export async function readTextResponse(res: Response, onText: (text: string) => void): Promise<string> {
+  if (res.ok && res.headers.get("content-type")?.includes("application/json")) {
+    const data = await res.json();
+    if (data?.error || typeof data?.result !== "string" || !data.result.trim()) throw new Error(data?.error || "Empty response from server");
+    onText(data.result);
+    return data.result;
+  }
+  let text = "";
+  for await (const event of sseEvents<{ text?: string; done?: boolean; error?: string }>(res)) {
+    if (event.error) throw new Error(event.error);
+    if (event.text) { text += event.text; onText(text); }
+    if (event.done) {
+      if (!text.trim()) throw new Error("Empty response from server");
+      return text;
+    }
+  }
+  throw new Error("The response ended before completion. Please retry.");
+}

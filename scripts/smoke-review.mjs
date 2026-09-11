@@ -13,7 +13,7 @@ try {
   await page.route('**/auth/profile', route => route.fulfill({ json: { sub: 'review-test', name: 'Reviewer' } }));
   const patch = '## Fix\n\n```diff\n--- a/parser.ts\n+++ b/parser.ts\n@@ -1 +1 @@\n-return items[0];\n+return items[0] ?? null;\n```\n';
   const sse = events => events.map(event => `data: ${JSON.stringify(event)}\n\n`).join('');
-  let fixes = 0, explanations = 0, verifications = 0;
+  let fixes = 0, explanations = 0, verifications = 0, drafts = 0;
   let thirdStarted;
   const thirdRequest = new Promise(resolve => { thirdStarted = resolve; });
   await page.route('**/api/**', async route => {
@@ -31,6 +31,10 @@ try {
       return route.fulfill({ contentType: 'text/event-stream', body: sse(fixes === 2 ? [{ text: patch }] : [{ text: patch }, { done: true }]) }).catch(() => {});
     }
     if (path === '/api/prs/verify') { verifications++; return route.fulfill({ status: 503, json: { error: 'Verification service unavailable.' } }); }
+    if (path === '/api/prs/draft-reply' && route.request().postDataJSON().comment_body === 'Handle the empty array.') {
+      drafts++;
+      return route.fulfill({ contentType: 'text/event-stream', body: sse(drafts === 1 ? [{ text: 'Incomplete draft' }, { error: 'Draft provider failed.' }] : drafts === 2 ? [{ text: 'Truncated draft' }] : [{ text: 'I added the empty-array guard.' }, { done: true }]) });
+    }
     if (path === '/api/prs/draft-reply') { explanations++; return route.fulfill({ contentType: 'text/event-stream', body: sse([{ text: 'I handled empty arrays.' }, { done: true }]) }); }
     return route.fulfill({ json: {} });
   });
@@ -58,7 +62,16 @@ try {
   await page.getByText('Cancelled', { exact: true }).first().waitFor();
   assert.equal(explanations, 1);
   assert.equal(verifications, 1);
+  await page.getByRole('button', { name: 'draft reply', exact: true }).click();
+  await page.getByText('Draft provider failed.', { exact: true }).first().waitFor();
+  assert.equal(await page.getByRole('button', { name: 'send reply', exact: true }).count(), 0);
+  await page.getByRole('button', { name: 'draft reply', exact: true }).click();
+  await page.getByText(/The response ended before completion/).first().waitFor();
+  await page.getByRole('button', { name: 'draft reply', exact: true }).click();
+  await page.locator('textarea').filter({ visible: true }).first().waitFor();
+  assert.ok((await page.locator('textarea').evaluateAll(nodes => nodes.map(node => node.value))).includes('I added the empty-array guard.'));
+  assert.equal(drafts, 3);
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ commentRefreshes: 3, explanations, verificationFailureHandled: true, truncatedFixRejected: true, cancellation: true }));
+  console.log(JSON.stringify({ commentRefreshes: 3, explanations, verificationFailureHandled: true, truncatedFixRejected: true, cancellation: true, draftRecovery: true }));
   await context.close();
 } finally { releaseFix?.(); await browser.close(); }

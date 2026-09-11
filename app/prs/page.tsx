@@ -319,17 +319,17 @@ export default function PRsPage() {
                   })()}
                 </div>
 
-                <div className="ml-auto flex items-center gap-2">
+                <div className="w-full md:w-auto md:ml-auto flex flex-wrap items-center gap-2">
                   {/* Search */}
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search PRs..."
-                    className="bg-surface border border-border px-2.5 py-1 text-[11px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50 w-[180px]"
+                    className="bg-surface border border-border px-2.5 py-1 text-[11px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50 w-full sm:w-[180px]"
                   />
                   {/* Status filter */}
-                  <div className="flex items-center gap-0.5">
+                  <div className="flex flex-wrap items-center gap-0.5">
                     {([
                       { key: "all", label: "All" },
                       { key: "changes_requested", label: "Needs changes" },

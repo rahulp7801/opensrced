@@ -47,10 +47,14 @@ try {
   await page.getByRole('button', { name: /All PRs/ }).click();
   await settle();
   assert.equal(prs, 1, 'switching PR tabs reuses the loaded list');
-  await page.getByRole('button', { name: 'refresh', exact: true }).click();
+  const refreshButton = page.getByRole('button', { name: 'refresh', exact: true });
+  const refreshBounds = await refreshButton.boundingBox();
+  assert.ok(refreshBounds && refreshBounds.x >= 0 && refreshBounds.x + refreshBounds.width <= 390, 'refresh must be reachable without hidden horizontal scrolling');
+  await refreshButton.click();
   await page.getByText('PRs refreshed', { exact: true }).waitFor();
   await settle();
   assert.equal(prs, 2, 'refresh issues exactly one request');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'PR controls fit mobile screens');
   await page.goto(base + '/discover');
   await page.getByRole('button', { name: 'Discover', exact: true }).click();
   await page.getByRole('status').filter({ hasText: 'Partial results:' }).waitFor();

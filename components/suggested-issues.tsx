@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { pollJson } from "@/lib/poll-json";
 import { cn } from "@/lib/utils";
 import { cacheGet, cacheSet } from "@/lib/client-cache";
 
-type CachedSuggestions = { issues: SuggestedIssue[]; filteredOut: number };
+type CachedSuggestions = { issues: SuggestedIssue[]; filteredOut: number; partial?: boolean };
 
 type SuggestedIssue = {
   repo: string;
@@ -24,6 +25,8 @@ const LANGUAGES = [
 ];
 
 export function SuggestedIssues() {
+  const stopRequest = useRef<(() => void) | undefined>(undefined);
+  const [partial, setPartial] = useState(false);
   const [issues, setIssues] = useState<SuggestedIssue[]>([]);
   const [filteredOut, setFilteredOut] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -39,7 +42,8 @@ export function SuggestedIssues() {
   }
 
   function fetchIssues(force = false) {
-    if (selectedLangs.length === 0) return;
+    stopRequest.current?.();
+    if (selectedLangs.length === 0) { setLoading(false); return; }
 
     // Cache key: stable across language order (sort), unique per tag mode.
     const key = `${tags}|${[...selectedLangs].sort().join(",")}`;
@@ -50,31 +54,38 @@ export function SuggestedIssues() {
         setIssues(cached.issues);
         setFilteredOut(cached.filteredOut);
         setError(null);
+        setPartial(Boolean(cached.partial));
+        setLoading(false);
         return;
       }
     }
 
     setLoading(true);
     setError(null);
-    fetch(`/api/issues/suggested?languages=${selectedLangs.join(",")}&limit=20&tags=${tags}`)
-      .then((r) => (r.ok ? r.json() : r.json().then((e) => Promise.reject(e.error))))
-      .then((data: { issues: SuggestedIssue[]; filteredOut?: number }) => {
-        const next = { issues: data.issues, filteredOut: data.filteredOut ?? 0 };
+    stopRequest.current = pollJson<CachedSuggestions>(
+      `/api/issues/suggested?languages=${encodeURIComponent(selectedLangs.join(","))}&limit=20&tags=${tags}`,
+      ({ data, error }) => {
+        setLoading(false);
+        setError(error);
+        if (!data) return;
+        const next = { issues: data.issues, filteredOut: data.filteredOut ?? 0, partial: Boolean(data.partial) };
         setIssues(next.issues);
         setFilteredOut(next.filteredOut);
+        setPartial(next.partial);
         cacheSet("suggested-issues", key, next);
-      })
-      .catch((err) => setError(typeof err === "string" ? err : String(err)))
-      .finally(() => setLoading(false));
+      }, 0, 50_000,
+    );
   }
 
   useEffect(() => {
     fetchIssues();
+    return () => stopRequest.current?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tags]); // Refetch when the tag mode changes; languages still need explicit refresh
 
   return (
     <div className="border border-border bg-surface/40">
+      {partial && !loading && <p role="status" className="px-4 py-2 text-xs text-paper-muted">Some GitHub searches did not complete. Showing available results; refresh to try again.</p>}
       <div className="px-4 py-3 border-b border-border-soft flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="text-[10px] uppercase tracking-[0.15em] text-signal">suggested issues</span>

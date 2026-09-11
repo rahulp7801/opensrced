@@ -1,6 +1,6 @@
 // GET /api/issues/suggested?languages=python,typescript&limit=20&tags=strict|broad
 // Fetches good-first-issues from popular repos matching the user's preferred languages.
-// Uses GitHub search API via gh CLI — no API key cost.
+// Uses the GitHub search API — no API key cost.
 // tags=strict (default) → only "good first issue" label
 // tags=broad → also matches "beginner", "starter", "first-timers-only", "easy"
 
@@ -10,6 +10,7 @@ import { resolveGitHubToken } from "@/lib/github-token";
 import { githubApi } from "@/lib/github-api";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
   const unauth = await requireSession();
@@ -28,15 +29,8 @@ export async function GET(req: NextRequest) {
     : ["good first issue"];
 
   const token = await resolveGitHubToken();
-  // gh acts as the requesting user or as nobody — never as whatever
-  // credential the host happens to have on disk. See lib/child-env.ts.
-
   try {
-    // Build query plan — one (label × language) pair per call. We use gh's
-    // flag-based syntax (--label, --language, --state, --sort) instead of
-    // an inline `label:"..." state:open language:...` query because the
-    // inline form is parsed unreliably by gh search and silently returns
-    // empty arrays. Capped at 12 calls to bound rate-limit usage.
+    // Bound search work to 12 queries, three in flight, and 40 seconds total.
     const langs = languages.length > 0 ? languages : [null];
     const queryPlan: Array<{ label: string; language: string | null }> = [];
     for (const label of labels) {
@@ -62,42 +56,58 @@ export async function GET(req: NextRequest) {
     const perCall = Math.ceil(limit / Math.max(plan.length, 1));
 
     let failures = 0;
-    for (const q of plan) {
-      try {
-        const query = [`is:issue`, `is:open`, `label:${JSON.stringify(q.label)}`];
-        if (q.language) query.push(`language:${JSON.stringify(q.language)}`);
-        const params = new URLSearchParams({ q: query.join(" "), sort: "updated", order: "desc", per_page: String(perCall) });
-        const raw = await githubApi<{ items: Array<{
-          repository_url: string;
-          title: string;
-          number: number;
-          html_url: string;
-          labels: Array<{ name: string }>;
-          created_at: string;
-          updated_at: string;
-          comments: number;
-        }> }>(`/search/issues?${params}`, token);
+    let next = 0;
+    const signal = AbortSignal.any([req.signal, AbortSignal.timeout(40_000)]);
+    await Promise.all(Array.from({ length: Math.min(3, plan.length) }, async () => {
+      while (next < plan.length && !signal.aborted) {
+        const q = plan[next++];
+        try {
+          const query = [`is:issue`, `is:open`, `label:${JSON.stringify(q.label)}`];
+          if (q.language) query.push(`language:${JSON.stringify(q.language)}`);
+          const params = new URLSearchParams({ q: query.join(" "), sort: "updated", order: "desc", per_page: String(perCall) });
+          const raw = await githubApi<{ items: Array<{
+            repository_url: string;
+            title: string;
 
-        for (const issue of raw.items) {
-          allIssues.push({
-            repo: new URL(issue.repository_url).pathname.replace(/^\/repos\//, ""),
-            title: issue.title,
-            number: issue.number,
-            url: issue.html_url,
-            labels: issue.labels.map((l) => l.name),
-            createdAt: issue.created_at,
-            updatedAt: issue.updated_at,
-            comments: issue.comments,
-            language: q.language ?? "",
-            stars: 0,
-          });
+            number: number;
+
+            html_url: string;
+            labels: Array<{ name: string }>;
+
+            created_at: string;
+            updated_at: string;
+            comments: number;
+          }> }>(`/search/issues?${params}`, token, undefined, signal);
+
+          for (const issue of raw.items) {
+            allIssues.push({
+
+              repo: new URL(issue.repository_url).pathname.replace(/^\/repos\//, ""),
+              title: issue.title,
+
+              number: issue.number,
+
+              url: issue.html_url,
+              labels: issue.labels.map((l) => l.name),
+
+              createdAt: issue.created_at,
+              updatedAt: issue.updated_at,
+              comments: issue.comments,
+              language: q.language ?? "",
+              stars: 0,
+            });
+
+          }
+
+        } catch {
+          failures++;
+          // Individual language query failed — continue with others
+
         }
-      } catch {
-        failures++;
-        // Individual language query failed — continue with others
+
       }
-    }
-    if (failures === plan.length) throw new Error("GitHub suggestions could not be loaded. Check access and rate limits.");
+    }));
+    if (failures === next) throw new Error("GitHub suggestions could not be loaded. Check access and rate limits.");
 
     // Deduplicate by URL
     const seen = new Set<string>();
@@ -124,6 +134,7 @@ export async function GET(req: NextRequest) {
     return Response.json({
       issues: filtered.slice(0, limit),
       filteredOut: deduped.length - filtered.length,
+      partial: failures > 0 || next < plan.length,
     });
   } catch (err) {
     return Response.json(

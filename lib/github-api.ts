@@ -4,6 +4,7 @@ export async function githubResponse(
   token?: string | null,
   body?: unknown,
   accept = "application/vnd.github+json",
+  signal?: AbortSignal,
 ): Promise<Response> {
   if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\")) {
     throw new Error("Invalid GitHub API path");
@@ -20,7 +21,7 @@ export async function githubResponse(
     body: body === undefined ? undefined : JSON.stringify(body),
     cache: "no-store",
     redirect: "error",
-    signal: AbortSignal.timeout(15_000),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000),
   });
   if (!response.ok) {
     // Do not forward arbitrary upstream bodies or credentials into user errors.
@@ -33,8 +34,8 @@ export async function githubResponse(
   return response;
 }
 
-export async function githubApi<T>(path: string, token?: string | null, body?: unknown): Promise<T> {
-  return (await githubResponse(path, token, body)).json() as Promise<T>;
+export async function githubApi<T>(path: string, token?: string | null, body?: unknown, signal?: AbortSignal): Promise<T> {
+  return (await githubResponse(path, token, body, undefined, signal)).json() as Promise<T>;
 }
 
 export async function githubText(path: string, token: string | null, accept: string, maxBytes: number): Promise<string> {

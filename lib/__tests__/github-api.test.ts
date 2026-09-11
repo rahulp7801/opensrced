@@ -67,3 +67,13 @@ test("discovery carries the caller token through search and issue queries", asyn
   await discover({ minStars: 10 }, "test-user-token");
   assert.equal(urls.length, 2);
 });
+
+test("caller cancellation stops an in-flight GitHub request", async (t) => {
+  t.mock.method(globalThis, "fetch", (_url: string, options: RequestInit) => new Promise((_resolve, reject) => {
+    options.signal!.addEventListener("abort", () => reject(options.signal!.reason), { once: true });
+  }));
+  const controller = new AbortController();
+  const request = githubApi("/search/issues?q=bug", "test-token", undefined, controller.signal);
+  controller.abort(new Error("request cancelled"));
+  await assert.rejects(request, /request cancelled/);
+});

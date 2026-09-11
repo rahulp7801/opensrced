@@ -17,7 +17,11 @@ test("only completed agent output reaches the PR hook and persists a successful 
   try {
     writeFileSync(".mcp.json", "{}");
     const workers: Array<{ child: processes.ChildProcess; stdout: PassThrough }> = [];
-    t.mock.method(processes, "spawn", () => {
+    t.mock.method(processes, "spawn", (_command: string, args: string[]) => {
+      assert.equal(args[args.indexOf("--tools") + 1], "");
+      assert.equal(args[args.indexOf("--permission-mode") + 1], "dontAsk");
+      assert.ok(args.includes("--bare"));
+      assert.ok(!args.includes("bypassPermissions"));
       const stdout = new PassThrough();
       const child = Object.assign(new EventEmitter(), { stdout, stderr: new PassThrough(), killed: false }) as unknown as processes.ChildProcess;
       workers.push({ child, stdout });

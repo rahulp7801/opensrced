@@ -56,6 +56,11 @@ jobs:
           npm run build
           node --test test/*.test.mjs
 
+      - name: Verify restricted worker tools against the real CLI
+        run: |
+          npm install --prefix "$RUNNER_TEMP/claude-runtime" --no-save @anthropic-ai/claude-code@2.1.269
+          CLAUDE_BIN="$RUNNER_TEMP/claude-runtime/node_modules/.bin/claude" node scripts/smoke-worker-tools.mjs
+
       # No lint step: this repo has no ESLint config, so `next lint` drops into
       # an interactive setup prompt and would hang the job. (It's also
       # deprecated in Next 15 and gone in 16.) Add `eslint.config.mjs` and a

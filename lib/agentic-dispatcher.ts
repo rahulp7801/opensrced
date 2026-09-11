@@ -37,25 +37,7 @@ import { githubApi } from "./github-api";
 const DISPATCH_DIR = join(process.cwd(), ".dispatches");
 const MCP_CONFIG = join(process.cwd(), ".mcp.json");
 
-// The only tools the agent may call. Every entry is a read-only lookup
-// against the cached shallow clone, served by mcp-server/. Notably absent:
-// Bash, Write, Edit, WebFetch — the built-ins that `bypassPermissions` would
-// otherwise hand to a prompt built from an untrusted issue body.
-//
-// The agent doesn't need write tools: it returns a fenced diff as text, and
-// lib/agentic-pr.ts applies that diff itself in a scratch worktree, after
-// gitleaks and (for crucible) the repo's own test suite have run.
-export const ALLOWED_TOOLS = [
-  "repo_info",
-  "list_files",
-  "read_file",
-  "grep",
-  "find_definition",
-  "find_references",
-  "trace_flow",
-  "impact_analysis",
-  "explain_area",
-].map((t) => `mcp__opensrcer-repo-tools__${t}`);
+import { READ_ONLY_CLAUDE_ARGS } from "./claude-tools";
 
 // Parse stream-json output from Claude, write readable text to the log,
 // and return the total cost when the result event arrives.
@@ -556,27 +538,13 @@ async function spawnDispatch(
   // a complete response. Override via OPENSRCER_AGENTIC_TIMEOUT_MS.
   const timeoutMs = Number(process.env.OPENSRCER_AGENTIC_TIMEOUT_MS ?? String(30 * 60 * 1000));
 
-  // bypassPermissions so the MCP tools can run without interactive approval
-  // in headless mode. strict-mcp-config keeps Claude from picking up any
-  // user-global MCP servers.
-  //
-  // --allowed-tools is the load-bearing one. `bypassPermissions` approves
-  // every tool the CLI exposes, and --strict-mcp-config only constrains MCP
-  // *servers* — it leaves the built-in Bash/Write/Edit/WebFetch tools fully
-  // armed. The prompt below embeds a GitHub issue body, which is text any
-  // stranger on the internet can write. That combination is remote code
-  // execution on this host by anyone willing to file an issue. The allowlist
-  // reduces the agent to exactly the read-only repo toolbelt this flow needs.
+  // Restrict the runtime to our read-only MCP tools, with no host customizations.
   const args = [
     "-p",
     prompt,
     "--mcp-config",
     MCP_CONFIG,
-    "--strict-mcp-config",
-    "--allowed-tools",
-    ALLOWED_TOOLS.join(","),
-    "--permission-mode",
-    "bypassPermissions",
+    ...READ_ONLY_CLAUDE_ARGS,
     "--no-session-persistence",
     "--output-format",
     "stream-json",

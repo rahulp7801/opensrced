@@ -16,7 +16,7 @@ import { CLAUDE_AGENT_MODEL } from "@/lib/models";
 import { requireSession } from "@/lib/require-session";
 import { sanitizeForPrompt } from "@/lib/sanitize";
 import { childEnv } from "@/lib/child-env";
-import { ALLOWED_TOOLS } from "@/lib/agentic-dispatcher";
+import { READ_ONLY_CLAUDE_ARGS } from "@/lib/claude-tools";
 
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { cloudExplore } from "@/lib/cloud-explore";
@@ -32,7 +32,7 @@ const MCP_CONFIG = join(process.cwd(), ".mcp.json");
 
 function buildExplorePrompt(repoFull: string, query: string): string {
   // `query` is free text from the client. Sanitized (control chars out,
-  // length capped) and fenced, but the real containment is --allowed-tools
+  // length capped) and fenced, but the runtime disables built-ins and limits MCP access
   // below: the agent has nothing but read-only repo lookups to be steered
   // into, so a "question" that is really an instruction has nowhere to go.
   return `You are a codebase navigator for \`${repoFull}\`. All MCP tools take repo: "${repoFull}".
@@ -90,22 +90,13 @@ export async function POST(req: NextRequest) {
 
   const prompt = buildExplorePrompt(repoFull, body.query);
 
-  // --allowed-tools: `bypassPermissions` auto-approves every tool the CLI
-  // has, and --strict-mcp-config only limits which MCP *servers* load — the
-  // built-in Bash/Write/Edit/WebFetch tools stay available. Since `prompt`
-  // embeds a caller-supplied question, that combination was arbitrary code
-  // execution on this host for anyone with a session. Exploration is
-  // read-only by definition, so the agent gets read-only tools.
+  // The same restricted tool configuration is used by every agent entry point.
   const args = [
     "-p",
     prompt,
     "--mcp-config",
     cloudExecution() ? "/vercel/sandbox/.mcp.json" : MCP_CONFIG,
-    "--strict-mcp-config",
-    "--allowed-tools",
-    ALLOWED_TOOLS.join(","),
-    "--permission-mode",
-    "bypassPermissions",
+    ...READ_ONLY_CLAUDE_ARGS,
     "--no-session-persistence",
     "--output-format",
     "stream-json",

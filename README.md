@@ -720,7 +720,7 @@ Child process environments are built from an **allowlist** (`lib/child-env.ts::c
 
 ### Agent Tool Allowlist
 
-Every `claude -p` spawn passes `--allowed-tools` naming exactly the read-only MCP repo tools (`lib/agentic-dispatcher.ts::ALLOWED_TOOLS`). This matters because the same spawns use `--permission-mode bypassPermissions`, which auto-approves every tool the CLI exposes, and `--strict-mcp-config` constrains only which MCP *servers* load — the built-in Bash/Write/Edit/WebFetch tools stay armed without an allowlist.
+Every `claude -p` spawn uses `lib/claude-tools.ts`: `--tools ""` removes built-in tools, `--strict-mcp-config` loads only the repository-scoped MCP server, and `--allowed-tools` pre-approves its read-only tools under `dontAsk`. Bare mode and empty settings sources disable inherited customizations. The previous `bypassPermissions` configuration was unsafe: `--allowed-tools` grants permission but does not restrict other tools. See the [Claude CLI reference](https://code.claude.com/docs/en/cli-reference).
 
 The prompts embed GitHub issue bodies, PR review comments, and free-text user queries. All of that is written by third parties, so without the allowlist an issue filed on any targeted repo was remote code execution on the host. Untrusted text is also passed through `sanitizeForPrompt` and wrapped in an explicit `untrusted="true"` boundary, but that is the second layer — the allowlist is the control.
 

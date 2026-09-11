@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { resolveAnthropicKey } from "@/lib/api-keys";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { childEnv } from "@/lib/child-env";
-import { ALLOWED_TOOLS } from "@/lib/agentic-dispatcher";
+import { READ_ONLY_CLAUDE_ARGS } from "@/lib/claude-tools";
 import { sanitizeForPrompt, sanitizeRepoId, sanitizeFilePath, sanitizeBranchName, sanitizePrNumber } from "@/lib/sanitize";
 import { acquireSlot, releaseSlot, activeSlots } from "@/lib/concurrency";
 import { requireSession } from "@/lib/require-session";
@@ -196,11 +196,7 @@ CONSTRAINTS — these are hard rules, not suggestions:
     prompt,
     "--mcp-config",
     cloudExecution() ? "/vercel/sandbox/.mcp.json" : MCP_CONFIG,
-    "--strict-mcp-config",
-    "--allowed-tools",
-    ALLOWED_TOOLS.join(","),
-    "--permission-mode",
-    "bypassPermissions",
+    ...READ_ONLY_CLAUDE_ARGS,
     "--no-session-persistence",
     "--output-format",
     "stream-json",

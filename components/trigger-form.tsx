@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
+import { parseRunTarget } from "@/lib/run-target";
 
 type SubmitState =
   | { kind: "idle" }
@@ -26,7 +27,6 @@ export function TriggerForm() {
   const { toast } = useToast();
   const [repoUrl, setRepoUrl] = useState("");
   const [dryRun, setDryRun] = useState(true);
-  const [priority, setPriority] = useState<"normal" | "high">("normal");
   const [notes, setNotes] = useState("");
   const [state, setState] = useState<SubmitState>({ kind: "idle" });
   const [log, setLog] = useState<
@@ -52,13 +52,19 @@ export function TriggerForm() {
     }
     setState({ kind: "pending" });
     try {
-      const res = await fetch("/api/run/target", {
+      const target = parseRunTarget(repoUrl);
+      if (!target.issue) {
+        router.push(`/issues?repo=${encodeURIComponent(target.repo)}`);
+        setState({ kind: "idle" });
+        return;
+      }
+      const res = await fetch("/api/run/agentic", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repo_url: repoUrl.trim(), dry_run: dryRun, priority, notes }),
+        body: JSON.stringify({ repo_url: target.repo, issue_number: target.issue, dry_run: dryRun, notes }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.message ?? `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(data?.message ?? data?.error ?? `HTTP ${res.status}`);
       const dispatchId = data.dispatch_id;
       setState({
         kind: "ok",
@@ -85,7 +91,7 @@ export function TriggerForm() {
       // Auto-redirect to the live run view after 1.5s
       if (dispatchId) {
         setTimeout(() => {
-          router.push(`/dispatches/${dispatchId}`);
+          router.push(`/dispatches?dispatch=${encodeURIComponent(dispatchId)}`);
         }, 1500);
       }
     } catch (err) {
@@ -151,24 +157,6 @@ export function TriggerForm() {
           </div>
         </Row>
 
-        <Row label="Priority">
-          <div className="flex gap-0 border border-border bg-ink w-fit">
-            {(["normal", "high"] as const).map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setPriority(p)}
-                className={cn(
-                  "px-4 py-2 text-[12px] uppercase tracking-[0.15em] border-l first:border-l-0 border-border",
-                  priority === p ? "bg-paper/10 text-paper" : "text-paper-muted hover:text-paper",
-                )}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-        </Row>
-
         <Row label="Notes" hint="Optional guidance for the AI agent.">
           <textarea
             value={notes}
@@ -207,7 +195,7 @@ export function TriggerForm() {
               </span>
               {state.dispatch_id && (
                 <a
-                  href={`/dispatches/${state.dispatch_id}`}
+                  href={`/dispatches?dispatch=${encodeURIComponent(state.dispatch_id)}`}
                   className="text-signal hover:underline"
                 >
                   View live run

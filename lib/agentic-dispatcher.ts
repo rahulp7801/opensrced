@@ -21,6 +21,7 @@ import { appendFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { parseRunTarget } from "./run-target";
 import { registerDispatch, type Dispatch } from "./dispatcher";
 import { patch, persist } from "./dispatch-store";
 import { createDraftPrFromLog } from "./agentic-pr";
@@ -95,13 +96,7 @@ function ensureDir() {
 
 /** Parse "owner/name" from a URL or bare slug. Throws on garbage. */
 function parseRepoFull(repoUrl: string): string {
-  const m = /github\.com[:/]+([^/]+)\/([^/?#\s.]+)|^([^/\s]+)\/([^/\s]+)$/.exec(
-    repoUrl.trim().replace(/\.git$/i, ""),
-  );
-  const owner = m?.[1] ?? m?.[3];
-  const name = m?.[2] ?? m?.[4];
-  if (!owner || !name) throw new Error(`Unrecognized repo URL: ${repoUrl}`);
-  return `${owner}/${name}`;
+  return parseRunTarget(repoUrl).repo;
 }
 
 type FetchedIssue = {
@@ -396,6 +391,8 @@ function buildPrompt(repoFull: string, issueNumber: number, issueBody: string, s
 }
 
 export type StartAgenticOpts = {
+  dryRun?: boolean;
+  notes?: string;
   // Installation token for private-org flows (already resolved by the
   // caller via lib/crucible/tokens.ts::resolveGithubToken).
   token?: string;
@@ -528,7 +525,9 @@ function startDispatch(
   // env/CLI fallback here — a background dispatch must never silently run
   // as the deployer.
   const token = opts.token;
-  const { prompt, headerLine, fastPath } = prepare(repoFull, target, token, out);
+  const prepared = prepare(repoFull, target, token, out);
+  const { headerLine, fastPath } = prepared;
+  const prompt = prepared.prompt + (opts.notes ? `\nUser guidance:\n${sanitizeForPrompt(opts.notes)}` : "");
 
   // Runaway guard rails:
   //   --max-budget-usd — hard cap on total LLM spend for this one invocation.
@@ -647,11 +646,7 @@ function startDispatch(
     auth0_user_id: opts.auth0UserId,
     repo_url: repoUrl,
     mode: "agentic",
-    // Despite auto-PR running on clean exit (v2.2), dry_run=true is still
-    // accurate semantically — the *claude* invocation never pushes. Auto-PR
-    // is a separate post-hook; keeping dry_run=true keeps the existing UI
-    // chip consistent.
-    dry_run: true,
+    dry_run: opts.dryRun === true || process.env.OPENSRCER_AGENTIC_AUTO_PR === "0",
     issue_number: issueNumber,
     started_at: new Date().toISOString(),
     status: "running",
@@ -680,7 +675,7 @@ function startDispatch(
     );
     out.end();
 
-    const autoPr = !wasKilled && code === 0 && process.env.OPENSRCER_AGENTIC_AUTO_PR !== "0";
+    const autoPr = !opts.dryRun && !wasKilled && code === 0 && process.env.OPENSRCER_AGENTIC_AUTO_PR !== "0";
     persist({ ...dispatch, pr_status: autoPr ? "pending" : "none" });
 
     // Auto-PR on clean exit. Runs detached — we can't block the close

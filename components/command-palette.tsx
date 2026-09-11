@@ -1,5 +1,7 @@
 "use client";
 
+import { parseRunTarget } from "@/lib/run-target";
+
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -147,13 +149,19 @@ export function CommandPalette() {
     setStatus("spawning opensrcer agent…");
     setDispatchId(null);
     try {
-      const res = await fetch("/api/run/target", {
+      const target = parseRunTarget(url);
+      if (!target.issue) {
+        router.push(`/issues?repo=${encodeURIComponent(target.repo)}`);
+        setOpen(false);
+        return;
+      }
+      const res = await fetch("/api/run/agentic", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repo_url: url, dry_run: dry }),
+        body: JSON.stringify({ repo_url: target.repo, issue_number: target.issue, dry_run: dry }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.message ?? `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(data?.message ?? data?.error ?? `HTTP ${res.status}`);
       if (data.dispatch_id) {
         setDispatchId(data.dispatch_id);
         setStatus(`● spawned — pid pipeline running`);

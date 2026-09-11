@@ -3,6 +3,7 @@ import { startAgenticDispatch } from "@/lib/agentic-dispatcher";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { resolveAnthropicKey, resolveGeminiKey, resolveMaxSpendUsd } from "@/lib/api-keys";
 import { sessionUserId } from "@/lib/require-session";
+import { parseRunTarget } from "@/lib/run-target";
 
 export async function POST(req: NextRequest) {
   const auth0UserId = await sessionUserId();
@@ -15,11 +16,21 @@ export async function POST(req: NextRequest) {
   const issue_number: number | undefined =
     typeof body?.issue_number === "number" ? body.issue_number : undefined;
 
-  if (!repo_url || !issue_number) {
+  if (typeof repo_url !== "string" || !Number.isSafeInteger(issue_number) || !issue_number || issue_number < 1) {
     return NextResponse.json(
       { status: "error", message: "Missing required fields: repo_url, issue_number" },
       { status: 400 },
     );
+  }
+
+  try {
+    parseRunTarget(repo_url);
+  } catch {
+    return NextResponse.json({ message: "Invalid GitHub repository URL" }, { status: 400 });
+  }
+  if ((body.dry_run !== undefined && typeof body.dry_run !== "boolean") ||
+      (body.notes !== undefined && typeof body.notes !== "string")) {
+    return NextResponse.json({ message: "Invalid dry_run or notes" }, { status: 400 });
   }
 
   // Resolve the logged-in user's GitHub token from their Auth0 session so
@@ -43,6 +54,8 @@ export async function POST(req: NextRequest) {
       geminiKey,
       maxSpendUsd,
       auth0UserId,
+      dryRun: body.dry_run === true,
+      notes: body.notes,
     });
     return NextResponse.json(
       {

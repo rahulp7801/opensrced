@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.test.json",
+  "compilerOptions": { "outDir": ".worker-build" },
+  "include": ["lib/agentic-dispatcher.ts", "lib/dispatch-store.ts", "lib/dispatcher.ts"],
+  "exclude": ["node_modules", "mcp-server", "lib/__tests__", ".worker-build", ".test-build"]
+}

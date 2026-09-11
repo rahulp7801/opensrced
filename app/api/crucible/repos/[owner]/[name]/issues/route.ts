@@ -25,7 +25,7 @@ export async function GET(
     return NextResponse.json({ error: "invalid repo" }, { status: 400 });
   }
 
-  const mapping = mappingForOrg(sub, owner);
+  const mapping = await mappingForOrg(sub, owner);
   if (!mapping) {
     return NextResponse.json({ error: "org not connected" }, { status: 404 });
   }

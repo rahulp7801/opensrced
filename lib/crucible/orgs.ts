@@ -1,9 +1,9 @@
-// Persistent `auth0_user_id → { github_org, installation_id, ... }` map.
-// Flat JSON at .dispatches/crucible-orgs.json. One row per
-// (auth0_user_id, github_org) pair — a user can verify multiple orgs.
-
 import fs from "node:fs";
 import path from "node:path";
+import { cloudExecution } from "../cloud-run-state";
+import { readJson, updateJson } from "../blob-store";
+
+const BLOB_PATH = "crucible/orgs.json";
 
 const STORE_PATH = path.join(process.cwd(), ".dispatches", "crucible-orgs.json");
 
@@ -15,7 +15,11 @@ export type OrgMapping = {
   verified_at: string;
 };
 
-function readAll(): OrgMapping[] {
+async function readAll(): Promise<OrgMapping[]> {
+  return cloudExecution() ? (await readJson<OrgMapping[]>(BLOB_PATH))?.value ?? [] : readLocal();
+}
+
+function readLocal(): OrgMapping[] {
   try {
     const raw = fs.readFileSync(STORE_PATH, "utf8");
     const parsed = JSON.parse(raw);
@@ -25,41 +29,43 @@ function readAll(): OrgMapping[] {
   }
 }
 
-function writeAll(rows: OrgMapping[]) {
+async function mutate(update: (rows: OrgMapping[]) => OrgMapping[]) {
+  if (cloudExecution()) return updateJson<OrgMapping[]>(BLOB_PATH, [], update);
+  const rows = update(readLocal());
   fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true });
   fs.writeFileSync(STORE_PATH, JSON.stringify(rows, null, 2));
 }
 
-export function listOrgsFor(auth0UserId: string): OrgMapping[] {
-  return readAll().filter((r) => r.auth0_user_id === auth0UserId);
+export async function listOrgsFor(auth0UserId: string): Promise<OrgMapping[]> {
+  return (await readAll()).filter((r) => r.auth0_user_id === auth0UserId);
 }
 
-export function mappingForOrg(auth0UserId: string, githubOrg: string): OrgMapping | null {
+export async function mappingForOrg(auth0UserId: string, githubOrg: string): Promise<OrgMapping | null> {
   return (
-    readAll().find(
-      (r) => r.auth0_user_id === auth0UserId && r.github_org === githubOrg
+    (await readAll()).find(
+      (r) => r.auth0_user_id === auth0UserId && r.github_org.toLowerCase() === githubOrg.toLowerCase()
     ) || null
   );
 }
 
-export function mappingByInstallationId(installationId: number): OrgMapping | null {
-  return readAll().find((r) => r.installation_id === installationId) || null;
+export async function mappingByInstallationId(installationId: number): Promise<OrgMapping | null> {
+  return (await readAll()).find((r) => r.installation_id === installationId) || null;
 }
 
-export function saveMapping(mapping: OrgMapping) {
-  const rows = readAll();
-  // Upsert on (auth0_user_id, github_org).
-  const idx = rows.findIndex(
-    (r) =>
-      r.auth0_user_id === mapping.auth0_user_id &&
-      r.github_org === mapping.github_org
-  );
-  if (idx >= 0) rows[idx] = mapping;
-  else rows.push(mapping);
-  writeAll(rows);
+export async function saveMapping(mapping: OrgMapping) {
+  return mutate((rows) => {
+    // Upsert on (auth0_user_id, github_org).
+    const idx = rows.findIndex(
+      (r) =>
+        r.auth0_user_id === mapping.auth0_user_id &&
+        r.github_org.toLowerCase() === mapping.github_org.toLowerCase()
+    );
+    if (idx >= 0) rows[idx] = mapping;
+    else rows.push(mapping);
+    return rows;
+  });
 }
 
-export function deleteByInstallationId(installationId: number) {
-  const rows = readAll().filter((r) => r.installation_id !== installationId);
-  writeAll(rows);
+export async function deleteByInstallationId(installationId: number) {
+  return mutate((rows) => rows.filter((r) => r.installation_id !== installationId));
 }

@@ -401,6 +401,8 @@ export type StartAgenticOpts = {
   // re-resolve a fresh installation token if the first one aged out
   // during the agentic run.
   orgCtx?: { auth0UserId: string; githubOrg: string };
+  // Server-only: freshly minted token in a VM capped below its one-hour TTL.
+  installationToken?: boolean;
   // User-provided API keys (from encrypted cookie).
   anthropicKey?: string;
   geminiKey?: string;
@@ -726,6 +728,7 @@ async function spawnDispatch(
             logPath,
             dispatchId: id,
             orgCtx: opts.orgCtx,
+            installationToken: opts.installationToken,
             findingId,
             // Public flows: the fork + push + `gh pr create` must run as the
             // user who asked for the dispatch. This hook fires detached,

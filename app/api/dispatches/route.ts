@@ -7,11 +7,17 @@
 import { NextResponse } from "next/server";
 import { listDispatches } from "@/lib/dispatcher";
 import { sessionUserId } from "@/lib/require-session";
+import { cloudExecution } from "@/lib/cloud-run-state";
+import { listCloudRuns } from "@/lib/cloud-runs";
 
 export async function GET() {
   const viewerId = await sessionUserId();
   if (!viewerId) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+  if (cloudExecution()) {
+    const runs = await listCloudRuns(viewerId);
+    return NextResponse.json({ dispatches: runs.map(({ log, ...run }) => run) });
   }
   return NextResponse.json({ dispatches: listDispatches(viewerId) });
 }

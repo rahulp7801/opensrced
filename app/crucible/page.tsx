@@ -33,7 +33,7 @@ export default async function CruciblePage({
     ? CONNECT_ERRORS[connectErrorKey] || `Connect failed: ${connectErrorKey}`
     : null;
 
-  const orgs = user?.sub ? listOrgsFor(user.sub) : [];
+  const orgs = user?.sub ? await listOrgsFor(user.sub) : [];
 
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 py-6">

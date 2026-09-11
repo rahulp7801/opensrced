@@ -19,7 +19,7 @@ export async function POST() {
   if (!sub) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
   // 1. Delete all org mappings for this user
-  const orgs = listOrgsFor(sub);
+  const orgs = await listOrgsFor(sub);
   for (const org of orgs) {
     // Clear cached token
     const cachePath = path.join(process.cwd(), ".dispatches", "crucible-tokens-cache.json");
@@ -31,7 +31,7 @@ export async function POST() {
     } catch { /* no cache */ }
 
     // Delete the mapping
-    deleteByInstallationId(org.installation_id);
+    await deleteByInstallationId(org.installation_id);
   }
 
   // 2. Clear stored API keys

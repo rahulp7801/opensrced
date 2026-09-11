@@ -4,6 +4,9 @@ import { NextRequest } from "next/server";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { readJson } from "@/lib/blob-store";
+import { cloudExecution } from "@/lib/cloud-run-state";
+
 export const dynamic = "force-dynamic";
 
 const FIXES_DIR = join(process.cwd(), ".fixes");
@@ -13,8 +16,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  // Sanitize ID — only alphanumeric + hyphens
-  const safeId = id.replace(/[^a-zA-Z0-9-]/g, "").slice(0, 36);
+  if (!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(id)) return Response.json({ error: "Fix not found" }, { status: 404 });
+  if (cloudExecution()) {
+    const fix = await readJson(`shares/${id}.json`);
+    return fix ? Response.json(fix.value) : Response.json({ error: "Fix not found" }, { status: 404 });
+  }
+  const safeId = id;
   const filePath = join(FIXES_DIR, `${safeId}.json`);
 
   if (!existsSync(filePath)) {

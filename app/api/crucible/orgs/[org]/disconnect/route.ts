@@ -39,7 +39,7 @@ export async function POST(
   if (!sub) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
   const { org } = await params;
-  const mapping = mappingForOrg(sub, org);
+  const mapping = await mappingForOrg(sub, org);
   if (!mapping) {
     return NextResponse.json({ error: "org not connected" }, { status: 404 });
   }
@@ -48,7 +48,7 @@ export async function POST(
   clearTokenCache(mapping.installation_id);
 
   // 2. Delete the mapping — severs the Auth0 user ↔ GitHub org link
-  deleteByInstallationId(mapping.installation_id);
+  await deleteByInstallationId(mapping.installation_id);
 
   return NextResponse.json({
     ok: true,

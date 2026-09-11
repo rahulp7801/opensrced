@@ -13,6 +13,10 @@ import { existsSync, mkdirSync, writeFileSync, readdirSync, rmSync, statSync } f
 import { join } from "node:path";
 import { requireSession } from "@/lib/require-session";
 
+import { put } from "@vercel/blob";
+import { privateJsonOptions } from "@/lib/blob-store";
+import { cloudExecution } from "@/lib/cloud-run-state";
+
 export const dynamic = "force-dynamic";
 
 const FIXES_DIR = join(process.cwd(), ".fixes");
@@ -56,11 +60,11 @@ export async function POST(req: NextRequest) {
     explainer?: string;
   };
 
-  if (!body.fix_response || !body.repo) {
+  if (typeof body.fix_response !== "string" || !body.fix_response || typeof body.repo !== "string" || !body.repo || body.repo.length > 200 || [body.comment_body, body.diff, body.explainer].some(v => v !== undefined && typeof v !== "string") || (body.pr_number !== undefined && (!Number.isSafeInteger(body.pr_number) || body.pr_number < 1))) {
     return Response.json({ error: "Missing fix_response or repo" }, { status: 400 });
   }
 
-  ensureDir();
+  if (!cloudExecution()) ensureDir();
   // Full UUID, not an 8-char slice. The id IS the access control for a
   // public share link: 8 hex chars is 32 bits, brute-forceable in minutes
   // against an endpoint that answers 404 vs 200. Eviction still sorts
@@ -78,8 +82,12 @@ export async function POST(req: NextRequest) {
     created_at: new Date().toISOString(),
   };
 
-  writeFileSync(join(FIXES_DIR, `${id}.json`), JSON.stringify(fix, null, 2));
-  evictOldest();
+  if (cloudExecution()) {
+    await put(`shares/${id}.json`, JSON.stringify(fix), { ...privateJsonOptions, abortSignal: AbortSignal.timeout(15_000) });
+  } else {
+    writeFileSync(join(FIXES_DIR, `${id}.json`), JSON.stringify(fix, null, 2));
+    evictOldest();
+  }
 
   return Response.json({ id, url: `/fix/${id}` });
 }

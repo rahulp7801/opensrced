@@ -10,5 +10,5 @@ export async function GET() {
   const session = await auth0.getSession();
   const sub = session?.user?.sub;
   if (!sub) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  return NextResponse.json({ orgs: listOrgsFor(sub) });
+  return NextResponse.json({ orgs: await listOrgsFor(sub) });
 }

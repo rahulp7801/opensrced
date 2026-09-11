@@ -1,0 +1,12 @@
+.security-tools
+.npm-cache
+.env*
+!.env.example
+.dispatches
+.fixes
+.test-build
+.worker-build
+ContribAI
+mcp-server/node_modules
+node_modules
+.next

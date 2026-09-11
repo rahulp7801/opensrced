@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
   if (!installationId) return NextResponse.json({ ok: true });
 
   if (payload.action === "deleted") {
-    deleteByInstallationId(installationId);
+    await deleteByInstallationId(installationId);
     clearTokenCache(installationId);
     return NextResponse.json({ ok: true, action: "deleted" });
   }

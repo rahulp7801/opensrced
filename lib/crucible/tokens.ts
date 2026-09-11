@@ -28,7 +28,7 @@ export async function resolveGithubToken(
   orgCtx?: OrgContext | null,
 ): Promise<ResolvedToken> {
   if (orgCtx?.auth0UserId && orgCtx.githubOrg) {
-    const mapping = mappingForOrg(orgCtx.auth0UserId, orgCtx.githubOrg);
+    const mapping = await mappingForOrg(orgCtx.auth0UserId, orgCtx.githubOrg);
     if (mapping) {
       const token = await getInstallationToken(mapping.installation_id);
       return { token, source: "installation" };

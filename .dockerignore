@@ -2,6 +2,8 @@ node_modules
 mcp-server/node_modules
 .next
 .test-build
+.worker-build
+.vercel
 .git
 .dispatches
 .fixes

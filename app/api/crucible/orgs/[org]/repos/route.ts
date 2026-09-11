@@ -19,7 +19,7 @@ export async function GET(
   if (!sub) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
   const { org } = await params;
-  const mapping = mappingForOrg(sub, org);
+  const mapping = await mappingForOrg(sub, org);
   if (!mapping) {
     return NextResponse.json({ error: "org not connected" }, { status: 404 });
   }

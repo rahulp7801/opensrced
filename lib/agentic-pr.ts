@@ -192,6 +192,8 @@ export type CreatePrArgs = {
   // with the right scope. Public flows omit this and gh/git pick up
   // the user's own PAT or gh-CLI keychain.
   orgCtx?: { auth0UserId: string; githubOrg: string };
+  // Server-only: freshly minted token in a VM capped below its one-hour TTL.
+  installationToken?: boolean;
   // For security findings (advisory/dependabot), the finding ID
   // (CVE or GHSA) is used instead of issue_number for branch naming.
   findingId?: string;
@@ -272,7 +274,7 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
   // using the installation token — no fork needed, no user identity
   // required. The "push remote" name differs so the commit/push/PR
   // steps below can branch on it.
-  const isCrucible = Boolean(args.orgCtx);
+  const isCrucible = Boolean(args.orgCtx || args.installationToken);
   let ghUser: string | null = null;
   const pushRemote = isCrucible ? "origin" : "fork";
 

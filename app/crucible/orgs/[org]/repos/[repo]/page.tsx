@@ -54,7 +54,7 @@ export default async function RepoFindingsPage({
   const sub = session?.user?.sub;
   if (!sub) notFound();
 
-  const mapping = mappingForOrg(sub, org);
+  const mapping = await mappingForOrg(sub, org);
   if (!mapping) notFound();
 
   let advisories: SecurityFinding[] = [];

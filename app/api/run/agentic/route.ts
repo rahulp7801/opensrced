@@ -5,6 +5,10 @@ import { resolveAnthropicKey, resolveGeminiKey, resolveMaxSpendUsd } from "@/lib
 import { sessionUserId } from "@/lib/require-session";
 import { parseRunTarget } from "@/lib/run-target";
 import { CapacityError } from "@/lib/concurrency";
+import { cloudExecution } from "@/lib/cloud-run-state";
+import { startCloudRun } from "@/lib/cloud-runs";
+
+export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
   const auth0UserId = await sessionUserId();
@@ -49,7 +53,8 @@ export async function POST(req: NextRequest) {
   try {
     const geminiKey = (await resolveGeminiKey()) ?? undefined;
     const maxSpendUsd = await resolveMaxSpendUsd();
-    const d = await startAgenticDispatch(repo_url, issue_number, {
+    const start = cloudExecution() ? startCloudRun : startAgenticDispatch;
+    const d = await start(repo_url, issue_number, {
       token: token ?? undefined,
       anthropicKey,
       geminiKey,

@@ -1,10 +1,37 @@
 # Deployment and release checks
 
-This app needs one long-lived Node process, persistent disk, and the CLI tools
-in `Dockerfile`. Do not deploy it as serverless functions or multiple replicas:
-dispatch ownership and capacity are currently tracked in one process. The
-agentic pipeline allows three simultaneous runs, including PR post-processing;
-excess submissions receive HTTP 429. Runs do not survive a process restart.
+## Vercel deployment (migration in progress)
+
+Vercel serves Next.js; isolated Vercel Sandboxes execute agent jobs. Private Blob
+stores run results, cancellation markers, organization connections, and shared
+fixes. Jobs receive only user provider credentials and a write token scoped to
+one result file. Three Blob leases bound agent concurrency across web instances.
+Workers stop after 40 minutes; abandoned records expire after 45 minutes.
+
+1. Link the repository to the intended Vercel project. The committed
+   `vercel.json` supplies the required install command.
+2. Configure the five Auth0 values from `.env.example`, a private Blob store
+   (`BLOB_READ_WRITE_TOKEN`), and Vercel Sandbox access through project OIDC.
+3. From an authenticated environment, run
+   `node scripts/create-worker-snapshot.mjs <full-committed-sha>`.
+   Save its output as `OPENSRCER_WORKER_SNAPSHOT_ID` in the project.
+   Rebuild this snapshot whenever agent or MCP code changes.
+4. Deploy, configure Auth0 callback/logout origins, and verify health, login,
+   key storage, preview, cancellation, and controlled live PR creation.
+
+The cloud path has passed local compilation and unit tests; it has not yet been
+provisioned or exercised against Vercel. Exploration, graph tools, PR follow-up
+actions, and activity statistics still need their remaining local-process or
+filesystem dependencies migrated. Do not treat deployment alone as release
+acceptance. Repository test execution remains off inside workers because tests
+could access user credentials supplied to the agent.
+
+## Local single-instance alternative
+
+The Docker path needs one long-lived Node process, persistent disk, and CLI
+tools. Its local dispatch ownership and capacity remain process-local. It allows
+three simultaneous runs, including PR post-processing; excess submissions get
+HTTP 429. Local runs do not survive process restarts.
 
 ## Start a single instance
 
@@ -61,13 +88,13 @@ ships a safe dependency. Both package lockfiles must remain committed.
 
 ## Outstanding release gates
 
-- Select the hosting account, domain, and persistent storage/backup policy.
+- Connect the selected Vercel account and configure Auth0, private Blob, and worker snapshots.
 - Build and boot the Linux container on the target host; only Compose syntax and
   the local Node production build have been verified in this environment.
 - Verify Auth0 login/logout, GitHub token scopes, saved keys, preview, live PR,
   cancellation, and private-org access against controlled test repositories.
 - Isolate repository code execution before enabling it for untrusted users.
-- Add durable jobs and shared state before scaling beyond a single process.
+- Finish migration of the remaining routes and verify the cloud worker lifecycle.
 - Load-test authenticated scans and real jobs against an agreed workload and
   provider budget; health endpoint concurrency is only a smoke test.
 

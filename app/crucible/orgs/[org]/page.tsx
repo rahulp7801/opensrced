@@ -21,7 +21,7 @@ export default async function OrgReposPage({
   const sub = session?.user?.sub;
   if (!sub) notFound();
 
-  const mapping = mappingForOrg(sub, org);
+  const mapping = await mappingForOrg(sub, org);
   if (!mapping) notFound();
 
   let repos: Awaited<ReturnType<typeof listInstallationRepos>> = [];

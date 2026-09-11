@@ -11,6 +11,11 @@ import { mappingForOrg } from "@/lib/crucible/orgs";
 import { resolveGithubToken } from "@/lib/crucible/tokens";
 import { resolveAnthropicKey, resolveGeminiKey, resolveMaxSpendUsd } from "@/lib/api-keys";
 
+import { cloudExecution } from "@/lib/cloud-run-state";
+import { startCloudRun } from "@/lib/cloud-runs";
+import { parseRunTarget } from "@/lib/run-target";
+
+export const maxDuration = 120;
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
@@ -56,7 +61,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const mapping = mappingForOrg(sub, github_org);
+  try {
+    const target = parseRunTarget(repo_url);
+    if (typeof github_org !== "string" || target.repo.split("/")[0].toLowerCase() !== github_org.toLowerCase()) throw new Error("Repository must belong to the connected organization.");
+    if (!isSecurityFinding && (!Number.isSafeInteger(issue_number) || issue_number! < 1)) throw new Error("Invalid issue number.");
+    if (isSecurityFinding && (typeof finding?.id !== "string" || finding.id.length > 200 || finding.kind !== kind || JSON.stringify(finding).length > 50_000)) throw new Error("Invalid security finding.");
+  } catch (error) {
+    return NextResponse.json({ status: "error", message: error instanceof Error ? error.message : "Invalid request" }, { status: 400 });
+  }
+
+  const mapping = await mappingForOrg(sub, github_org);
   if (!mapping) {
     return NextResponse.json({ status: "error", message: "org not connected" }, { status: 404 });
   }
@@ -90,7 +104,9 @@ export async function POST(req: NextRequest) {
       // users' /api/dispatches listings.
       auth0UserId: sub,
     };
-    const d = await (isSecurityFinding
+    const d = await (cloudExecution()
+      ? startCloudRun(repo_url, issue_number ?? 0, sharedOpts, isSecurityFinding ? finding : undefined)
+      : isSecurityFinding
       ? startFindingDispatch(repo_url, finding!, sharedOpts)
       : startAgenticDispatch(repo_url, issue_number!, sharedOpts));
     const label = isSecurityFinding

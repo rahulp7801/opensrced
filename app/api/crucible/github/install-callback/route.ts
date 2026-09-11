@@ -11,7 +11,7 @@
 // query parameter and installation ids are small sequential integers. Before
 // this route checked them, any logged-in user could start the connect flow to
 // mint a cookie for their own Auth0 sub, then hand back an arbitrary
-// installation id and have saveMapping() bind THEIR account to SOMEONE ELSE'S
+// installation id and have await saveMapping() bind THEIR account to SOMEONE ELSE'S
 // org. Every crucible route authorizes purely off that mapping, so the payoff
 // was full read/write on a stranger's private repos.
 //
@@ -179,7 +179,7 @@ export async function GET(req: NextRequest) {
     return redirectToCrucible(req, `repo_probe_failed_${probe.status}`);
   }
 
-  saveMapping({
+  await saveMapping({
     auth0_user_id: parsed.sub,
     github_org: githubOrg,
     installation_id: installationId,

@@ -6,6 +6,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDispatch, listDrafts, readDraft } from "@/lib/dispatcher";
 import { sessionUserId } from "@/lib/require-session";
+import { cloudExecution } from "@/lib/cloud-run-state";
+import { getCloudRun } from "@/lib/cloud-runs";
 
 export async function GET(
   req: NextRequest,
@@ -17,6 +19,11 @@ export async function GET(
   }
 
   const { id } = await ctx.params;
+  if (cloudExecution()) {
+    const run = await getCloudRun(viewerId, id);
+    if (!run) return NextResponse.json({ error: "not found" }, { status: 404 });
+    return NextResponse.json({ drafts: [] });
+  }
   if (!getDispatch(id, viewerId)) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }

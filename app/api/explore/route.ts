@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
     const session = await auth0.getSession();
     const sub = session?.user?.sub;
     if (sub) {
-      const mapping = mappingForOrg(sub, body.github_org);
+      const mapping = await mappingForOrg(sub, body.github_org);
       if (mapping) {
         const resolved = await resolveGithubToken({ auth0UserId: sub, githubOrg: body.github_org });
         if (resolved.token) githubToken = resolved.token;

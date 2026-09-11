@@ -12,6 +12,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDispatch, readLogSince } from "@/lib/dispatcher";
 import { sessionUserId } from "@/lib/require-session";
+import { cloudExecution, runLogChunk } from "@/lib/cloud-run-state";
+import { getCloudRun } from "@/lib/cloud-runs";
 
 export async function GET(
   req: NextRequest,
@@ -23,6 +25,11 @@ export async function GET(
   }
 
   const { id } = await ctx.params;
+  if (cloudExecution()) {
+    const run = await getCloudRun(viewerId, id);
+    if (!run) return NextResponse.json({ error: "not found" }, { status: 404 });
+    return NextResponse.json(runLogChunk(run, Number(req.nextUrl.searchParams.get("since") ?? 0)));
+  }
   // getDispatch returns undefined for "no such id" and "not yours" alike,
   // so the 404 below doesn't confirm that someone else's dispatch exists.
   const d = getDispatch(id, viewerId);

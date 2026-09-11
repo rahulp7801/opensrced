@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
     const target = parseRunTarget(repo_url);
     if (typeof github_org !== "string" || target.repo.split("/")[0].toLowerCase() !== github_org.toLowerCase()) throw new Error("Repository must belong to the connected organization.");
     if (!isSecurityFinding && (!Number.isSafeInteger(issue_number) || issue_number! < 1)) throw new Error("Invalid issue number.");
-    if (isSecurityFinding && (typeof finding?.id !== "string" || finding.id.length > 200 || finding.kind !== kind || JSON.stringify(finding).length > 50_000)) throw new Error("Invalid security finding.");
+    if (isSecurityFinding && (typeof finding?.id !== "string" || finding.id.length > 200 || finding.kind !== kind || Buffer.byteLength(JSON.stringify(finding)) > 50_000)) throw new Error("Invalid security finding.");
   } catch (error) {
     return NextResponse.json({ status: "error", message: error instanceof Error ? error.message : "Invalid request" }, { status: 400 });
   }

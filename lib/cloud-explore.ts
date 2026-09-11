@@ -1,26 +1,17 @@
-import { randomUUID } from "node:crypto";
 import { Sandbox } from "@vercel/sandbox";
-import { updateJson } from "./blob-store";
+import { reserveCloudSlot } from "./cloud-capacity";
 import { CapacityError } from "./concurrency";
 import { claudeEvents } from "./claude-events";
 
 export async function cloudExplore(args: string[], credentials: Record<string, string>, requestSignal: AbortSignal): Promise<Response> {
   const snapshotId = process.env.OPENSRCER_WORKER_SNAPSHOT_ID;
   if (!snapshotId || !process.env.BLOB_READ_WRITE_TOKEN) return Response.json({ error: "Exploration hosting is not configured." }, { status: 503 });
-  const id = randomUUID();
-  let key = "";
-  for (let slot = 0; slot < 3; slot++) {
-    const candidate = `capacity/explore/${slot}.json`;
-    try {
-      await updateJson(candidate, { id: "", expires: 0 }, lease => {
-        if (lease.expires > Date.now()) throw new CapacityError("Exploration is busy.");
-        return { id, expires: Date.now() + 4 * 60_000 };
-      });
-      key = candidate;
-      break;
-    } catch (error) { if (!(error instanceof CapacityError)) throw error; }
+  let release: () => Promise<void>;
+  try { release = await reserveCloudSlot("explore", 3, 4 * 60_000); }
+  catch (error) {
+    if (!(error instanceof CapacityError)) throw error;
+    return Response.json({ error: error.message }, { status: 429 });
   }
-  if (!key) return Response.json({ error: "Three explorations are running. Try again when one finishes." }, { status: 429 });
 
   const cancellation = new AbortController();
   const signal = AbortSignal.any([requestSignal, cancellation.signal, AbortSignal.timeout(3 * 60_000)]);
@@ -51,8 +42,8 @@ export async function cloudExplore(args: string[], credentials: Record<string, s
       } catch {
         send({ error: signal.aborted ? "Exploration time limit reached." : "Exploration failed. Please retry." });
       } finally {
-        await sandbox?.stop().catch(() => {});
-        await updateJson(key, { id: "", expires: 0 }, lease => lease.id === id ? { id, expires: 0 } : lease).catch(() => {});
+        const stopped = !sandbox || await sandbox.stop().then(() => true, () => false);
+        if (stopped) await release().catch(() => {});
         if (!cancelled) controller.close();
       }
     },

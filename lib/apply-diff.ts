@@ -161,7 +161,7 @@ export async function applyDiff(
   // number. -p0 covers diffs whose paths never had a/ b/ prefixes.
   for (const strip of ["-p1", "-p0"]) {
     try {
-      await run("patch", [strip, "--fuzz=3", "--no-backup-if-mismatch", "-i", patchPath], {
+      await run("patch", [strip, "--batch", "--forward", "--fuzz=3", "--no-backup-if-mismatch", "-i", patchPath], {
         cwd: dir,
         env,
       });

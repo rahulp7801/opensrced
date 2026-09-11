@@ -115,6 +115,6 @@ export function sanitizeBranchName(input: string): string | null {
   const trimmed = input.trim();
   // Git branch names: no spaces, no .., no special control chars
   if (/[\s~^:?*\[\]\\]/.test(trimmed) || trimmed.includes("..")) return null;
-  if (trimmed.length === 0 || trimmed.length > 200) return null;
+  if (trimmed.length === 0 || trimmed.length > 200 || trimmed.startsWith("-") || trimmed.startsWith("/") || trimmed.endsWith("/") || trimmed.endsWith(".") || trimmed.includes("//") || trimmed.includes("@{") || trimmed === "@" || trimmed.split("/").some(part => part.startsWith(".") || part.endsWith(".lock"))) return null;
   return trimmed;
 }

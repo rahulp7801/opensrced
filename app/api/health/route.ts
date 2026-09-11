@@ -8,48 +8,22 @@
 //
 // Public by design: no session required, no secrets in the payload.
 
-import { execFileSync } from "node:child_process";
-import { childEnv } from "@/lib/child-env";
-import { existsSync, readdirSync } from "node:fs";
+import { getDependencies } from "@/lib/health";
+import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
 export const dynamic = "force-dynamic";
 
-function hasBin(cmd: string, args: string[] = ["--version"]): boolean {
+async function countDispatchLogs(): Promise<number> {
   try {
-    execFileSync(cmd, args, {
-      stdio: "pipe",
-      timeout: 3000,
-      windowsHide: true,
-      env: childEnv(),
-    });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function countDispatchLogs(): number {
-  try {
-    return readdirSync(join(process.cwd(), ".dispatches")).filter((f) => f.endsWith(".log")).length;
+    return (await readdir(join(process.cwd(), ".dispatches"))).filter((f) => f.endsWith(".log")).length;
   } catch {
     return 0;
   }
 }
 
 export async function GET() {
-  const mcpBuilt = existsSync(join(process.cwd(), "mcp-server", "dist", "server.js"));
-
-  // Each of these is a hard requirement for some part of the pipeline;
-  // a false here explains a class of downstream failure.
-  const deps = {
-    claude: hasBin("claude"),
-    gh: hasBin(process.env.GH_CLI ?? "gh"),
-    git: hasBin("git"),
-    patch: hasBin("patch"),
-    gitleaks: hasBin("gitleaks"), // optional — scan is skipped when absent
-    mcp_server_built: mcpBuilt,
-  };
+  const [deps, dispatchLogs] = await Promise.all([getDependencies(), countDispatchLogs()]);
 
   // Degraded rather than ok when something the agentic path needs is gone.
   const required: Array<keyof typeof deps> = ["claude", "gh", "git", "mcp_server_built"];
@@ -61,7 +35,7 @@ export async function GET() {
     deps,
     auth: process.env.AUTH_DISABLED === "1" ? "disabled" : "auth0",
     tests_mode: process.env.OPENSRCER_RUN_TESTS ?? "crucible",
-    dispatch_logs: countDispatchLogs(),
+    dispatch_logs: dispatchLogs,
     uptime_sec: Math.round(process.uptime()),
     timestamp: new Date().toISOString(),
   });

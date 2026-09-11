@@ -20,10 +20,12 @@ import { promisify } from "node:util";
 import { sanitizeRepoId, sanitizeFilePath } from "@/lib/sanitize";
 import { childEnv } from "@/lib/child-env";
 import { resolveGitHubToken } from "@/lib/github-token";
-import { requireSession } from "@/lib/require-session";
+import { sessionUserId } from "@/lib/require-session";
 
 const execFileAsync = promisify(execFile);
 
+import { cloudExecution } from "@/lib/cloud-run-state";
+import { getStoredGraph } from "@/lib/graph-store";
 import { githubApi } from "@/lib/github-api";
 
 export const dynamic = "force-dynamic";
@@ -35,8 +37,8 @@ type Check = {
 };
 
 export async function POST(req: NextRequest) {
-  const unauth = await requireSession();
-  if (unauth) return unauth;
+  const userId = await sessionUserId();
+  if (!userId) return Response.json({ error: "Not authenticated" }, { status: 401 });
 
   const raw = (await req.json().catch(() => ({}))) as {
     diff?: string;
@@ -44,6 +46,8 @@ export async function POST(req: NextRequest) {
     file_path?: string | null;
     repo?: string;
   };
+
+  if ([raw.diff, raw.comment_body, raw.file_path, raw.repo].some(value => value != null && typeof value !== "string") || (raw.diff?.length ?? 0) > 200_000) return Response.json({ error: "Invalid verification input or diff too large" }, { status: 400 });
 
   const body = {
     diff: raw.diff?.slice(0, 200_000) ?? null, // cap diff size
@@ -171,7 +175,7 @@ export async function POST(req: NextRequest) {
       Math.abs(openParens - closeParens) > 2)
   ) {
     checks.push({
-      name: "Syntax",
+      name: "Syntax heuristic",
       status: "warn",
       detail: `Bracket imbalance in added code: {${openBraces}/${closeBraces}} (${openParens}/${closeParens}). Verify structure is correct.`,
     });
@@ -179,7 +183,7 @@ export async function POST(req: NextRequest) {
     checks.push({
       name: "Syntax",
       status: "pass",
-      detail: "No obvious syntax issues in added code",
+      detail: "No bracket imbalance detected. Code has not been compiled or tested.",
     });
   }
 
@@ -211,6 +215,15 @@ export async function POST(req: NextRequest) {
   if (body.repo) {
     try { await githubApi(`/repos/${body.repo}`, await resolveGitHubToken()); }
     catch { return Response.json({ error: "Repository not accessible" }, { status: 403 }); }
+    if (cloudExecution()) {
+      const stored = await getStoredGraph(userId, body.repo);
+      if (stored) {
+        const impact = analyzeImpactFromDiff(stored.graph, diff);
+        checks.push({ name: "Graph impact", status: "warn", detail: `Cached graph suggests ${impact.totalAffected} downstream dependents. Snapshot: ${stored.revision.slice(0, 8)}. Confirm behavior against the current PR.` });
+      } else checks.push({ name: "Graph impact", status: "warn", detail: "Build this repository's graph to inspect downstream dependencies." });
+    }
+  }
+  if (body.repo && !cloudExecution()) {
     const m = body.repo.match(/^([^/]+)\/([^/]+)$/);
     if (m) {
       // Try code-review-graph first (handles large repos, SQLite-backed)
@@ -327,6 +340,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 7. Verification summary ─────────────────────────────────────────
+  checks.push({ name: "Execution", status: "warn", detail: "Repository tests were not run. Static checks do not verify behavior." });
   const passCount = checks.filter((c) => c.status === "pass").length;
   const warnCount = checks.filter((c) => c.status === "warn").length;
   const failCount = checks.filter((c) => c.status === "fail").length;

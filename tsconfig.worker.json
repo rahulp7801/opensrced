@@ -7,7 +7,8 @@
     "lib/agentic-dispatcher.ts",
     "lib/dispatch-store.ts",
     "lib/dispatcher.ts",
-    "lib/pr-push.ts"
+    "lib/pr-push.ts",
+    "lib/graph-worker.ts"
   ],
   "exclude": [
     "node_modules",

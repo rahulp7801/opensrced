@@ -6,11 +6,13 @@ import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { graphHtmlPath, graphJsonPath } from "@/lib/graph";
 import { hasCrg } from "@/lib/graph-build";
-import { requireSession } from "@/lib/require-session";
+import { requireSession, sessionUserId } from "@/lib/require-session";
 import { sanitizeGitHubName } from "@/lib/sanitize";
 
 import { githubApi } from "@/lib/github-api";
 import { resolveGitHubToken } from "@/lib/github-token";
+import { cloudExecution } from "@/lib/cloud-run-state";
+import { getStoredGraph } from "@/lib/graph-store";
 import { graphHtmlResponse } from "@/lib/graph-html";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +40,10 @@ export async function GET(
   const { owner, repo } = safe;
   try { await githubApi(`/repos/${owner}/${repo}`, await resolveGitHubToken()); }
   catch { return new Response("Repository not accessible", { status: 403 }); }
+  if (cloudExecution()) {
+    const stored = await getStoredGraph((await sessionUserId())!, `${owner}/${repo}`);
+    return stored ? graphHtmlResponse(stored.html) : new Response("Graph not built", { status: 404 });
+  }
   const htmlPath = graphHtmlPath(owner, repo);
 
   if (existsSync(htmlPath)) {
@@ -112,6 +118,10 @@ export async function HEAD(
   try { await githubApi(`/repos/${owner}/${repo}`, await resolveGitHubToken()); }
   catch { return new Response("Repository not accessible", { status: 403 }); }
 
+  if (cloudExecution()) {
+    const stored = await getStoredGraph((await sessionUserId())!, `${owner}/${repo}`);
+    return new Response(null, { status: stored ? 200 : 404, headers: { "X-Graph-Engine": "graphify", "Cache-Control": "private, no-store" } });
+  }
   const hasGraphify = existsSync(graphHtmlPath(owner, repo)) || existsSync(graphJsonPath(owner, repo));
   const hasCrgData = hasCrg(owner, repo);
 

@@ -2,10 +2,10 @@ import { get, put, BlobPreconditionFailedError } from "@vercel/blob";
 
 export const privateJsonOptions = { access: "private" as const, addRandomSuffix: false, contentType: "application/json", cacheControlMaxAge: 60 };
 
-export async function readJson<T>(path: string): Promise<{ value: T; etag: string } | null> {
+export async function readJson<T>(path: string, maxBytes = 600_000): Promise<{ value: T; etag: string } | null> {
   const blob = await get(path, { access: "private", useCache: false, abortSignal: AbortSignal.timeout(15_000) });
   if (!blob || blob.statusCode !== 200) return null;
-  if (blob.blob.size > 600_000) throw new Error("Stored record exceeds size limit");
+  if (blob.blob.size > maxBytes) throw new Error("Stored record exceeds size limit");
   return { value: await new Response(blob.stream).json() as T, etag: blob.blob.etag };
 }
 

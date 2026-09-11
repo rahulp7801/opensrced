@@ -3,7 +3,7 @@ import { updateJson } from "./blob-store";
 import { CapacityError } from "./concurrency";
 
 /** Shared leases for short tasks; expiry recovers from a terminated function. */
-export async function reserveCloudSlot(kind: "explore" | "push", max: number, ttl: number): Promise<() => Promise<void>> {
+export async function reserveCloudSlot(kind: "explore" | "push" | "graph", max: number, ttl: number): Promise<() => Promise<void>> {
   const id = randomUUID();
   for (let slot = 0; slot < max; slot++) {
     const key = `capacity/${kind}/${slot}.json`;

@@ -89,3 +89,22 @@ jobs:
             sleep 1
           done
           node scripts/smoke-production.mjs
+
+  graph:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-graph.txt
+      - name: Install and audit graph runtime
+        run: |
+          python -m pip install -r requirements-graph.txt pip-audit==2.10.1
+          python -m pip_audit -r requirements-graph.txt --no-deps --disable-pip
+      - name: Build and validate a real graph
+        run: node scripts/smoke-graph.mjs

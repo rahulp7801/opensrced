@@ -20,9 +20,9 @@ Workers stop after 40 minutes; abandoned records expire after 45 minutes.
    key storage, preview, cancellation, and controlled live PR creation.
 
 The cloud path has passed local compilation and unit tests; it has not yet been
-provisioned or exercised against Vercel. Graph tools, PR fix generation, and pushing PR follow-up
-changes still need their remaining local-process or filesystem dependencies
-migrated. Exploration uses sandbox streaming and activity is owner-scoped. Do not treat deployment alone as release
+provisioned or exercised against Vercel. Agent runs, exploration, deep fixes, graph generation, and patch pushes use
+isolated workers. Quick fixes, replies, and graph questions use bounded API
+requests. Activity, PR history, and graph storage are scoped to their owners. Do not treat deployment alone as release
 acceptance. Repository test execution remains off inside workers because tests
 could access user credentials supplied to the agent.
 
@@ -72,6 +72,8 @@ npm --prefix mcp-server ci
 npm --prefix mcp-server run build
 npm --prefix mcp-server audit --audit-level=high
 npm run build
+python -m pip install -r requirements-graph.txt
+node scripts/smoke-graph.mjs
 # In another terminal, with Auth0 configured:
 npm start -- --port 3100
 node scripts/smoke-production.mjs
@@ -94,9 +96,14 @@ ships a safe dependency. Both package lockfiles must remain committed.
 - Verify Auth0 login/logout, GitHub token scopes, saved keys, preview, live PR,
   cancellation, and private-org access against controlled test repositories.
 - Isolate repository code execution before enabling it for untrusted users.
-- Finish migration of the remaining routes and verify the cloud worker lifecycle.
+- Verify the cloud worker lifecycle and all UI entry points on the deployed project.
 - Load-test authenticated scans and real jobs against an agreed workload and
   provider budget; health endpoint concurrency is only a smoke test.
+
+The graph worker was also exercised locally against this public repository:
+1,322 nodes and 2,798 edges in 15.5 seconds, with no provider credentials.
+Its pinned Python dependencies passed pip-audit. This is a local runtime check,
+not a Vercel deployment test. Graphs are capped at 8 MB and builds at four minutes.
 
 ## Public repository secret review
 

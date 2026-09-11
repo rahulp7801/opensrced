@@ -28,8 +28,8 @@ test("modified, oversized and expired API key cookies fail closed", (t) => {
 });
 
 test("key settings reject invalid types, control characters and unbounded budgets", () => {
-  for (const value of [null, [], { anthropic: {} }, { gemini: "line\nbreak" }, { anthropic: "x".repeat(513) }, { maxSpendUsd: Infinity }, { maxSpendUsd: -1 }, { maxSpendUsd: 11 }, { maxSpendUsd: "2" }]) {
+  for (const value of [null, [], { anthropic: {} }, { gemini: "line\nbreak" }, { anthropic: "x".repeat(513) }, { maxSpendUsd: Infinity }, { maxSpendUsd: -1 }, { maxSpendUsd: 0.05 }, { maxSpendUsd: 11 }, { maxSpendUsd: "2" }]) {
     assert.equal(validStoredKeys(value), false);
   }
-  for (const value of [{}, { anthropic: "" }, keys, { maxSpendUsd: 0.5 }, { maxSpendUsd: 10 }]) assert.equal(validStoredKeys(value), true);
+  for (const value of [{}, { anthropic: "" }, keys, { maxSpendUsd: 0.1 }, { maxSpendUsd: 0.5 }, { maxSpendUsd: 10 }]) assert.equal(validStoredKeys(value), true);
 });

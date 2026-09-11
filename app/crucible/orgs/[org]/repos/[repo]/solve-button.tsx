@@ -4,19 +4,8 @@
 // with orgCtx so the dispatcher uses the installation token. Redirects to
 // /dispatches/<id> on success so the user can watch the stream.
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-
-// Estimate API cost based on repo size. Larger repos need more exploration
-// tokens. Based on observed costs across real dispatches.
-function estimateCost(sizeKb: number): string {
-  const sizeMb = sizeKb / 1024;
-  if (sizeMb < 1) return "$0.03–$0.08";
-  if (sizeMb < 10) return "$0.05–$0.12";
-  if (sizeMb < 50) return "$0.08–$0.20";
-  if (sizeMb < 200) return "$0.12–$0.35";
-  return "$0.20–$0.50";
-}
 
 export function SolveButton({
   repoFull,
@@ -44,17 +33,6 @@ export function SolveButton({
   const router = useRouter();
   const [state, setState] = useState<"idle" | "pending" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
-  const [hasKey, setHasKey] = useState(true);
-
-  useEffect(() => {
-    const cached = sessionStorage.getItem("opensrcer-has-key");
-    if (cached !== null) { setHasKey(cached === "1"); return; }
-    fetch("/api/settings/keys")
-      .then((r) => r.json())
-      .then((d: { anthropic?: boolean; gemini?: boolean }) => setHasKey(Boolean(d.anthropic) && Boolean(d.gemini)))
-      .catch(() => {});
-  }, []);
-
   async function onClick() {
     setState("pending");
     setError(null);
@@ -102,15 +80,12 @@ export function SolveButton({
       <button
         type="button"
         onClick={onClick}
-        disabled={state === "pending" || !hasKey}
-        title={!hasKey ? "Add API keys in Crucible → API Keys" : `Estimated cost: ~${estimateCost(repoSizeKb ?? 0)}`}
+        disabled={state === "pending"}
+        title="Generate a fix and open a draft PR after checks"
         className="text-[12px] text-paper border border-border bg-surface/60 hover:bg-surface px-2.5 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {!hasKey ? "no API key" : state === "pending" ? "dispatching…" : "deep solve"}
+        {state === "pending" ? "dispatching…" : "deep solve"}
       </button>
-      {hasKey && state === "idle" && (
-        <span className="text-[9px] text-paper-faint tabular-nums">est. ~{estimateCost(repoSizeKb ?? 0)}</span>
-      )}
       {state === "error" && error && (
         <span className="text-[10.5px] text-red-300 max-w-[220px] text-right">
           {error}

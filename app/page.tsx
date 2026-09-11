@@ -299,7 +299,7 @@ export default function LandingPage() {
           />
           <SecurityItem
             title="Spend controls"
-            detail="Set a Claude agent budget of $0.50 to $10 per run. Other provider calls, such as review and chat, are billed separately by your API providers."
+            detail="Set a Claude agent budget of $0.10 to $10 per run. Other provider calls, such as review and chat, are billed separately by your API providers."
             borderTop
           />
           <SecurityItem

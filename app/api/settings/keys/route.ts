@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     maxSpendUsd?: number;
   };
   if (!validStoredKeys(body)) {
-    return NextResponse.json({ error: "Keys must be at most 512 printable characters; the task budget must be between $0.50 and $10." }, { status: 400 });
+    return NextResponse.json({ error: "Keys must be at most 512 printable characters; the task budget must be between $0.10 and $10." }, { status: 400 });
   }
 
   const existing = await getStoredKeys();

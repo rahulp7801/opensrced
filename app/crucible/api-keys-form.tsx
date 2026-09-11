@@ -11,6 +11,9 @@ const SPEND_OPTIONS = [
   { value: 0.50, label: "$0.50" },
   { value: 0.75, label: "$0.75" },
   { value: 1.00, label: "$1.00" },
+  { value: 2.00, label: "$2.00" },
+  { value: 5.00, label: "$5.00" },
+  { value: 10.00, label: "$10.00" },
 ];
 
 export function ApiKeysForm() {
@@ -45,15 +48,16 @@ export function ApiKeysForm() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data = (await res.json()) as KeyStatus;
+      const data = (await res.json()) as KeyStatus & { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Could not save settings.");
       setStatus(data);
       setAnthropicInput("");
       setGeminiInput("");
       setMessage({ text: "Settings saved.", ok: true });
       toast("Settings saved", "ok");
-      sessionStorage.removeItem("opensrcer-has-key");
-    } catch {
-      setMessage({ text: "Failed to save.", ok: false });
+      window.dispatchEvent(new Event("opensrcer-keys-updated"));
+    } catch (error) {
+      setMessage({ text: error instanceof Error ? error.message : "Failed to save.", ok: false });
     } finally {
       setSaving(false);
     }
@@ -70,13 +74,14 @@ export function ApiKeysForm() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ [key]: "" }),
       });
-      const data = (await res.json()) as KeyStatus;
+      const data = (await res.json()) as KeyStatus & { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Could not save settings.");
       setStatus(data);
       setMessage({ text: `${key} key cleared.`, ok: true });
       toast(`${key} key cleared`, "signal");
-      sessionStorage.removeItem("opensrcer-has-key");
-    } catch {
-      setMessage({ text: "Failed to clear.", ok: false });
+      window.dispatchEvent(new Event("opensrcer-keys-updated"));
+    } catch (error) {
+      setMessage({ text: error instanceof Error ? error.message : "Failed to clear.", ok: false });
     } finally {
       setSaving(false);
     }
@@ -221,7 +226,7 @@ export function ApiKeysForm() {
       {/* Max spend per task */}
       <div className="space-y-2">
         <div className="text-[12px] text-paper-muted">Max spend per task</div>
-        <div className="flex gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           {SPEND_OPTIONS.map((opt) => (
             <button
               key={opt.value}

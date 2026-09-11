@@ -6,6 +6,8 @@ let pagesChecked = 0;
 try {
   for (const width of [1440, 390]) {
     const context = await browser.newContext({ viewport: { width, height: 900 } });
+    context.setDefaultTimeout(15000);
+    context.setDefaultNavigationTimeout(30000);
     const page = await context.newPage();
     const errors = [];
     const authNavigations = [];
@@ -36,10 +38,13 @@ try {
   // Client interaction test only: fake session/data, intercept every mutation.
   // Real Auth0 and provider workflows remain a separate deployment release gate.
   const context = await browser.newContext();
-  const page = await context.newPage();
+  context.setDefaultTimeout(15000);
+    context.setDefaultNavigationTimeout(30000);
+    const page = await context.newPage();
   await page.route('**/auth/profile', route => route.fulfill({ json: { sub: 'test-user', name: 'Test User' } }));
   const run = { id: 'test-preview', repo_url: 'https://github.com/acme/app', mode: 'agentic', dry_run: true, issue_number: 1, started_at: new Date().toISOString(), status: 'failed', log: '', log_size: 0 };
   const submissions = [];
+  const settings = [];
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url());
     if (url.pathname === '/api/run/agentic') {
@@ -50,7 +55,13 @@ try {
     if (url.pathname === '/api/dispatches/test-preview') return route.fulfill({ json: run });
     if (url.pathname === '/api/issues/suggested') return route.fulfill({ json: { issues: [], filteredOut: 0 } });
     if (url.pathname === '/api/issues/scan') return route.fulfill({ json: { repo: 'acme/app', total: 1, solvable: 1, issues: [{ number: 1, title: 'Fix parser error', body: 'Fix the parser.', labels: ['bug'], url: 'https://github.com/acme/app/issues/1', author: 'test', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), comments: 0, category: 'bug', severity: 'low', complexity: 1, est_minutes: 5, solvable: true, reason: 'Small fix', scope: { bucket: 'leaf', confidence: 'high', files: ['parser.ts'], symbols: [], reason: 'Parser file' } }] } });
-    if (url.pathname === '/api/settings/keys') return route.fulfill({ json: { anthropic: true, gemini: true } });
+    if (url.pathname === '/api/settings/keys') {
+      if (route.request().method() === 'POST') {
+        settings.push(route.request().postDataJSON());
+        if (settings.length === 1) return route.fulfill({ status: 400, json: { error: 'Settings rejected for test.' } });
+      }
+      return route.fulfill({ json: { anthropic: true, gemini: false, maxSpendUsd: 2 } });
+    }
     return route.fulfill({ json: {} });
   });
   await page.goto(base + '/dispatches?dispatch=test-preview');
@@ -73,6 +84,20 @@ try {
     await page.waitForURL('**/dispatches?dispatch=test-preview');
   }
   assert.equal(submissions.length, 3);
+  console.log('Checking settings recovery');
+  await page.goto(base + '/crucible');
+  const keyInput = page.locator('input[type="password"]').first();
+  await keyInput.fill('test-replacement-value');
+  await page.getByRole('button', { name: '$0.10', exact: true }).click();
+  await page.getByRole('button', { name: 'Save settings', exact: true }).click();
+  await page.getByText('Settings rejected for test.', { exact: true }).waitFor();
+  assert.equal(await keyInput.inputValue(), 'test-replacement-value', 'failed saves preserve the input');
+  await page.getByRole('button', { name: 'Save settings', exact: true }).click();
+  await page.getByText('Settings saved.', { exact: true }).waitFor();
+  assert.equal(await keyInput.inputValue(), '');
+  assert.equal(settings.at(-1).maxSpendUsd, 0.1);
+  assert.equal(await page.getByText('API keys needed for this page', { exact: true }).count(), 0, 'Gemini is optional');
+
   await context.close();
-  console.log(JSON.stringify({ pagesChecked, viewports: [1440, 390], previewRetry: true, issueActions: 2, authPrefetch: false }));
+  console.log(JSON.stringify({ pagesChecked, viewports: [1440, 390], previewRetry: true, issueActions: 2, settingsRecovery: true, authPrefetch: false }));
 } finally { await browser.close(); }

@@ -1,5 +1,6 @@
 "use client";
 
+import { pollJson } from "@/lib/poll-json";
 import { useEffect, useState } from "react";
 import { useUser } from "@auth0/nextjs-auth0";
 import { usePathname } from "next/navigation";
@@ -14,39 +15,16 @@ export function ApiKeyGate() {
   const [hasKey, setHasKey] = useState<boolean | null>(null);
 
   useEffect(() => {
+    setHasKey(null);
     if (!user) return;
-
+    let stop: (() => void) | undefined;
     function check() {
-      const cached = sessionStorage.getItem("opensrcer-has-key");
-      if (cached !== null) {
-        setHasKey(cached === "1");
-        return;
-      }
-      fetch("/api/settings/keys")
-        .then((r) => r.json())
-        .then((d: { anthropic?: boolean; gemini?: boolean }) => {
-          const has = Boolean(d.anthropic) && Boolean(d.gemini);
-          setHasKey(has);
-          sessionStorage.setItem("opensrcer-has-key", has ? "1" : "0");
-        })
-        .catch(() => setHasKey(null));
+      stop?.();
+      stop = pollJson<{ anthropic?: boolean }>("/api/settings/keys", ({ data }) => setHasKey(data ? Boolean(data.anthropic) : null));
     }
-
     check();
-
-    function onStorage(e: StorageEvent) {
-      if (e.key === "opensrcer-has-key" || e.key === null) check();
-    }
-    const poll = setInterval(() => {
-      const cached = sessionStorage.getItem("opensrcer-has-key");
-      if (cached === null) check();
-    }, 1000);
-
-    window.addEventListener("storage", onStorage);
-    return () => {
-      window.removeEventListener("storage", onStorage);
-      clearInterval(poll);
-    };
+    window.addEventListener("opensrcer-keys-updated", check);
+    return () => { stop?.(); window.removeEventListener("opensrcer-keys-updated", check); };
   }, [user]);
 
   // Don't show if: not logged in, still loading, key is set, or on a key-free page
@@ -57,7 +35,7 @@ export function ApiKeyGate() {
     <div className="border-b border-signal/40 bg-signal/5 px-4 py-2.5 flex items-center justify-center gap-3 text-[12px]">
       <span className="text-signal font-medium">API keys needed for this page</span>
       <span className="text-paper-muted">
-        Add your Anthropic + Gemini keys to use AI features.
+        Add your Anthropic key to start an AI run. Gemini review is optional.
       </span>
       <Link
         href="/crucible"

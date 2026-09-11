@@ -8,7 +8,7 @@ export function validStoredKeys(value: unknown): value is StoredKeys {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const keys = value as StoredKeys;
   return [keys.anthropic, keys.gemini].every(key => key === undefined || (typeof key === "string" && key.length <= 512 && !/[^\x21-\x7e]/.test(key))) &&
-    (keys.maxSpendUsd === undefined || (typeof keys.maxSpendUsd === "number" && Number.isFinite(keys.maxSpendUsd) && keys.maxSpendUsd >= 0.5 && keys.maxSpendUsd <= 10));
+    (keys.maxSpendUsd === undefined || (typeof keys.maxSpendUsd === "number" && Number.isFinite(keys.maxSpendUsd) && keys.maxSpendUsd >= 0.1 && keys.maxSpendUsd <= 10));
 }
 
 function encryptionKey(secret: string): Buffer {

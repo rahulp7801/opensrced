@@ -42,6 +42,12 @@ export async function POST(req: NextRequest) {
   // the agentic child process — and the auto-PR hook after it — authenticate
   // as THEM. There is no env or gh-keychain fallback; see lib/github-token.ts.
   const token = await resolveGitHubToken();
+  if (!token && body.dry_run !== true) {
+    return NextResponse.json(
+      { status: "error", message: "Sign in with GitHub before starting a live solve. GitHub access is required to open the pull request." },
+      { status: 401 },
+    );
+  }
   const anthropicKey = await resolveAnthropicKey();
   if (!anthropicKey) {
     return NextResponse.json(

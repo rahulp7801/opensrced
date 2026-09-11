@@ -9,9 +9,9 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname), 'Session 
 const secret = process.env.AUTH0_SECRET;
 assert.equal(secret, 'ci-build-only-not-a-real-secret', 'Use the isolated CI server configuration');
 const now = Math.floor(Date.now() / 1000);
-async function sessionCookie(owner) {
+async function sessionCookie(owner, github = true) {
   const session = await prepareSession({
-    user: { sub: owner, name: owner, [GITHUB_TOKEN_CLAIM]: 'test-github-value' },
+    user: { sub: owner, name: owner, ...(github ? { [GITHUB_TOKEN_CLAIM]: 'test-github-value' } : {}) },
     tokenSet: { accessToken: 'test-auth0-value', expiresAt: now + 3600 },
     internal: { sid: owner, createdAt: now },
   });
@@ -54,4 +54,10 @@ for (const path of ['/api/settings/keys', '/api/explore', '/api/fixes', '/api/pr
 const cleared = await request('/api/settings/keys', alice + '; ' + keys, { method: 'DELETE' });
 assert.equal(cleared.status, 200);
 assert.ok(cleared.headers.getSetCookie().some(value => value.startsWith('opensrcer-keys=;')));
+const withoutGithub = await sessionCookie('session-smoke-no-github', false);
+const live = await request('/api/run/agentic', withoutGithub, {
+  method: 'POST', body: JSON.stringify({ repo_url: 'https://github.com/acme/app', issue_number: 1, dry_run: false }),
+});
+assert.equal(live.status, 401);
+assert.match((await live.json()).message, /Sign in with GitHub/);
 console.log(JSON.stringify({ realSessionDecryption: true, privateProfile: true, settingsRoundTrip: true, accountIsolation: true }));

@@ -39,3 +39,19 @@ test("a hung request times out and polling never overlaps", async (t) => {
   assert.equal(peak, 1);
   assert.equal(active, 0);
 });
+
+test("incremental log polling uses the completed response offset", async (t) => {
+  const urls: string[] = [];
+  t.mock.method(globalThis, "fetch", async (url: string) => {
+    urls.push(url);
+    return Response.json({ log_size: 123 });
+  });
+  let offset = 0;
+  await new Promise<void>((resolve) => {
+    const stop = pollJson<{ log_size: number }>(() => `/logs?since=${offset}`, ({ data }) => {
+      offset = data!.log_size;
+      if (urls.length === 2) { stop(); resolve(); }
+    }, 1);
+  });
+  assert.deepEqual(urls, ["/logs?since=0", "/logs?since=123"]);
+});

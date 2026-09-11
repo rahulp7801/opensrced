@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { StatusChip, StatusDot } from "./status-dot";
 import { IconExternal, IconTrigger } from "./icons";
 import { DraftPreview } from "./draft-preview";
+import { pollJson } from "@/lib/poll-json";
 import { cn, formatRelative } from "@/lib/utils";
 import { parseSplitHunks, type DiffRow } from "@/lib/diff-view";
 
@@ -34,6 +35,7 @@ type DispatchWithLog = Dispatch & { log: string };
 export function DispatchList() {
   const searchParams = useSearchParams();
   const initialDispatch = searchParams.get("dispatch");
+  const [pollError, setPollError] = useState<string | null>(null);
   const [items, setItems] = useState<Dispatch[] | null>(null);
   const [selected, setSelected] = useState<string | null>(initialDispatch);
   const [detail, setDetail] = useState<DispatchWithLog | null>(null);
@@ -69,112 +71,82 @@ export function DispatchList() {
   // restarted from zero on each selection, and the effect re-ran only to read
   // one value. `selectedRef` gives the loop the current selection without
   // making the subscription depend on it.
-  useEffect(() => {
-    let live = true;
-    async function tick() {
-      try {
-        const res = await fetch("/api/dispatches", { cache: "no-store" });
-        const data = await res.json();
-        if (!live) return;
-        const dispatches: Dispatch[] = data.dispatches ?? [];
+  useEffect(() => pollJson<{ dispatches?: Dispatch[] }>("/api/dispatches", ({ data, error }) => {
+    setPollError(error);
+    if (!data) return;
+    const dispatches: Dispatch[] = data.dispatches ?? [];
 
-        for (const d of dispatches) {
-          if (d.status === "running") {
-            seenRunningRef.current.add(d.id);
-            continue;
-          }
-          const finished = d.status === "succeeded" || d.status === "failed";
-          if (!finished || !seenRunningRef.current.has(d.id)) continue;
+    for (const d of dispatches) {
+      if (d.status === "running") {
+        seenRunningRef.current.add(d.id);
+        continue;
+      }
+      const finished = d.status === "succeeded" || d.status === "failed";
+      if (!finished || !seenRunningRef.current.has(d.id)) continue;
 
-          // Notify once, for a run we actually watched start.
-          //
-          // The old code added every running dispatch to `notifiedRef`, which
-          // is the set meaning "already notified" — so by the time a run
-          // finished it was always in the set and the notification was
-          // suppressed. The feature only ever fired for dispatches that were
-          // already finished on first load, which is precisely the case where
-          // nobody is waiting on one.
-          if (
-            !notifiedRef.current.has(d.id) &&
-            typeof Notification !== "undefined" &&
-            Notification.permission === "granted" &&
-            document.hidden
-          ) {
-            notifiedRef.current.add(d.id);
-            const body =
-              d.status === "succeeded" && d.pr_status === "opened"
-                ? "PR opened successfully"
-                : d.status === "succeeded"
-                  ? "Completed"
-                  : "Failed";
-            new Notification(`opensrcer · ${shortRepo(d.repo_url)}`, {
-              body,
-              icon: "/favicon.ico",
-            });
-          }
+      // Notify once, for a run we actually watched start.
+      //
+      // The old code added every running dispatch to `notifiedRef`, which
+      // is the set meaning "already notified" — so by the time a run
+      // finished it was always in the set and the notification was
+      // suppressed. The feature only ever fired for dispatches that were
+      // already finished on first load, which is precisely the case where
+      // nobody is waiting on one.
+      if (
+        !notifiedRef.current.has(d.id) &&
+        typeof Notification !== "undefined" &&
+        Notification.permission === "granted" &&
+        document.hidden
+      ) {
+        notifiedRef.current.add(d.id);
+        const body =
+          d.status === "succeeded" && d.pr_status === "opened"
+            ? "PR opened successfully"
+            : d.status === "succeeded"
+              ? "Completed"
+              : "Failed";
+        new Notification(`opensrcer · ${shortRepo(d.repo_url)}`, {
+          body,
+          icon: "/favicon.ico",
+        });
+      }
 
-          // Surface a finished run only if the user is not reading something
-          // else. Previously any completion called setSelected, so a
-          // background run finishing yanked you out of the log you were
-          // mid-way through reading.
-          seenRunningRef.current.delete(d.id);
-          if (!userPickedRef.current) {
-            selectedRef.current = d.id;
-            setSelected(d.id);
-          }
-        }
-
-        setItems(dispatches);
-        if (!selectedRef.current && dispatches[0]) {
-          selectedRef.current = dispatches[0].id;
-          setSelected(dispatches[0].id);
-        }
-      } catch {
-        /* transient network failure — the next tick retries */
+      // Surface a finished run only if the user is not reading something
+      // else. Previously any completion called setSelected, so a
+      // background run finishing yanked you out of the log you were
+      // mid-way through reading.
+      seenRunningRef.current.delete(d.id);
+      if (!userPickedRef.current) {
+        selectedRef.current = d.id;
+        setSelected(d.id);
       }
     }
-    tick();
-    const id = setInterval(tick, 2500);
-    return () => {
-      live = false;
-      clearInterval(id);
-    };
-  }, []);
+
+    setItems(dispatches);
+    if (!selectedRef.current && dispatches[0]) {
+      selectedRef.current = dispatches[0].id;
+      setSelected(dispatches[0].id);
+    }
+  }, 2500), []);
 
   // Poll selected dispatch's log incrementally: ask only for bytes written
   // since the last poll and append them. The server used to resend the
   // whole log (up to 200KB) every 1.5s.
   useEffect(() => {
     if (!selected) return;
-    let live = true;
-    let offset = 0; // bytes of this dispatch's log already held
-    async function tick() {
-      try {
-        const res = await fetch(`/api/dispatches/${selected}?since=${offset}`, {
-          cache: "no-store",
-        });
-        if (!res.ok) return;
-        const data = (await res.json()) as DispatchWithLog & {
-          log_size?: number;
-          log_reset?: boolean;
-        };
-        if (!live) return;
+    let offset = 0;
+    setDetail(null);
+    return pollJson<DispatchWithLog & { log_size?: number; log_reset?: boolean }>(
+      () => `/api/dispatches/${selected}?since=${offset}`,
+      ({ data }) => {
+        if (!data) return;
         offset = data.log_size ?? 0;
         setDetail((prev) => {
-          // reset (or a different dispatch, or the first poll) → replace
           if (data.log_reset || !prev || prev.id !== data.id) return data;
           return { ...data, log: prev.log + data.log };
         });
-      } catch {
-        /* ignore */
-      }
-    }
-    tick();
-    const id = setInterval(tick, 1500);
-    return () => {
-      live = false;
-      clearInterval(id);
-    };
+      }, 1500,
+    );
   }, [selected]);
 
   // Follow the log only while the user is already at the bottom.
@@ -227,7 +199,7 @@ export function DispatchList() {
         </aside>
         <section className="col-span-12 md:col-span-7 lg:col-span-8">
           <div className="border border-border bg-surface/40 p-10 text-center text-[12px] text-paper-muted">
-            Loading dispatches...
+            {pollError ? `Could not load dispatches: ${pollError} Retrying...` : "Loading dispatches..."}
           </div>
         </section>
       </div>
@@ -246,6 +218,7 @@ export function DispatchList() {
 
   return (
     <div className="grid grid-cols-12 gap-6">
+      {pollError && <p role="status" className="col-span-12 text-sm text-alert">Could not refresh dispatches: {pollError} Retrying...</p>}
       {/* List */}
       <aside className="col-span-12 md:col-span-5 lg:col-span-4">
         <div className="border border-border bg-surface/40">
@@ -436,7 +409,7 @@ export function DispatchList() {
 
             {/* Log */}
             <LogViewer log={detail.log} isRunning={detail.status === "running"} logRef={logRef} onScroll={onLogScroll} />
-            <DraftPreview dispatchId={detail.id} repoUrl={detail.repo_url} />
+            {detail.mode !== "agentic" && <DraftPreview key={detail.id} dispatchId={detail.id} repoUrl={detail.repo_url} />}
           </div>
         ) : (
           <div className="border border-border bg-surface/40 p-10 text-center text-[12px] text-paper-muted">

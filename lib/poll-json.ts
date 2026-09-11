@@ -1,6 +1,6 @@
 /** Serial polling with a deadline and cleanup for each mounted consumer. */
 export function pollJson<T>(
-  url: string,
+  url: string | (() => string),
   receive: (result: { data: T; error: null } | { data: null; error: string }) => void,
   intervalMs = 0,
   timeoutMs = 30_000,
@@ -12,7 +12,7 @@ export function pollJson<T>(
     controller = new AbortController();
     const deadline = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await fetch(url, { cache: "no-store", signal: controller.signal });
+      const response = await fetch(typeof url === "function" ? url() : url, { cache: "no-store", signal: controller.signal });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json() as T;
       if (!stopped) receive({ data, error: null });

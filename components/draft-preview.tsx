@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { StatusChip } from "./status-dot";
 import { IconArrow, IconExternal, IconTrigger } from "./icons";
 import { cn } from "@/lib/utils";
+import { pollJson } from "@/lib/poll-json";
 
 type FileChange = {
   path: string;
@@ -38,52 +39,24 @@ export function DraftPreview({
   const [result, setResult] = useState<{ tone: "ok" | "alert"; msg: string } | null>(null);
   const router = useRouter();
 
-  // Poll for drafts
-  useEffect(() => {
-    let live = true;
-    async function tick() {
-      try {
-        const res = await fetch(`/api/dispatches/${dispatchId}/drafts`, { cache: "no-store" });
-        const data = await res.json();
-        if (!live) return;
-        const list = data.drafts ?? [];
-        setDrafts(list);
-        if (!selectedIssue && list[0]) setSelectedIssue(list[0].issue_number);
-      } catch {
-        /* ignore */
-      }
-    }
-    tick();
-    const id = setInterval(tick, 2500);
-    return () => {
-      live = false;
-      clearInterval(id);
-    };
-  }, [dispatchId, selectedIssue]);
+  useEffect(() => pollJson<{ drafts?: Array<{ issue_number: number; title: string }> }>(
+    `/api/dispatches/${dispatchId}/drafts`,
+    ({ data }) => {
+      if (!data) return;
+      const list = data.drafts ?? [];
+      setDrafts(list);
+      setSelectedIssue((current) => current ?? list[0]?.issue_number ?? null);
+    }, 2500,
+  ), [dispatchId]);
 
-  // Load selected draft
   useEffect(() => {
+    setDraft(null);
     if (!selectedIssue) return;
-    let live = true;
-    (async () => {
-      try {
-        const res = await fetch(
-          `/api/dispatches/${dispatchId}/drafts?issue=${selectedIssue}`,
-          { cache: "no-store" },
-        );
-        if (!res.ok) return;
-        const d: Draft = await res.json();
-        if (live) {
-          setDraft(d);
-          setSelectedFile(0);
-        }
-      } catch {
-        /* ignore */
-      }
-    })();
-    return () => {
-      live = false;
-    };
+    return pollJson<Draft>(`/api/dispatches/${dispatchId}/drafts?issue=${selectedIssue}`, ({ data }) => {
+      if (!data) return;
+      setDraft(data);
+      setSelectedFile(0);
+    });
   }, [dispatchId, selectedIssue]);
 
   async function approve() {

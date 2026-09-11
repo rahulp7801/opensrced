@@ -49,10 +49,10 @@ try {
     const url = new URL(route.request().url());
     if (url.pathname === '/api/run/agentic') {
       submissions.push(route.request().postDataJSON());
-      return route.fulfill({ status: 202, json: { dispatch_id: 'test-preview' } });
+      return route.fulfill({ status: 202, json: { dispatch_id: submissions.length === 1 ? 'test-retry' : 'test-preview' } });
     }
     if (url.pathname === '/api/dispatches') return route.fulfill({ json: { dispatches: [run] } });
-    if (url.pathname === '/api/dispatches/test-preview') return route.fulfill({ json: run });
+    if (url.pathname === '/api/dispatches/test-preview' || url.pathname === '/api/dispatches/test-retry') return route.fulfill({ json: { ...run, id: url.pathname.split('/').at(-1) } });
     if (url.pathname === '/api/issues/suggested') return route.fulfill({ json: { issues: [], filteredOut: 0 } });
     if (url.pathname === '/api/issues/scan') return route.fulfill({ json: { repo: 'acme/app', total: 1, solvable: 1, issues: [{ number: 1, title: 'Fix parser error', body: 'Fix the parser.', labels: ['bug'], url: 'https://github.com/acme/app/issues/1', author: 'test', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), comments: 0, category: 'bug', severity: 'low', complexity: 1, est_minutes: 5, solvable: true, reason: 'Small fix', scope: { bucket: 'leaf', confidence: 'high', files: ['parser.ts'], symbols: [], reason: 'Parser file' } }] } });
     if (url.pathname === '/api/settings/keys') {
@@ -69,7 +69,7 @@ try {
     page.waitForResponse(response => response.url().endsWith('/api/run/agentic')),
     page.getByRole('button', { name: 'retry', exact: true }).click(),
   ]);
-  await page.waitForURL('**/dispatches?dispatch=test-preview');
+  await page.waitForURL('**/dispatches?dispatch=test-retry');
   assert.equal(submissions.length, 1);
   assert.equal(submissions[0].dry_run, true, 'retry must preserve preview');
   assert.equal(submissions[0].issue_number, 1);

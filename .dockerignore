@@ -7,3 +7,8 @@ mcp-server/node_modules
 .fixes
 .env
 .env.local
+.env*.local
+*.pem
+.npm-cache
+.audit-*.json
+.security-tools

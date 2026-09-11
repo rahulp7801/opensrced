@@ -1,0 +1,5 @@
+# Historical demo log strings containing only the literal token prefix ghs_.
+ef6ea9fc6249f7bf27319f496c09dc5f5b0716d5:app/demo/page.tsx:generic-api-key:578
+e8ffe8633c1ba6fc603f47ef56bea822f1d0b398:app/demo/page.tsx:generic-api-key:505
+# Historical webhook URL-format fixture; each token segment explicitly says fake.
+d3449c4f6a8b8f5cb91c917010764ae7a273d98b:ContribAI/crates/contribai-rs/tests/notifications_scheduler.rs:slack-webhook-url:17

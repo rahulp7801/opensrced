@@ -65,3 +65,6 @@ venv/
 
 # Test build output
 .test-build/
+.npm-cache/
+.audit-*.json
+.security-tools/

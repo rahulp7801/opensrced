@@ -34,7 +34,7 @@ export function ApiKeyGate({ localMode = false }: { localMode?: boolean }) {
   if (!KEY_REQUIRED_PAGES.some((p) => pathname === p || pathname.startsWith(p + "/"))) return null;
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-b border-signal/40 bg-signal/5 px-4 py-2.5 text-[12px]">
+    <aside aria-label="Provider setup" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-b border-signal/40 bg-signal/5 px-4 py-2.5 text-[12px]">
       <span className="font-medium text-signal">Anthropic key required</span>
       <span className="hidden text-paper-muted md:inline">
         Add your Anthropic key to start an AI run. Gemini review is optional.
@@ -45,6 +45,6 @@ export function ApiKeyGate({ localMode = false }: { localMode?: boolean }) {
       >
         Open settings
       </Link>
-    </div>
+    </aside>
   );
 }

@@ -59,6 +59,7 @@ export default function DemoPage() {
                   role="tab"
                   aria-selected={selected}
                   aria-controls={`demo-${demo.key}`}
+                  aria-label={demo.label}
                   tabIndex={selected ? 0 : -1}
                   onClick={() => setActiveDemo(demo.key)}
                   onKeyDown={(event) => moveTab(event, index)}

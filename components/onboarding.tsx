@@ -95,7 +95,7 @@ export function Onboarding({ localMode = false }: { localMode?: boolean }) {
   }
 
   return (
-    <div className="border-b border-border bg-surface/40">
+    <aside aria-label="Account setup" className="border-b border-border bg-surface/40">
       <div className="mx-auto grid max-w-[1200px] grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 px-5 py-3 sm:grid-cols-[auto_1fr_auto_auto] sm:gap-4 sm:px-8">
         <span className="col-start-1 row-start-1 shrink-0 text-[11px] font-medium uppercase tracking-[0.12em] text-signal sm:col-start-auto sm:row-start-auto">
           Step {currentStepNumber} of {STEPS.length}
@@ -127,6 +127,6 @@ export function Onboarding({ localMode = false }: { localMode?: boolean }) {
           <IconClose size={15} />
         </button>
       </div>
-    </div>
+    </aside>
   );
 }

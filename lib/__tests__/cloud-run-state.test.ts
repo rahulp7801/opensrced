@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { newCloudRunId, ownerPrefix, runPath, runLogChunk, runIsActive, type CloudRun } from "../cloud-run-state";
+import { newCloudRunId, ownerPrefix, runPath, runLogChunk, runIsActive, validCloudRun, type CloudRun } from "../cloud-run-state";
 
 test("run storage paths are scoped to authenticated owners and reject traversal", () => {
   const id = newCloudRunId();
@@ -23,4 +23,31 @@ test("incremental cloud logs use byte offsets and reset after truncation", () =>
   assert.equal(runLogChunk(run, 106).log, "world");
   assert.equal(runLogChunk(run, 0).log_reset, true);
   assert.equal(runLogChunk(run, 111).log, "");
+});
+
+test("hosted run records are bound to their owner, id, sandbox, and bounded log shape", () => {
+  const id = "c_1767225600000_abcdef123456";
+  const run = {
+    id,
+    auth0_user_id: "alice",
+    repo_url: "https://github.com/acme/app",
+    mode: "agentic",
+    dry_run: true,
+    started_at: "2026-01-01T00:00:00.000Z",
+    status: "running",
+    log_path: "",
+    sandbox_name: "c-1767225600000-abcdef123456",
+    expires_at: Date.now() + 60_000,
+    log: "working\n",
+    log_size: 8,
+  };
+  assert.equal(validCloudRun(run, "alice", id), true);
+  for (const changed of [
+    { auth0_user_id: "bob" },
+    { sandbox_name: "another-worker" },
+    { status: "complete" },
+    { log_path: "/tmp/private.log" },
+    { log_size: 1 },
+    { expires_at: Number.NaN },
+  ]) assert.equal(validCloudRun({ ...run, ...changed }, "alice", id), false);
 });

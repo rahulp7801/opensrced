@@ -3,7 +3,7 @@ import { generateClientTokenFromReadWriteToken } from "@vercel/blob/client";
 import { Sandbox } from "@vercel/sandbox";
 import type { FindingInput, StartAgenticOpts } from "./agentic-dispatcher";
 import { CapacityError } from "./concurrency";
-import { CloudRun, newCloudRunId, ownerPrefix, runIsActive, runPath } from "./cloud-run-state";
+import { CloudRun, newCloudRunId, ownerPrefix, runIsActive, runPath, validCloudRun } from "./cloud-run-state";
 
 const TTL = 45 * 60_000;
 import { readJson, updateJson, privateJsonOptions as writeOptions } from "./blob-store";
@@ -18,7 +18,9 @@ async function reserveCapacity(path: string, expires: number): Promise<string> {
     const key = `capacity/${slot}.json`;
     const lease = await readJson<{ path: string; expires: number }>(key);
     if (lease && lease.value.expires > Date.now()) {
-      const previous = await readJson<CloudRun>(lease.value.path);
+      let previous: Awaited<ReturnType<typeof readJson<CloudRun>>>;
+      try { previous = await readJson<CloudRun>(lease.value.path); }
+      catch { continue; }
       if (!previous) continue;
       if (runIsActive(previous.value) && !await readJson(`cancelled/${previous.value.id}.json`)) continue;
     }
@@ -80,8 +82,10 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
 
 export async function getCloudRun(owner: string, id: string): Promise<CloudRun | null> {
   if (!/^c_\d{13}_[a-f0-9]{12}$/.test(id)) return null;
-  const found = await readJson<CloudRun>(runPath(owner, id));
-  if (!found || found.value.id !== id || found.value.auth0_user_id !== owner) return null;
+  let found: Awaited<ReturnType<typeof readJson<CloudRun>>>;
+  try { found = await readJson<CloudRun>(runPath(owner, id)); }
+  catch { return null; }
+  if (!found || !validCloudRun(found.value, owner, id)) return null;
   const run = found.value;
   if (await readJson(`cancelled/${id}.json`)) return { ...run, status: "killed", pr_status: "none" };
   if (run.expires_at <= Date.now() && (run.status === "running" || run.pr_status === "pending")) {

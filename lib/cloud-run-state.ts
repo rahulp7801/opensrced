@@ -8,6 +8,25 @@ export type CloudRun = DispatchRecord & {
   log_size: number;
 };
 
+const RUN_STATUSES = new Set(["running", "succeeded", "failed", "killed"]);
+const PR_STATUSES = new Set(["opened", "failed", "pending", "tests_passed", "tests_failed", "none"]);
+const TEST_STATUSES = new Set(["passed", "failed", "skipped", "not_run"]);
+
+export function validCloudRun(value: unknown, owner: string, id: string): value is CloudRun {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const run = value as Partial<CloudRun>;
+  return run.id === id && run.auth0_user_id === owner &&
+    run.sandbox_name === id.replaceAll("_", "-") && run.mode === "agentic" && run.log_path === "" &&
+    typeof run.repo_url === "string" && run.repo_url.length > 0 && run.repo_url.length <= 500 &&
+    typeof run.dry_run === "boolean" && typeof run.started_at === "string" && Number.isFinite(Date.parse(run.started_at)) &&
+    typeof run.status === "string" && RUN_STATUSES.has(run.status) &&
+    (run.pr_status === undefined || PR_STATUSES.has(run.pr_status)) &&
+    (run.tests === undefined || TEST_STATUSES.has(run.tests)) &&
+    typeof run.expires_at === "number" && Number.isFinite(run.expires_at) && run.expires_at > 0 &&
+    typeof run.log === "string" && typeof run.log_size === "number" && Number.isSafeInteger(run.log_size) &&
+    run.log_size >= Buffer.byteLength(run.log);
+}
+
 export function cloudExecution(): boolean {
   return process.env.VERCEL === "1" || process.env.OPENSRCER_EXECUTION === "sandbox";
 }

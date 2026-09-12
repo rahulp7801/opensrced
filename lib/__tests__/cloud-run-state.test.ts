@@ -47,6 +47,8 @@ test("hosted run records are bound to their owner, id, sandbox, and bounded log 
     { sandbox_name: "another-worker" },
     { status: "complete" },
     { log_path: "/tmp/private.log" },
+    { repo_url: "acme/app" },
+    { repo_url: "https://example.com/acme/app" },
     { log_size: 1 },
     { log: "x".repeat(250_001), log_size: 250_001 },
     { issue_number: -1 },

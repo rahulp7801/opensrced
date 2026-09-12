@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { DispatchRecord } from "./dispatch-store";
+import { parseRunTarget } from "./run-target";
 
 export type CloudRun = DispatchRecord & {
   sandbox_name: string;
@@ -13,12 +14,18 @@ const PR_STATUSES = new Set(["opened", "failed", "pending", "tests_passed", "tes
 const TEST_STATUSES = new Set(["passed", "failed", "skipped", "not_run"]);
 const MAX_STORED_LOG_BYTES = 250_000;
 
+function isCanonicalRepoUrl(value: unknown): value is string {
+  if (typeof value !== "string" || value.length > 500) return false;
+  try { return value === `https://github.com/${parseRunTarget(value).repo}`; }
+  catch { return false; }
+}
+
 export function validCloudRun(value: unknown, owner: string, id: string): value is CloudRun {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const run = value as Partial<CloudRun>;
   return run.id === id && run.auth0_user_id === owner &&
     run.sandbox_name === id.replaceAll("_", "-") && run.mode === "agentic" && run.log_path === "" &&
-    typeof run.repo_url === "string" && run.repo_url.length > 0 && run.repo_url.length <= 500 &&
+    isCanonicalRepoUrl(run.repo_url) &&
     (run.issue_number === undefined || (Number.isSafeInteger(run.issue_number) && run.issue_number! >= 0)) &&
     (run.issue_title === undefined || (typeof run.issue_title === "string" && run.issue_title.length <= 500)) &&
     typeof run.dry_run === "boolean" && typeof run.started_at === "string" && Number.isFinite(Date.parse(run.started_at)) &&

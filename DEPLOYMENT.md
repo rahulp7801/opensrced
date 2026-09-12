@@ -96,16 +96,18 @@ ships a safe dependency. Both package lockfiles must remain committed.
 
 ## Acceptance evidence (September 12, 2026)
 
-Application commit `0cde033` passed the full GitHub CI workflow. The earlier
-`62887db` baseline also completed a local production acceptance pass:
+Application commit `818a79e` passed the full GitHub CI and CodeQL workflows.
+The production acceptance evidence now includes:
 
-- 120 application tests, MCP tests, app/worker type checks, and production build.
+- 136 application tests, MCP tests, app/worker type checks, dependency audits,
+  the real restricted Claude CLI, and the optimized production build.
 - The production Docker image built on a Linux runner, booted as its non-root
   user, reported every required runtime dependency healthy, and passed the HTTP
   production smoke suite from inside the container.
-- Browser checks at desktop/mobile widths: login prompts, settings recovery,
-  repository pagination/retry, issue previews, PR review, graph interactions,
-  demo transitions, and cancellation error recovery.
+- Browser checks across 14 public and authenticated page states at desktop and
+  mobile widths: login prompts, settings recovery, repository pagination/retry,
+  issue previews, PR review, graph interactions, demo transitions, and
+  cancellation error recovery. Serious and critical Axe findings are gated.
 - PR checks include the actual head repository as the push target, no automatic
   write retries, recoverable diff errors, single comment submission, and fresh
   follow-up state for each generated fix. Browser mutations use mocked APIs.
@@ -117,7 +119,7 @@ Application commit `0cde033` passed the full GitHub CI workflow. The earlier
   comments, and diffs. The PR head repository matched GitHub's source metadata.
   This used the existing local GitHub credential in memory and a local session
   fixture, with no GitHub writes or paid provider requests.
-- 200 health requests at concurrency 20 completed with local p95 217 ms. This is
+- 200 health requests at concurrency 20 completed with local p95 163 ms. This is
   a smoke result, not an authenticated workload or production capacity estimate.
 - Full-history secret scanning passed; GitHub reported zero secret-scanning
   alerts. The real pinned Claude CLI exposed nine read-only MCP tools and no

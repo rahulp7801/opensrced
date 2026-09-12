@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { SiteHeader } from "@/components/header";
@@ -23,10 +23,22 @@ const mono = JetBrains_Mono({
   display: "swap",
 });
 
+const title = "opensrcer | Review your next contribution";
+const description = "Find an issue, explore the code, and review an AI-generated patch before opening a pull request.";
+
 export const metadata: Metadata = {
-  title: "opensrcer | Review your next contribution",
-  description:
-    "Find an issue, explore the code, and review an AI-generated patch before opening a pull request.",
+  title,
+  description,
+  applicationName: "opensrcer",
+  openGraph: { type: "website", title, description },
+  twitter: { card: "summary", title, description },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  colorScheme: "dark",
+  themeColor: "#101113",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

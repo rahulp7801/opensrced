@@ -109,6 +109,12 @@ try {
       '/auth/login?returnTo=%2F',
       'login return target must stay on this application',
     );
+    await page.goto(base + '/login?returnTo=%2F%5Cevil.example');
+    assert.equal(
+      await page.getByRole('link', { name: 'Continue with GitHub', exact: true }).getAttribute('href'),
+      '/auth/login?returnTo=%2F',
+      'backslash login return target must stay on this application',
+    );
     assert.deepEqual(authNavigations, [], 'login/logout must not be prefetched');
     await context.close();
   }

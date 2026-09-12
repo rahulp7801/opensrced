@@ -1,11 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { authConfigured } from "@/lib/auth-config";
-
-function safeReturnTo(value: string | undefined): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.length > 2048) return "/";
-  return value;
-}
+import { safeReturnTo } from "@/lib/safe-return-to";
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ returnTo?: string }> }) {
   const params = await searchParams;

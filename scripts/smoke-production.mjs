@@ -2,9 +2,18 @@ import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 const base = process.env.SMOKE_BASE_URL || 'http://localhost:3100';
 const paths = ['/', '/login', '/trigger', '/issues', '/dispatches', '/stats'];
+const securityHeaders = {
+  'content-security-policy': "frame-ancestors 'self'",
+  'permissions-policy': 'camera=(), microphone=(), geolocation=()',
+  'referrer-policy': 'strict-origin-when-cross-origin',
+  'strict-transport-security': 'max-age=31536000; includeSubDomains',
+  'x-content-type-options': 'nosniff',
+  'x-frame-options': 'SAMEORIGIN',
+};
 for (const path of paths) {
   const response = await fetch(base + path, { redirect: 'manual', signal: AbortSignal.timeout(15000) });
   assert.equal(response.status, 200, path);
+  for (const [name, value] of Object.entries(securityHeaders)) assert.equal(response.headers.get(name), value, `${path} ${name}`);
   await response.text();
 }
 for (const path of ['/api/dispatches', '/api/settings/keys', '/api/activity']) {

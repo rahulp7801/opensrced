@@ -107,9 +107,6 @@ type LogRecord = {
 };
 
 // Regexes for the markers we drop into the log.
-// Pick up *any* GitHub PR URL as a fallback for the deterministic (contribai)
-// path, which prints them with varied wording.
-const PR_URL_RE = /https?:\/\/github\.com\/([^/\s]+\/[^/\s]+)\/pull\/(\d+)/;
 const REPO_RE = /repo:\s*(\S+)\s/;
 const ISSUE_RE = /issue:\s*#?(\d+)/;
 const EXIT_RE = /exited at\s+(\S+)\s+·\s+status=(\w+)/;

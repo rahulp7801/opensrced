@@ -2,7 +2,7 @@
 // a knowledge graph. Used by both the /api/graph/generate route (with
 // streaming progress) and the verify route (silent, blocking).
 
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { graphCacheDir, graphJsonPath } from "./graph";
@@ -150,7 +150,7 @@ function execAsync(
       if (!proc.killed && proc.pid) {
         if (process.platform === "win32") {
           try {
-            require("node:child_process").execFileSync(
+            execFileSync(
               "taskkill",
               ["/F", "/T", "/PID", String(proc.pid)],
               { stdio: "pipe" },

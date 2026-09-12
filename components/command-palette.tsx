@@ -7,10 +7,6 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   IconArrow,
-  IconOverview,
-  IconPrs,
-  IconRepos,
-  IconRuns,
   IconTrigger,
   IconSearch,
   IconPulse,

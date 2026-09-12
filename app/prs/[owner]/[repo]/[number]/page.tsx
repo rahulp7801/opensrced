@@ -189,7 +189,6 @@ export default function PrDetailPage() {
     return () => { diffRequest.current?.abort(); diffRequest.current = null; };
   }, [repoFull, prNumber]);
   const [diffViewMode, setDiffViewMode] = useState<"unified" | "split">("unified");
-  const [diffPopout, setDiffPopout] = useState(false);
 
   // Comment status tracking
   const [commentStatuses, setCommentStatuses] = useState<Map<number, CommentStatus>>(new Map());
@@ -396,7 +395,7 @@ export default function PrDetailPage() {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [actionableComments, focusedComment, isFixing, writesPending, showReplyFor, showDiff, prDiff]);
+  });
 
   // ── Lazy-load diff ─────────────────────────────────────────────────
 
@@ -660,7 +659,7 @@ export default function PrDetailPage() {
         setPushMessage(msg);
         toast("Push failed — see details below", "alert");
       }
-    } catch (err) {
+    } catch {
       setPushState("error");
       setPushMessage("The push result could not be confirmed. Check the branch on GitHub before retrying.");
       toast("Push failed — network error", "alert");
@@ -1080,7 +1079,7 @@ export default function PrDetailPage() {
               </div>
             )}
 
-            {comments.map((c, idx) => {
+            {comments.map((c) => {
               const replySt = replyStates.get(c.id);
               const status = commentStatuses.get(c.id) ?? "pending";
               const isFocused = actionableComments[focusedComment]?.id === c.id;

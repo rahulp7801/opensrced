@@ -253,8 +253,14 @@ function DiffView({ file }: { file: FileChange }) {
       i++;
     } else {
       // Fall back: emit both
-      if (a !== undefined) rows.push({ kind: "del", content: a, n: n++ }), i++;
-      if (b !== undefined) rows.push({ kind: "add", content: b, n: n++ }), j++;
+      if (a !== undefined) {
+        rows.push({ kind: "del", content: a, n: n++ });
+        i++;
+      }
+      if (b !== undefined) {
+        rows.push({ kind: "add", content: b, n: n++ });
+        j++;
+      }
     }
     if (rows.length > maxLines * 2 + 20) break; // safety
   }

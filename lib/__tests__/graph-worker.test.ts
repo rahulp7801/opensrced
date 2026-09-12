@@ -6,7 +6,7 @@ import { mkdir, writeFile, readFile, mkdtemp, rm, access } from "node:fs/promise
 import { join, resolve, dirname, basename } from "node:path";
 import { tmpdir } from "node:os";
 
-test("graph parsing removes tracked links and writes only to fresh generated output", async t => {
+test("graph parsing removes tracked links and writes only to fresh generated output", async () => {
   const outside = await mkdtemp(join(tmpdir(), "opensrcer-graph-boundary-"));
   await writeFile(join(outside, "sentinel"), "unchanged");
   let source = "", parserCalls = 0;

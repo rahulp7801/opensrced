@@ -6,7 +6,7 @@
 // Uses `gitleaks dir <path>` (no git history scan — we only care about
 // the current working tree state after the patch is applied).
 
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { childEnv } from "./child-env";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
@@ -43,7 +43,7 @@ function resolveGitleaksBin(): string | null {
   const names = process.platform === "win32" ? ["gitleaks.exe", "gitleaks"] : ["gitleaks"];
   for (const name of names) {
     try {
-      require("node:child_process").execFileSync(name, ["version"], {
+      execFileSync(name, ["version"], {
         stdio: "pipe",
         timeout: 5000,
       });
@@ -90,7 +90,7 @@ export async function scanSecrets(
   }
 
   try {
-    const { stdout } = await execFileAsync(
+    await execFileAsync(
       bin,
       [
         "dir",

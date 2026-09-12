@@ -11,7 +11,13 @@ test("PR pushes use the user's identity, preserve unrelated files, and block a f
   const remote = join(root, "remote.git");
   const seed = join(root, "seed");
   const git = (args: string[]) => childProcess.execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
-  const originalExecFile = childProcess.execFile;
+    const originalExecFile = childProcess.execFile;
+    const callOriginal = originalExecFile as unknown as (
+      command: string,
+      args: string[],
+      options: unknown,
+      callback: unknown,
+    ) => childProcess.ChildProcess;
   try {
     git(["init", "--bare", remote]);
     mkdirSync(seed);
@@ -24,7 +30,7 @@ test("PR pushes use the user's identity, preserve unrelated files, and block a f
     // Redirect only the clone to a local bare repository. No network or real PR.
     childProcess.execFile = ((cmd: string, args: string[], options: unknown, callback: unknown) => {
       const redirected = args.map(arg => arg === "https://github.com/acme/app.git" ? remote : arg);
-      return (originalExecFile as Function)(cmd, redirected, options, callback);
+      return callOriginal(cmd, redirected, options, callback);
     }) as typeof childProcess.execFile;
     Object.defineProperty(childProcess.execFile, promisify.custom, { value: (cmd: string, args: string[], options: object) => new Promise((resolve, reject) => {
       childProcess.execFile(cmd, args, options, (error, stdout, stderr) => error ? reject(error) : resolve({ stdout, stderr }));

@@ -17,7 +17,6 @@ export function SolveButton({
   cveId,
   affectedPackage,
   affectedVersions,
-  repoSizeKb,
 }: {
   repoFull: string;
   kind: "advisory" | "dependabot" | "issue";
@@ -28,7 +27,6 @@ export function SolveButton({
   cveId?: string;
   affectedPackage?: string;
   affectedVersions?: string;
-  repoSizeKb?: number;
 }) {
   const router = useRouter();
   const [state, setState] = useState<"idle" | "pending" | "error">("idle");

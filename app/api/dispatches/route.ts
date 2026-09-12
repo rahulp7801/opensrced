@@ -19,7 +19,12 @@ export async function GET() {
   }
   if (cloudExecution()) {
     const runs = await listCloudRuns(viewerId, 20);
-    return NextResponse.json({ dispatches: runs.map(({ log, ...run }) => run) });
+    const dispatches = runs.map((run) => {
+      const summary = { ...run } as Partial<typeof run>;
+      delete summary.log;
+      return summary;
+    });
+    return NextResponse.json({ dispatches });
   }
   return NextResponse.json({ dispatches: listDispatches(viewerId) });
 }

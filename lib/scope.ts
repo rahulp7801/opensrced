@@ -124,7 +124,7 @@ function extractPaths(text: string): string[] {
 function extractSymbols(text: string): string[] {
   const out = new Map<string, number>();
   for (const m of text.matchAll(SYMBOL_RE)) {
-    let tok = m[1].replace(/\s*\($/, "").trim();
+    const tok = m[1].replace(/\s*\($/, "").trim();
     if (tok.length < 3 || tok.length > 64) continue;
     const low = tok.toLowerCase();
     if (STOPWORDS.has(low)) continue;

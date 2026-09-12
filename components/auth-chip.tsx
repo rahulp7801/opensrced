@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- OAuth avatar hosts are user-controlled. */
+
 import Link from "next/link";
 import { useUser } from "@auth0/nextjs-auth0";
 

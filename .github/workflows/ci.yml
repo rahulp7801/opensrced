@@ -44,6 +44,9 @@ jobs:
       - name: Typecheck app
         run: npm run typecheck
 
+      - name: Lint app
+        run: npm run lint
+
       - name: Test
         run: npm test
 
@@ -60,12 +63,6 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/claude-runtime" --no-save @anthropic-ai/claude-code@2.1.269
           CLAUDE_BIN="$RUNNER_TEMP/claude-runtime/node_modules/.bin/claude" node scripts/smoke-worker-tools.mjs
-
-      # No lint step: this repo has no ESLint config, so `next lint` drops into
-      # an interactive setup prompt and would hang the job. (It's also
-      # deprecated in Next 15 and gone in 16.) Add `eslint.config.mjs` and a
-      # step here if you want linting — `tsc --noEmit` above is the current
-      # static check.
 
       # The Next build needs an AUTH0_SECRET present to import lib/api-keys.
       # A throwaway value is fine — nothing is decrypted at build time.

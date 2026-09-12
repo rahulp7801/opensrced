@@ -3,8 +3,6 @@
 // cached installation token if (and only if) the user has a verified
 // mapping for that org.
 
-import { execFileSync, type ExecFileSyncOptions } from "node:child_process";
-import { existsSync } from "node:fs";
 import { getInstallationToken } from "./github-app";
 import { mappingForOrg } from "./orgs";
 

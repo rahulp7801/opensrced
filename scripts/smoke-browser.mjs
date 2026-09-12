@@ -232,6 +232,9 @@ try {
   }
   assert.equal(submissions.length, 3);
   await page.goto(base + '/trigger');
+  await page.getByRole('heading', { name: 'Before you start', exact: true }).waitFor();
+  assert.equal(await page.getByText('No runs yet.', { exact: false }).count(), 0, 'new-run page must not show ephemeral history');
+  assert.equal(await page.getByRole('link', { name: 'View run history', exact: true }).getAttribute('href'), '/dispatches');
   const triggerInput = page.getByLabel('Repository', { exact: true });
   await triggerInput.fill('https://github.com/acme/app/issues/1');
   const triggerRequests = submissions.length;

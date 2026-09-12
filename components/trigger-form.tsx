@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
@@ -31,9 +32,6 @@ export function TriggerForm() {
   const [dryRun, setDryRun] = useState(true);
   const [notes, setNotes] = useState("");
   const [state, setState] = useState<SubmitState>({ kind: "idle" });
-  const [log, setLog] = useState<
-    Array<{ t: string; repo: string; mode: string; status: "queued" | "error" }>
-  >([]);
 
   // Pre-fill from URL params (e.g. ?repo=owner/name&issue=123&try=1)
   useEffect(() => {
@@ -84,17 +82,6 @@ export function TriggerForm() {
         mode: data.mode ?? (dryRun ? "dry-run" : "live"),
         dispatch_id: dispatchId,
       });
-      setLog((prev) =>
-        [
-          {
-            t: new Date().toISOString().slice(11, 19),
-            repo: repoUrl.trim(),
-            mode: dryRun ? "dry-run" : "live",
-            status: "queued" as const,
-          },
-          ...prev,
-        ].slice(0, 12),
-      );
       toast("Run started — opening the live view...", "ok");
       setRepoUrl("");
       setNotes("");
@@ -108,17 +95,6 @@ export function TriggerForm() {
         : err instanceof Error ? err.message : String(err);
       setState({ kind: "err", message: friendlyError(msg) });
       toast(friendlyError(msg), "alert");
-      setLog((prev) =>
-        [
-          {
-            t: new Date().toISOString().slice(11, 19),
-            repo: repoUrl.trim() || "—",
-            mode: dryRun ? "dry-run" : "live",
-            status: "error" as const,
-          },
-          ...prev,
-        ].slice(0, 12),
-      );
     }
   }
 
@@ -232,40 +208,26 @@ export function TriggerForm() {
       </form>
 
       <aside className="col-span-12 overflow-hidden rounded-md border border-border bg-surface p-0 lg:col-span-4">
-        <div className="flex items-center justify-between border-b border-border px-4 py-2">
-          <span className="mono-label text-paper-muted">Run history</span>
-          <span className="mono-label text-paper-muted tabular-nums">
-            {log.length.toString().padStart(2, "0")}
-          </span>
+        <div className="border-b border-border px-4 py-3">
+          <h2 className="text-sm font-medium text-paper">Before you start</h2>
         </div>
-        {log.length === 0 ? (
-          <div className="p-6 text-[12px] text-paper-muted">
-            No runs yet. Start your first run to see history here.
-          </div>
-        ) : (
-          <ul>
-            {log.map((l, i) => (
-              <li
-                key={i}
-                className={`flex items-center gap-3 px-4 py-2.5 text-[12px] ${i > 0 ? "border-t border-border-soft" : ""}`}
-              >
-                <span className="mono-label text-paper-muted tabular-nums">{l.t}</span>
-                <span
-                  className={cn(
-                    "inline-flex items-center justify-center h-4 w-4 text-xs",
-                    l.status === "queued" ? "text-ok" : "text-alert",
-                  )}
-                  role="img"
-                  aria-label={l.status}
-                >
-                  {l.status === "queued" ? "+" : "x"}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-paper">{l.repo}</span>
-                <span className="mono-label text-paper-muted">{l.mode}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <ol className="divide-y divide-border-soft px-4">
+          {[
+            "Use an issue URL to start a worker. Repository URLs open the issue scanner.",
+            "Preview creates a patch for review without publishing it.",
+            "Live mode can open a draft PR and requires GitHub write access.",
+          ].map((item, index) => (
+            <li key={item} className="grid grid-cols-[1.5rem_1fr] gap-2 py-4 text-xs leading-5 text-paper-muted">
+              <span className="font-mono text-paper-faint">{String(index + 1).padStart(2, "0")}</span>
+              <span>{item}</span>
+            </li>
+          ))}
+        </ol>
+        <div className="border-t border-border px-4 py-3">
+          <Link href="/dispatches" className="text-xs text-signal hover:underline">
+            View run history <span aria-hidden>→</span>
+          </Link>
+        </div>
       </aside>
     </div>
   );

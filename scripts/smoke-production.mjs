@@ -39,6 +39,46 @@ await missingFix.text();
 const sharedFixPage = await fetch(`${base}/fix/${missingFixId}`, { signal: AbortSignal.timeout(15000) });
 assert.equal(sharedFixPage.status, 200);
 assert.match(await sharedFixPage.text(), /<meta name="robots" content="noindex, nofollow"/);
+
+const privateCruciblePage = await fetch(`${base}/crucible/orgs/smoke-test`, {
+  redirect: 'manual',
+  signal: AbortSignal.timeout(15000),
+});
+assert.equal(privateCruciblePage.status, 307);
+const privateCrucibleLocation = new URL(privateCruciblePage.headers.get('location'), base);
+assert.equal(privateCrucibleLocation.pathname, '/login');
+assert.equal(privateCrucibleLocation.searchParams.get('returnTo'), '/crucible/orgs/smoke-test');
+await privateCruciblePage.text();
+
+async function load(path, expectedStatus, requests, concurrency) {
+  const latencies = [];
+  let completed = 0;
+  await Promise.all(Array.from({length: concurrency}, async (_, worker) => {
+    for (let i = worker; i < requests; i += concurrency) {
+      const start = performance.now();
+      const response = await fetch(base + path, {
+        redirect: 'manual',
+        signal: AbortSignal.timeout(15000),
+      });
+      assert.equal(response.status, expectedStatus, path);
+      await response.arrayBuffer();
+      latencies.push(performance.now() - start);
+      completed++;
+    }
+  }));
+  latencies.sort((a, b) => a - b);
+  return {
+    requests: completed,
+    p50Ms: Math.round(latencies[Math.floor(latencies.length * 0.5)]),
+    p95Ms: Math.round(latencies[Math.floor(latencies.length * 0.95)]),
+    maxMs: Math.round(latencies.at(-1)),
+  };
+}
+
+const [landingLoad, authBoundaryLoad] = await Promise.all([
+  load('/', 200, 60, 12),
+  load('/api/dispatches', 401, 60, 12),
+]);
 const latencies = [];
 let count = 0;
 await Promise.all(Array.from({length: 20}, async () => {
@@ -53,4 +93,4 @@ await Promise.all(Array.from({length: 20}, async () => {
   }
 }));
 latencies.sort((a,b) => a-b);
-console.log(JSON.stringify({pages: paths.length, protectedRequests: 6, healthRequests: count, concurrency: 20, healthP50Ms: Math.round(latencies[100]), healthP95Ms: Math.round(latencies[190]), healthMaxMs: Math.round(latencies.at(-1))}));
+console.log(JSON.stringify({pages: paths.length, protectedRequests: 7, landingLoad, authBoundaryLoad, healthRequests: count, concurrency: 20, healthP50Ms: Math.round(latencies[100]), healthP95Ms: Math.round(latencies[190]), healthMaxMs: Math.round(latencies.at(-1))}));

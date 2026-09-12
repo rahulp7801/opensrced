@@ -26,7 +26,7 @@ assertAuthConfig();
 const AUTH_DISABLED = authDisabled();
 
 // Paths that must remain public regardless of auth state.
-const PUBLIC_PATHS = [
+const PUBLIC_PATHS = new Set([
   // Landing page — public, explains what opensrcer is.
   "/",
   // Liveness probe — must answer without a session so container healthchecks
@@ -49,6 +49,8 @@ const PUBLIC_PATHS = [
   "/trigger",
   "/prs",
   "/repos",
+  // Settings remains an anonymous shell so SessionGate can explain how to
+  // sign in. Its server-rendered organization descendants are protected.
   "/crucible",
   "/demo",
   // Public shared fix viewer + the single-fix read API behind it. The
@@ -57,11 +59,17 @@ const PUBLIC_PATHS = [
   // unguessable-link model of /fix/<id> meaningless. See app/api/fixes.
   "/fix",
   "/api/fixes",
-];
+]);
+
+// Only these routes intentionally expose descendants. Keeping this separate
+// prevents a public shell such as /repos from accidentally making a future
+// server-rendered /repos/<private-data> page public too.
+const PUBLIC_PREFIXES = ["/prs/", "/fix/", "/api/fixes/"];
 
 function isPublic(pathname: string): boolean {
-  return PUBLIC_PATHS.some(
-    (p) => pathname === p || (p !== "/" && pathname.startsWith(p + "/")),
+  return (
+    PUBLIC_PATHS.has(pathname) ||
+    PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
   );
 }
 

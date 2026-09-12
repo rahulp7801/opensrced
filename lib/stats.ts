@@ -163,7 +163,10 @@ async function scanLogs(owner: string): Promise<LogRecord[]> {
     startedAt: run.started_at, costUsd: Number(COST_RE.exec(run.log)?.[1] ?? 0), hasDiff: /```(?:diff|patch)/.test(run.log),
   }));
   if (!existsSync(DISPATCH_DIR)) return [];
-  const dispatches = listDispatches().filter((dispatch) => dispatch.auth0_user_id === owner);
+  const dispatches = listDispatches()
+    .filter((dispatch) => dispatch.auth0_user_id === owner)
+    .sort((a, b) => (b.started_at ?? "").localeCompare(a.started_at ?? ""))
+    .slice(0, 50);
   const records = new Array<LogRecord>(dispatches.length);
   let next = 0;
 
@@ -415,7 +418,7 @@ export async function getStatsSummary(owner: string): Promise<StatsSummary> {
     .slice(0, 20);
 
   return {
-    dispatchWindow: cloudExecution() ? 50 : null,
+    dispatchWindow: 50,
     scans: file.scans,
     discoverRuns: file.discoverRuns,
     dispatches,

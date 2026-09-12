@@ -4,23 +4,23 @@
 import { listAll } from "./dispatch-store";
 import { cloudExecution } from "./cloud-run-state";
 import { listCloudRuns } from "./cloud-runs";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { readLog } from "./dispatcher";
 import type { PullRequest } from "./types";
 
-const DISPATCH_DIR = join(process.cwd(), ".dispatches");
 const PR_URL_RE = /https?:\/\/github\.com\/([^/\s]+\/[^/\s]+)\/pull\/(\d+)/;
 const STARTED_RE = /^\[(?:agentic-)?dispatcher\]\s+(\d{4}-\d{2}-\d{2}T[^\s]+)/m;
 const TITLE_RE = /^##\s+PR title\s*\n+(.+)/m;
 
 export async function loadPRsFromLogs(owner: string): Promise<PullRequest[]> {
   if (!owner) throw new Error("PR owner is required");
-  const records = cloudExecution() ? await listCloudRuns(owner) : listAll().filter(run => run.auth0_user_id === owner);
+  const records = (cloudExecution() ? await listCloudRuns(owner) : listAll().filter(run => run.auth0_user_id === owner))
+    .sort((a, b) => (b.started_at ?? "").localeCompare(a.started_at ?? ""))
+    .slice(0, 100);
   const prs: PullRequest[] = [];
   for (const record of records) {
     if (!record.pr_url) continue;
     try {
-      const text = "log" in record && typeof record.log === "string" ? record.log : await readFile(join(DISPATCH_DIR, `${record.id}.log`), "utf8");
+      const text = "log" in record && typeof record.log === "string" ? record.log : readLog(record.id);
       const prM = PR_URL_RE.exec(record.pr_url);
       if (!prM) continue;
 

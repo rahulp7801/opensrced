@@ -26,5 +26,5 @@ export async function GET() {
     });
     return NextResponse.json({ dispatches });
   }
-  return NextResponse.json({ dispatches: listDispatches(viewerId) });
+  return NextResponse.json({ dispatches: listDispatches(viewerId).slice(0, 20) });
 }

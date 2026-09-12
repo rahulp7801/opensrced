@@ -46,8 +46,9 @@ records expire after 45 minutes.
 
 The Docker image is a supported single-instance staging alternative. It contains
 the Node application, Claude CLI, Gitleaks, GitHub CLI, Python graph runtime, and
-MCP server. Local dispatch state does not survive a process restart, so this mode
-does not provide rolling deployment or durable queue semantics.
+MCP server. Persisted history survives through the mounted volumes, but active
+subprocesses do not resume after a process restart, so this mode does not provide
+rolling deployment or durable queue semantics.
 
 Three legacy deterministic endpoints can use an external `CONTRIBAI_BIN` during
 local development. They are not part of the Vercel execution path. The product
@@ -128,7 +129,7 @@ docker compose --env-file .env.local up --build -d
 curl http://localhost:3000/api/health
 ```
 
-Persist the four volumes defined in `docker-compose.yml` and keep
+Persist the four volumes defined in `compose.yaml` and keep
 `AUTH0_SECRET` stable. Put an HTTPS reverse proxy in front of the service and
 preserve streaming responses. `/api/health` reports `degraded` when a required
 runtime tool is absent; HTTP 200 alone is only a liveness signal.

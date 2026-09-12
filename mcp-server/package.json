@@ -14,13 +14,13 @@
     "test": "npm run build && node --test test/*.test.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.4",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "tree-sitter-wasms": "^0.1.13",
     "web-tree-sitter": "^0.22.6",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/node": "^22.10.10",
+    "@types/node": "^22.20.1",
     "typescript": "^5.7.3"
   }
 }

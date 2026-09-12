@@ -107,12 +107,18 @@ export async function listCloudRuns(owner: string): Promise<CloudRun[]> {
 export async function cancelCloudRun(owner: string, id: string): Promise<boolean> {
   const run = await getCloudRun(owner, id);
   if (!run || !runIsActive(run)) return false;
-  const sandbox = await Sandbox.get({ name: run.sandbox_name, signal: AbortSignal.timeout(15_000) });
-  await sandbox.stop();
   // A separate tombstone is outside the worker token's scope, so an upload
-  // already in flight cannot undo cancellation after the VM stops.
-  await put(`cancelled/${id}.json`, "{}", { ...writeOptions, allowOverwrite: true });
+  // already in flight cannot undo cancellation. Persist it before contacting
+  // the VM so an expired or unreachable sandbox cannot leave the run active.
+  await put(`cancelled/${id}.json`, "{}", { ...writeOptions, allowOverwrite: true, abortSignal: AbortSignal.timeout(15_000) });
   const cancelled = { ...run, status: "killed" as const, pr_status: "none" as const, ended_at: new Date().toISOString() };
-  await writeRun(runPath(owner, id), cancelled);
+  await writeRun(runPath(owner, id), cancelled).catch(() => {});
+  try {
+    const sandbox = await Sandbox.get({ name: run.sandbox_name, signal: AbortSignal.timeout(15_000) });
+    await sandbox.stop();
+  } catch {
+    // The durable tombstone has already cancelled the run. A missing sandbox
+    // is expected when its timeout and the user's stop action cross.
+  }
   return true;
 }

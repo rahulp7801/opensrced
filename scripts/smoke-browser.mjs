@@ -70,16 +70,25 @@ try {
   });
   await page.route('**/auth/profile', route => route.fulfill({ json: { sub: 'test-user', name: 'Test User' } }));
   const run = { id: 'test-preview', repo_url: 'https://github.com/acme/app', mode: 'agentic', dry_run: true, issue_number: 1, started_at: new Date().toISOString(), status: 'failed', log: '', log_size: 0 };
+  const activeRun = { ...run, id: 'test-active', status: 'running' };
   const submissions = [];
   const settings = [];
+  let cancelAttempts = 0;
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url());
     if (url.pathname === '/api/run/agentic') {
       submissions.push(route.request().postDataJSON());
       return route.fulfill({ status: 202, json: { dispatch_id: submissions.length === 1 ? 'test-retry' : 'test-preview' } });
     }
-    if (url.pathname === '/api/dispatches') return route.fulfill({ json: { dispatches: [run] } });
+    if (url.pathname === '/api/dispatches') return route.fulfill({ json: { dispatches: [activeRun, run] } });
+    if (url.pathname === '/api/dispatches/test-active') return route.fulfill({ json: activeRun });
     if (url.pathname === '/api/dispatches/test-preview' || url.pathname === '/api/dispatches/test-retry') return route.fulfill({ json: { ...run, id: url.pathname.split('/').at(-1) } });
+    if (url.pathname === '/api/dispatches/test-active/cancel') {
+      cancelAttempts++;
+      return cancelAttempts === 1
+        ? route.fulfill({ status: 503, json: { error: 'Worker stop failed for test.' } })
+        : route.fulfill({ status: 202, json: { ok: true } });
+    }
     if (url.pathname === '/api/issues/suggested') return route.fulfill({ json: { issues: [], filteredOut: 0 } });
     if (url.pathname === '/api/issues/scan') return route.fulfill({ json: { repo: 'acme/app', total: 1, solvable: 1, issues: [{ number: 1, title: 'Fix parser error', body: 'Fix the parser.', labels: ['bug'], url: 'https://github.com/acme/app/issues/1', author: 'test', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), comments: 0, category: 'bug', severity: 'low', complexity: 1, est_minutes: 5, solvable: true, reason: 'Small fix', scope: { bucket: 'leaf', confidence: 'high', files: ['parser.ts'], symbols: [], reason: 'Parser file' } }] } });
     if (url.pathname === '/api/settings/keys') {
@@ -103,6 +112,13 @@ try {
   assert.equal(submissions.length, 1);
   assert.equal(submissions[0].dry_run, true, 'retry must preserve preview');
   assert.equal(submissions[0].issue_number, 1);
+  await page.goto(base + '/dispatches?dispatch=test-active');
+  await page.getByRole('button', { name: /stop/ }).click();
+  await page.getByRole('button', { name: 'confirm kill', exact: true }).click();
+  await page.getByRole('alert').getByText('Worker stop failed for test.', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'confirm kill', exact: true }).click();
+  await page.getByRole('button', { name: /stop/ }).waitFor();
+  assert.equal(cancelAttempts, 2, 'a failed stop remains retryable');
   for (const preview of [true, false]) {
     await page.goto(base + '/issues?repo=acme/app');
     await Promise.all([

@@ -485,18 +485,27 @@ function RetryButton({ dispatch }: { dispatch: DispatchWithLog }) {
 function CancelButton({ dispatchId }: { dispatchId: string }) {
   const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   async function cancel() {
     setPending(true);
+    setError(null);
     try {
-      await fetch(`/api/dispatches/${dispatchId}/cancel`, { method: "POST" });
+      const response = await fetch(`/api/dispatches/${dispatchId}/cancel`, {
+        method: "POST",
+        signal: AbortSignal.timeout(15_000),
+      });
+      const result = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "Could not stop this run.");
+      setConfirming(false);
+    } catch (cause) {
+      setError(cause instanceof Error && cause.name !== "TimeoutError" ? cause.message : "The stop request timed out. Try again.");
     } finally {
       setPending(false);
-      setConfirming(false);
     }
   }
   if (confirming) {
     return (
-      <span className="flex items-center gap-1.5">
+      <span className="flex flex-wrap items-center gap-1.5">
         <button
           onClick={cancel}
           disabled={pending}
@@ -505,17 +514,18 @@ function CancelButton({ dispatchId }: { dispatchId: string }) {
           {pending ? "…" : "confirm kill"}
         </button>
         <button
-          onClick={() => setConfirming(false)}
+          onClick={() => { setConfirming(false); setError(null); }}
           className="text-[10px] text-paper-muted hover:text-paper"
         >
           cancel
         </button>
+        {error && <span role="alert" className="basis-full text-[10px] normal-case tracking-normal text-alert">{error}</span>}
       </span>
     );
   }
   return (
     <button
-      onClick={() => setConfirming(true)}
+      onClick={() => { setConfirming(true); setError(null); }}
       className="border border-border text-paper-muted hover:text-alert hover:border-alert/50 px-2 py-0.5 text-[10px] uppercase tracking-[0.12em]"
       title="Stop the opensrcer agent subprocess"
     >

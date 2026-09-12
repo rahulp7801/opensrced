@@ -18,8 +18,12 @@ export async function POST(
 
   const { id } = await ctx.params;
   if (cloudExecution()) {
-    const ok = await cancelCloudRun(viewerId, id);
-    return NextResponse.json({ ok }, { status: ok ? 202 : 404 });
+    try {
+      const ok = await cancelCloudRun(viewerId, id);
+      return NextResponse.json({ ok }, { status: ok ? 202 : 404 });
+    } catch {
+      return NextResponse.json({ error: "Could not stop this run. Try again." }, { status: 503 });
+    }
   }
   const result = cancelDispatch(id, viewerId);
   return NextResponse.json(result, { status: result.ok ? 202 : 404 });

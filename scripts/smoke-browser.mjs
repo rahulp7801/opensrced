@@ -8,10 +8,12 @@ const browser = await chromium.launch({
 let pagesChecked = 0;
 
 async function assertUsableControls(page, label) {
-  const problems = await page.locator('button:visible, [role="button"]:visible').evaluateAll(elements =>
+  const problems = await page.locator('button:visible, [role="button"]:visible, input:visible, select:visible, textarea:visible').evaluateAll(elements =>
     elements.flatMap((element, index) => {
       const rect = element.getBoundingClientRect();
-      const name = element.getAttribute('aria-label') || element.getAttribute('title') || element.textContent?.trim();
+      const isField = ['INPUT', 'SELECT', 'TEXTAREA'].includes(element.tagName);
+      const labels = 'labels' in element ? element.labels : null;
+      const name = element.getAttribute('aria-label') || element.getAttribute('aria-labelledby') || element.getAttribute('title') || labels?.length || (!isField && element.textContent?.trim());
       const issues = [];
       if (!name) issues.push(`${index}: missing accessible name`);
       if (rect.width < 24 || rect.height < 24) issues.push(`${index}: ${Math.round(rect.width)}x${Math.round(rect.height)} target`);

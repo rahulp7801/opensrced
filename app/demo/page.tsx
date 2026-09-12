@@ -298,11 +298,11 @@ function ExploreDemo() {
             <div className="px-4 py-2 border-b border-border-soft bg-ink/30">
               <div className="flex flex-wrap gap-1.5">
                 {tools.map((t, i) => (
-                  <span key={i} className={`text-[9.5px] tracking-[0.05em] px-1.5 py-0.5 border leading-none ${colors[t.tool] ?? ""}`}>
+                  <span key={i} className={`text-[11px] tracking-[0.05em] px-1.5 py-0.5 border leading-none ${colors[t.tool] ?? ""}`}>
                     {icons[t.tool] ?? "?"} {t.detail}
                   </span>
                 ))}
-                {step === "running" && <span className="text-[9.5px] text-paper-faint animate-pulse">analyzing...</span>}
+                {step === "running" && <span className="text-[11px] text-paper-faint animate-pulse">analyzing...</span>}
               </div>
             </div>
           )}

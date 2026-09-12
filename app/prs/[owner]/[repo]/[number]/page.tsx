@@ -1274,7 +1274,7 @@ export default function PrDetailPage() {
                             isLast && "font-medium",
                           )}>
                             <span className={cn(
-                              "relative z-10 shrink-0 w-3 h-3 flex items-center justify-center text-[10px] font-mono rounded-full border",
+                              "relative z-10 shrink-0 w-4 h-4 flex items-center justify-center text-[11px] font-mono rounded-full border",
                               isLast ? "bg-signal/20 border-signal/50 text-signal" : "bg-ink border-border-soft",
                               colorMap[t.tool] ?? "text-paper-faint",
                             )}>

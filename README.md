@@ -157,7 +157,9 @@ node scripts/create-worker-snapshot.mjs <40-character-commit-sha>
 ```
 
 Rebuild the snapshot whenever the agent, MCP server, graph runtime, or worker
-bootstrap changes. Follow the full sequence and hosted acceptance checklist in
+bootstrap changes. Snapshot creation verifies every worker entry script, the
+real Claude CLI's restricted MCP tool surface, and a real graph build before it
+publishes an image. Follow the full sequence and hosted acceptance checklist in
 [DEPLOYMENT.md](DEPLOYMENT.md).
 
 Optional GitHub App support for private organizations uses

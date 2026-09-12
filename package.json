@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:worker": "tsc -p tsconfig.worker.json && node --check scripts/sandbox-worker.cjs",
+    "build:worker": "tsc -p tsconfig.worker.json && node --check scripts/sandbox-worker.cjs && node --check scripts/sandbox-graph.cjs && node --check scripts/sandbox-push.cjs",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

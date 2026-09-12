@@ -18,10 +18,12 @@ try {
   await run('npm', ['ci', '--legacy-peer-deps']);
   await run('npm', ['ci', '--prefix', 'mcp-server']);
   await run('npm', ['run', 'build', '--prefix', 'mcp-server']);
-  await run('node', ['node_modules/typescript/bin/tsc', '-p', 'tsconfig.worker.json']);
+  await run('npm', ['run', 'build:worker']);
   await run('npm', ['install', '-g', '@anthropic-ai/claude-code@2.1.269'], true);
   await run('bash', ['-c', 'set -euo pipefail; cd /tmp; curl -fsSLO https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz; curl -fsSLO https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_checksums.txt; grep "gitleaks_8.30.1_linux_x64.tar.gz$" gitleaks_8.30.1_checksums.txt | sha256sum -c -; tar -xzf gitleaks_8.30.1_linux_x64.tar.gz gitleaks; install gitleaks /usr/local/bin/gitleaks'], true);
   for (const cmd of ['node', 'git', 'gh', 'claude', 'gitleaks']) await run(cmd, ['--version']);
+  await run('node', ['node_modules/typescript/bin/tsc', '-p', 'tsconfig.test.json']);
+  await run('node', ['scripts/smoke-worker-tools.mjs']);
   await run('env', ['OPENSRCER_GRAPH_PYTHON=/opt/graph/bin/python', 'node', 'scripts/smoke-graph.mjs']);
   const snapshot = await sandbox.snapshot();
   console.log(`OPENSRCER_WORKER_SNAPSHOT_ID=${snapshot.snapshotId}`);

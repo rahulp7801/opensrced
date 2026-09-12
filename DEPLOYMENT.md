@@ -7,7 +7,8 @@ stores run results, cancellation markers, organization connections, and shared
 fixes. Shared fixes stop resolving after 30 days and expired objects are removed
 opportunistically. Jobs receive only user provider credentials and two write tokens,
 each scoped to its full run record or compact history summary. The Runs page polls
-summaries without repeatedly downloading live logs. Three Blob leases bound agent concurrency across web instances.
+summaries without repeatedly downloading live logs. Each account retains its newest
+100 run records; bounded cleanup removes older full records, summaries, and cancellation markers after a worker starts. Three Blob leases bound agent concurrency across web instances.
 Workers stop after 40 minutes; abandoned records expire after 45 minutes.
 
 1. Link the repository to the intended Vercel project. The committed
@@ -100,7 +101,7 @@ ships a safe dependency. Both package lockfiles must remain committed.
 
 The production acceptance evidence on the current main branch includes:
 
-- 152 application tests, MCP tests, app/worker type checks, dependency audits,
+- 153 application tests, MCP tests, app/worker type checks, dependency audits,
   the real restricted Claude CLI, and the optimized production build.
 - The production Docker image built on a Linux runner, booted as its non-root
   user, reported every required runtime dependency healthy, and passed the HTTP
@@ -144,7 +145,8 @@ The production acceptance evidence on the current main branch includes:
   hosted worker until the execution itself is isolated from the worker host.
 - Hosted run history uses compact owner-scoped summaries. A one-time fallback
   backfills recent legacy records, and the worker protocol prevents an older
-  snapshot from starting without the summary writer.
+  snapshot from starting without the summary writer. Per-account retention keeps
+  the newest 100 runs and prunes older state in bounded batches.
 
 CI runs `smoke-session.mjs`, `smoke-browser.mjs`, `smoke-review.mjs`,
 `smoke-lists.mjs`, `smoke-graph-ui.mjs`, and the HTTP/graph/runtime checks.

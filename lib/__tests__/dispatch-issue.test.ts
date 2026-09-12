@@ -11,9 +11,13 @@ test("dispatches authorize the issue before reading cached source or starting a 
     assert.equal(new Headers(options.headers).get("Authorization"), "Bearer test-user-token");
     return Response.json(status === 200 ? { title: "Fix typo", body: "Correct README", labels: [{ name: "docs" }], html_url: "https://github.com/acme/app/issues/1" } : {}, { status });
   });
-  await assert.rejects(fetchIssue("acme/app", 1, "test-user-token"), /not found|not accessible/);
+  await assert.rejects(fetchIssue("acme/app", 1, "test-user-token"), {
+    message: "GitHub repository was not found or is not accessible.",
+  });
   status = 403;
-  await assert.rejects(fetchIssue("acme/app", 1, "test-user-token"), /denied/);
+  await assert.rejects(fetchIssue("acme/app", 1, "test-user-token"), {
+    message: "GitHub denied this request or its rate limit was reached. Try again later.",
+  });
   status = 200;
   const issue = await fetchIssue("acme/app", 1, "test-user-token");
   assert.equal(issue.title, "Fix typo");

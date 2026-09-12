@@ -3,6 +3,7 @@
 import { NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
 import { mappingForOrg, deleteMappingsForUser } from "@/lib/crucible/orgs";
+import { clearInstallationToken } from "@/lib/crucible/github-app";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ export async function POST(
   }
 
   await deleteMappingsForUser(sub, mapping.installation_id);
+  clearInstallationToken(mapping.installation_id);
 
   return NextResponse.json({
     ok: true,

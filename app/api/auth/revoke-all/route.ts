@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
 import { listOrgsFor, deleteMappingsForUser } from "@/lib/crucible/orgs";
 import { clearStoredKeys } from "@/lib/api-keys";
+import { clearInstallationToken } from "@/lib/crucible/github-app";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,7 @@ export async function POST() {
   // 1. Delete all org mappings for this user
   const orgs = await listOrgsFor(sub);
   await deleteMappingsForUser(sub);
+  for (const org of orgs) clearInstallationToken(org.installation_id);
 
   // 2. Clear stored API keys
   await clearStoredKeys();

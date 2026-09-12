@@ -9,6 +9,7 @@
 import crypto from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { deleteByInstallationId } from "@/lib/crucible/orgs";
+import { clearInstallationToken } from "@/lib/crucible/github-app";
 import { readTextBody } from "@/lib/request-body";
 
 export const dynamic = "force-dynamic";
@@ -63,6 +64,7 @@ export async function POST(req: NextRequest) {
 
   if (payload.action === "deleted") {
     await deleteByInstallationId(installationId);
+    clearInstallationToken(installationId);
     return NextResponse.json({ ok: true, action: "deleted" });
   }
 

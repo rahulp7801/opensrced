@@ -55,13 +55,25 @@ export async function getInstallationToken(installationId: number): Promise<stri
   const existing = pending.get(installationId);
   if (existing) return existing;
   const request = mintInstallationToken(installationId).then(token => {
-    tokens.delete(installationId);
-    if (tokens.size >= 100) tokens.delete(tokens.keys().next().value!);
-    tokens.set(installationId, { token, expiresAt: Date.now() + TOKEN_TTL_MS });
+    // A disconnect can invalidate this mint while the GitHub request is in
+    // flight. Only the request still registered for this installation may
+    // repopulate the cache.
+    if (pending.get(installationId) === request) {
+      tokens.delete(installationId);
+      if (tokens.size >= 100) tokens.delete(tokens.keys().next().value!);
+      tokens.set(installationId, { token, expiresAt: Date.now() + TOKEN_TTL_MS });
+    }
     return token;
-  }).finally(() => pending.delete(installationId));
+  }).finally(() => {
+    if (pending.get(installationId) === request) pending.delete(installationId);
+  });
   pending.set(installationId, request);
   return request;
+}
+
+export function clearInstallationToken(installationId: number): void {
+  tokens.delete(installationId);
+  pending.delete(installationId);
 }
 
 function githubUrl(url: string): void {

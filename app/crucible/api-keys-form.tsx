@@ -158,7 +158,7 @@ export function ApiKeysForm() {
           )}
         </div>
         <div id="anthropic-help" className="text-xs leading-5 text-paper-muted">
-          Required for agentic dispatches. Get one at{" "}
+          Required for agent runs. Get one at{" "}
           <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" className="underline hover:text-paper-muted">
             console.anthropic.com
           </a>

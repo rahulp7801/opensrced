@@ -121,8 +121,8 @@ export function SiteHeader() {
                 </div>
               </HelpSection>
               <HelpSection title="Fix modes">
-                <p className="text-paper-dim"><strong className="text-ok">Quick</strong> — Reads file from cache + Haiku. ~$0.001</p>
-                <p className="text-paper-dim"><strong className="text-signal">Deep</strong> — Full code exploration + Sonnet. ~$0.05+</p>
+                <p className="text-paper-dim"><strong className="text-ok">Quick</strong> — Uses focused file context for straightforward fixes.</p>
+                <p className="text-paper-dim"><strong className="text-signal">Deep</strong> — Explores the repository for complex or multi-file fixes.</p>
               </HelpSection>
             </div>
           </div>

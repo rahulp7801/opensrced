@@ -26,7 +26,7 @@ try {
       }
       if (path === '/demo') {
         await page.waitForLoadState('load');
-        for (const [name, key] of [['Codebase explorer', 'explore'], ['Security scan', 'security'], ['Private repo flow', 'crucible'], ['Bug fix pipeline', 'dispatch']]) {
+        for (const [name, key] of [['Codebase explorer', 'explore'], ['Security scan', 'security'], ['Private repo flow', 'crucible'], ['Bug fix run', 'dispatch']]) {
           const tab = page.getByRole('tab', { name, exact: true });
           await tab.click();
           await page.waitForFunction(tabKey => document.getElementById(`demo-tab-${tabKey}`)?.getAttribute('aria-selected') === 'true', key);
@@ -39,7 +39,7 @@ try {
             await main.getByText('acme-corp connected', { exact: true }).waitFor();
           }
         }
-        await page.getByRole('tab', { name: 'Bug fix pipeline', exact: true }).focus();
+        await page.getByRole('tab', { name: 'Bug fix run', exact: true }).focus();
         await page.keyboard.press('ArrowRight');
         await page.locator('#demo-explore').getByRole('button', { name: /Start walkthrough/ }).waitFor();
         assert.equal(await page.getByRole('tab', { name: 'Codebase explorer', exact: true }).getAttribute('aria-selected'), 'true');

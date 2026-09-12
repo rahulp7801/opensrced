@@ -204,7 +204,7 @@ export function DispatchList() {
         </aside>
         <section className="col-span-12 md:col-span-7 lg:col-span-8">
           <div className="border border-border bg-surface/40 p-10 text-center text-[12px] text-paper-muted">
-            {pollError ? `Could not load dispatches: ${pollError} Retrying...` : "Loading dispatches..."}
+            {pollError ? `Could not load runs: ${pollError} Retrying...` : "Loading runs..."}
           </div>
         </section>
       </div>
@@ -213,7 +213,7 @@ export function DispatchList() {
   if (items.length === 0) {
     return (
       <div className="border border-border bg-surface/40 p-10 text-center">
-        <div className="serif text-[24px] text-paper">No dispatches yet.</div>
+        <div className="serif text-[24px] text-paper">No runs yet.</div>
         <p className="mt-2 text-[12px] text-paper-muted">
           Start one from <a href="/trigger" className="text-signal hover:underline">New run</a>, or hit the command palette ({isMac() ? "⌘K" : "Ctrl K"}) and paste a repo URL.
         </p>
@@ -223,7 +223,7 @@ export function DispatchList() {
 
   return (
     <div className="grid grid-cols-12 gap-6">
-      {pollError && <p role="status" className="col-span-12 text-sm text-alert">Could not refresh dispatches: {pollError} Retrying...</p>}
+      {pollError && <p role="status" className="col-span-12 text-sm text-alert">Could not refresh runs: {pollError} Retrying...</p>}
       {/* List */}
       <aside className="col-span-12 md:col-span-5 lg:col-span-4">
         <div className="border border-border bg-surface/40">
@@ -425,7 +425,7 @@ export function DispatchList() {
           </div>
         ) : (
           <div className="border border-border bg-surface/40 p-10 text-center text-[12px] text-paper-muted">
-            Select a dispatch to view its log.
+            Select a run to view its log.
           </div>
         )}
       </section>
@@ -747,7 +747,7 @@ function ExportButton({ dispatch }: { dispatch: DispatchWithLog }) {
     <button
       onClick={download}
       className="border border-border text-paper-muted hover:text-paper hover:border-border-strong px-2 py-0.5 text-[10px] uppercase tracking-[0.12em]"
-      title="Download dispatch report as .md"
+      title="Download run report as .md"
     >
       export
     </button>

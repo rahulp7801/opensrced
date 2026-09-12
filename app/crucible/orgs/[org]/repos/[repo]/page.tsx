@@ -88,9 +88,9 @@ export default async function RepoFindingsPage({
         title={<>{repoFull}</>}
         description={
           <>
-            Security findings + open issues. Click <span className="text-paper">deep solve</span>{" "}
-            on any row to dispatch an agentic run scoped to this repo. Patches
-            that pass the repo&apos;s own tests get opened as draft PRs.
+            Security findings and open issues. Click <span className="text-paper">Fix issue</span>{" "}
+            on any row to start a run scoped to this repo. Each successful run opens a
+            draft PR for review and validation by the repository&apos;s CI.
           </>
         }
       />

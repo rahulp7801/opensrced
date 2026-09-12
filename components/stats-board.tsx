@@ -76,12 +76,12 @@ export function StatsBoard() {
 
   return (
     <div className="space-y-10">
-      {data.dispatchWindow && <p className="text-[12px] text-paper-muted">Dispatch, patch, PR, and spend figures cover your latest {data.dispatchWindow} runs. Scan counts cover your recorded history.</p>}
+      {data.dispatchWindow && <p className="text-[12px] text-paper-muted">Run, patch, PR, and spend figures cover your latest {data.dispatchWindow} runs. Scan counts cover your recorded history.</p>}
       {/* Big counter strip */}
       <div className="grid grid-cols-2 lg:grid-cols-5 border-t border-b border-border">
-        <Counter label="dispatches" value={data.dispatches} tone="info" sub={data.dispatchWindow ? "recent runs" : "your history"} />
+        <Counter label="runs" value={data.dispatches} tone="info" sub={data.dispatchWindow ? "recent runs" : "your history"} />
         <Counter label="patches" value={data.patchesGenerated} tone="signal" sub={`${Math.round(data.successRate * 100)}% success rate`} />
-        <Counter label="PRs opened" value={data.prsCreated} tone="ok" sub={`${Math.round(data.prRate * 100)}% of dispatches`} />
+        <Counter label="PRs opened" value={data.prsCreated} tone="ok" sub={`${Math.round(data.prRate * 100)}% of runs`} />
         <Counter label="recorded spend" value={data.totalCostUsd} tone="signal" format="currency" sub="Anthropic API" />
         <Counter label="scans" value={data.scans} tone="paper" sub={`${data.discoverRuns} via Discover`} />
       </div>
@@ -96,7 +96,7 @@ export function StatsBoard() {
           <div className="border border-border bg-surface/40 p-8 text-center">
             <div className="text-[13px] text-paper">No 1k★ PRs yet.</div>
             <p className="mt-2 text-[11.5px] text-paper-muted leading-snug">
-              Open a draft PR on a repo with more than 1000 stars via the agentic or solve pipeline —
+              Open a draft PR on a repo with more than 1000 stars from an opensrcer run —
               it&apos;ll show up here automatically. Public star counts are fetched from GitHub and
               cached.
             </p>
@@ -124,7 +124,7 @@ export function StatsBoard() {
                     <IconExternal />
                   </a>
                   <div className="mt-0.5 text-[11px] text-paper-muted">
-                    dispatch <code className="text-paper-faint">{c.dispatchId.slice(-12)}</code>
+                    run <code className="text-paper-faint">{c.dispatchId.slice(-12)}</code>
                     {c.startedAt && (
                       <>
                         <span className="mx-1.5 text-paper-faint">·</span>
@@ -153,7 +153,7 @@ export function StatsBoard() {
         </div>
         {data.recentActivity.length === 0 ? (
           <div className="border border-border bg-surface/40 p-6 text-center text-[12px] text-paper-muted">
-            Nothing yet. Run a scan or fire a dispatch.
+            Nothing yet. Run a scan or start a run.
           </div>
         ) : (
           <ul className="border border-border bg-surface/40 divide-y divide-border-soft text-[12.5px]">
@@ -166,7 +166,7 @@ export function StatsBoard() {
                 <span className="flex-1 text-paper truncate">
                   {a.kind === "dispatch" ? (
                     <>
-                      dispatch on <span className="text-paper-muted">{a.repo ?? "—"}</span>
+                      run on <span className="text-paper-muted">{a.repo ?? "—"}</span>
                       {a.issueNumber !== undefined && (
                         <span className="text-paper-faint"> #{a.issueNumber}</span>
                       )}
@@ -232,7 +232,7 @@ function ActivityKindChip({ kind }: { kind: "scan" | "discover" | "dispatch" }) 
   > = {
     scan:     { label: "scan",     cls: "border-border-soft bg-surface text-paper-dim" },
     discover: { label: "discover", cls: "border-info/40 bg-info/10 text-info" },
-    dispatch: { label: "dispatch", cls: "border-signal/40 bg-signal/10 text-signal" },
+    dispatch: { label: "run", cls: "border-signal/40 bg-signal/10 text-signal" },
   };
   const c = cfg[kind];
   return (

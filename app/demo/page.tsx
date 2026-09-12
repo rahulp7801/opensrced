@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 const DEMOS = [
-  { key: "dispatch", label: "Bug fix pipeline" },
+  { key: "dispatch", label: "Bug fix run" },
   { key: "explore", label: "Codebase explorer" },
   { key: "security", label: "Security scan" },
   { key: "crucible", label: "Private repo flow" },
@@ -100,11 +100,10 @@ const DISPATCH_LOG = [
   { t: "+  );", d: 5700 },
   { t: "```", d: 5800 },
   { t: "", d: 5900 },
-  { t: "## Risk / Test", d: 6000 },
+  { t: "## Risk / Review", d: 6000 },
   { t: "Checked 8 other db.query call sites — all already parameterized.", d: 6200 },
-  { t: "Added test for injection vector. All 47 existing tests pass.", d: 6400 },
+  { t: "Suggested a regression test for the injection vector.", d: 6400 },
   { t: "", d: 6600 },
-  { t: "[agentic-dispatcher] total_cost_usd=0.084700", d: 6800 },
   { t: "[agentic-dispatcher] exited · status=succeeded · exit=0", d: 7000 },
   { t: "", d: 7100 },
   { t: "[gemini-review] Patch looks correct. Parameterized query prevents injection.", d: 7300 },
@@ -113,7 +112,7 @@ const DISPATCH_LOG = [
   { t: "[agentic-pr] head: opensrcer/issue-47  →  base: main", d: 8300 },
 ];
 
-const PHASES = ["clone", "explore", "patch", "test", "PR"];
+const PHASES = ["clone", "explore", "patch", "review", "PR"];
 const PHASE_TIMES = [600, 1800, 3200, 5800, 7400];
 
 function DispatchDemo() {
@@ -140,7 +139,7 @@ function DispatchDemo() {
       {step === "intro" && (
         <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
           <div className="max-w-2xl space-y-2 text-left">
-            <div className="text-[14px] text-paper">Bug fix pipeline</div>
+            <div className="text-[14px] text-paper">Bug fix run</div>
             <p className="text-[12px] leading-relaxed text-paper-dim">Walk through an example diagnosis, patch, and draft pull request. Check results shown here are simulated; hosted runs do not execute repository tests.</p>
           </div>
           <button onClick={() => setStep("issue")} className="shrink-0 self-start border border-signal/50 bg-signal/10 px-4 py-2 text-[12px] text-signal transition hover:bg-signal/20 sm:self-auto">Start walkthrough →</button>
@@ -160,9 +159,9 @@ function DispatchDemo() {
             <div className="text-[12px] text-paper-dim leading-relaxed">
               The <code className="text-signal bg-signal/10 px-1 text-[11px]">GET /api/users?q=</code> endpoint passes user input directly into a SQL query string. An attacker can inject arbitrary SQL via the <code className="text-signal bg-signal/10 px-1 text-[11px]">q</code> parameter.
             </div>
-            <div className="text-[11px] text-paper-faint">est. ~$0.05–$0.12 · repo size: 4.1 MB</div>
+            <div className="text-[11px] text-paper-faint">Deep repository review · repo size: 4.1 MB</div>
           </div>
-          <button onClick={runDispatch} className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-2 text-[12px] transition">Deep solve →</button>
+          <button onClick={runDispatch} className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-2 text-[12px] transition">Fix issue →</button>
         </div>
       )}
 
@@ -293,7 +292,7 @@ function ExploreDemo() {
           <div className="px-4 py-2.5 border-b border-border-soft flex items-center gap-2">
             <span className="text-[10px] uppercase tracking-[0.15em] text-signal">Q</span>
             <span className="text-[13px] text-paper">Where is the authentication middleware and how does it work?</span>
-            {step === "done" && <span className="ml-auto text-[10px] text-paper-muted tabular-nums">$0.0071</span>}
+            {step === "done" && <span className="ml-auto text-[10px] text-ok">complete</span>}
           </div>
           {tools.length > 0 && (
             <div className="px-4 py-2 border-b border-border-soft bg-ink/30">
@@ -429,7 +428,7 @@ function SecurityDemo() {
                   <div className="mt-1 text-[12px] text-paper-dim">{f.summary}</div>
                 </div>
                 {step === "findings" && f.sev === "critical" && (
-                  <button onClick={solve} className="shrink-0 text-[11px] text-paper border border-border bg-surface/60 hover:bg-surface px-2 py-1">deep solve</button>
+                  <button onClick={solve} className="shrink-0 text-[11px] text-paper border border-border bg-surface/60 hover:bg-surface px-2 py-1">Fix issue</button>
                 )}
               </div>
             ))}
@@ -437,7 +436,7 @@ function SecurityDemo() {
           {step === "scanning" && <div className="px-4 py-2 text-[10px] text-signal animate-pulse">scanning...</div>}
           {step === "findings" && (
             <div className="px-4 py-2.5 border-t border-border text-[11px] text-paper-muted">
-              {findings.length} findings · click &quot;deep solve&quot; on the critical CVE
+              {findings.length} findings · click &quot;Fix issue&quot; on the critical CVE
             </div>
           )}
         </>
@@ -558,7 +557,7 @@ function CrucibleDemo() {
         <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
           <div className="max-w-2xl space-y-2 text-left">
             <div className="text-[14px] text-paper">Private repo flow</div>
-            <p className="text-[12px] leading-relaxed text-paper-dim">Walk through connecting a GitHub Organization, browsing private repos, and dispatching a security fix — all using short-lived installation tokens.</p>
+            <p className="text-[12px] leading-relaxed text-paper-dim">Walk through connecting a GitHub Organization, browsing private repos, and starting a security fix with short-lived installation tokens.</p>
           </div>
           <button onClick={() => setStep("connect")} className="shrink-0 self-start border border-signal/50 bg-signal/10 px-4 py-2 text-[12px] text-signal transition hover:bg-signal/20 sm:self-auto">Connect GitHub Org →</button>
         </div>
@@ -632,11 +631,11 @@ function CrucibleDemo() {
                   <div className="text-[13px] text-paper"><span className="text-paper-muted">#{iss.num}</span> {iss.title}</div>
                   <div className="mt-1 flex gap-1">{iss.labels.map(l => <span key={l} className={cn("text-[10px] font-mono border px-1.5", l === "security" ? "border-red-700/40 text-red-300" : l === "bug" || l === "p1" ? "border-orange-700/40 text-orange-300" : "border-border-soft text-paper-muted")}>{l}</span>)}</div>
                 </div>
-                <button onClick={iss.num === 12 ? solve : undefined} className={cn("shrink-0 text-[11px] border px-2.5 py-1", iss.num === 12 ? "text-paper border-border bg-surface/60 hover:bg-surface" : "text-paper-faint border-border-soft cursor-default")}>deep solve</button>
+                <button onClick={iss.num === 12 ? solve : undefined} className={cn("shrink-0 text-[11px] border px-2.5 py-1", iss.num === 12 ? "text-paper border-border bg-surface/60 hover:bg-surface" : "text-paper-faint border-border-soft cursor-default")}>Fix issue</button>
               </li>
             ))}
           </ul>
-          <div className="px-4 py-2 border-t border-border-soft text-[10px] text-paper-faint">Click &quot;deep solve&quot; on issue #12</div>
+          <div className="px-4 py-2 border-t border-border-soft text-[10px] text-paper-faint">Click &quot;Fix issue&quot; on issue #12</div>
         </div>
       )}
 

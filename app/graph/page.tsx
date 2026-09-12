@@ -614,7 +614,7 @@ export default function GraphPage() {
                         Ask any question in plain English about the codebase.
                       </p>
                       <p className="mt-1.5 text-[10px] text-signal">
-                        All queries use AI (~$0.001 each). Free graph commands are not available for large repos.
+                        These queries use your AI provider key. Graph commands are unavailable for large repositories.
                       </p>
                     </>
                   ) : (
@@ -632,7 +632,7 @@ export default function GraphPage() {
                         >
                           help
                         </button>
-                        {" "}for all commands and examples (free). Plain English questions use AI (~$0.001).
+                        {" "}for all commands and examples. Plain English questions use your AI provider key.
                       </p>
                     </>
                   )}
@@ -785,8 +785,8 @@ export default function GraphPage() {
                   <div>key components</div>
                 </div>
                 <div className="border border-border-soft px-2 py-2 text-center">
-                  <div className="text-ok text-[11px]">$0.00</div>
-                  <div>per query</div>
+                  <div className="text-ok text-[11px]">local</div>
+                  <div>no AI required</div>
                 </div>
               </div>
             </div>

@@ -76,7 +76,7 @@ export function DraftPreview({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message ?? data?.error ?? `HTTP ${res.status}`);
-      setResult({ tone: "ok", msg: `Live run queued. Navigating to dispatch…` });
+      setResult({ tone: "ok", msg: `Live run queued. Opening the live view…` });
       router.push(`/dispatches?dispatch=${encodeURIComponent(data.dispatch_id)}`);
     } catch (e) {
       setResult({ tone: "alert", msg: e instanceof Error && e.name === "TimeoutError"
@@ -186,7 +186,7 @@ export function DraftPreview({
           {/* Approve */}
           <div className="border-t border-border px-5 py-4 flex items-center justify-between gap-4 flex-wrap">
             <div className="text-[11px] text-paper-muted max-w-2xl">
-              Approving will rerun the pipeline in <span className="text-signal">live mode</span>:
+              Approving will start a new run in <span className="text-signal">live mode</span>:
               fork the repo, create a branch, commit these changes, and open the PR. Visible to the
               upstream maintainer.
             </div>

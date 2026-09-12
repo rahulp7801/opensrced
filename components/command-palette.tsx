@@ -196,7 +196,7 @@ export function CommandPalette() {
             ref={inputRef}
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search · or paste a GitHub repo URL to dispatch"
+            placeholder="Search · or paste a GitHub repo URL to start a run"
             className="flex-1 bg-transparent text-[14px] text-paper placeholder:text-paper-faint focus:outline-none"
           />
           <kbd className="text-[10px] text-paper-muted border border-border-soft px-1.5 py-0.5">ESC</kbd>
@@ -207,7 +207,7 @@ export function CommandPalette() {
           <div className="border-b border-border bg-signal/5 px-4 py-3">
             <div className="flex items-center gap-2">
               <IconTrigger className="text-signal" />
-              <span className="mono-label text-signal">dispatch</span>
+              <span className="mono-label text-signal">new run</span>
               <span className="text-[12px] text-paper-dim truncate">{normalizedRepoUrl}</span>
             </div>
             <div className="mt-3 flex items-center gap-2">
@@ -261,7 +261,7 @@ export function CommandPalette() {
             ))}
           </Section>
 
-          <Section title="Quick dispatch">
+          <Section title="Start a run">
             <div className="px-4 py-3 space-y-2">
               <input
                 value={repoUrl}

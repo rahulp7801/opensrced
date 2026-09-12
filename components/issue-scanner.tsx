@@ -657,7 +657,7 @@ function IssueDetail({
         </div>
 
         <div>
-          <div className="mono-label text-paper-muted mb-2">run the pipeline</div>
+          <div className="mono-label text-paper-muted mb-2">start a run</div>
           <div className="flex flex-col gap-2">
             <ActionButton kind="solve" recommended={rec.action === "solve"}
               disabled={disabled} dispatching={dispatching && rec.action === "solve"} onClick={onSolve} large />

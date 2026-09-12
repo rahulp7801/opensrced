@@ -1052,17 +1052,13 @@ export default function PrDetailPage() {
                   {fixMode === "quick" ? (
                     <div>
                       <span className="text-ok font-medium">Quick fix</span>
-                      <span className="text-paper-faint"> — reads the file from repo cache + greps for related symbols, sends to Haiku. </span>
-                      <span className="text-ok tabular-nums">~$0.001</span>
-                      <span className="text-paper-faint"> per fix. </span>
+                      <span className="text-paper-faint"> — uses focused file context and nearby symbols. </span>
                       <span className="text-paper-dim">Recommended for single-file, straightforward comments.</span>
                     </div>
                   ) : (
                     <div>
                       <span className="text-signal font-medium">Deep fix</span>
-                      <span className="text-paper-faint"> — spawns Sonnet with full MCP tool access (read_file, grep, find_definition, find_references). Explores the codebase autonomously. </span>
-                      <span className="text-signal tabular-nums">~$0.05–0.15</span>
-                      <span className="text-paper-faint"> per fix. </span>
+                      <span className="text-paper-faint"> — explores the repository and related symbols before proposing a change. </span>
                       <span className="text-paper-dim">Use for multi-file changes, complex logic, or when quick fix misses context.</span>
                     </div>
                   )}

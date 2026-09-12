@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { parseSplitHunks, parseUnifiedRows, type UnifiedKind } from "@/lib/diff-view";
 import { sseEvents, readTextResponse } from "@/lib/sse";
 import { parseMarkdownBlocks } from "@/lib/graph-view";
+import { copyText } from "@/lib/clipboard";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -1346,9 +1347,13 @@ export default function PrDetailPage() {
                 <div className="px-4 py-2 border-t border-border-soft flex items-center gap-2">
                   <span className="text-xs text-paper-faint uppercase tracking-[0.15em]">export</span>
                   <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(extractDiff(fixState.response)!);
-                      toast("Diff copied to clipboard", "ok");
+                    onClick={async () => {
+                      try {
+                        await copyText(extractDiff(fixState.response)!);
+                        toast("Diff copied to clipboard", "ok");
+                      } catch {
+                        toast("Clipboard access failed. Download the patch instead.", "alert");
+                      }
                     }}
                     className="text-xs text-paper-dim border border-border hover:border-paper-muted hover:text-paper px-2 py-0.5 transition"
                   >
@@ -1371,9 +1376,13 @@ export default function PrDetailPage() {
                     download .patch
                   </button>
                   <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(fixState.response);
-                      toast("Full response copied", "ok");
+                    onClick={async () => {
+                      try {
+                        await copyText(fixState.response);
+                        toast("Full response copied", "ok");
+                      } catch {
+                        toast("Clipboard access failed. Try again from a secure browser window.", "alert");
+                      }
                     }}
                     className="text-xs text-paper-faint border border-border hover:border-paper-muted hover:text-paper-dim px-2 py-0.5 transition"
                   >
@@ -1381,6 +1390,7 @@ export default function PrDetailPage() {
                   </button>
                   <button
                     onClick={async () => {
+                      let shareLink: string | null = null;
                       try {
                         const diff = extractDiff(fixState.response);
                         const comment = typeof fixState.commentId === "number"
@@ -1401,10 +1411,13 @@ export default function PrDetailPage() {
                         const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
                         if (!res.ok || typeof data.url !== "string") throw new Error(data.error ?? "Could not create share link.");
                         if (data.url) {
-                          navigator.clipboard.writeText(window.location.origin + data.url);
+                          shareLink = window.location.origin + data.url;
+                          await copyText(shareLink);
                           toast("Share link copied to clipboard", "ok");
                         }
-                      } catch { toast("Failed to create share link", "alert"); }
+                      } catch {
+                        toast(shareLink ? "Share link created, but clipboard access failed." : "Failed to create share link", "alert");
+                      }
                     }}
                     className="text-xs text-signal border border-signal/30 hover:bg-signal/10 px-2 py-0.5 transition"
                   >
@@ -1756,6 +1769,37 @@ function SplitDiffView({ diff }: { diff: string }) {
 function DiffPreview({ diff }: { diff: string }) {
   const [expanded, setExpanded] = useState(false);
   const [poppedOut, setPoppedOut] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const popOutButtonRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!poppedOut) return;
+    closeButtonRef.current?.focus();
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setPoppedOut(false);
+        requestAnimationFrame(() => popOutButtonRef.current?.focus());
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [poppedOut]);
+
+  function closePopOut() {
+    setPoppedOut(false);
+    setCopyState("idle");
+    requestAnimationFrame(() => popOutButtonRef.current?.focus());
+  }
+
+  async function copyDiff() {
+    try {
+      await copyText(diff);
+      setCopyState("copied");
+    } catch {
+      setCopyState("error");
+    }
+  }
 
   // Parse files from the diff
   const files = diff.match(/^\+\+\+ (?:b\/)?(\S+)/gm)?.map((l) => l.replace(/^\+\+\+ (?:b\/)?/, "")) ?? [];
@@ -1796,6 +1840,7 @@ function DiffPreview({ diff }: { diff: string }) {
             <span className="text-paper-faint">{expanded ? "collapse" : "expand"}</span>
           </button>
           <button
+            ref={popOutButtonRef}
             onClick={() => setPoppedOut(true)}
             className="text-xs text-paper-faint hover:text-info transition ml-2"
             title="Open in floating panel"
@@ -1813,27 +1858,30 @@ function DiffPreview({ diff }: { diff: string }) {
 
       {/* Pop-out floating panel */}
       {poppedOut && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 backdrop-blur-sm" onClick={() => setPoppedOut(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 backdrop-blur-sm" onClick={closePopOut}>
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="diff-preview-dialog-title"
             className="bg-ink border border-border shadow-2xl w-[90vw] max-w-[900px] max-h-[80vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-4 py-2 border-b border-border-soft flex items-center justify-between shrink-0">
-              <span className="text-[11px] text-paper-muted uppercase tracking-[0.15em]">diff preview</span>
+              <span id="diff-preview-dialog-title" className="text-[11px] text-paper-muted uppercase tracking-[0.15em]">Diff preview</span>
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(diff);
-                  }}
-                  className="text-xs text-paper-faint hover:text-paper-muted transition"
+                  onClick={copyDiff}
+                  aria-live="polite"
+                  className={cn("text-xs transition", copyState === "error" ? "text-alert" : "text-paper-muted hover:text-paper")}
                 >
-                  copy
+                  {copyState === "copied" ? "Copied" : copyState === "error" ? "Copy failed" : "Copy diff"}
                 </button>
                 <button
-                  onClick={() => setPoppedOut(false)}
+                  ref={closeButtonRef}
+                  onClick={closePopOut}
                   className="text-xs text-paper-faint hover:text-alert transition"
                 >
-                  close (esc)
+                  Close <span aria-hidden>(Esc)</span>
                 </button>
               </div>
             </div>

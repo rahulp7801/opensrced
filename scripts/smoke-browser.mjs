@@ -194,6 +194,7 @@ try {
     } });
     if (url.pathname === '/api/repos/github') return route.fulfill({ json: { repos: [{ nameWithOwner: 'acme/compiler', description: 'A production compiler with a deliberately long repository description.', language: 'TypeScript', stars: 24300, forks: 900, updatedAt: new Date().toISOString(), isPrivate: false, source: 'contributed' }], hasMore: false, nextCursor: null } });
     if (url.pathname === '/api/prs/github') return route.fulfill({ json: { login: 'test-user', prs: [{ repo: 'acme/compiler', title: 'Handle malformed parser input without hanging the worker', number: 91, url: 'https://github.com/acme/compiler/pull/91', state: 'OPEN', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), branch: 'fix/parser', base: 'main', additions: 18, deletions: 4, reviewDecision: 'CHANGES_REQUESTED', isDraft: false, commentCount: 2 }] } });
+    if (url.pathname === '/api/fixes/test-shared') return route.fulfill({ json: { id: 'test-shared', repo: 'acme/compiler', pr_number: 91, comment_body: 'Handle empty input.', fix_response: 'Return early for an empty query.', diff: '--- a/search.ts\n+++ b/search.ts\n@@ -1 +1,2 @@\n+if (!query.trim()) return [];', explainer: 'Prevents an unnecessary database call.', created_at: new Date().toISOString() } });
     if (url.pathname === '/api/settings/keys') {
       if (route.request().method() === 'GET' && page.url().includes('settings_load_failure=1')) {
         return route.fulfill({ status: 503, json: { error: 'Settings unavailable for test.' } });
@@ -310,6 +311,16 @@ try {
   await page.getByRole('button', { name: 'Confirm — delete everything', exact: true }).click();
   await page.getByRole('alert').getByText('The server returned an invalid logout response.', { exact: true }).waitFor();
   assert.ok(page.url().includes('/crucible'), 'an untrusted logout redirect must stay on settings');
+
+  await page.goto(base + '/fix/test-shared');
+  await page.getByRole('heading', { name: 'acme/compiler', exact: true }).waitFor();
+  await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText: async () => { throw new Error('Clipboard denied for test.'); } },
+  }));
+  await page.getByRole('button', { name: 'Copy diff', exact: true }).click();
+  await page.getByRole('button', { name: 'Copy failed', exact: true }).waitFor();
+  await assertNoSeriousAccessibilityViolations(page, 'shared fix clipboard failure');
 
   keyAvailable = false;
   await page.setViewportSize({ width: 390, height: 900 });

@@ -65,6 +65,15 @@ try {
   await page.getByRole('button', { name: 'quick fix', exact: true }).click();
   await page.getByText('I handled empty arrays.', { exact: true }).waitFor();
   await page.getByRole('alert').filter({ hasText: 'Verification service unavailable.' }).waitFor();
+  const popOut = page.getByRole('button', { name: 'pop out', exact: true });
+  await popOut.click();
+  const diffDialog = page.getByRole('dialog', { name: 'Diff preview', exact: true });
+  await diffDialog.waitFor();
+  assert.equal(await diffDialog.getByRole('button', { name: /Close/ }).evaluate(element => element === document.activeElement), true, 'diff dialog moves focus to close');
+  await page.keyboard.press('Escape');
+  assert.equal(await diffDialog.count(), 0, 'Escape closes the diff dialog');
+  await page.waitForFunction(() => document.activeElement?.textContent?.trim() === 'pop out');
+  assert.equal(await popOut.evaluate(element => element === document.activeElement), true, 'diff dialog returns focus to its trigger');
   for (let i = 0; i < 3; i++) {
     await Promise.all([
       page.waitForResponse(response => response.url().includes('/api/prs/review?')),

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { copyText } from "@/lib/clipboard";
 
 type SharedFix = {
   id: string;
@@ -20,7 +21,18 @@ export default function SharedFixPage() {
   const [fix, setFix] = useState<SharedFix | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+
+  async function copyDiff() {
+    if (!fix?.diff) return;
+    try {
+      await copyText(fix.diff);
+      setCopyState("copied");
+      setTimeout(() => setCopyState("idle"), 2000);
+    } catch {
+      setCopyState("error");
+    }
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -99,14 +111,14 @@ export default function SharedFixPage() {
           <div className="px-4 py-2 border-b border-border-soft flex items-center justify-between">
             <span className="text-xs text-paper-muted uppercase tracking-[0.15em]">Diff</span>
             <button
-              onClick={() => {
-                navigator.clipboard.writeText(fix.diff!);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 2000);
-              }}
-              className="text-xs text-paper-faint hover:text-paper-muted transition"
+              onClick={copyDiff}
+              aria-live="polite"
+              className={cn(
+                "text-xs transition",
+                copyState === "error" ? "text-alert" : "text-paper-muted hover:text-paper",
+              )}
             >
-              {copied ? "copied" : "copy"}
+              {copyState === "copied" ? "Copied" : copyState === "error" ? "Copy failed" : "Copy diff"}
             </button>
           </div>
           <pre className="px-4 py-3 text-[10.5px] font-mono leading-snug overflow-x-auto">

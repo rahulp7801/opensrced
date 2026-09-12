@@ -58,10 +58,21 @@ export function Onboarding({ localMode = false }: { localMode?: boolean }) {
     const controller = new AbortController();
     const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]);
     Promise.all([
-      fetch("/api/settings/keys", { signal }).then((r) => r.json()).then((d: { anthropic?: boolean }) => Boolean(d.anthropic)).catch(() => false),
-      fetch("/api/dispatches", { signal }).then((r) => r.json()).then((d: { dispatches?: unknown[] }) => (d.dispatches?.length ?? 0) > 0).catch(() => false),
+      fetch("/api/settings/keys", { signal }).then(async (response) => {
+        if (!response.ok) throw new Error("Settings unavailable");
+        const data = await response.json() as { anthropic?: unknown };
+        return data.anthropic === true;
+      }),
+      fetch("/api/dispatches", { signal }).then(async (response) => {
+        if (!response.ok) throw new Error("Runs unavailable");
+        const data = await response.json() as { dispatches?: unknown };
+        if (!Array.isArray(data.dispatches)) throw new Error("Invalid runs response");
+        return data.dispatches.length > 0;
+      }),
     ]).then(([hasKey, hasDispatch]) => {
       if (!controller.signal.aborted) setState({ hasKey, hasDispatch });
+    }).catch(() => {
+      // Do not turn a service failure into incorrect setup guidance.
     });
     return () => controller.abort();
   }, [user, localMode]);

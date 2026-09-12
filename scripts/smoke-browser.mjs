@@ -188,6 +188,7 @@ try {
   const submissions = [];
   const settings = [];
   let keyAvailable = true;
+  let onboardingReadFailure = false;
   let cancelAttempts = 0;
   let invalidStartResponse = false;
   await page.route('**/api/**', async route => {
@@ -223,7 +224,7 @@ try {
     if (url.pathname === '/api/prs/github') return route.fulfill({ json: { login: 'test-user', prs: [{ repo: 'acme/compiler', title: 'Handle malformed parser input without hanging the worker', number: 91, url: 'https://github.com/acme/compiler/pull/91', state: 'OPEN', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), branch: 'fix/parser', base: 'main', additions: 18, deletions: 4, reviewDecision: 'CHANGES_REQUESTED', isDraft: false, commentCount: 2 }] } });
     if (url.pathname === '/api/fixes/test-shared') return route.fulfill({ json: { id: 'test-shared', repo: 'acme/compiler', pr_number: 91, comment_body: 'Handle empty input.', fix_response: 'Return early for an empty query.', diff: '--- a/search.ts\n+++ b/search.ts\n@@ -1 +1,2 @@\n+if (!query.trim()) return [];', explainer: 'Prevents an unnecessary database call.', created_at: new Date().toISOString() } });
     if (url.pathname === '/api/settings/keys') {
-      if (route.request().method() === 'GET' && page.url().includes('settings_load_failure=1')) {
+      if (route.request().method() === 'GET' && (page.url().includes('settings_load_failure=1') || onboardingReadFailure)) {
         return route.fulfill({ status: 503, json: { error: 'Settings unavailable for test.' } });
       }
       if (route.request().method() === 'POST') {
@@ -338,6 +339,14 @@ try {
   await page.getByRole('button', { name: 'Confirm — delete everything', exact: true }).click();
   await page.getByRole('alert').getByText('The server returned an invalid logout response.', { exact: true }).waitFor();
   assert.ok(page.url().includes('/crucible'), 'an untrusted logout redirect must stay on settings');
+
+  onboardingReadFailure = true;
+  const onboardingFailure = page.waitForResponse(response => new URL(response.url()).pathname === '/api/settings/keys');
+  await page.goto(base + '/issues?onboarding_failure=1');
+  await onboardingFailure;
+  await page.getByRole('heading', { name: 'Issues', exact: true }).waitFor();
+  assert.equal(await page.getByText(/Step 1 of 2/).count(), 0, 'service failures must not look like incomplete setup');
+  onboardingReadFailure = false;
 
   await page.goto(base + '/fix/test-shared');
   await page.getByRole('heading', { name: 'acme/compiler', exact: true }).waitFor();

@@ -10,12 +10,11 @@ import { NextRequest } from "next/server";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { resolveAnthropicKey } from "@/lib/api-keys";
-import { resolveGitHubToken } from "@/lib/github-token";
 import { childEnv } from "@/lib/child-env";
 import { READ_ONLY_CLAUDE_ARGS } from "@/lib/claude-tools";
 import { sanitizeForPrompt, sanitizeRepoId, sanitizeFilePath, sanitizeBranchName, sanitizePrNumber } from "@/lib/sanitize";
 import { acquireSlot, releaseSlot, activeSlots } from "@/lib/concurrency";
-import { requireSession } from "@/lib/require-session";
+import { sessionUserId } from "@/lib/require-session";
 import { CLAUDE_AGENT_MODEL } from "@/lib/models";
 
 
@@ -24,6 +23,7 @@ import { anthropicStream } from "@/lib/anthropic-stream";
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { localClaudeStream } from "@/lib/claude-stream";
 import { cloudExplore } from "@/lib/cloud-explore";
+import { resolveRepositoryToken } from "@/lib/crucible/tokens";
 
 export const maxDuration = 240;
 export const dynamic = "force-dynamic";
@@ -33,8 +33,8 @@ const MAX_CONCURRENT_FIXES = 3;
 const MCP_CONFIG = join(process.cwd(), ".mcp.json");
 
 export async function POST(req: NextRequest) {
-  const unauth = await requireSession();
-  if (unauth) return unauth;
+  const userId = await sessionUserId();
+  if (!userId) return Response.json({ error: "Not authenticated" }, { status: 401 });
 
   const raw = ((await readJsonBody(req)) ?? {}) as {
     repo?: string;
@@ -77,7 +77,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const token = await resolveGitHubToken();
+  let token: string | null;
+  try { token = (await resolveRepositoryToken(userId, body.repo)).token ?? null; }
+  catch { return Response.json({ error: "Repository not accessible" }, { status: 403 }); }
 
   // Concurrency limit. Acquired LAST, after every cheap rejection above —
   // from here the slot is only released inside the streaming handlers, so

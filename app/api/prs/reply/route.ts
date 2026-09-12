@@ -3,18 +3,18 @@ import { readJsonBody } from "@/lib/request-body";
 // Posts a reply to a PR review comment or a general PR comment.
 
 import { NextRequest } from "next/server";
-import { resolveGitHubToken } from "@/lib/github-token";
 import { sanitizeRepoId, sanitizePrNumber } from "@/lib/sanitize";
-import { requireSession } from "@/lib/require-session";
+import { sessionUserId } from "@/lib/require-session";
 
 
 import { githubApi } from "@/lib/github-api";
+import { resolveRepositoryToken } from "@/lib/crucible/tokens";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const unauth = await requireSession();
-  if (unauth) return unauth;
+  const userId = await sessionUserId();
+  if (!userId) return Response.json({ error: "Not authenticated" }, { status: 401 });
 
   const raw = ((await readJsonBody(req)) ?? {}) as {
     repo?: string;
@@ -41,7 +41,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const token = await resolveGitHubToken();
+  let token: string | null;
+  try { token = (await resolveRepositoryToken(userId, body.repo)).token ?? null; }
+  catch { return Response.json({ error: "Repository not accessible" }, { status: 403 }); }
   if (!token) {
     return Response.json({ error: "No GitHub token" }, { status: 401 });
   }

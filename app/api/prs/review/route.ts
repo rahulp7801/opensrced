@@ -2,19 +2,19 @@
 // Fetches review comments for a PR using the GitHub API.
 
 import { NextRequest } from "next/server";
-import { resolveGitHubToken } from "@/lib/github-token";
 import { sanitizeRepoId, sanitizePrNumber } from "@/lib/sanitize";
-import { requireSession } from "@/lib/require-session";
+import { sessionUserId } from "@/lib/require-session";
 
 
 import { githubApi } from "@/lib/github-api";
+import { resolveRepositoryToken } from "@/lib/crucible/tokens";
 
 export const maxDuration = 180;
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const unauth = await requireSession();
-  if (unauth) return unauth;
+  const userId = await sessionUserId();
+  if (!userId) return Response.json({ error: "Not authenticated" }, { status: 401 });
 
   const rawRepo = req.nextUrl.searchParams.get("repo");
   const rawPr = req.nextUrl.searchParams.get("pr");
@@ -36,8 +36,9 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const token = await resolveGitHubToken();
   try {
+    const resolved = await resolveRepositoryToken(userId, repo);
+    const token = resolved.token ?? null;
     type Comment = { id: number; user: { login: string }; body: string; path: string; line: number | null; original_line: number | null; diff_hunk: string; created_at: string; in_reply_to_id?: number };
     async function comments(path: string): Promise<Comment[]> {
       const all: Comment[] = [];
@@ -52,7 +53,9 @@ export async function GET(req: NextRequest) {
       githubApi<{ title: string; state: string; merged: boolean; html_url: string; head: { ref: string; repo: { full_name: string } | null }; base: { ref: string }; user: { login: string } }>(`/repos/${repo}/pulls/${pr}`, token),
       comments(`/repos/${repo}/pulls/${pr}/comments`),
       comments(`/repos/${repo}/issues/${pr}/comments`),
-      token ? githubApi<{ login: string }>("/user", token) : Promise.resolve(null),
+      token && resolved.source !== "installation"
+        ? githubApi<{ login: string }>("/user", token)
+        : Promise.resolve(null),
     ]);
     const prData = { title: pull.title, state: pull.merged ? "MERGED" : pull.state.toUpperCase(), url: pull.html_url, headRefName: pull.head.ref, baseRefName: pull.base.ref, author: pull.user };
 

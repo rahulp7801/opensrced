@@ -2,18 +2,18 @@
 // Fetches the PR diff via the GitHub API. Loaded lazily by the review page.
 
 import { NextRequest } from "next/server";
-import { requireSession } from "@/lib/require-session";
-import { resolveGitHubToken } from "@/lib/github-token";
+import { sessionUserId } from "@/lib/require-session";
 import { sanitizeRepoId, sanitizePrNumber } from "@/lib/sanitize";
 
 
 import { githubText } from "@/lib/github-api";
+import { resolveRepositoryToken } from "@/lib/crucible/tokens";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const unauth = await requireSession();
-  if (unauth) return unauth;
+  const userId = await sessionUserId();
+  if (!userId) return Response.json({ error: "Not authenticated" }, { status: 401 });
 
   const rawRepo = req.nextUrl.searchParams.get("repo");
   const rawPr = req.nextUrl.searchParams.get("pr");
@@ -26,8 +26,8 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: "Invalid repo or pr" }, { status: 400 });
   }
 
-  const token = await resolveGitHubToken();
   try {
+    const token = (await resolveRepositoryToken(userId, repo)).token ?? null;
     const diff = await githubText(`/repos/${repo}/pulls/${pr}`, token, "application/vnd.github.diff", 4_000_000);
     return Response.json({ diff });
   } catch (err) {

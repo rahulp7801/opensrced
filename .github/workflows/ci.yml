@@ -121,3 +121,28 @@ jobs:
           python -m pip_audit -r requirements-graph.txt --no-deps --disable-pip
       - name: Build and validate a real graph
         run: node scripts/smoke-graph.mjs
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build production image
+        run: docker build --tag opensrcer:ci .
+      - name: Boot and smoke production image
+        env:
+          AUTH0_SECRET: ci-build-only-not-a-real-secret
+          APP_BASE_URL: http://localhost:3000
+          AUTH0_DOMAIN: example.us.auth0.com
+          AUTH0_CLIENT_ID: ci
+          AUTH0_CLIENT_SECRET: ci
+        run: |
+          docker run --detach --name opensrcer-ci --publish 127.0.0.1:3100:3000 \
+            --env AUTH0_SECRET --env APP_BASE_URL --env AUTH0_DOMAIN \
+            --env AUTH0_CLIENT_ID --env AUTH0_CLIENT_SECRET opensrcer:ci
+          trap 'docker rm --force opensrcer-ci >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3100/api/health > "$RUNNER_TEMP/container-health.json"; then break; fi
+            sleep 1
+          done
+          node -e 'const h=require(process.argv[1]); if(h.status!=="ok") throw new Error(`container degraded: ${h.missing}`)' "$RUNNER_TEMP/container-health.json"
+          docker exec --env SMOKE_BASE_URL=http://127.0.0.1:3000 opensrcer-ci node scripts/smoke-production.mjs

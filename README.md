@@ -109,7 +109,7 @@ After Claude generates a patch, Gemini 2.0 Flash reviews it for correctness, sec
 
 ### Gitleaks Secret Scanning
 
-Before any PR is pushed, `gitleaks dir` scans the worktree for hardcoded secrets (API keys, passwords, tokens). **This is a hard gate** — if any secrets are detected, the PR is blocked entirely. Findings are redacted in the log (first/last 4 characters only). If Gitleaks is not installed, the scan is gracefully skipped.
+Before any PR is pushed, `gitleaks dir` scans the worktree for hardcoded secrets (API keys, passwords, tokens). **This is a hard gate** — if secrets are detected, the scanner fails, or Gitleaks is unavailable, the PR is blocked entirely. Findings are redacted in the log (first/last 4 characters only).
 
 ### Security Advisory Remediation
 

@@ -37,7 +37,7 @@ export async function GET() {
   const [deps, dispatchLogs] = await Promise.all([getDependencies(), countDispatchLogs()]);
 
   // Degraded rather than ok when something the agentic path needs is gone.
-  const required: Array<keyof typeof deps> = ["claude", "gh", "git", "mcp_server_built"];
+  const required: Array<keyof typeof deps> = ["claude", "gh", "git", "gitleaks", "graph_runtime", "mcp_server_built"];
   const missing = required.filter((k) => !deps[k]);
 
   return Response.json({

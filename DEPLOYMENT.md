@@ -49,8 +49,8 @@ HTTP 429. Local runs do not survive process restarts.
    issue in a repository you own. Confirm the log reaches a terminal state and
    that preview creates no PR. Then test a live run on that controlled repository.
 
-The Compose configuration persists dispatch history, shared fixes, and cloned
-repositories. Back up all three volumes and keep `AUTH0_SECRET` stable. Drain
+The Compose configuration persists dispatch history, shared fixes, cloned
+repositories, and generated graphs. Back up all four volumes and keep `AUTH0_SECRET` stable. Drain
 active runs before restarting. There is no durable job queue or restart recovery
 yet, so a rolling deployment is not safe while jobs are running.
 

@@ -10,9 +10,9 @@
 #     -v opensrcer-repos:/home/node/.contribai/repos \
 #     opensrcer
 #
-# Both volumes matter: .dispatches holds the run history the dashboard reads,
-# and ~/.contribai/repos is the shallow-clone cache. Without them a container
-# restart loses history and re-clones every repo. The container runs as the
+# Persistent volumes hold run history, shared fixes, generated graphs, and the
+# shallow-clone cache. Without them a container restart loses user state and
+# re-clones every repo. The container runs as the
 # non-root `node` user (uid 1000), so both volumes must be writable by it —
 # hence /home/node rather than /root.
 
@@ -23,7 +23,7 @@ FROM node:22-bookworm-slim
 # python3   — optional graph features (CRG); harmless if CRG_PYTHONPATH is unset
 # ca-certs  — HTTPS to github.com and the model APIs
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      git patch python3 ca-certificates curl gnupg \
+      git patch python3 python3-venv ca-certificates curl gnupg \
     && rm -rf /var/lib/apt/lists/*
 
 # gh CLI — used for issue/PR reads and `gh pr create` on public flows.
@@ -37,7 +37,7 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
 # gitleaks — hard gate on secrets in generated patches. The pipeline skips the
 # scan gracefully when it's absent, which is exactly the failure mode we don't
 # want in a container that opens PRs.
-ARG GITLEAKS_VERSION=8.21.2
+ARG GITLEAKS_VERSION=8.30.1
 RUN set -eux; \
     arch="$(dpkg --print-architecture)"; \
     case "$arch" in amd64) gl_arch=x64 ;; arm64) gl_arch=arm64 ;; *) echo "unsupported arch $arch" >&2; exit 1 ;; esac; \
@@ -45,7 +45,8 @@ RUN set -eux; \
       | tar -xz -C /usr/local/bin gitleaks
 
 # Claude Code CLI — the agentic path shells out to `claude -p`.
-RUN npm install -g @anthropic-ai/claude-code
+ARG CLAUDE_CODE_VERSION=2.1.269
+RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
 
 WORKDIR /app
 
@@ -53,6 +54,12 @@ WORKDIR /app
 # --legacy-peer-deps: react-diff-viewer-continued hasn't declared React 19.
 COPY package.json package-lock.json ./
 RUN npm ci --legacy-peer-deps
+
+# Keep graph dependencies isolated and identical to the Vercel worker image.
+COPY requirements-graph.txt ./
+RUN python3 -m venv /opt/graph \
+    && /opt/graph/bin/python -m pip install --no-cache-dir -r requirements-graph.txt
+ENV OPENSRCER_GRAPH_PYTHON=/opt/graph/bin/python
 
 # The MCP server is a separate package with its own deps and build. Without
 # dist/server.js every agentic dispatch fails at startup, so it is built here
@@ -78,13 +85,15 @@ RUN AUTH0_SECRET=build-time-placeholder-not-a-real-secret \
 # image did not write. As root, a malicious postinstall script owns the
 # container; as `node` it is confined to the app's own files and volumes.
 #
-# The two mounted volumes must be writable by uid 1000 (the `node` user):
+# The mounted paths must be writable by uid 1000 (the `node` user):
 #   /app/.dispatches            dispatch logs + sidecars
+#   /app/.fixes                 shared fix records
 #   /home/node/.contribai/repos shallow-clone cache
+#   /home/node/.opensrcer       generated graphs
 # Note the cache path moved with HOME — update the -v flag in the header
 # comment above accordingly when running as non-root.
-RUN mkdir -p /app/.dispatches /app/.fixes /home/node/.contribai/repos \
-    && chown -R node:node /app /home/node/.contribai
+RUN mkdir -p /app/.dispatches /app/.fixes /home/node/.contribai/repos /home/node/.opensrcer \
+    && chown -R node:node /app /home/node/.contribai /home/node/.opensrcer
 USER node
 
 ENV NODE_ENV=production

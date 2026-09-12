@@ -20,13 +20,27 @@ export async function hasBin(cmd: string): Promise<boolean> {
   }
 }
 
+export async function hasGraphRuntime(cmd = process.env.OPENSRCER_GRAPH_PYTHON ?? "python"): Promise<boolean> {
+  try {
+    await exec(cmd, ["-I", "-c", "import graphify"], {
+      timeout: 3000,
+      maxBuffer: 64 * 1024,
+      windowsHide: true,
+      env: childEnv(),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function probeDependencies() {
-  const [claude, gh, git, patch, gitleaks, mcp_server_built] = await Promise.all([
+  const [claude, gh, git, patch, gitleaks, graph_runtime, mcp_server_built] = await Promise.all([
     hasBin("claude"), hasBin(process.env.GH_CLI ?? "gh"), hasBin("git"),
-    hasBin("patch"), hasBin("gitleaks"),
+    hasBin("patch"), hasBin("gitleaks"), hasGraphRuntime(),
     access(join(process.cwd(), "mcp-server", "dist", "server.js")).then(() => true, () => false),
   ]);
-  return { claude, gh, git, patch, gitleaks, mcp_server_built };
+  return { claude, gh, git, patch, gitleaks, graph_runtime, mcp_server_built };
 }
 
 // Share concurrent probes and cache their result so polling cannot spawn an

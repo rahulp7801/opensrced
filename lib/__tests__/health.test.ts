@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { dependencyProbe, hasBin } from "../health";
+import { dependencyProbe, hasBin, hasGraphRuntime } from "../health";
 
 test("500 simultaneous health requests share a probe and cache its result", async () => {
   let calls = 0;
-  const deps = { claude: true, gh: true, git: true, patch: true, gitleaks: true, mcp_server_built: true };
+  const deps = { claude: true, gh: true, git: true, patch: true, gitleaks: true, graph_runtime: true, mcp_server_built: true };
   const get = dependencyProbe(async () => {
     calls++;
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -19,7 +19,7 @@ test("500 simultaneous health requests share a probe and cache its result", asyn
 
 test("failed probes can retry and expired probes refresh", async () => {
   let calls = 0;
-  const deps = { claude: false, gh: false, git: false, patch: false, gitleaks: false, mcp_server_built: false };
+  const deps = { claude: false, gh: false, git: false, patch: false, gitleaks: false, graph_runtime: false, mcp_server_built: false };
   const get = dependencyProbe(async () => {
     if (++calls === 1) throw new Error("probe failed");
     return deps;
@@ -33,4 +33,5 @@ test("failed probes can retry and expired probes refresh", async () => {
 test("binary probes report present and missing executables", async () => {
   assert.equal(await hasBin(process.execPath), true);
   assert.equal(await hasBin("opensrcer-nonexistent-tool"), false);
+  assert.equal(await hasGraphRuntime("opensrcer-nonexistent-tool"), false);
 });

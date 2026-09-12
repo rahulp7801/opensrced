@@ -2,6 +2,21 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { pollJson } from "../poll-json";
 
+test("API failures surface the server's bounded explanation", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => Response.json(
+    { error: "GitHub suggestions could not be loaded. Check access and rate limits." },
+    { status: 503 },
+  ));
+
+  await new Promise<void>((resolve) => {
+    const stop = pollJson("/suggestions", ({ error }) => {
+      assert.equal(error, "GitHub suggestions could not be loaded. Check access and rate limits.");
+      stop();
+      resolve();
+    });
+  });
+});
+
 test("cleanup aborts a request and a remount starts immediately", async (t) => {
   const signals: AbortSignal[] = [];
   t.mock.method(globalThis, "fetch", (_url: string, opts: RequestInit) => {

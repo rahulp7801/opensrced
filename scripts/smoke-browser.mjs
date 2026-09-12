@@ -156,6 +156,12 @@ try {
     }
     if (url.pathname === '/api/issues/suggested') return route.fulfill({ json: { issues: [], filteredOut: 0 } });
     if (url.pathname === '/api/issues/scan') return route.fulfill({ json: { repo: 'acme/app', total: 1, solvable: 1, issues: [{ number: 1, title: 'Fix parser error', body: 'Fix the parser.', labels: ['bug'], url: 'https://github.com/acme/app/issues/1', author: 'test', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), comments: 0, category: 'bug', severity: 'low', complexity: 1, est_minutes: 5, solvable: true, reason: 'Small fix', scope: { bucket: 'leaf', confidence: 'high', files: ['parser.ts'], symbols: [], reason: 'Parser file' } }] } });
+    if (url.pathname === '/api/activity') return route.fulfill({ json: {
+      dispatchWindow: 50, scans: 128, discoverRuns: 9, dispatches: 42, prsCreated: 11,
+      bugsSquashed: 0, totalCostUsd: 14.82, patchesGenerated: 31, successRate: 0.74, prRate: 0.26,
+      biggestContributions: [{ prUrl: 'https://github.com/acme/compiler/pull/91', repoFull: 'acme/compiler', stars: 24300, issueNumber: 418, dispatchId: 'd_visual_123456789', startedAt: new Date().toISOString() }],
+      recentActivity: [{ kind: 'dispatch', ts: new Date().toISOString(), repo: 'acme/compiler', issueNumber: 418, prUrl: 'https://github.com/acme/compiler/pull/91' }, { kind: 'scan', ts: new Date(Date.now() - 3600000).toISOString(), repo: 'acme/parser' }],
+    } });
     if (url.pathname === '/api/settings/keys') {
       if (route.request().method() === 'GET' && page.url().includes('settings_load_failure=1')) {
         return route.fulfill({ status: 503, json: { error: 'Settings unavailable for test.' } });
@@ -241,6 +247,12 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'missing-key banner must fit mobile');
   await assertNoSeriousAccessibilityViolations(page, 'mobile missing-key banner');
 
+  await page.goto(base + '/stats');
+  await page.getByRole('heading', { name: 'Biggest contributions', exact: true }).waitFor();
+  await page.getByText('acme/parser', { exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'authenticated stats must fit mobile');
+  await assertNoSeriousAccessibilityViolations(page, 'authenticated mobile stats');
+
   await context.close();
-  console.log(JSON.stringify({ pagesChecked, viewports: [1440, 390], landingVitals, controlTargets: true, accessibility: 'serious-and-critical', helpDialog: true, previewRetry: true, issueActions: 2, settingsRecovery: true, authPrefetch: false }));
+  console.log(JSON.stringify({ pagesChecked, viewports: [1440, 390], landingVitals, controlTargets: true, accessibility: 'serious-and-critical', helpDialog: true, previewRetry: true, issueActions: 2, settingsRecovery: true, mobileStats: true, authPrefetch: false }));
 } finally { await browser.close(); }

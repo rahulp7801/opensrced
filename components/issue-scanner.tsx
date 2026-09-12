@@ -1,11 +1,11 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { cacheGet, cacheSet } from "@/lib/client-cache";
 import { StatusChip } from "./status-dot";
-import { IconArrow, IconExternal, IconSearch } from "./icons";
+import { IconArrow, IconChevronDown, IconExternal, IconSearch } from "./icons";
 
 type ScopeBucket = "doc" | "leaf" | "cross-file" | "refactor" | "new-file" | "unknown";
 
@@ -235,241 +235,126 @@ export function IssueScanner() {
 
       {scan && (
         <>
-          {/* Summary */}
-          <div className="mt-6 flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <div className="mono-label text-paper-muted">scan · {scan.repo}</div>
-              <div className="mt-1 flex items-baseline gap-3">
-                <span className="serif text-[40px] leading-none text-paper num-tabular">
-                  {scan.total}
-                </span>
-                <span className="text-[13px] text-paper-muted">open issues</span>
-                <span className="text-paper-faint">·</span>
-                <span className="serif text-[28px] leading-none text-signal num-tabular">
-                  {scan.solvable}
-                </span>
-                <span className="text-[13px] text-paper-muted">classified as solvable</span>
+          <section aria-labelledby="scan-results-title" className="mt-6 overflow-hidden rounded-lg border border-border bg-surface/45">
+            <div className="border-b border-border-soft px-5 py-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <p className="text-xs font-medium text-signal">Scan complete</p>
+                  <h2 id="scan-results-title" className="mt-1 text-lg font-semibold text-paper">{scan.repo}</h2>
+                  <p className="mt-1 text-sm text-paper-muted">
+                    <span className="font-medium text-paper">{scan.total}</span> open issue{scan.total === 1 ? "" : "s"};{" "}
+                    <span className="font-medium text-signal">{scan.solvable}</span> ready for an automated attempt.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
+                  <FilterGroup label="Readiness">
+                    {([
+                      { k: "solvable", label: `Ready (${scan.solvable})` },
+                      { k: "all", label: `All (${scan.total})` },
+                    ] as const).map((option) => (
+                      <FilterButton key={option.k} active={filter === option.k} onClick={() => setFilter(option.k)}>{option.label}</FilterButton>
+                    ))}
+                  </FilterGroup>
+                  <FilterGroup label="Opened">
+                    {([
+                      { k: "recent", label: `Last 30d (${recentCount})` },
+                      { k: "any", label: "Any time" },
+                    ] as const).map((option) => (
+                      <FilterButton key={option.k} active={age === option.k} onClick={() => setAge(option.k)}>{option.label}</FilterButton>
+                    ))}
+                  </FilterGroup>
+                  <FilterGroup label="Labels" className="col-span-2">
+                    {([
+                      { k: "any", label: "Any label" },
+                      { k: "good-first", label: `Beginner (${goodFirstCount})` },
+                    ] as const).map((option) => (
+                      <FilterButton key={option.k} active={beginner === option.k} tone="ok" onClick={() => setBeginner(option.k)}>{option.label}</FilterButton>
+                    ))}
+                  </FilterGroup>
+                </div>
               </div>
             </div>
-            <div className="flex flex-wrap gap-1">
-              {([
-                { k: "solvable", label: `Solvable (${scan.solvable})` },
-                { k: "all", label: `All (${scan.total})` },
-              ] as const).map((opt) => (
-                <button
-                  key={opt.k}
-                  onClick={() => setFilter(opt.k)}
-                  aria-pressed={filter === opt.k}
-                  className={cn(
-                    "min-h-9 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
-                    filter === opt.k
-                      ? "border-signal/60 bg-signal/10 text-signal"
-                      : "border-border text-paper-muted hover:text-paper",
-                  )}
-                >
-                  {opt.label}
-                </button>
-              ))}
-              <span className="mx-1 self-center text-paper-faint">·</span>
-              {([
-                { k: "recent", label: `Last 30d (${recentCount})` },
-                { k: "any", label: "Any age" },
-              ] as const).map((opt) => (
-                <button
-                  key={opt.k}
-                  onClick={() => setAge(opt.k)}
-                  aria-pressed={age === opt.k}
-                  className={cn(
-                    "min-h-9 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
-                    age === opt.k
-                      ? "border-signal/60 bg-signal/10 text-signal"
-                      : "border-border text-paper-muted hover:text-paper",
-                  )}
-                  title={
-                    opt.k === "recent"
-                      ? "Show only issues opened in the last 30 days (sorted newest first)"
-                      : "Show all issues regardless of age"
-                  }
-                >
-                  {opt.label}
-                </button>
-              ))}
-              <span className="mx-1 self-center text-paper-faint">·</span>
-              {([
-                { k: "any", label: "Any tag" },
-                { k: "good-first", label: `Good first (${goodFirstCount})` },
-              ] as const).map((opt) => (
-                <button
-                  key={opt.k}
-                  onClick={() => setBeginner(opt.k)}
-                  aria-pressed={beginner === opt.k}
-                  className={cn(
-                    "min-h-9 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
-                    beginner === opt.k
-                      ? "border-ok/60 bg-ok/10 text-ok"
-                      : "border-border text-paper-muted hover:text-paper",
-                  )}
-                  title={
-                    opt.k === "good-first"
-                      ? "Only issues maintainers tagged for newcomers (good first issue, beginner, starter, first-timers-only, easy, low-hanging-fruit)"
-                      : "Show issues regardless of beginner-friendly tags"
-                  }
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
 
-          {/* Table */}
-          <div className="mt-6 border border-border bg-surface/40 overflow-x-auto">
-            <table className="w-full text-[12.5px]">
-              <thead>
-                <tr className="border-b border-border bg-ink/50 text-paper-muted">
-                  {["#", "TITLE", "OPENED", "CATEGORY", "SCOPE", "SEVERITY", "COMPLEXITY", "EST. TIME", "STATE", "ACTION"].map((h) => (
-                    <th
-                      key={h}
-                      className="py-2.5 px-3 text-left font-normal tracking-[0.15em] text-xs uppercase"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {issues.length === 0 ? (
-                  <tr>
-                    <td colSpan={10} className="py-10 text-center text-paper-muted text-[12px]">
-                      {beginner === "good-first"
-                        ? "No beginner-tagged issues match the current filters. Switch to 'Any tag', or widen age/solvability."
-                        : age === "recent" && filter === "solvable"
-                          ? "No solvable issues opened in the last 30 days. Switch to 'Any age' to widen the window."
-                          : filter === "solvable"
-                            ? "No solvable issues in this repo. Switch to 'All' to see non-actionable ones."
-                            : "No issues."}
-                    </td>
-                  </tr>
-                ) : (
-                  issues.map((issue) => {
-                    const expanded = expandedNumber === issue.number;
-                    const rec = recommendFor(issue);
-                    return (
-                      <Fragment key={issue.number}>
-                        <tr
-                          id={`issue-row-${issue.number}`}
-                          onClick={() =>
-                            setExpandedNumber(expanded ? null : issue.number)
-                          }
-                          className={cn(
-                            "group border-b border-border-soft last:border-0 transition-colors cursor-pointer",
-                            expanded ? "bg-surface-2/80" : "hover:bg-surface-2/60",
-                            !issue.solvable && "opacity-60",
-                          )}
-                        >
-                          <td className="px-3 py-2.5 text-paper-faint tabular-nums whitespace-nowrap">
-                            <a
-                              href={issue.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="hover:text-signal inline-flex items-center gap-1"
-                            >
-                              #{issue.number}
-                              <IconExternal />
+            {issues.length === 0 ? (
+              <div className="px-5 py-12 text-center">
+                <p className="text-sm font-medium text-paper">No issues match these filters</p>
+                <p className="mx-auto mt-1 max-w-lg text-xs leading-relaxed text-paper-muted">
+                  {beginner === "good-first"
+                    ? "Include any label or widen the age and readiness filters."
+                    : age === "recent" && filter === "solvable"
+                      ? "Include older issues or show every readiness state."
+                      : filter === "solvable"
+                        ? "Show all issues to review items that need more context."
+                        : "This repository has no open issues in the scan window."}
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border-soft">
+                {issues.map((issue) => {
+                  const expanded = expandedNumber === issue.number;
+                  const rec = recommendFor(issue);
+                  return (
+                    <article id={`issue-row-${issue.number}`} key={issue.number} className={cn("transition-colors", expanded ? "bg-surface-2/55" : "hover:bg-surface-2/30", !issue.solvable && "opacity-70")}>
+                      <div className="grid gap-4 px-5 py-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-paper-muted">
+                            <a href={issue.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-paper-dim hover:text-signal">
+                              #{issue.number}<IconExternal />
+                              <span className="sr-only">Open on GitHub</span>
                             </a>
-                          </td>
-                          <td className="px-3 py-2.5 text-paper max-w-[420px]">
-                            <div className="flex items-center gap-1.5">
-                              <span className={cn(
-                                "inline-block text-paper-faint text-xs transition-transform",
-                                expanded && "rotate-90",
-                              )}>▸</span>
-                              <span className="truncate flex-1">{issue.title}</span>
-                            </div>
-                            {issue.labels.length > 0 && (
-                              <div className="mt-1 flex gap-1 flex-wrap pl-4">
-                                {issue.labels.slice(0, 4).map((l) => (
-                                  <span
-                                    key={l}
-                                    className="text-[11px] uppercase tracking-[0.1em] border border-border-soft px-1 py-0.5 text-paper-muted"
-                                  >
-                                    {l}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-3 py-2.5 whitespace-nowrap" title={issue.created_at}>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-paper-muted tabular-nums text-[11px]">
-                                {fmtRelative(issue.created_at, now)}
-                              </span>
-                              {now - Date.parse(issue.created_at) <= NEW_CUTOFF_MS && (
-                                <span className="text-[11px] uppercase tracking-[0.12em] text-signal border border-signal/40 bg-signal/5 px-1 py-px leading-none">
-                                  new
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-3 py-2.5 text-xs uppercase tracking-[0.12em] text-paper-dim">
-                            {issue.category}
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <ScopeBadge s={issue.scope} />
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <SeverityChip s={issue.severity} />
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <ComplexityPips value={issue.complexity} />
-                          </td>
-                          <td className="px-3 py-2.5 text-paper-muted tabular-nums whitespace-nowrap">
-                            ~{fmtMinutes(issue.est_minutes)}
-                          </td>
-                          <td className="px-3 py-2.5">
-                            {issue.solvable ? (
-                              <StatusChip tone="ok">ready</StatusChip>
-                            ) : (
-                              <StatusChip tone="muted" className="cursor-help">skip</StatusChip>
-                            )}
-                          </td>
-                          <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
-                            {issue.solvable ? (
-                              <ActionButtons
-                                recommended={rec.action}
-                                disabled={dispatching !== null}
-                                dispatching={dispatching?.number === issue.number ? dispatching.kind : null}
-                                onPreview={() => solve(issue.number, true)}
-                                onSolve={() => solve(issue.number, false)}
-                              />
-                            ) : (
-                              <span className="text-xs text-paper-muted italic" title={issue.reason}>
-                                {issue.reason.slice(0, 48)}
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                        {expanded && (
-                          <tr className="border-b border-border bg-ink/40">
-                            <td colSpan={10} className="px-6 py-5">
-                              <IssueDetail
-                                issue={issue}
-                                rec={rec}
-                                disabled={dispatching !== null}
-                                dispatching={dispatching?.number === issue.number ? dispatching.kind : null}
-                                onPreview={() => solve(issue.number, true)}
-                                onSolve={() => solve(issue.number, false)}
-                              />
-                            </td>
-                          </tr>
-                        )}
-                      </Fragment>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                            <span title={issue.created_at}>Opened {fmtRelative(issue.created_at, now)}</span>
+                            {now - Date.parse(issue.created_at) <= NEW_CUTOFF_MS && <span className="rounded border border-signal/30 bg-signal/5 px-1.5 py-0.5 text-signal">New</span>}
+                            <span className="rounded border border-border px-1.5 py-0.5 text-paper-muted">{issue.category}</span>
+                            {issue.labels.slice(0, 3).map((label) => <span key={label} className="rounded border border-border-soft px-1.5 py-0.5 text-paper-muted">{label}</span>)}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setExpandedNumber(expanded ? null : issue.number)}
+                            aria-expanded={expanded}
+                            aria-controls={`issue-detail-${issue.number}`}
+                            className="mt-2 flex w-full items-start gap-2 text-left"
+                          >
+                            <IconChevronDown className={cn("mt-0.5 shrink-0 text-paper-faint transition-transform", !expanded && "-rotate-90")} />
+                            <span className="text-sm font-medium leading-snug text-paper">{issue.title}</span>
+                          </button>
+                          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-paper-muted">
+                            <span className="inline-flex items-center gap-1.5"><span className="text-paper-faint">Scope</span><ScopeBadge s={issue.scope} /></span>
+                            <span className="inline-flex items-center gap-1.5"><span className="text-paper-faint">Risk</span><SeverityChip s={issue.severity} /></span>
+                            <span className="inline-flex items-center gap-1.5"><span className="text-paper-faint">Complexity</span><ComplexityPips value={issue.complexity} /></span>
+                            <span><span className="text-paper-faint">Estimate</span> ~{fmtMinutes(issue.est_minutes)}</span>
+                            {issue.solvable ? <StatusChip tone="ok">Ready</StatusChip> : <StatusChip tone="muted">Needs review</StatusChip>}
+                          </div>
+                        </div>
+                        <div className="lg:justify-self-end">
+                          {issue.solvable ? (
+                            <ActionButtons
+                              recommended={rec.action}
+                              disabled={dispatching !== null}
+                              dispatching={dispatching?.number === issue.number ? dispatching.kind : null}
+                              onPreview={() => solve(issue.number, true)}
+                              onSolve={() => solve(issue.number, false)}
+                            />
+                          ) : <p className="max-w-xs text-xs leading-relaxed text-paper-muted">{issue.reason}</p>}
+                        </div>
+                      </div>
+                      {expanded && (
+                        <div id={`issue-detail-${issue.number}`} className="border-t border-border-soft bg-ink/30 px-5 py-5">
+                          <IssueDetail
+                            issue={issue}
+                            rec={rec}
+                            disabled={dispatching !== null}
+                            dispatching={dispatching?.number === issue.number ? dispatching.kind : null}
+                            onPreview={() => solve(issue.number, true)}
+                            onSolve={() => solve(issue.number, false)}
+                          />
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
         </>
       )}
 
@@ -488,6 +373,38 @@ const GOOD_FIRST_PATTERNS = [
 
 function isGoodFirstIssue(issue: { labels: string[] }): boolean {
   return issue.labels.some((l) => GOOD_FIRST_PATTERNS.some((p) => p.test(l)));
+}
+
+function FilterGroup({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
+  return (
+    <fieldset className={className}>
+      <legend className="mb-1.5 text-xs font-medium text-paper-faint">{label}</legend>
+      <div className="flex gap-1.5">{children}</div>
+    </fieldset>
+  );
+}
+
+function FilterButton({ active, tone = "signal", onClick, children }: {
+  active: boolean;
+  tone?: "signal" | "ok";
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "min-h-9 whitespace-nowrap rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+        active
+          ? tone === "ok" ? "border-ok/45 bg-ok/10 text-ok" : "border-signal/45 bg-signal/10 text-signal"
+          : "border-border bg-surface/50 text-paper-muted hover:border-border-strong hover:text-paper",
+      )}
+    >
+      {children}
+    </button>
+  );
 }
 
 function fmtMinutes(m: number) {
@@ -527,18 +444,16 @@ function recommendFor(issue: Issue): Recommendation {
   return { action: "solve", headline: "Solve & open PR", reason: "Explore the repository and generate a fix. A draft PR opens only after the configured checks pass." };
 }
 
-const ACTION_META: Record<ActionKind, { label: string; tooltip: string; iconColor: string }> = {
+const ACTION_META: Record<ActionKind, { label: string; tooltip: string }> = {
   preview: {
-    label: "preview",
+    label: "Preview patch",
     tooltip:
       "Generate a patch without pushing code or opening a PR. Review and copy the patch in Dispatches.",
-    iconColor: "text-paper-dim",
   },
   solve: {
-    label: "solve & open PR",
+    label: "Solve & open PR",
     tooltip:
       "Explore the repository, generate a fix, and open a draft PR if the configured checks pass.",
-    iconColor: "text-signal",
   },
 };
 
@@ -556,7 +471,7 @@ function ActionButtons({
   onSolve: () => void;
 }) {
   return (
-    <div className="flex gap-1.5 justify-end">
+    <div className="flex flex-wrap gap-2 lg:justify-end">
       <ActionButton kind="preview" recommended={recommended === "preview"}
         disabled={disabled} dispatching={dispatching === "preview"} onClick={onPreview} />
       <ActionButton kind="solve" recommended={recommended === "solve"}
@@ -589,15 +504,15 @@ function ActionButton({
     solve: "border-signal bg-signal/15 text-paper",
   }[kind];
   const base = large
-    ? "px-4 py-2 text-[12px]"
-    : "px-2.5 py-1 text-[11px]";
+    ? "min-h-11 px-4 py-2 text-xs"
+    : "min-h-10 px-3 py-2 text-xs";
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       title={meta.tooltip + (recommended ? "\n\nRecommended for this issue." : "")}
       className={cn(
-        "relative inline-flex items-center gap-1.5 border transition-colors disabled:opacity-40",
+        "relative inline-flex items-center justify-center gap-1.5 rounded-md border font-medium transition-colors disabled:opacity-40",
         base,
         recommended
           ? `${recStyle} hover:brightness-125`
@@ -610,7 +525,7 @@ function ActionButton({
           className={cn("h-1.5 w-1.5 rounded-full", kind === "solve" ? "bg-signal" : "bg-paper-dim")}
         />
       )}
-      {dispatching ? "starting…" : meta.label}
+      {dispatching ? "Starting…" : meta.label}
     </button>
   );
 }
@@ -632,21 +547,19 @@ function IssueDetail({
 }) {
   const body = (issue.body ?? "").trim() || "(issue has no body)";
   return (
-    <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
-      {/* Left: full body */}
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div>
-        <div className="mono-label text-paper-muted mb-2">issue #{issue.number} · body</div>
-        <div className="border border-border-soft bg-ink/60 p-4 text-[12.5px] text-paper leading-relaxed font-mono whitespace-pre-wrap max-h-[420px] overflow-y-auto">
+        <h4 className="text-sm font-medium text-paper">Issue description</h4>
+        <div className="mt-2 max-h-[420px] overflow-y-auto whitespace-pre-wrap rounded-md border border-border-soft bg-ink/55 p-4 text-[13px] leading-relaxed text-paper-dim">
           {body}
         </div>
       </div>
 
-      {/* Right: recommendation + actions */}
       <div className="flex flex-col gap-4">
         <div>
-          <div className="mono-label text-paper-muted mb-2">recommendation</div>
+          <h4 className="text-sm font-medium text-paper">Recommendation</h4>
           <div className={cn(
-            "border p-3",
+            "mt-2 rounded-md border p-3",
             rec.action === "solve" ? "border-signal/50 bg-signal/5" :
             "border-border-strong bg-surface-2",
           )}>
@@ -663,41 +576,40 @@ function IssueDetail({
         </div>
 
         <div>
-          <div className="mono-label text-paper-muted mb-2">start a run</div>
+          <h4 className="mb-2 text-sm font-medium text-paper">Start a run</h4>
           <div className="flex flex-col gap-2">
             <ActionButton kind="solve" recommended={rec.action === "solve"}
               disabled={disabled} dispatching={dispatching === "solve"} onClick={onSolve} large />
             <ActionButton kind="preview" recommended={rec.action === "preview"}
               disabled={disabled} dispatching={dispatching === "preview"} onClick={onPreview} large />
           </div>
-          <div className="mt-2 text-[10.5px] text-paper-faint leading-snug">
-            <span className="text-signal">Solve &amp; open PR</span> = generate a fix and open a draft PR after checks.{" "}
-            <span className="text-paper">preview</span> = generate a patch without pushing or opening a PR.
+          <div className="mt-2 text-xs leading-relaxed text-paper-faint">
+            A preview creates a reviewable patch without pushing code. A solve opens a draft PR only after checks pass.
           </div>
         </div>
 
         <div>
-          <div className="mono-label text-paper-muted mb-2">scope evidence</div>
-          <div className="text-[11px] text-paper-muted leading-snug">
-            <span className="text-paper">{issue.scope.reason}</span>
+          <h4 className="mb-2 text-sm font-medium text-paper">Scope evidence</h4>
+          <div className="text-xs leading-relaxed text-paper-muted">
+            <p className="text-paper-dim">{issue.scope.reason}</p>
             {issue.scope.files.length > 0 && (
-              <div className="mt-1">
-                <span className="text-paper-faint">files:</span>{" "}
+              <div className="mt-2">
+                <span className="text-paper-faint">Files:</span>{" "}
                 {issue.scope.files.slice(0, 6).map((f, i) => (
                   <code key={f} className="text-paper">{i > 0 ? ", " : ""}{f}</code>
                 ))}
               </div>
             )}
             {issue.scope.symbols.length > 0 && (
-              <div className="mt-1">
-                <span className="text-paper-faint">symbols:</span>{" "}
+              <div className="mt-1.5">
+                <span className="text-paper-faint">Symbols:</span>{" "}
                 {issue.scope.symbols.slice(0, 6).map((s, i) => (
                   <code key={s} className="text-paper">{i > 0 ? ", " : ""}{s}</code>
                 ))}
               </div>
             )}
-            <div className="mt-1 text-paper-faint">
-              confidence: {issue.scope.confidence} · complexity {issue.complexity}/5 · ~{fmtMinutes(issue.est_minutes)}
+            <div className="mt-2 text-paper-faint">
+              {issue.scope.confidence} confidence · complexity {issue.complexity}/5 · about {fmtMinutes(issue.est_minutes)}
             </div>
           </div>
         </div>

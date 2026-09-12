@@ -56,7 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         }
       >
         <a className="skip-link" href="#main-content">Skip to content</a>
-        <Auth0Provider>
+        <Auth0Provider user={localMode ? { sub: "local-dev", name: "Local workspace" } : undefined}>
           <ToastProvider>
             <div className="flex min-h-svh flex-col">
               {/* Header + section tabs pin together, so neither has to hardcode

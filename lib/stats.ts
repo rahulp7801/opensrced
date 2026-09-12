@@ -81,16 +81,52 @@ async function saveStatsFile(s: StatsFile, owner: string) {
   await writeFile(join(DISPATCH_DIR, statsPath(owner)), JSON.stringify(s));
 }
 
-const pendingStats = new Map<string, Promise<void>>();
+type PendingActivity = {
+  kind: "scan" | "discover";
+  repo?: string;
+  resolve: () => void;
+  reject: (error: unknown) => void;
+};
+
+const pendingStats = new Map<string, PendingActivity[]>();
+const flushingStats = new Set<string>();
+
+async function flushActivities(owner: string) {
+  const queue = pendingStats.get(owner);
+  if (!queue) return;
+  while (queue.length > 0) {
+    const batch = queue.splice(0);
+    try {
+      let stats = await loadStatsFile(owner);
+      for (const event of batch) {
+        stats = {
+          scans: stats.scans + 1,
+          discoverRuns: stats.discoverRuns + Number(event.kind === "discover"),
+          scanHistory: [...stats.scanHistory, { ts: new Date().toISOString(), repo: event.repo, kind: event.kind }].slice(-200),
+        };
+      }
+      await saveStatsFile(stats, owner);
+      batch.forEach((event) => event.resolve());
+    } catch (error) {
+      batch.forEach((event) => event.reject(error));
+    }
+  }
+  pendingStats.delete(owner);
+  flushingStats.delete(owner);
+}
 
 async function recordActivity(owner: string, kind: "scan" | "discover", repo?: string) {
   const update = (s: StatsFile): StatsFile => ({ scans: s.scans + 1, discoverRuns: s.discoverRuns + Number(kind === "discover"), scanHistory: [...s.scanHistory, { ts: new Date().toISOString(), repo, kind }].slice(-200) });
   if (cloudExecution()) return updateJson(statsPath(owner), { scans: 0, discoverRuns: 0, scanHistory: [] } as StatsFile, update);
-  const pending = (pendingStats.get(owner) ?? Promise.resolve()).catch(() => {}).then(async () => {
-    await saveStatsFile(update(await loadStatsFile(owner)), owner);
+  return new Promise<void>((resolve, reject) => {
+    const queue = pendingStats.get(owner) ?? [];
+    queue.push({ kind, repo, resolve, reject });
+    pendingStats.set(owner, queue);
+    if (!flushingStats.has(owner)) {
+      flushingStats.add(owner);
+      queueMicrotask(() => { void flushActivities(owner); });
+    }
   });
-  pendingStats.set(owner, pending);
-  try { await pending; } finally { if (pendingStats.get(owner) === pending) pendingStats.delete(owner); }
 }
 export async function recordScan(repo: string | null, owner: string): Promise<void> { await recordActivity(owner, "scan", repo ?? undefined); }
 export async function recordDiscoverRun(owner: string): Promise<void> { await recordActivity(owner, "discover"); }

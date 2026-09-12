@@ -39,4 +39,9 @@ for (const path of ['/api/activity', '/auth/login']) {
   assert.deepEqual(await response.json(), { error: 'Authentication is not configured for this deployment.' });
 }
 
-console.log(JSON.stringify({ publicPages: 3, redirectedShells: 6, health: 'degraded', protectedStatus: 503 }));
+const profile = await request('/auth/profile');
+assert.equal(profile.status, 401);
+assert.match(profile.headers.get('cache-control') ?? '', /no-store/);
+assert.deepEqual(await profile.json(), { error: 'Not authenticated' });
+
+console.log(JSON.stringify({ publicPages: 3, redirectedShells: 6, health: 'degraded', profileStatus: 401, protectedStatus: 503 }));

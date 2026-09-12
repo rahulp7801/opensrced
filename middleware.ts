@@ -130,6 +130,15 @@ export async function middleware(req: NextRequest) {
       response.headers.set("X-Auth", "not-configured");
       return response;
     }
+    // Auth0's client hook treats 401 as the normal signed-out state. A 503
+    // here is retried, keeping otherwise-public pages such as /demo network-
+    // busy indefinitely when a preview has no tenant configured.
+    if (pathname === "/auth/profile" && (req.method === "GET" || req.method === "HEAD")) {
+      return NextResponse.json(
+        { error: "Not authenticated" },
+        { status: 401, headers: { "Cache-Control": "no-store" } },
+      );
+    }
     if (pathname.startsWith("/api/") || pathname.startsWith("/auth/")) {
       return NextResponse.json(
         { error: "Authentication is not configured for this deployment." },

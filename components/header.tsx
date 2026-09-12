@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCurrentUser } from "@/lib/use-current-user";
 import { Nav } from "./nav";
 import { AuthChip } from "./auth-chip";
+import { IconClose, IconHelp } from "./icons";
 
 export function SiteHeader({ localMode = false }: { localMode?: boolean }) {
   const { user } = useCurrentUser(localMode);
@@ -76,7 +77,7 @@ export function SiteHeader({ localMode = false }: { localMode?: boolean }) {
               className="flex items-center justify-center px-3 border-l border-border text-paper-muted hover:text-signal transition"
               title="Help & quick reference"
             >
-              <span className="text-[14px] font-mono">?</span>
+              <IconHelp size={17} />
             </button>
           )}
 
@@ -93,12 +94,20 @@ export function SiteHeader({ localMode = false }: { localMode?: boolean }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="quick-help-title"
-            className="mt-12 mr-4 bg-ink border border-border shadow-2xl w-[320px] max-h-[80vh] overflow-y-auto"
+            className="mt-12 mr-4 max-h-[80vh] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto border border-border bg-ink shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-4 py-3 border-b border-border-soft flex items-center justify-between">
               <span id="quick-help-title" className="text-[11px] uppercase tracking-[0.15em] text-paper-muted">Quick help</span>
-              <button ref={closeButtonRef} onClick={closeHelp} className="text-xs text-paper-faint hover:text-paper-muted">close</button>
+              <button
+                ref={closeButtonRef}
+                onClick={closeHelp}
+                className="inline-flex items-center justify-center text-paper-faint hover:text-paper"
+                aria-label="Close help"
+                title="Close help"
+              >
+                <IconClose size={16} />
+              </button>
             </div>
             <div className="p-4 space-y-4 text-[12px]">
               {/* The "Key pages" list that used to sit here explained what

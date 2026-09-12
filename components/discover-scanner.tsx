@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { StatusChip } from "./status-dot";
-import { IconArrow, IconExternal, IconSearch } from "./icons";
+import { IconArrow, IconChevronDown, IconExternal, IconSearch } from "./icons";
 
 type ScopeBucket = "doc" | "leaf" | "cross-file" | "refactor" | "new-file" | "unknown";
 
@@ -187,9 +187,12 @@ export function DiscoverScanner() {
           />
         </div>
         <div className="mt-4 grid gap-4 border-t border-border-soft pt-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-          <details>
-            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium text-paper-dim hover:text-paper">
-              <span>Advanced filters</span>
+          <details className="group">
+            <summary className="flex min-h-11 cursor-pointer list-none flex-col items-start justify-center gap-0.5 text-sm font-medium text-paper-dim hover:text-paper sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <span className="inline-flex items-center gap-2">
+                Advanced filters
+                <IconChevronDown size={14} className="text-paper-faint transition-transform group-open:rotate-180" />
+              </span>
               <span className="text-xs font-normal text-paper-muted">Search size and repository freshness</span>
             </summary>
             <div className="grid gap-4 pb-2 pt-3 sm:grid-cols-3">
@@ -471,30 +474,37 @@ export function DiscoverScanner() {
       )}
 
       {!data && !loading && !err && (
-        <div className="mt-8 border border-border bg-surface/40 p-8 text-center">
-          <div className="serif text-[28px] text-paper">Search GitHub for issues worth solving.</div>
-          <p className="mt-2 text-[12px] text-paper-muted">
-            Set a star floor and (optionally) a language, then pick through the results by
-            age, difficulty, and scope. Click any row to scan that repo&apos;s full issue list.
-          </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-2">
+        <section className="mt-8 border-t border-border pt-7" aria-labelledby="starter-repositories">
+          <div className="max-w-2xl">
+            <h2 id="starter-repositories" className="text-base font-medium text-paper">
+              Try a repository
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-paper-muted">
+              Open a familiar project in the issue scanner, or use the filters above to search across GitHub.
+            </p>
+          </div>
+          <div className="mt-5 grid overflow-hidden border border-border bg-border gap-px sm:grid-cols-3">
             {[
-              { name: "astral-sh/ruff", lang: "rust" },
-              { name: "withastro/astro", lang: "ts" },
-              { name: "fastapi/fastapi", lang: "python" },
-              { name: "denoland/deno", lang: "rust" },
-              { name: "chartjs/Chart.js", lang: "js" },
-            ].map((s) => (
+              { name: "astral-sh/ruff", lang: "Rust" },
+              { name: "withastro/astro", lang: "TypeScript" },
+              { name: "fastapi/fastapi", lang: "Python" },
+            ].map((repo) => (
               <Link
-                key={s.name}
-                href={`/issues?repo=${encodeURIComponent(`https://github.com/${s.name}`)}`}
-                className="text-[11px] text-paper-dim border border-border-soft hover:border-signal/40 hover:text-signal px-2.5 py-1.5 transition"
+                key={repo.name}
+                href={`/issues?repo=${encodeURIComponent(`https://github.com/${repo.name}`)}`}
+                className="group flex min-h-20 items-center justify-between gap-4 bg-ink px-4 py-3 transition-colors hover:bg-surface"
               >
-                {s.name} <span className="text-paper-faint">{s.lang}</span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium text-paper group-hover:text-signal">
+                    {repo.name}
+                  </span>
+                  <span className="mt-1 block text-xs text-paper-muted">{repo.lang}</span>
+                </span>
+                <IconArrow className="shrink-0 text-paper-faint transition-transform group-hover:translate-x-0.5 group-hover:text-signal" />
               </Link>
             ))}
           </div>
-        </div>
+        </section>
       )}
     </div>
   );

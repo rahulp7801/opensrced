@@ -3,12 +3,14 @@ import {
   ArrowSquareOut,
   BookOpen,
   Check,
+  CaretDown,
   Copy,
   Funnel,
   GitPullRequest,
   Lightning,
   MagnifyingGlass,
   Pulse,
+  Question,
   ShieldCheck,
   SignOut,
   SquaresFour,
@@ -36,8 +38,10 @@ export const IconArrow = appIcon(ArrowRight);
 export const IconExternal = appIcon(ArrowSquareOut);
 export const IconCopy = appIcon(Copy);
 export const IconPulse = appIcon(Pulse);
+export const IconHelp = appIcon(Question);
 export const IconFilter = appIcon(Funnel);
 export const IconShield = appIcon(ShieldCheck);
 export const IconCheck = appIcon(Check);
+export const IconChevronDown = appIcon(CaretDown);
 export const IconClose = appIcon(X);
 export const IconSignOut = appIcon(SignOut);

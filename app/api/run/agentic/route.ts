@@ -83,9 +83,10 @@ export async function POST(req: NextRequest) {
       { status: 202 },
     );
   } catch (err) {
+    const capacity = err instanceof CapacityError;
     return NextResponse.json(
-      { status: "error", message: err instanceof Error ? err.message : String(err) },
-      { status: err instanceof CapacityError ? 429 : 500 },
+      { status: "error", message: capacity ? err.message : "Could not start the worker. Check the server configuration and try again." },
+      { status: capacity ? 429 : 503 },
     );
   }
 }

@@ -61,10 +61,10 @@ export async function POST(req: NextRequest) {
       },
       { status: 202 },
     );
-  } catch (err) {
+  } catch {
     return NextResponse.json(
-      { status: "error", message: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
+      { status: "error", message: "Could not start the local solve worker. Check the server configuration." },
+      { status: 503 },
     );
   }
 }

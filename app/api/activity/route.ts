@@ -14,10 +14,7 @@ export async function GET() {
   try {
     const s = await getStatsSummary(owner);
     return NextResponse.json(s);
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
-    );
+  } catch {
+    return NextResponse.json({ error: "Activity is temporarily unavailable." }, { status: 503 });
   }
 }

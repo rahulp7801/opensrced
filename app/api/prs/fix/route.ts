@@ -125,9 +125,9 @@ ${context}
 ${body.diff_hunk ?? ""}
 </diff_context>`;
     return anthropicStream(apiKey, system, `Review comment: ${body.comment_body}`, 2048, signal, () => releaseSlot("fix"));
-  } catch (error) {
+  } catch {
     releaseSlot("fix");
-    return Response.json({ error: error instanceof Error ? error.message : "Could not load the PR source." }, { status: 502 });
+    return Response.json({ error: "Could not load the PR source." }, { status: 502 });
   }
 }
 
@@ -158,9 +158,9 @@ async function deepFix(
   try {
     head = (await githubApi<{ head: typeof head }>(`/repos/${body.repo}/pulls/${body.pr_number}`, ghToken)).head;
     if (!head.repo) throw new Error("The PR source repository is no longer available.");
-  } catch (error) {
+  } catch {
     releaseSlot("fix");
-    return Response.json({ error: error instanceof Error ? error.message : "Could not read the PR head." }, { status: 502 });
+    return Response.json({ error: "Could not read the PR head." }, { status: 502 });
   }
   const sourceRepo = head.repo!.full_name;
 

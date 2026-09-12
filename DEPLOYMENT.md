@@ -97,10 +97,10 @@ ships a safe dependency. Both package lockfiles must remain committed.
 
 ## Acceptance evidence (September 12, 2026)
 
-Application commit `55cdf88` passed the full GitHub CI and CodeQL workflows.
+Application commit `ac22586` passed the full GitHub CI and CodeQL workflows.
 The production acceptance evidence now includes:
 
-- 144 application tests, MCP tests, app/worker type checks, dependency audits,
+- 145 application tests, MCP tests, app/worker type checks, dependency audits,
   the real restricted Claude CLI, and the optimized production build.
 - The production Docker image built on a Linux runner, booted as its non-root
   user, reported every required runtime dependency healthy, and passed the HTTP
@@ -127,12 +127,16 @@ The production acceptance evidence now includes:
   comments, and diffs. The PR head repository matched GitHub's source metadata.
   This used the existing local GitHub credential in memory and a local session
   fixture, with no GitHub writes or paid provider requests.
-- 200 health requests at concurrency 20 completed with p95 61 ms on the CI app
-  server and 76 ms in the production container. This is a smoke result, not an
+- 200 health requests at concurrency 20 completed with p95 63 ms on the CI app
+  server and 37 ms in the production container. This is a smoke result, not an
   authenticated workload or production capacity estimate.
 - Full-history secret scanning passed; GitHub reported zero secret-scanning
   alerts. The real pinned Claude CLI exposed nine read-only MCP tools and no
   built-in tools in its restricted worker configuration.
+- The landing and discovery journeys were reviewed at desktop and mobile sizes
+  using the existing Geist and Phosphor design stack. The browser gate
+  covers the simplified discovery controls and the two-row mobile onboarding
+  prompt; the exact-head run reported an LCP of 420 ms and CLS of 0.035.
 
 CI runs `smoke-session.mjs`, `smoke-browser.mjs`, `smoke-review.mjs`,
 `smoke-lists.mjs`, `smoke-graph-ui.mjs`, and the HTTP/graph/runtime checks.

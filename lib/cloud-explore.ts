@@ -2,6 +2,7 @@ import { Sandbox } from "@vercel/sandbox";
 import { reserveCloudSlot } from "./cloud-capacity";
 import { CapacityError } from "./concurrency";
 import { claudeEvents } from "./claude-events";
+import { assertWorkerProtocol } from "./worker-protocol";
 
 export async function cloudExplore(args: string[], credentials: Record<string, string>, requestSignal: AbortSignal): Promise<Response> {
   const snapshotId = process.env.OPENSRCER_WORKER_SNAPSHOT_ID;
@@ -33,6 +34,7 @@ export async function cloudExplore(args: string[], credentials: Record<string, s
       };
       try {
         sandbox = await Sandbox.create({ source: { type: "snapshot", snapshotId }, persistent: false, timeout: 3 * 60_000, signal });
+        await assertWorkerProtocol(sandbox, signal);
         const command = await sandbox.runCommand({ cmd: "claude", args, cwd: "/vercel/sandbox", env: credentials, detached: true, signal });
         let buffer = "";
         for await (const log of command.logs({ signal })) {

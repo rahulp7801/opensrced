@@ -5,6 +5,7 @@ import type { FindingInput, StartAgenticOpts } from "./agentic-dispatcher";
 import { CapacityError } from "./concurrency";
 import { CloudRun, newCloudRunId, ownerPrefix, runIsActive, runPath, validCloudRun } from "./cloud-run-state";
 import { cloudRunLease } from "./cloud-leases";
+import { assertWorkerProtocol } from "./worker-protocol";
 
 const TTL = 45 * 60_000;
 const MAX_LISTED_RECORDS = 250;
@@ -62,6 +63,7 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
     await writeRun(path, run);
     sandbox = await Sandbox.create({ name: run.sandbox_name, source: { type: "snapshot", snapshotId },
       persistent: false, timeout: 40 * 60_000, signal: AbortSignal.timeout(60_000) });
+    await assertWorkerProtocol(sandbox);
     const uploadToken = await generateClientTokenFromReadWriteToken({
       pathname: path, allowedContentTypes: ["application/json"], maximumSizeInBytes: 600_000,
       validUntil: run.expires_at, allowOverwrite: true, addRandomSuffix: false, cacheControlMaxAge: 60,

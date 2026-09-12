@@ -16,6 +16,10 @@ const RUN_STATUSES = new Set(["running", "succeeded", "failed", "killed"]);
 const PR_STATUSES = new Set(["opened", "failed", "pending", "tests_passed", "tests_failed", "none"]);
 const TEST_STATUSES = new Set(["passed", "failed", "skipped", "not_run"]);
 const MAX_STORED_LOG_BYTES = 250_000;
+const RUN_ID_RE = /^c_\d{13}_[a-f0-9]{12}$/;
+const MAX_CANCELLATION_RECORDS = 100;
+
+export type CloudRunCancellation = { id: string; cancelled_at: string };
 
 /** Metadata needed by history views, extracted while the worker already has
  * the log in memory. Keeping it in the compact summary prevents Activity and
@@ -108,14 +112,53 @@ export function runSummaryPrefix(owner: string): string {
   return `${ownerPrefix(owner).slice(0, -"runs/".length)}run-summaries/`;
 }
 
+export function runCancellationPath(owner: string, id: string): string {
+  if (!RUN_ID_RE.test(id)) throw new Error("Invalid run id");
+  return `${ownerPrefix(owner).slice(0, -"runs/".length)}cancelled-runs/${id}.json`;
+}
+
+export function runCancellationIndexPath(owner: string): string {
+  return `${ownerPrefix(owner).slice(0, -"runs/".length)}cancelled-runs.json`;
+}
+
+export function normalizeCloudRunCancellations(value: unknown): CloudRunCancellation[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  return value
+    .filter((item): item is CloudRunCancellation => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+      const candidate = item as Partial<CloudRunCancellation>;
+      return typeof candidate.id === "string" && RUN_ID_RE.test(candidate.id) &&
+        typeof candidate.cancelled_at === "string" && candidate.cancelled_at.length === 24 &&
+        Number.isFinite(Date.parse(candidate.cancelled_at)) &&
+        new Date(candidate.cancelled_at).toISOString() === candidate.cancelled_at;
+    })
+    .sort((a, b) => b.cancelled_at.localeCompare(a.cancelled_at))
+    .filter((item) => !seen.has(item.id) && Boolean(seen.add(item.id)))
+    .slice(0, MAX_CANCELLATION_RECORDS);
+}
+
+export function addCloudRunCancellation(value: unknown, cancellation: CloudRunCancellation): CloudRunCancellation[] {
+  return normalizeCloudRunCancellations([cancellation, ...normalizeCloudRunCancellations(value)]);
+}
+
+export function cancelledCloudRunState<T extends CloudRunSummary>(run: T, cancelledAt: string): T {
+  return {
+    ...run,
+    status: "killed",
+    pr_status: "none",
+    ended_at: cancelledAt,
+  } as T;
+}
+
 export function runPath(owner: string, id: string): string {
-  if (!/^c_\d{13}_[a-f0-9]{12}$/.test(id)) throw new Error("Invalid run id");
+  if (!RUN_ID_RE.test(id)) throw new Error("Invalid run id");
   // Reverse timestamps make Blob's lexical listing return newest runs first.
   return `${ownerPrefix(owner)}${9999999999999 - Number(id.split("_")[1])}-${id}.json`;
 }
 
 export function runSummaryPath(owner: string, id: string): string {
-  if (!/^c_\d{13}_[a-f0-9]{12}$/.test(id)) throw new Error("Invalid run id");
+  if (!RUN_ID_RE.test(id)) throw new Error("Invalid run id");
   return `${runSummaryPrefix(owner)}${9999999999999 - Number(id.split("_")[1])}-${id}.json`;
 }
 

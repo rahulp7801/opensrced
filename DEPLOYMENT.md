@@ -9,7 +9,7 @@ fixes. Shared fixes use owner-scoped, non-enumerable paths, stop resolving after
 Jobs receive only user provider credentials and two write tokens,
    each scoped to its full run record or compact history summary. Runs, Activity, and
    Pull Requests use summaries without repeatedly downloading full logs. Each account retains its newest
-100 run records; bounded cleanup removes older full records, summaries, and cancellation markers after a worker starts. Three Blob leases bound agent concurrency across web instances.
+100 run records; bounded cleanup removes older full records, summaries, and cancellation markers after a worker starts. Account-scoped tombstones and a bounded cancellation index prevent a late worker upload from reviving a stopped run in compact history. Three Blob leases bound agent concurrency across web instances.
 Workers stop after 40 minutes; abandoned records expire after 45 minutes.
 
 1. Link the repository to the intended Vercel project. The committed
@@ -102,7 +102,7 @@ ships a safe dependency. Both package lockfiles must remain committed.
 
 The production acceptance evidence on the current main branch includes:
 
-- 157 application tests, MCP tests, app/worker type checks, dependency audits,
+- 158 application tests, MCP tests, app/worker type checks, dependency audits,
   the real restricted Claude CLI, and the optimized production build.
 - The production Docker image built on a Linux runner, booted as its non-root
   user, reported every required runtime dependency healthy, and passed the HTTP

@@ -1,14 +1,35 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cloudRunSummary, dispatchStatsFromLog, effectiveCloudRunState, newCloudRunId, ownerPrefix, runPath, runSummaryPath, runLogChunk, runIsActive, staleCloudRunIds, validCloudRun, validCloudRunSummary, type CloudRun } from "../cloud-run-state";
+import { addCloudRunCancellation, cancelledCloudRunState, cloudRunSummary, dispatchStatsFromLog, effectiveCloudRunState, newCloudRunId, normalizeCloudRunCancellations, ownerPrefix, runCancellationIndexPath, runCancellationPath, runPath, runSummaryPath, runLogChunk, runIsActive, staleCloudRunIds, validCloudRun, validCloudRunSummary, type CloudRun } from "../cloud-run-state";
 
 test("run storage paths are scoped to authenticated owners and reject traversal", () => {
   const id = newCloudRunId();
   assert.notEqual(runPath("alice", id), runPath("bob", id));
   assert.ok(runPath("alice", id).startsWith(ownerPrefix("alice")));
   assert.notEqual(runSummaryPath("alice", id), runSummaryPath("bob", id));
+  assert.notEqual(runCancellationPath("alice", id), runCancellationPath("bob", id));
+  assert.notEqual(runCancellationIndexPath("alice"), runCancellationIndexPath("bob"));
   for (const value of ["../alice", "c_1_x", "/etc/passwd"]) assert.throws(() => runPath("bob", value));
   assert.throws(() => ownerPrefix(""));
+});
+
+test("cancelled cloud runs stay terminal in compact history", () => {
+  const now = "2026-09-12T12:00:00.000Z";
+  const id = "c_1767225600000_abcdef123456";
+  const other = "c_1767225600001_abcdef123457";
+  const cancellations = addCloudRunCancellation([
+    { id: other, cancelled_at: "2026-09-11T12:00:00.000Z" },
+    { id: "invalid", cancelled_at: now },
+    { id, cancelled_at: "not-a-date" },
+  ], { id, cancelled_at: now });
+  assert.deepEqual(cancellations, [
+    { id, cancelled_at: now },
+    { id: other, cancelled_at: "2026-09-11T12:00:00.000Z" },
+  ]);
+  assert.deepEqual(normalizeCloudRunCancellations([...cancellations, cancellations[0]]), cancellations);
+  assert.deepEqual(cancelledCloudRunState({ id, status: "succeeded", pr_status: "opened" } as CloudRun, now), {
+    id, status: "killed", pr_status: "none", ended_at: now,
+  });
 });
 
 test("expired and completed jobs free capacity; PR work keeps it occupied", () => {

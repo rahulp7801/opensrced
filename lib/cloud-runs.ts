@@ -6,10 +6,15 @@ import { CapacityError } from "./concurrency";
 import {
   CloudRun,
   CloudRunSummary,
+  addCloudRunCancellation,
+  cancelledCloudRunState,
   cloudRunSummary,
   effectiveCloudRunState,
   newCloudRunId,
   ownerPrefix,
+  normalizeCloudRunCancellations,
+  runCancellationIndexPath,
+  runCancellationPath,
   runIsActive,
   runPath,
   runSummaryPath,
@@ -45,7 +50,7 @@ async function pruneCloudRunHistory(owner: string): Promise<void> {
   await del(staleIds.flatMap((id) => [
     runPath(owner, id),
     runSummaryPath(owner, id),
-    `cancelled/${id}.json`,
+    runCancellationPath(owner, id),
   ]), { abortSignal: AbortSignal.timeout(8_000) });
 }
 
@@ -67,7 +72,7 @@ async function reserveCapacity(path: string, expires: number): Promise<string> {
         if (cloudRunLeaseIsStarting(lease)) continue;
       } else if (typeof previous.value === "object" && previous.value !== null &&
           (previous.value as Partial<CloudRun>).id === lease.id && runIsActive(previous.value as CloudRun) &&
-          !await readJson(`cancelled/${lease.id}.json`)) continue;
+          !await readJson(lease.path.replace(/\/runs\/[^/]+$/, `/cancelled-runs/${lease.id}.json`))) continue;
     }
     try {
       await put(key, JSON.stringify({ path, expires }), {
@@ -146,7 +151,7 @@ export async function getCloudRun(owner: string, id: string): Promise<CloudRun |
   const found = await readJson<CloudRun>(runPath(owner, id));
   if (!found || !validCloudRun(found.value, owner, id)) return null;
   const run = found.value;
-  if (await readJson(`cancelled/${id}.json`)) return { ...run, status: "killed", pr_status: "none" };
+  if (await readJson(runCancellationPath(owner, id))) return { ...run, status: "killed", pr_status: "none" };
   return effectiveCloudRunState(run);
 }
 
@@ -181,12 +186,20 @@ export async function listCloudRuns(owner: string, limit = 50): Promise<CloudRun
  * existing account backfills summaries from legacy full records once. */
 export async function listCloudRunSummaries(owner: string, limit = 20): Promise<CloudRunSummary[]> {
   const cappedLimit = Math.max(1, Math.min(50, Math.trunc(limit)));
-  const page = await list({ prefix: runSummaryPrefix(owner), limit: cappedLimit, abortSignal: AbortSignal.timeout(15_000) });
+  const [page, cancellationRecord] = await Promise.all([
+    list({ prefix: runSummaryPrefix(owner), limit: cappedLimit, abortSignal: AbortSignal.timeout(15_000) }),
+    readJson<unknown>(runCancellationIndexPath(owner), 20_000),
+  ]);
+  const cancellations = new Map(
+    normalizeCloudRunCancellations(cancellationRecord?.value).map((item) => [item.id, item.cancelled_at]),
+  );
   const summaries = (await Promise.all(page.blobs.map(async (blob) => {
     const id = /c_\d{13}_[a-f0-9]{12}/.exec(blob.pathname)?.[0];
     if (!id) return null;
     const stored = await readJson<CloudRunSummary>(blob.pathname);
-    return stored && validCloudRunSummary(stored.value, owner, id) ? effectiveCloudRunState(stored.value) : null;
+    if (!stored || !validCloudRunSummary(stored.value, owner, id)) return null;
+    const cancelledAt = cancellations.get(id);
+    return cancelledAt ? cancelledCloudRunState(stored.value, cancelledAt) : effectiveCloudRunState(stored.value);
   }))).filter((summary): summary is CloudRunSummary => summary !== null);
   summaries.sort((a, b) => b.started_at.localeCompare(a.started_at));
 
@@ -208,6 +221,10 @@ export async function listCloudRunSummaries(owner: string, limit = 20): Promise<
   const merged = new Map(summaries.map((summary) => [summary.id, summary]));
   stale.forEach((run) => merged.set(run.id, cloudRunSummary(run)));
   return [...merged.values()]
+    .map((run) => {
+      const cancelledAt = cancellations.get(run.id);
+      return cancelledAt ? cancelledCloudRunState(run, cancelledAt) : run;
+    })
     .sort((a, b) => b.started_at.localeCompare(a.started_at))
     .slice(0, cappedLimit);
 }
@@ -218,18 +235,29 @@ export async function cancelCloudRun(owner: string, id: string): Promise<boolean
   // A separate tombstone is outside the worker token's scope, so an upload
   // already in flight cannot undo cancellation. Persist it before contacting
   // the VM so an expired or unreachable sandbox cannot leave the run active.
-  await put(`cancelled/${id}.json`, "{}", { ...writeOptions, allowOverwrite: true, abortSignal: AbortSignal.timeout(15_000) });
-  const cancelled = { ...run, status: "killed" as const, pr_status: "none" as const, ended_at: new Date().toISOString() };
-  await Promise.allSettled([
-    writeRun(runPath(owner, id), cancelled),
-    writeSummary(runSummaryPath(owner, id), cancelled),
-  ]);
+  const cancelledAt = new Date().toISOString();
+  await put(runCancellationPath(owner, id), "{}", { ...writeOptions, allowOverwrite: true, abortSignal: AbortSignal.timeout(15_000) });
+  // The compact index gives frequently-polled history views one durable read
+  // instead of one tombstone lookup per row. Write it before stopping the VM
+  // so even an unreachable worker cannot resurrect its summary in the UI.
+  let indexSaved = true;
+  await updateJson<unknown>(runCancellationIndexPath(owner), [], value =>
+    addCloudRunCancellation(value, { id, cancelled_at: cancelledAt })).catch(() => { indexSaved = false; });
   try {
     const sandbox = await Sandbox.get({ name: run.sandbox_name, signal: AbortSignal.timeout(15_000) });
     await sandbox.stop();
   } catch {
     // The durable tombstone has already cancelled the run. A missing sandbox
     // is expected when its timeout and the user's stop action cross.
+  }
+  const cancelled = cancelledCloudRunState(run, cancelledAt);
+  await Promise.allSettled([
+    writeRun(runPath(owner, id), cancelled),
+    writeSummary(runSummaryPath(owner, id), cancelled),
+  ]);
+  if (!indexSaved) {
+    await updateJson<unknown>(runCancellationIndexPath(owner), [], value =>
+      addCloudRunCancellation(value, { id, cancelled_at: cancelledAt })).catch(() => {});
   }
   return true;
 }

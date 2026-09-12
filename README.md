@@ -43,7 +43,8 @@ Browser
 Vercel Blob stores account-scoped runs, cancellation markers, graphs,
 organization connections, activity, and shared fixes. Blob leases cap concurrent
 agent jobs across web instances. Sandbox workers have a 40-minute limit and run
-records expire after 45 minutes.
+records expire after 45 minutes. A bounded account cancellation index keeps run
+details and compact history terminal even when a worker upload races a stop request.
 
 The Docker image is a supported single-instance staging alternative. It contains
 the Node application, Claude CLI, Gitleaks, GitHub CLI, Python graph runtime, and

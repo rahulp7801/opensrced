@@ -21,12 +21,12 @@
 //   - else ~/.contribai/repos/ (matches the existing CONTRIBAI_* convention)
 
 import { execFile } from "node:child_process";
-import { mkdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 const execFileAsync = promisify(execFile);
 
@@ -144,7 +144,7 @@ export async function ensureRepo(repo: string): Promise<{ ref: RepoRef; dir: str
       try {
         return await doClone(ref, dir);
       } finally {
-        await releaseDirLock(dir);
+        await releaseDirLock(dir, lock);
       }
     }
     return dir;
@@ -168,31 +168,50 @@ function lockPath(dir: string): string {
   return `${dir}.lock`;
 }
 
-async function acquireDirLock(dir: string): Promise<boolean> {
+type LockRecord = { token: string; pid: number; at: number };
+
+function newLock(): LockRecord {
+  return { token: randomBytes(16).toString("hex"), pid: process.pid, at: Date.now() };
+}
+
+function processIsAlive(pid: number): boolean {
+  if (!Number.isSafeInteger(pid) || pid < 1) return false;
+  try { process.kill(pid, 0); return true; }
+  catch (error) { return (error as NodeJS.ErrnoException).code === "EPERM"; }
+}
+
+async function acquireDirLock(dir: string): Promise<string | null> {
   const p = lockPath(dir);
   await mkdir(path.dirname(p), { recursive: true });
+  const lock = newLock();
   try {
     // wx = fail if it already exists. Atomic on every platform we target.
-    await writeFile(p, JSON.stringify({ pid: process.pid, at: Date.now() }), { flag: "wx" });
-    return true;
+    await writeFile(p, JSON.stringify(lock), { flag: "wx" });
+    return lock.token;
   } catch {
-    // Reap a lock whose holder died mid-clone.
     try {
-      const s = await stat(p);
-      if (Date.now() - s.mtimeMs > LOCK_STALE_MS) {
-        await rm(p, { force: true });
-        await writeFile(p, JSON.stringify({ pid: process.pid, at: Date.now() }), { flag: "wx" });
-        return true;
-      }
+      const current = JSON.parse(await readFile(p, "utf8")) as Partial<LockRecord>;
+      if (typeof current.at !== "number" || Date.now() - current.at <= LOCK_STALE_MS || processIsAlive(current.pid ?? 0)) return null;
+      // Renaming claims the stale file atomically. Only one competing reaper
+      // can succeed, and a normal acquirer may still win the following wx.
+      const claimed = `${p}.stale-${randomBytes(8).toString("hex")}`;
+      await rename(p, claimed);
+      await rm(claimed, { force: true });
+      await writeFile(p, JSON.stringify(lock), { flag: "wx" });
+      return lock.token;
     } catch {
       /* lost the race to another reaper */
     }
-    return false;
+    return null;
   }
 }
 
-async function releaseDirLock(dir: string): Promise<void> {
-  await rm(lockPath(dir), { force: true }).catch(() => {});
+async function releaseDirLock(dir: string, token: string): Promise<void> {
+  const p = lockPath(dir);
+  try {
+    const current = JSON.parse(await readFile(p, "utf8")) as Partial<LockRecord>;
+    if (current.token === token) await rm(p, { force: true });
+  } catch { /* already released or replaced */ }
 }
 
 /** Poll until the lock clears or we give up (~30s). */

@@ -10,7 +10,7 @@
 // and labels each hit with a kind. The regex path it replaced is gone.
 
 import { execFile } from "node:child_process";
-import { readFile, stat } from "node:fs/promises";
+import { open } from "node:fs/promises";
 import { safeRepoPath } from "./safe-path.js";
 import { promisify } from "node:util";
 import { ensureRepo } from "./repo-cache.js";
@@ -51,19 +51,21 @@ export async function readFileTool(args: {
 }) {
   const { dir } = await ensureRepo(args.repo);
   const abs = await safeRepoPath(dir, args.path);
-  const s = await stat(abs);
-  if (!s.isFile()) throw new Error(`not a file: ${args.path}`);
-  if (s.size > MAX_RANGED_FILE_BYTES) {
-    throw new Error(`File exceeds the 2 MB read limit: ${args.path}. Use grep to locate relevant text.`);
-  }
-  if (s.size > MAX_FILE_BYTES) {
-    // Very large file + no range: refuse with a helpful hint instead of
-    // silently truncating somewhere arbitrary. The model should narrow.
-    if (!args.line_start) {
+  const file = await open(abs, "r");
+  let text: string;
+  try {
+    const s = await file.stat();
+    if (!s.isFile()) throw new Error(`not a file: ${args.path}`);
+    if (s.size > MAX_RANGED_FILE_BYTES) {
+      throw new Error(`File exceeds the 2 MB read limit: ${args.path}. Use grep to locate relevant text.`);
+    }
+    if (s.size > MAX_FILE_BYTES && !args.line_start) {
       return `# ${args.path} is ${s.size} bytes (> ${MAX_FILE_BYTES}). Call again with line_start/line_end.`;
     }
+    text = await file.readFile("utf8");
+  } finally {
+    await file.close();
   }
-  const text = await readFile(abs, "utf8");
   const lines = text.split(/\r?\n/);
   const start = Math.max(1, args.line_start ?? 1);
   const end = Math.min(lines.length, args.line_end ?? lines.length);

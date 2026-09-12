@@ -20,7 +20,7 @@
 //
 // Indexes live only in this worker; repository-controlled cache files are not trusted.
 
-import { readFile, stat } from "node:fs/promises";
+import { open } from "node:fs/promises";
 import path from "node:path";
 import { safeRepoPath } from "./safe-path.js";
 import { fileURLToPath } from "node:url";
@@ -231,9 +231,14 @@ async function parseFile(
   let buf: Buffer;
   try {
     const abs = await safeRepoPath(repoDir, relPath);
-    const s = await stat(abs);
-    if (!s.isFile() || s.size > MAX_FILE_BYTES) return [];
-    buf = await readFile(abs);
+    const file = await open(abs, "r");
+    try {
+      const s = await file.stat();
+      if (!s.isFile() || s.size > MAX_FILE_BYTES) return [];
+      buf = await file.readFile();
+    } finally {
+      await file.close();
+    }
   } catch {
     return [];
   }

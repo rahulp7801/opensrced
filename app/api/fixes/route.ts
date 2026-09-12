@@ -17,6 +17,7 @@ import { requireSession } from "@/lib/require-session";
 import { put } from "@vercel/blob";
 import { privateJsonOptions } from "@/lib/blob-store";
 import { cloudExecution } from "@/lib/cloud-run-state";
+import { parseRunTarget } from "@/lib/run-target";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +65,9 @@ export async function POST(req: NextRequest) {
   if (!body || typeof body.fix_response !== "string" || !body.fix_response || typeof body.repo !== "string" || !body.repo || body.repo.length > 200 || [body.comment_body, body.diff, body.explainer].some(v => v !== undefined && typeof v !== "string") || (body.pr_number !== undefined && (!Number.isSafeInteger(body.pr_number) || body.pr_number < 1))) {
     return Response.json({ error: "Missing fix_response or repo" }, { status: 400 });
   }
+  let repo: string;
+  try { repo = parseRunTarget(body.repo).repo; }
+  catch { return Response.json({ error: "Invalid GitHub repository" }, { status: 400 }); }
 
   if (!cloudExecution()) ensureDir();
   // Full UUID, not an 8-char slice. The id IS the access control for a
@@ -74,7 +78,7 @@ export async function POST(req: NextRequest) {
   const id = randomUUID();
   const fix = {
     id,
-    repo: body.repo,
+    repo,
     pr_number: body.pr_number ?? null,
     comment_body: body.comment_body?.slice(0, 500) ?? null,
     fix_response: body.fix_response.slice(0, 10_000),

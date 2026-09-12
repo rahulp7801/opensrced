@@ -6,6 +6,7 @@ import { join } from "node:path";
 
 import { readJson } from "@/lib/blob-store";
 import { cloudExecution } from "@/lib/cloud-run-state";
+import { validSharedFix } from "@/lib/shared-fix";
 
 export const dynamic = "force-dynamic";
 
@@ -23,8 +24,10 @@ export async function GET(
   const { id } = await params;
   if (!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(id)) return json({ error: "Fix not found" }, 404);
   if (cloudExecution()) {
-    const fix = await readJson(`shares/${id}.json`);
-    return fix ? json(fix.value) : json({ error: "Fix not found" }, 404);
+    try {
+      const fix = await readJson<unknown>(`shares/${id}.json`);
+      return fix && validSharedFix(fix.value, id) ? json(fix.value) : json({ error: "Fix not found" }, 404);
+    } catch { return json({ error: "Fix not found" }, 404); }
   }
   const safeId = id;
   const filePath = join(FIXES_DIR, `${safeId}.json`);
@@ -34,8 +37,8 @@ export async function GET(
   }
 
   try {
-    const data = JSON.parse(readFileSync(filePath, "utf8"));
-    return json(data);
+    const data: unknown = JSON.parse(readFileSync(filePath, "utf8"));
+    return validSharedFix(data, id) ? json(data) : json({ error: "Fix not found" }, 404);
   } catch {
     return json({ error: "Failed to read fix" }, 500);
   }

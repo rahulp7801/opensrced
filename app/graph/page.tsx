@@ -6,6 +6,7 @@ import { PageHeading } from "@/components/page-heading";
 import { generateFollowUps, parseMarkdownBlocks } from "@/lib/graph-view";
 import { cn } from "@/lib/utils";
 import { sseEvents } from "@/lib/sse";
+import { parseRunTarget } from "@/lib/run-target";
 
 type QueryResult = {
   query: string;
@@ -29,14 +30,13 @@ type BuildMessage = {
 function parseRepo(
   url: string,
 ): { owner: string; name: string } | null {
-  const m =
-    /github\.com[:/]+([^/]+)\/([^/?#\s.]+)|^([^/\s]+)\/([^/\s]+)$/.exec(
-      url.trim().replace(/\.git$/i, ""),
-    );
-  const owner = m?.[1] ?? m?.[3];
-  const name = m?.[2] ?? m?.[4];
-  if (!owner || !name) return null;
-  return { owner, name };
+  try {
+    const normalized = url.trim().replace(/^github\.com\//i, "https://github.com/").replace(/\.git$/i, "");
+    const target = parseRunTarget(normalized);
+    if (target.issue) return null;
+    const [owner, name] = target.repo.split("/");
+    return { owner, name };
+  } catch { return null; }
 }
 
 export default function GraphPage() {
@@ -54,6 +54,9 @@ export default function GraphPage() {
   const resultRef = useRef<HTMLDivElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
   const queryIdRef = useRef(0);
+  const buildSequence = useRef(0);
+  const buildRequest = useRef<AbortController | null>(null);
+  const queryRequest = useRef<AbortController | null>(null);
   // Auto-scroll follows the stream only while the reader is already at the
   // bottom; scrolling up to re-read an earlier answer used to be undone by the
   // next token.
@@ -86,6 +89,10 @@ export default function GraphPage() {
   // queries run against it.
   useEffect(() => {
     const m = parseRepo(repoUrl);
+    setResults([]);
+    setBuildMessages([]);
+    setOwner(m?.owner ?? "");
+    setRepo(m?.name ?? "");
     setBuildStatus("idle");
     setEngine(null);
     if (!m) return;
@@ -95,15 +102,22 @@ export default function GraphPage() {
     // Two repos typed in quick succession leave two HEADs in flight; without
     // this the slower one wins and marks the wrong repo ready.
     let live = true;
-    fetch(`/api/graph/${m.owner}/${m.name}/viz`, { method: "HEAD" })
+    const probe = new AbortController();
+    const sequence = buildSequence.current;
+    fetch(`/api/graph/${m.owner}/${m.name}/viz`, { method: "HEAD", signal: AbortSignal.any([probe.signal, AbortSignal.timeout(30_000)]) })
       .then((r) => {
-        if (!live || !r.ok) return;
+        if (!live || !r.ok || sequence !== buildSequence.current || buildRequest.current) return;
         setBuildStatus("ready");
         setEngine((r.headers.get("X-Graph-Engine") as GraphEngine) ?? "graphify");
       })
       .catch(() => {});
     return () => {
       live = false;
+      probe.abort();
+      buildRequest.current?.abort();
+      queryRequest.current?.abort();
+      buildRequest.current = null;
+      queryRequest.current = null;
     };
   }, [repoUrl]);
 
@@ -182,19 +196,24 @@ export default function GraphPage() {
 
   async function handleBuild(force = false) {
     const m = parseRepo(repoUrl);
-    if (!m) return;
+    if (!m || buildRequest.current) return;
+    const controller = new AbortController();
+    buildRequest.current = controller;
+    buildSequence.current++;
+    queryRequest.current?.abort();
+    queryRequest.current = null;
     setOwner(m.owner);
     setRepo(m.name);
     setBuildStatus("building");
     setBuildMessages([]);
     setResults([]);
 
-    let settled = false;
     try {
       const res = await fetch("/api/graph/generate", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ repo_url: repoUrl.trim(), force }),
+        body: JSON.stringify({ repo_url: `${m.owner}/${m.name}`, force }),
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(280_000)]),
       });
 
       for await (const payload of sseEvents<{
@@ -205,6 +224,8 @@ export default function GraphPage() {
         phase?: string;
         engine?: string;
       }>(res)) {
+        if (buildRequest.current !== controller) return;
+        if (payload.error) throw new Error(payload.error);
         if (payload.message) {
           setBuildMessages((prev) => [
             ...prev,
@@ -216,36 +237,21 @@ export default function GraphPage() {
           ]);
         }
         if (payload.status === "done") {
-          settled = true;
           setBuildStatus("ready");
           setEngine((payload.engine as GraphEngine) ?? "graphify");
-        }
-        if (payload.error) {
-          settled = true;
-          setBuildMessages((prev) => [
-            ...prev,
-            { text: `Error: ${payload.error}` },
-          ]);
-          setBuildStatus("error");
+          return;
         }
       }
-
-      // A stream that ends without a done or error event is a failure we would
-      // otherwise render as an in-progress build forever, with the button
-      // disabled and no way back except a reload.
-      if (!settled) {
-        setBuildMessages((prev) => [
-          ...prev,
-          { text: "Error: the build stopped without finishing" },
-        ]);
-        setBuildStatus("error");
-      }
+      throw new Error("The build stopped without finishing. Please retry.");
     } catch (err) {
+      if (buildRequest.current !== controller) return;
       setBuildMessages((prev) => [
         ...prev,
         { text: `Error: ${err instanceof Error ? err.message : "Network error"}` },
       ]);
       setBuildStatus("error");
+    } finally {
+      if (buildRequest.current === controller) buildRequest.current = null;
     }
   }
 
@@ -253,7 +259,9 @@ export default function GraphPage() {
 
   const submitQuery = useCallback(
     async (q: string) => {
-      if (!q.trim() || !owner || !repo) return;
+      if (!q.trim() || !owner || !repo || queryRequest.current || buildRequest.current) return;
+      const controller = new AbortController();
+      queryRequest.current = controller;
 
       // A counter, not Date.now(): two quick-action chips clicked in the same
       // millisecond produced the same id, and every setResults update matched
@@ -277,6 +285,7 @@ export default function GraphPage() {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ owner, repo, query: q.trim() }),
+          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(130_000)]),
         });
 
         const contentType = res.headers.get("content-type") ?? "";
@@ -288,6 +297,8 @@ export default function GraphPage() {
             error?: string;
             cost?: number;
           };
+          if (queryRequest.current !== controller) return;
+          if (!res.ok || data.error || !data.result?.trim()) throw new Error(data.error || "No response from the graph service");
           setResults((prev) =>
             prev.map((r) =>
               r._id === qid
@@ -317,6 +328,7 @@ export default function GraphPage() {
           // One state update per event rather than one per field: a token, its
           // cost and the done flag often arrive in the same event, and that
           // used to map the whole result list three times over.
+          let answer = "";
           for await (const payload of sseEvents<{
             text?: string;
             cost?: number;
@@ -324,12 +336,13 @@ export default function GraphPage() {
             error?: string;
             compression?: string;
           }>(res)) {
+            if (queryRequest.current !== controller) return;
+            if (payload.error) throw new Error(payload.error);
+            answer += payload.text ?? "";
+            if (payload.done && !answer.trim()) throw new Error("Empty response from the graph service");
             setResults((prev) =>
               prev.map((r) => {
                 if (r._id !== qid) return r;
-                if (payload.error) {
-                  return { ...r, response: payload.error, status: "error" };
-                }
                 return {
                   ...r,
                   response: payload.text ? r.response + payload.text : r.response,
@@ -339,24 +352,12 @@ export default function GraphPage() {
                 };
               }),
             );
+            if (payload.done) return;
           }
-
-          // A stream that stops without a done event still has to settle, or
-          // the row stays "streaming" and isQuerying disables the whole panel
-          // for good.
-          setResults((prev) =>
-            prev.map((r) =>
-              r._id === qid && (r.status === "streaming" || r.status === "loading")
-                ? {
-                    ...r,
-                    status: r.response ? "done" : "error",
-                    response: r.response || "The answer stream ended early.",
-                  }
-                : r,
-            ),
-          );
+          throw new Error("The answer stream ended before completion. Please retry.");
         }
       } catch (err) {
+        if (queryRequest.current !== controller) return;
         setResults((prev) =>
           prev.map((r) =>
             r._id === qid
@@ -371,6 +372,8 @@ export default function GraphPage() {
               : r,
           ),
         );
+      } finally {
+        if (queryRequest.current === controller) queryRequest.current = null;
       }
     },
     [owner, repo],
@@ -470,6 +473,12 @@ export default function GraphPage() {
               ? "rebuild"
               : "build graph"}
         </button>
+        {(buildStatus === "building" || isQuerying) && (
+          <button type="button" onClick={() => {
+            buildRequest.current?.abort(new Error("Build cancelled."));
+            queryRequest.current?.abort(new Error("Query cancelled."));
+          }} className="border border-border px-4 py-2 text-[12px]">Cancel</button>
+        )}
         {buildStatus === "ready" && (
           <span className="text-[10px] text-ok uppercase tracking-[0.1em] flex items-center gap-1">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-ok" />

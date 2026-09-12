@@ -1,8 +1,6 @@
 import { readJsonBody } from "@/lib/request-body";
 import { NextRequest } from "next/server";
 import { sessionUserId } from "@/lib/require-session";
-import { resolveGitHubToken } from "@/lib/github-token";
-import { githubApi } from "@/lib/github-api";
 import { parseRunTarget } from "@/lib/run-target";
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { buildCloudGraph } from "@/lib/cloud-graph";
@@ -10,6 +8,7 @@ import { buildGraphWorker } from "@/lib/graph-worker";
 import { getStoredGraph, saveStoredGraph } from "@/lib/graph-store";
 import { reserveCloudSlot } from "@/lib/cloud-capacity";
 import { reserveSlot, CapacityError } from "@/lib/concurrency";
+import { resolveRepositoryToken } from "@/lib/crucible/tokens";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -27,8 +26,10 @@ export async function POST(req: NextRequest) {
   let repo: string;
   try { repo = parseRunTarget(body.repo_url).repo; }
   catch { return Response.json({ error: "Invalid repository URL" }, { status: 400 }); }
-  const token = await resolveGitHubToken();
-  try { await githubApi(`/repos/${repo}`, token); }
+  let token: string | null;
+  try {
+    token = (await resolveRepositoryToken(userId, repo)).token ?? null;
+  }
   catch { return Response.json({ error: "Repository not accessible" }, { status: 403 }); }
   const [owner, name] = repo.split("/");
   const encoder = new TextEncoder();

@@ -5,6 +5,9 @@
 
 import { getInstallationToken } from "./github-app";
 import { mappingForOrg } from "./orgs";
+import { resolveGitHubToken } from "../github-token";
+import { parseRunTarget } from "../run-target";
+import { githubApi } from "../github-api";
 
 export type OrgContext = {
   auth0UserId: string;
@@ -13,7 +16,7 @@ export type OrgContext = {
 
 export type ResolvedToken = {
   token: string | undefined;
-  source: "installation" | "pat" | "gh-cli" | "none";
+  source: "installation" | "oauth" | "pat" | "gh-cli" | "none";
 };
 
 // No env/CLI fallback — tokens must come from the authenticated user's
@@ -37,4 +40,29 @@ export async function resolveGithubToken(
     return { token: undefined, source: "none" };
   }
   return patOrGhCli();
+}
+
+/** Resolve access for a repository selected from the combined public and
+ * connected-organization picker. Verified GitHub App access takes priority
+ * for a connected owner; other repositories use the caller's OAuth token. */
+export async function resolveRepositoryToken(
+  auth0UserId: string,
+  repo: string,
+): Promise<ResolvedToken> {
+  const canonical = parseRunTarget(repo).repo;
+  const owner = canonical.split("/")[0];
+  try {
+    const installation = await resolveGithubToken({ auth0UserId, githubOrg: owner });
+    if (installation.token) {
+      await githubApi(`/repos/${canonical}`, installation.token);
+      return installation;
+    }
+  } catch {
+    // A GitHub App may be installed for only selected repositories. Fall
+    // through to this user's OAuth access for public or separately granted
+    // repositories under the same owner.
+  }
+  const token = await resolveGitHubToken();
+  await githubApi(`/repos/${canonical}`, token);
+  return { token: token ?? undefined, source: token ? "oauth" : "none" };
 }

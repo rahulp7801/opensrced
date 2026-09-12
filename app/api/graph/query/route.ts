@@ -31,8 +31,7 @@ import { getStoredGraph } from "@/lib/graph-store";
 import type { GraphData } from "@/lib/graph";
 
 
-import { githubApi } from "@/lib/github-api";
-import { resolveGitHubToken } from "@/lib/github-token";
+import { resolveRepositoryToken } from "@/lib/crucible/tokens";
 
 export const dynamic = "force-dynamic";
 
@@ -101,7 +100,9 @@ export async function POST(req: NextRequest) {
   const query = sanitizeForPrompt(raw.query);
   if (!repoId || !query.trim()) return Response.json({ error: "Invalid repository or query" }, { status: 400 });
   const [owner, repo] = repoId.split("/");
-  try { await githubApi(`/repos/${repoId}`, await resolveGitHubToken()); }
+  try {
+    await resolveRepositoryToken(userId, repoId);
+  }
   catch { return Response.json({ error: "Repository not accessible" }, { status: 403 }); }
   try {
     if (cloudExecution()) {

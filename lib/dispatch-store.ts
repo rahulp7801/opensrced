@@ -23,7 +23,10 @@ import type { Dispatch } from "./dispatcher";
 const DISPATCH_DIR = join(process.cwd(), ".dispatches");
 
 /** Everything the UI needs, plus the PR URL the log used to be scraped for. */
-export type DispatchRecord = Dispatch & { pr_url?: string };
+export type DispatchRecord = Dispatch & {
+  pr_url?: string;
+  stats?: { cost_usd: number | null; has_diff: boolean };
+};
 
 function sidecarPath(id: string): string {
   return join(DISPATCH_DIR, `${id}.json`);

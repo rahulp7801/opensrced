@@ -21,10 +21,10 @@ import { createHash } from "node:crypto";
 import { cloudExecution } from "./cloud-run-state";
 import { listCloudRuns } from "./cloud-runs";
 import { readJson, updateJson } from "./blob-store";
-import { read as readDispatch } from "./dispatch-store";
+import { listAll as listDispatches, patch as patchDispatch, type DispatchRecord } from "./dispatch-store";
 import { execFile } from "node:child_process";
 import { ghEnv } from "./child-env";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -156,39 +156,55 @@ async function scanLogs(owner: string): Promise<LogRecord[]> {
     startedAt: run.started_at, costUsd: Number(COST_RE.exec(run.log)?.[1] ?? 0), hasDiff: /```(?:diff|patch)/.test(run.log),
   }));
   if (!existsSync(DISPATCH_DIR)) return [];
-  const files = readdirSync(DISPATCH_DIR).filter((f) => f.endsWith(".log") && readDispatch(f.slice(0, -4))?.auth0_user_id === owner);
-  const records = await Promise.all(
-    files.map(async (f): Promise<LogRecord> => {
-      const id = f.replace(/\.log$/, "");
+  const dispatches = listDispatches().filter((dispatch) => dispatch.auth0_user_id === owner);
+  const records = new Array<LogRecord>(dispatches.length);
+  let next = 0;
+
+  async function readRecord(dispatch: DispatchRecord): Promise<LogRecord> {
+      const cached = dispatch.status !== "running" ? dispatch.stats : undefined;
       let text = "";
-      try {
-        text = await readFile(join(DISPATCH_DIR, f), "utf8");
-      } catch {
-        // Unreadable log — skip.
+      if (!cached) {
+        try {
+          text = await readFile(join(DISPATCH_DIR, `${dispatch.id}.log`), "utf8");
+        } catch {
+          // A missing log should not hide its structured dispatch record.
+        }
       }
       const repoM = REPO_RE.exec(text);
       const issueM = ISSUE_RE.exec(text);
       const exitM = EXIT_RE.exec(text);
       const startM = STARTED_RE.exec(text);
-      let status: LogRecord["status"] = "running";
-      if (exitM) {
+      let status: LogRecord["status"] = dispatch.status ?? "running";
+      if (!dispatch.status && exitM) {
         const s = exitM[2];
         if (s === "succeeded" || s === "failed" || s === "killed") status = s;
       }
-      if (!exitM) status = "running";
       const costM = COST_RE.exec(text);
+      const costUsd = cached?.cost_usd ?? (costM ? parseFloat(costM[1]) : null);
+      const hasDiff = cached?.has_diff ?? /```(?:diff|patch)/.test(text);
+      if (!cached && status !== "running") {
+        patchDispatch(dispatch.id, { stats: { cost_usd: costUsd, has_diff: hasDiff } });
+      }
+      const repoUrl = typeof dispatch.repo_url === "string" ? dispatch.repo_url : repoM?.[1];
       return {
-        id,
-        repoFull: repoM ? repoM[1].replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "") : null,
-        issueNumber: issueM ? Number(issueM[1]) : null,
-        prUrl: readDispatch(id)?.pr_url ?? null,
+        id: dispatch.id,
+        repoFull: repoUrl ? repoUrl.replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "") : null,
+        issueNumber: dispatch.issue_number ?? (issueM ? Number(issueM[1]) : null),
+        prUrl: dispatch.pr_url ?? null,
         status,
-        startedAt: startM ? startM[1] : null,
-        costUsd: costM ? parseFloat(costM[1]) : null,
-        hasDiff: /```(?:diff|patch)/.test(text),
+        startedAt: dispatch.started_at ?? (startM ? startM[1] : null),
+        costUsd,
+        hasDiff,
       };
-    }),
-  );
+  }
+
+  async function worker() {
+    while (next < dispatches.length) {
+      const index = next++;
+      records[index] = await readRecord(dispatches[index]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(8, dispatches.length) }, worker));
   return records;
 }
 

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -27,6 +27,10 @@ test("activity excludes other users and preserves simultaneous scan counters", a
     assert.equal(summary.patchesGenerated, 2);
     assert.equal(summary.successRate, 0.5);
     assert.ok(!JSON.stringify(summary).includes("private-org"));
+    const cached = JSON.parse(readFileSync(".dispatches/own.json", "utf8"));
+    assert.deepEqual(cached.stats, { cost_usd: null, has_diff: true });
+    writeFileSync(".dispatches/own.log", "corrupted after the aggregate was cached");
+    assert.equal((await stats.getStatsSummary("alice")).patchesGenerated, 2);
     assert.equal((await stats.getStatsSummary("bob")).scans, 1);
     assert.equal((await stats.getStatsSummary("unknown")).dispatches, 0);
     const { loadPRsFromLogs } = await import("../pr-loader");

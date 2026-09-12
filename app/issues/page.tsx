@@ -7,7 +7,6 @@ export default function IssuesPage() {
   return (
     <div className="mx-auto w-full max-w-[1200px] px-5 py-10 sm:px-8">
       <PageHeading
-        eyebrow="pick what to solve"
         title={<>Issues</>}
         description={
           <>

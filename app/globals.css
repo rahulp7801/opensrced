@@ -113,29 +113,6 @@
     color: var(--color-paper-dim);
   }
 
-  .hairline {
-    background: linear-gradient(
-      to right,
-      transparent,
-      var(--color-border) 12%,
-      var(--color-border) 88%,
-      transparent
-    );
-    height: 1px;
-  }
-
-  .grid-pattern {
-    background-image:
-      linear-gradient(to right, var(--color-border-soft) 1px, transparent 1px),
-      linear-gradient(to bottom, var(--color-border-soft) 1px, transparent 1px);
-    background-size: 32px 32px;
-  }
-
-  .signal-glow {
-    box-shadow:
-      0 0 0 1px rgba(255, 157, 46, 0.3),
-      0 0 24px -4px rgba(255, 157, 46, 0.25);
-  }
 }
 
 @layer utilities {
@@ -172,41 +149,14 @@
   }
 }
 
-@keyframes scan {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100%); }
-}
-
 @keyframes fade-rise {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes ticker {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-
-@keyframes confetti-burst {
-  0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
-  50% { opacity: 1; }
-  100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(1.2); opacity: 0; }
-}
-
 .animate-pulse-signal { animation: pulse-signal 2.2s ease-in-out infinite; }
 .animate-pulse-ok { animation: pulse-ok 2.8s ease-in-out infinite; }
 .animate-fade-rise { animation: fade-rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-.animate-scan { animation: scan 3.5s linear infinite; }
-.animate-ticker { animation: ticker 60s linear infinite; }
-
-.stagger-1 { animation-delay: 60ms; }
-.stagger-2 { animation-delay: 120ms; }
-.stagger-3 { animation-delay: 180ms; }
-.stagger-4 { animation-delay: 240ms; }
-.stagger-5 { animation-delay: 300ms; }
-.stagger-6 { animation-delay: 360ms; }
-.stagger-7 { animation-delay: 420ms; }
-.stagger-8 { animation-delay: 480ms; }
 
 /* Shared keyboard navigation stays visible against every application surface. */
 :focus-visible { outline: 2px solid var(--color-signal); outline-offset: 4px; }

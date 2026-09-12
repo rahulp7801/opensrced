@@ -6,7 +6,6 @@ export default function TriggerPage() {
   return (
     <div className="mx-auto w-full max-w-[1200px] px-5 py-10 sm:px-8">
       <PageHeading
-        eyebrow="fix an issue"
         title={<>New run</>}
         description={
           <>

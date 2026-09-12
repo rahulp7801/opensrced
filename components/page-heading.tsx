@@ -4,8 +4,6 @@ export function PageHeading({
   actions,
 }: {
   title: React.ReactNode;
-  /** @deprecated retained for compatibility, no longer rendered */
-  eyebrow?: React.ReactNode;
   description?: React.ReactNode;
   actions?: React.ReactNode;
 }) {

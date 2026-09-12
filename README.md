@@ -114,9 +114,17 @@ connection. The session must receive the provider token in the custom claim
 `https://opensrcer.dev/github_token`; the session hook removes that credential
 from `/auth/profile` before it reaches browser code.
 
-For interface development without Auth0, set `AUTH_DISABLED=1` and provide a
-unique `AUTH0_SECRET`. This mode is refused when `NODE_ENV=production`. GitHub
-operations in this local mode require an explicit `GITHUB_TOKEN`.
+For local development without an Auth0 tenant, leave the domain and client
+values unset and use:
+
+```dotenv
+AUTH_DISABLED=1
+AUTH0_SECRET=<unique-local-encryption-secret>
+# GITHUB_TOKEN=<optional-token-for-github-operations>
+```
+
+The secret encrypts locally saved provider keys; it is not an Auth0 tenant
+credential. This mode is refused when `NODE_ENV=production`.
 
 Graph features also need a Python environment with
 `requirements-graph.txt` installed and `OPENSRCER_GRAPH_PYTHON` set to that

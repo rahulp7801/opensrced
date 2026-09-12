@@ -96,10 +96,10 @@ ships a safe dependency. Both package lockfiles must remain committed.
 
 ## Acceptance evidence (September 12, 2026)
 
-Application commit `818a79e` passed the full GitHub CI and CodeQL workflows.
+Application commit `a01d6e5` passed the full GitHub CI and CodeQL workflows.
 The production acceptance evidence now includes:
 
-- 136 application tests, MCP tests, app/worker type checks, dependency audits,
+- 140 application tests, MCP tests, app/worker type checks, dependency audits,
   the real restricted Claude CLI, and the optimized production build.
 - The production Docker image built on a Linux runner, booted as its non-root
   user, reported every required runtime dependency healthy, and passed the HTTP
@@ -114,12 +114,16 @@ The production acceptance evidence now includes:
 - Local encrypted-session tests verify private profile fields, settings round
   trips, and isolation between accounts. These use an isolated fake Auth0
   configuration; they do not exercise an OAuth callback against a real tenant.
+- Local no-Auth0 mode passed middleware and private-API requests, encrypted key
+  round trips, and desktop/mobile browser rendering. The development CSP allows
+  Next.js evaluation only outside production; the production smoke test rejects
+  any deployed policy containing `unsafe-eval`.
 - Read-only GitHub integration through the production app returned 200 for owned
   and contributed repositories, cursor pagination, PR lists, issue scans, PR
   comments, and diffs. The PR head repository matched GitHub's source metadata.
   This used the existing local GitHub credential in memory and a local session
   fixture, with no GitHub writes or paid provider requests.
-- 200 health requests at concurrency 20 completed with local p95 163 ms. This is
+- 200 health requests at concurrency 20 completed with local p95 142 ms. This is
   a smoke result, not an authenticated workload or production capacity estimate.
 - Full-history secret scanning passed; GitHub reported zero secret-scanning
   alerts. The real pinned Claude CLI exposed nine read-only MCP tools and no

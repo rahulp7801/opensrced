@@ -12,10 +12,10 @@ export function RevokeAllButton() {
     try {
       const res = await fetch("/api/auth/revoke-all", {
         method: "POST",
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(60_000),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json().catch(() => null) as { redirect?: string } | null;
+      const data = await res.json().catch(() => null) as { redirect?: string; error?: string } | null;
+      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
       if (typeof data?.redirect !== "string" || !data.redirect.startsWith("/auth/logout?")) {
         throw new Error("The server returned an invalid logout response.");
       }
@@ -53,6 +53,7 @@ export function RevokeAllButton() {
           This will:
         </div>
         <ul className="text-[12px] text-paper-dim leading-relaxed list-disc list-inside space-y-1">
+          <li>Stop your active hosted runs before access is cleared</li>
           <li>Disconnect all GitHub organizations you&apos;ve connected</li>
           <li>Revoke all cached installation tokens immediately</li>
           <li>Sign you out and destroy your session</li>

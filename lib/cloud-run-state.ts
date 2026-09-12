@@ -175,7 +175,7 @@ export function staleCloudRunIds(owner: string, paths: string[], keep = 100, lim
     .map(({ match }) => match![2]);
 }
 
-export function runIsActive(run: CloudRun): boolean {
+export function runIsActive(run: Pick<CloudRun, "expires_at" | "status" | "pr_status">): boolean {
   return run.expires_at > Date.now() && (run.status === "running" || run.pr_status === "pending");
 }
 

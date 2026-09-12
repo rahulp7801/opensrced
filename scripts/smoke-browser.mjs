@@ -198,6 +198,7 @@ try {
   let keyAvailable = true;
   let onboardingReadFailure = false;
   let cancelAttempts = 0;
+  let revokeAttempts = 0;
   let invalidStartResponse = false;
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url());
@@ -242,6 +243,10 @@ try {
       return route.fulfill({ json: { anthropic: keyAvailable, gemini: false, maxSpendUsd: 2 } });
     }
     if (url.pathname === '/api/auth/revoke-all') {
+      revokeAttempts++;
+      if (revokeAttempts === 1) {
+        return route.fulfill({ status: 503, json: { error: 'Could not stop active work. Your connections remain available; please retry.' } });
+      }
       return route.fulfill({ status: 200, json: { redirect: 'https://evil.example/logout' } });
     }
     return route.fulfill({ json: {} });
@@ -353,6 +358,11 @@ try {
   assert.equal(await keyInput.inputValue(), '');
   assert.equal(settings.at(-1).maxSpendUsd, 0.1);
   assert.equal(await page.getByText('Anthropic key required', { exact: true }).count(), 0, 'Gemini is optional');
+  await page.getByRole('button', { name: 'Delete all connections & sign out', exact: true }).click();
+  await page.getByText('Stop your active hosted runs before access is cleared', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Yes, revoke everything', exact: true }).click();
+  await page.getByRole('button', { name: 'Confirm — delete everything', exact: true }).click();
+  await page.getByRole('alert').getByText('Could not stop active work. Your connections remain available; please retry.', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Delete all connections & sign out', exact: true }).click();
   await page.getByRole('button', { name: 'Yes, revoke everything', exact: true }).click();
   await page.getByRole('button', { name: 'Confirm — delete everything', exact: true }).click();

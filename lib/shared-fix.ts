@@ -11,6 +11,12 @@ export type SharedFix = {
   created_at: string;
 };
 
+export const SHARED_FIX_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+export function sharedFixExpired(fix: SharedFix, now = Date.now()): boolean {
+  return Date.parse(fix.created_at) + SHARED_FIX_RETENTION_MS <= now;
+}
+
 function nullableString(value: unknown, max: number): value is string | null {
   return value === null || (typeof value === "string" && value.length <= max);
 }

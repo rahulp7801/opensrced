@@ -14,10 +14,11 @@ import { existsSync, mkdirSync, writeFileSync, readdirSync, renameSync, rmSync, 
 import { join } from "node:path";
 import { requireSession } from "@/lib/require-session";
 
-import { put } from "@vercel/blob";
+import { del, list, put } from "@vercel/blob";
 import { privateJsonOptions } from "@/lib/blob-store";
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { parseRunTarget } from "@/lib/run-target";
+import { SHARED_FIX_RETENTION_MS } from "@/lib/shared-fix";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,7 @@ const FIXES_DIR = join(process.cwd(), ".fixes");
 // Eviction is oldest-first by mtime: ids are random UUIDs now, so a filename
 // sort would evict an arbitrary fix rather than the stalest one.
 const MAX_FIXES = 1000;
+const CLEANUP_BATCH_SIZE = 100;
 
 function ensureDir() {
   if (!existsSync(FIXES_DIR)) mkdirSync(FIXES_DIR, { recursive: true });
@@ -39,9 +41,27 @@ function evictOldest() {
       .filter((f) => f.endsWith(".json"))
       .map((f) => ({ f, mtime: statSync(join(FIXES_DIR, f)).mtimeMs }))
       .sort((a, b) => a.mtime - b.mtime);
-    for (const { f } of files.slice(0, files.length - MAX_FIXES)) {
+    const expiredBefore = Date.now() - SHARED_FIX_RETENTION_MS;
+    const doomed = files.filter(({ mtime }) => mtime <= expiredBefore);
+    const remaining = files.filter(({ mtime }) => mtime > expiredBefore);
+    doomed.push(...remaining.slice(0, remaining.length - MAX_FIXES));
+    for (const { f } of doomed) {
       rmSync(join(FIXES_DIR, f), { force: true });
     }
+  } catch {
+    /* best effort — never block a write on cleanup */
+  }
+}
+
+async function cleanupExpiredCloudShares() {
+  try {
+    const expiredBefore = Date.now() - SHARED_FIX_RETENTION_MS;
+    const { blobs } = await list({ prefix: "shares/", limit: 1000, abortSignal: AbortSignal.timeout(15_000) });
+    const expired = blobs
+      .filter(({ uploadedAt }) => uploadedAt.getTime() <= expiredBefore)
+      .slice(0, CLEANUP_BATCH_SIZE)
+      .map(({ pathname }) => pathname);
+    if (expired.length) await del(expired, { abortSignal: AbortSignal.timeout(15_000) });
   } catch {
     /* best effort — never block a write on cleanup */
   }
@@ -89,6 +109,7 @@ export async function POST(req: NextRequest) {
 
   try {
     if (cloudExecution()) {
+      await cleanupExpiredCloudShares();
       await put(`shares/${id}.json`, JSON.stringify(fix), { ...privateJsonOptions, abortSignal: AbortSignal.timeout(15_000) });
     } else {
       const target = join(FIXES_DIR, `${id}.json`);

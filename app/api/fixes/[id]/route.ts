@@ -1,12 +1,13 @@
 // GET /api/fixes/[id] — retrieve a shared fix by ID
 
 import { NextRequest } from "next/server";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { del } from "@vercel/blob";
 
 import { readJson } from "@/lib/blob-store";
 import { cloudExecution } from "@/lib/cloud-run-state";
-import { validSharedFix } from "@/lib/shared-fix";
+import { sharedFixExpired, validSharedFix } from "@/lib/shared-fix";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,12 @@ export async function GET(
   if (cloudExecution()) {
     try {
       const fix = await readJson<unknown>(`shares/${id}.json`);
-      return fix && validSharedFix(fix.value, id) ? json(fix.value) : json({ error: "Fix not found" }, 404);
+      if (!fix || !validSharedFix(fix.value, id)) return json({ error: "Fix not found" }, 404);
+      if (sharedFixExpired(fix.value)) {
+        try { await del(`shares/${id}.json`, { ifMatch: fix.etag, abortSignal: AbortSignal.timeout(15_000) }); } catch { /* best effort */ }
+        return json({ error: "Fix not found" }, 404);
+      }
+      return json(fix.value);
     } catch { return json({ error: "This fix is temporarily unavailable. Please retry." }, 503); }
   }
   const safeId = id;
@@ -38,7 +44,12 @@ export async function GET(
 
   try {
     const data: unknown = JSON.parse(readFileSync(filePath, "utf8"));
-    return validSharedFix(data, id) ? json(data) : json({ error: "Fix not found" }, 404);
+    if (!validSharedFix(data, id)) return json({ error: "Fix not found" }, 404);
+    if (sharedFixExpired(data)) {
+      try { rmSync(filePath, { force: true }); } catch { /* best effort */ }
+      return json({ error: "Fix not found" }, 404);
+    }
+    return json(data);
   } catch {
     return json({ error: "This fix is temporarily unavailable. Please retry." }, 503);
   }

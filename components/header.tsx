@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useUser } from "@auth0/nextjs-auth0";
 import { Nav } from "./nav";
@@ -9,6 +9,42 @@ import { AuthChip } from "./auth-chip";
 export function SiteHeader() {
   const { user } = useUser();
   const [helpOpen, setHelpOpen] = useState(false);
+  const helpButtonRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const helpDialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!helpOpen) return;
+    closeButtonRef.current?.focus();
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setHelpOpen(false);
+        requestAnimationFrame(() => helpButtonRef.current?.focus());
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(
+        helpDialogRef.current?.querySelectorAll<HTMLElement>("a[href], button:not([disabled])") ?? [],
+      );
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [helpOpen]);
+
+  function closeHelp() {
+    setHelpOpen(false);
+    requestAnimationFrame(() => helpButtonRef.current?.focus());
+  }
 
   return (
     <>
@@ -30,7 +66,11 @@ export function SiteHeader() {
 
           {user && (
             <button
+              ref={helpButtonRef}
               onClick={() => setHelpOpen(!helpOpen)}
+              aria-label="Open help"
+              aria-expanded={helpOpen}
+              aria-controls="quick-help-dialog"
               className="flex items-center justify-center px-3 border-l border-border text-paper-muted hover:text-signal transition"
               title="Help & quick reference"
             >
@@ -44,14 +84,19 @@ export function SiteHeader() {
 
       {/* Help panel */}
       {helpOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-end" onClick={() => setHelpOpen(false)}>
+        <div className="fixed inset-0 z-50 flex items-start justify-end" onClick={closeHelp}>
           <div
+            ref={helpDialogRef}
+            id="quick-help-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="quick-help-title"
             className="mt-12 mr-4 bg-ink border border-border shadow-2xl w-[320px] max-h-[80vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-4 py-3 border-b border-border-soft flex items-center justify-between">
-              <span className="text-[11px] uppercase tracking-[0.15em] text-paper-muted">Quick help</span>
-              <button onClick={() => setHelpOpen(false)} className="text-[10px] text-paper-faint hover:text-paper-muted">close</button>
+              <span id="quick-help-title" className="text-[11px] uppercase tracking-[0.15em] text-paper-muted">Quick help</span>
+              <button ref={closeButtonRef} onClick={closeHelp} className="text-[10px] text-paper-faint hover:text-paper-muted">close</button>
             </div>
             <div className="p-4 space-y-4 text-[12px]">
               {/* The "Key pages" list that used to sit here explained what

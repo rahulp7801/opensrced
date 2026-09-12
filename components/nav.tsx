@@ -20,6 +20,7 @@ export function Nav() {
             // there. See components/section-nav.tsx.
             href={section.links[0].href}
             title={section.title}
+            aria-label={section.label}
             aria-current={active ? "page" : undefined}
             className={cn(
               "group relative flex items-center justify-center gap-2 px-3 sm:px-5 transition-colors min-w-0",

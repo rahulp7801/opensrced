@@ -38,6 +38,7 @@ export function AuthChip() {
     <div className="flex items-stretch shrink-0 ml-auto">
       <Link
         href="/crucible"
+        aria-label={`Settings for ${display}`}
         className="flex items-center gap-2 border-l border-border px-3 hover:bg-surface-2/60 transition"
         title={`${display} — manage connections`}
       >

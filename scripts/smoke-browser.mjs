@@ -114,6 +114,17 @@ try {
     return route.fulfill({ json: {} });
   });
   await page.goto(base + '/dispatches?dispatch=test-preview');
+  await page.getByRole('link', { name: 'Find', exact: true }).waitFor();
+  for (const label of ['Find', 'Fix', 'Ship', 'Explore']) {
+    assert.equal(await page.getByRole('link', { name: label, exact: true }).count(), 1, `${label} navigation needs an accessible name`);
+  }
+  const helpButton = page.getByRole('button', { name: 'Open help', exact: true });
+  await helpButton.click();
+  await page.getByRole('dialog', { name: 'Quick help', exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), 'close', 'help moves focus into the dialog');
+  await page.keyboard.press('Escape');
+  assert.equal(await page.getByRole('dialog').count(), 0, 'Escape closes help');
+  assert.equal(await helpButton.evaluate(element => element === document.activeElement), true, 'help returns focus to its trigger');
   assert.equal(await page.evaluate(() => window.__notificationPromptCount), 0, 'runs page must not prompt for notifications on load');
   assert.equal(await page.getByText('Add an Anthropic API key', { exact: true }).count(), 0, 'completed onboarding stays hidden');
   assert.equal(onboardingOrgRequests.length, 0, 'onboarding must not fetch optional organization state');
@@ -163,5 +174,5 @@ try {
   assert.equal(await page.getByText('API keys needed for this page', { exact: true }).count(), 0, 'Gemini is optional');
 
   await context.close();
-  console.log(JSON.stringify({ pagesChecked, viewports: [1440, 390], previewRetry: true, issueActions: 2, settingsRecovery: true, authPrefetch: false }));
+  console.log(JSON.stringify({ pagesChecked, viewports: [1440, 390], helpDialog: true, previewRetry: true, issueActions: 2, settingsRecovery: true, authPrefetch: false }));
 } finally { await browser.close(); }

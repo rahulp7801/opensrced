@@ -124,6 +124,7 @@ export function SuggestedIssues() {
               <button
                 key={lang}
                 onClick={() => toggleLang(lang)}
+                aria-pressed={selectedLangs.includes(lang)}
                 className={cn(
                   "text-xs px-2 py-0.5 border transition",
                   selectedLangs.includes(lang)
@@ -149,6 +150,7 @@ export function SuggestedIssues() {
             <span className="text-xs text-paper-faint">Tags:</span>
             <button
               onClick={() => setTags("strict")}
+              aria-pressed={tags === "strict"}
               title='Only issues labeled exactly "good first issue"'
               className={cn(
                 "text-xs px-2 py-0.5 border transition",
@@ -161,6 +163,7 @@ export function SuggestedIssues() {
             </button>
             <button
               onClick={() => setTags("broad")}
+              aria-pressed={tags === "broad"}
               title='Also match "beginner", "starter", "first-timers-only", "easy"'
               className={cn(
                 "text-xs px-2 py-0.5 border transition",

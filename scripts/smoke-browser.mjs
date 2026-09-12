@@ -235,8 +235,11 @@ try {
   assert.equal(submissions.length, 3);
   await page.goto(base + '/issues');
   const suggestionResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/issues/suggested' && new URL(response.url()).searchParams.get('languages')?.includes('javascript'));
-  await page.getByRole('button', { name: 'javascript', exact: true }).click();
+  const javascriptFilter = page.getByRole('button', { name: 'javascript', exact: true });
+  assert.equal(await javascriptFilter.getAttribute('aria-pressed'), 'false');
+  await javascriptFilter.click();
   await suggestionResponse;
+  assert.equal(await javascriptFilter.getAttribute('aria-pressed'), 'true');
   assert.ok(new URL(suggestionRequests.at(-1)).searchParams.get('languages')?.includes('javascript'), 'language changes must refresh suggested issues');
   await page.goto(base + '/trigger');
   await page.getByRole('heading', { name: 'Before you start', exact: true }).waitFor();

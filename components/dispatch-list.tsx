@@ -261,12 +261,12 @@ export function DispatchList() {
                       )}
                     </span>
                     {d.mode === "agentic" && (
-                      <span className="ml-auto text-[9px] tracking-[0.12em] uppercase text-info border border-info/40 px-1 py-px leading-none">
+                      <span className="ml-auto text-[11px] tracking-[0.12em] uppercase text-info border border-info/40 px-1 py-px leading-none">
                         deep
                       </span>
                     )}
                     {d.dry_run && (
-                      <span className="ml-auto text-[9px] tracking-[0.12em] uppercase text-info border border-info/40 px-1 py-px leading-none">
+                      <span className="ml-auto text-[11px] tracking-[0.12em] uppercase text-info border border-info/40 px-1 py-px leading-none">
                         dry
                       </span>
                     )}
@@ -280,7 +280,7 @@ export function DispatchList() {
                       {d.issue_title ?? <span className="italic text-paper-faint">loading title…</span>}
                     </div>
                   )}
-                  <div className="mt-1 flex items-center gap-2 text-[10px] text-paper-muted">
+                  <div className="mt-1 flex items-center gap-2 text-xs text-paper-muted">
                     <span className="tabular-nums" title={d.started_at}>
                       {formatAbsoluteOrRelative(d.started_at)}
                     </span>
@@ -477,11 +477,11 @@ function RetryButton({ dispatch }: { dispatch: DispatchWithLog }) {
       <button
         onClick={retry}
         disabled={pending}
-        className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] disabled:opacity-50"
+        className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-2 py-0.5 text-xs uppercase tracking-[0.12em] disabled:opacity-50"
       >
         {pending ? "retrying…" : "retry"}
       </button>
-      {error && <span className="text-[10px] text-alert">{error}</span>}
+      {error && <span className="text-xs text-alert">{error}</span>}
     </div>
   );
 }
@@ -513,24 +513,24 @@ function CancelButton({ dispatchId }: { dispatchId: string }) {
         <button
           onClick={cancel}
           disabled={pending}
-          className="border border-alert bg-alert/10 text-alert px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] hover:bg-alert/20 disabled:opacity-50"
+          className="border border-alert bg-alert/10 text-alert px-2 py-0.5 text-xs uppercase tracking-[0.12em] hover:bg-alert/20 disabled:opacity-50"
         >
           {pending ? "…" : "confirm kill"}
         </button>
         <button
           onClick={() => { setConfirming(false); setError(null); }}
-          className="text-[10px] text-paper-muted hover:text-paper"
+          className="text-xs text-paper-muted hover:text-paper"
         >
           cancel
         </button>
-        {error && <span role="alert" className="basis-full text-[10px] normal-case tracking-normal text-alert">{error}</span>}
+        {error && <span role="alert" className="basis-full text-xs normal-case tracking-normal text-alert">{error}</span>}
       </span>
     );
   }
   return (
     <button
       onClick={() => { setConfirming(true); setError(null); }}
-      className="border border-border text-paper-muted hover:text-alert hover:border-alert/50 px-2 py-0.5 text-[10px] uppercase tracking-[0.12em]"
+      className="border border-border text-paper-muted hover:text-alert hover:border-alert/50 px-2 py-0.5 text-xs uppercase tracking-[0.12em]"
       title="Stop the opensrcer agent subprocess"
     >
       ■ stop
@@ -608,7 +608,7 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
   return (
     <div className="relative">
       {isRunning && !showSearch && (
-        <div className="absolute top-2 right-3 z-10 flex items-center gap-1.5 text-[10px] text-signal">
+        <div className="absolute top-2 right-3 z-10 flex items-center gap-1.5 text-xs text-signal">
           <StatusDot tone="signal" /> streaming
         </div>
       )}
@@ -623,7 +623,7 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
             className="bg-ink/90 border border-border px-2 py-1 text-[11px] text-paper w-48 focus:outline-none focus:border-signal/50"
           />
           {search.length >= 2 && (
-            <span className="text-[10px] text-paper-muted tabular-nums">{matchCount}</span>
+            <span className="text-xs text-paper-muted tabular-nums">{matchCount}</span>
           )}
           <button onClick={() => { setShowSearch(false); setSearch(""); }} className="text-[11px] text-paper-muted hover:text-paper">×</button>
         </div>
@@ -633,7 +633,7 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
           <button
             onClick={() => setRawMode(!rawMode)}
             className={cn(
-              "border bg-ink/80 px-2 py-1 text-[10px] transition",
+              "border bg-ink/80 px-2 py-1 text-xs transition",
               rawMode ? "border-signal/50 text-signal" : "border-border text-paper-faint hover:text-paper-muted"
             )}
             title="Toggle terminal colors"
@@ -642,7 +642,7 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
           </button>
           <button
             onClick={() => { setShowSearch(true); setTimeout(() => searchRef.current?.focus(), 50); }}
-            className="flex items-center gap-1 border border-border bg-ink/80 hover:border-signal/50 hover:text-signal px-2 py-1 text-[10px] text-paper-muted transition"
+            className="flex items-center gap-1 border border-border bg-ink/80 hover:border-signal/50 hover:text-signal px-2 py-1 text-xs text-paper-muted transition"
             title="Search log (Ctrl+F)"
           >
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7" cy="7" r="4" /><path d="m13 13-3.5-3.5" /></svg>
@@ -747,7 +747,7 @@ function ExportButton({ dispatch }: { dispatch: DispatchWithLog }) {
   return (
     <button
       onClick={download}
-      className="border border-border text-paper-muted hover:text-paper hover:border-border-strong px-2 py-0.5 text-[10px] uppercase tracking-[0.12em]"
+      className="border border-border text-paper-muted hover:text-paper hover:border-border-strong px-2 py-0.5 text-xs uppercase tracking-[0.12em]"
       title="Download run report as .md"
     >
       export
@@ -772,7 +772,7 @@ function PipelineTimeline({ log, status }: { log: string; status: string }) {
           {i > 0 && <div className={cn("w-4 h-px", p.done || p.active ? "bg-signal/40" : "bg-border")} />}
           <span
             className={cn(
-              "flex items-center gap-1 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em] border leading-none",
+              "flex items-center gap-1 px-1.5 py-0.5 text-[11px] uppercase tracking-[0.1em] border leading-none",
               p.failed ? "border-alert/40 text-alert" :
               p.done ? "border-ok/40 text-ok" :
               p.active ? "border-signal/40 text-signal" :
@@ -1133,7 +1133,7 @@ function SplitDiffView({ body }: { body: string }) {
     <div className="max-h-[50vh] overflow-auto">
       {hunks.map((h, hi) => (
         <div key={hi}>
-          <div className="px-4 py-1.5 text-[10px] text-paper-muted bg-surface/30 border-b border-border-soft font-mono">
+          <div className="px-4 py-1.5 text-xs text-paper-muted bg-surface/30 border-b border-border-soft font-mono">
             {h.file}
           </div>
           <div className="grid grid-cols-2 divide-x divide-border-soft">

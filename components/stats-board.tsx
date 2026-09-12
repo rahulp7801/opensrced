@@ -236,7 +236,7 @@ function ActivityKindChip({ kind }: { kind: "scan" | "discover" | "dispatch" }) 
   };
   const c = cfg[kind];
   return (
-    <span className={cn("inline-block text-[9px] uppercase tracking-[0.12em] border px-1.5 py-0.5 leading-none w-[72px] text-center", c.cls)}>
+    <span className={cn("inline-block text-[11px] uppercase tracking-[0.12em] border px-1.5 py-0.5 leading-none w-[72px] text-center", c.cls)}>
       {c.label}
     </span>
   );

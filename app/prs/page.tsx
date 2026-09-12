@@ -107,7 +107,7 @@ export default function PRsPage() {
           {(() => {
             const actionable = githubPrs.filter((p) => p.reviewDecision === "CHANGES_REQUESTED" || (p.commentCount ?? 0) > 0);
             return actionable.length > 0 ? (
-              <span className="ml-1.5 text-[10px] tabular-nums text-alert">{actionable.length}</span>
+              <span className="ml-1.5 text-xs tabular-nums text-alert">{actionable.length}</span>
             ) : null;
           })()}
         </button>
@@ -122,7 +122,7 @@ export default function PRsPage() {
         >
           All PRs
           {githubPrs.length > 0 && (
-            <span className="ml-1.5 text-[10px] tabular-nums text-paper-faint">
+            <span className="ml-1.5 text-xs tabular-nums text-paper-faint">
               ({githubPrs.length})
             </span>
           )}
@@ -160,7 +160,7 @@ export default function PRsPage() {
           {error && (
             <div className="border border-alert/30 bg-alert/5 px-4 py-3 text-[12px] text-alert flex items-center justify-between">
               <span>{error}</span>
-              <button onClick={handleRefresh} className="text-[10px] border border-alert/30 px-2 py-0.5 hover:bg-alert/10 transition">retry</button>
+              <button onClick={handleRefresh} className="text-xs border border-alert/30 px-2 py-0.5 hover:bg-alert/10 transition">retry</button>
             </div>
           )}
 
@@ -272,7 +272,7 @@ export default function PRsPage() {
           {error && (
             <div className="border border-alert/30 bg-alert/5 px-4 py-3 text-[12px] text-alert flex items-center justify-between">
               <span>{error}</span>
-              <button onClick={handleRefresh} className="text-[10px] border border-alert/30 px-2 py-0.5 hover:bg-alert/10 transition">
+              <button onClick={handleRefresh} className="text-xs border border-alert/30 px-2 py-0.5 hover:bg-alert/10 transition">
                 retry
               </button>
             </div>
@@ -341,7 +341,7 @@ export default function PRsPage() {
                         key={f.key}
                         onClick={() => setStatusFilter(f.key)}
                         className={cn(
-                          "text-[10px] px-2 py-1 transition border",
+                          "text-xs px-2 py-1 transition border",
                           statusFilter === f.key
                             ? "text-signal border-signal/40 bg-signal/10"
                             : "text-paper-faint border-transparent hover:text-paper-muted",
@@ -354,7 +354,7 @@ export default function PRsPage() {
                   <button
                     onClick={handleRefresh}
                     disabled={loading}
-                    className="text-[10px] text-paper-dim hover:text-signal border border-border px-2 py-1 transition"
+                    className="text-xs text-paper-dim hover:text-signal border border-border px-2 py-1 transition"
                   >
                     refresh
                   </button>
@@ -366,12 +366,12 @@ export default function PRsPage() {
                 <table className="w-full text-[12.5px]">
                   <thead>
                     <tr className="border-b border-border bg-ink/50 text-paper-muted">
-                      <th className="px-3 py-2 text-left text-[10px] uppercase tracking-[0.12em]">Repository</th>
-                      <th className="px-3 py-2 text-left text-[10px] uppercase tracking-[0.12em]">Title</th>
-                      <th className="px-3 py-2 text-left text-[10px] uppercase tracking-[0.12em]">Status</th>
-                      <th className="px-3 py-2 text-left text-[10px] uppercase tracking-[0.12em]">Lines</th>
-                      <th className="px-3 py-2 text-left text-[10px] uppercase tracking-[0.12em]">Updated</th>
-                      <th className="px-3 py-2 text-right text-[10px] uppercase tracking-[0.12em]">Actions</th>
+                      <th className="px-3 py-2 text-left text-xs uppercase tracking-[0.12em]">Repository</th>
+                      <th className="px-3 py-2 text-left text-xs uppercase tracking-[0.12em]">Title</th>
+                      <th className="px-3 py-2 text-left text-xs uppercase tracking-[0.12em]">Status</th>
+                      <th className="px-3 py-2 text-left text-xs uppercase tracking-[0.12em]">Lines</th>
+                      <th className="px-3 py-2 text-left text-xs uppercase tracking-[0.12em]">Updated</th>
+                      <th className="px-3 py-2 text-right text-xs uppercase tracking-[0.12em]">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -489,34 +489,34 @@ export default function PRsPage() {
 function PrBadge({ pr }: { pr: GitHubPr }) {
   if (pr.isDraft) {
     return (
-      <span className="text-[10px] uppercase tracking-[0.12em] text-paper-muted border border-border px-1.5 py-0.5">
+      <span className="text-xs uppercase tracking-[0.12em] text-paper-muted border border-border px-1.5 py-0.5">
         draft
       </span>
     );
   }
   if (pr.reviewDecision === "APPROVED") {
     return (
-      <span className="text-[10px] uppercase tracking-[0.12em] text-ok border border-ok/30 px-1.5 py-0.5">
+      <span className="text-xs uppercase tracking-[0.12em] text-ok border border-ok/30 px-1.5 py-0.5">
         approved
       </span>
     );
   }
   if (pr.reviewDecision === "CHANGES_REQUESTED") {
     return (
-      <span className="text-[10px] uppercase tracking-[0.12em] text-alert border border-alert/30 px-1.5 py-0.5">
+      <span className="text-xs uppercase tracking-[0.12em] text-alert border border-alert/30 px-1.5 py-0.5">
         changes requested
       </span>
     );
   }
   if (pr.reviewDecision === "REVIEW_REQUIRED") {
     return (
-      <span className="text-[10px] uppercase tracking-[0.12em] text-signal border border-signal/30 px-1.5 py-0.5">
+      <span className="text-xs uppercase tracking-[0.12em] text-signal border border-signal/30 px-1.5 py-0.5">
         review needed
       </span>
     );
   }
   return (
-    <span className="text-[10px] uppercase tracking-[0.12em] text-signal border border-signal/30 px-1.5 py-0.5">
+    <span className="text-xs uppercase tracking-[0.12em] text-signal border border-signal/30 px-1.5 py-0.5">
       open
     </span>
   );
@@ -585,12 +585,12 @@ function InboxSection({ title, subtitle, color, prs, actionHint }: { title: stri
         <span className="text-[12px] font-mono" role="img" aria-label={title}>{statusIcon}</span>
         <div>
           <span className="text-[12px] text-paper font-medium">{title}</span>
-          <span className="ml-2 text-[10px] text-paper-faint tabular-nums">{prs.length}</span>
+          <span className="ml-2 text-xs text-paper-faint tabular-nums">{prs.length}</span>
         </div>
-        <span className="text-[10px] text-paper-faint ml-1">{subtitle}</span>
+        <span className="text-xs text-paper-faint ml-1">{subtitle}</span>
       </div>
       {actionHint && (
-        <div className="px-4 py-1.5 border-b border-border-soft bg-ink/20 text-[10px] text-paper-faint">
+        <div className="px-4 py-1.5 border-b border-border-soft bg-ink/20 text-xs text-paper-faint">
           {actionHint}
         </div>
       )}
@@ -604,11 +604,11 @@ function InboxSection({ title, subtitle, color, prs, actionHint }: { title: stri
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-[11px] text-paper-dim truncate">{pr.repo}</span>
-                <span className="text-[10px] text-paper-faint">#{pr.number}</span>
+                <span className="text-xs text-paper-faint">#{pr.number}</span>
               </div>
               <div className="text-[12px] text-paper truncate mt-0.5">{pr.title}</div>
             </div>
-            <div className="flex items-center gap-3 shrink-0 text-[10px]">
+            <div className="flex items-center gap-3 shrink-0 text-xs">
               {(pr.commentCount ?? 0) > 0 && (
                 <span className="text-info tabular-nums">{pr.commentCount} comment{pr.commentCount !== 1 ? "s" : ""}</span>
               )}

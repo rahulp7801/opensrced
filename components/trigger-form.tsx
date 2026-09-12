@@ -235,7 +235,7 @@ export function TriggerForm() {
                 <span className="mono-label text-paper-faint tabular-nums">{l.t}</span>
                 <span
                   className={cn(
-                    "inline-flex items-center justify-center h-4 w-4 text-[10px]",
+                    "inline-flex items-center justify-center h-4 w-4 text-xs",
                     l.status === "queued" ? "text-ok" : "text-alert",
                   )}
                   role="img"

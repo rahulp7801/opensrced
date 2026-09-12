@@ -28,7 +28,7 @@ const SEVERITY_ORDER: Record<string, number> = {
 };
 
 function severityChip(sev: SecurityFinding["severity"]) {
-  const base = "inline-block px-1.5 py-0.5 text-[10px] font-mono border";
+  const base = "inline-block px-1.5 py-0.5 text-xs font-mono border";
   switch (sev) {
     case "critical":
       return `${base} border-red-700 bg-red-950/60 text-red-200`;
@@ -122,7 +122,7 @@ export default async function RepoFindingsPage({
             security findings ({findings.length})
           </span>
           {findings.length > 0 && (
-            <span className="text-[10px] tabular-nums text-paper-dim border border-border-soft px-1.5 py-0.5">
+            <span className="text-xs tabular-nums text-paper-dim border border-border-soft px-1.5 py-0.5">
               {findings.filter(f => f.severity === "critical").length} critical · {findings.filter(f => f.severity === "high").length} high
             </span>
           )}
@@ -204,7 +204,7 @@ export default async function RepoFindingsPage({
                       {i.labels.map((l) => (
                         <span
                           key={l}
-                          className="text-[10px] font-mono text-paper-muted border border-border-soft px-1.5"
+                          className="text-xs font-mono text-paper-muted border border-border-soft px-1.5"
                         >
                           {l}
                         </span>

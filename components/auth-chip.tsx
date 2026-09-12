@@ -51,7 +51,7 @@ export function AuthChip() {
             className="rounded-full shrink-0"
           />
         ) : (
-          <span className="inline-flex items-center justify-center h-[22px] w-[22px] rounded-full border border-border-strong bg-surface-2 text-[10px] font-medium text-paper shrink-0">
+          <span className="inline-flex items-center justify-center h-[22px] w-[22px] rounded-full border border-border-strong bg-surface-2 text-xs font-medium text-paper shrink-0">
             {initial}
           </span>
         )}

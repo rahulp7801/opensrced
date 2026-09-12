@@ -488,7 +488,7 @@ export default function GraphPage() {
           }} className="border border-border px-4 py-2 text-[12px]">Cancel</button>
         )}
         {buildStatus === "ready" && (
-          <span className="text-[10px] text-ok uppercase tracking-[0.1em] flex items-center gap-1">
+          <span className="text-xs text-ok uppercase tracking-[0.1em] flex items-center gap-1">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-ok" />
             ready
           </span>
@@ -542,7 +542,7 @@ export default function GraphPage() {
                 <div
                   key={i}
                   className={cn(
-                    "text-[10px] font-mono",
+                    "text-xs font-mono",
                     failed
                       ? "text-alert whitespace-pre-wrap break-words"
                       : "text-paper-faint truncate",
@@ -562,14 +562,14 @@ export default function GraphPage() {
           {/* Left: Graph visualization */}
           <div className="xl:w-[55%] min-h-[300px] xl:min-h-0 border border-border bg-ink/30 relative flex flex-col">
             <div className="flex items-center justify-between px-3 py-1.5 border-b border-border-soft bg-ink/50">
-              <span className="text-[10px] text-paper-faint uppercase tracking-[0.15em]">
+              <span className="text-xs text-paper-faint uppercase tracking-[0.15em]">
                 {engine === "crg" ? "code-review-graph" : "interactive graph"} — {owner}/{repo}
               </span>
               <a
                 href={`/api/graph/${owner}/${repo}/viz`}
                 target="_blank"
                 rel="noopener"
-                className="text-[10px] text-paper-muted hover:text-signal transition-colors"
+                className="text-xs text-paper-muted hover:text-signal transition-colors"
               >
                 open fullscreen
               </a>
@@ -586,7 +586,7 @@ export default function GraphPage() {
           <div className="xl:w-[45%] flex flex-col min-h-[300px] xl:min-h-0">
             {/* Quick actions */}
             <div className="flex flex-wrap gap-1.5 mb-3">
-              <span className="text-[10px] text-paper-faint uppercase tracking-[0.1em] self-center mr-1">
+              <span className="text-xs text-paper-faint uppercase tracking-[0.1em] self-center mr-1">
                 {engine === "crg" ? "ask:" : "quick:"}
               </span>
               {(engine === "crg"
@@ -597,7 +597,7 @@ export default function GraphPage() {
                   key={cmd}
                   onClick={() => quickQuery(cmd)}
                   disabled={isQuerying}
-                  className="text-[10px] text-paper-dim border border-border-soft hover:border-signal/40 hover:text-signal px-2 py-1 transition disabled:opacity-50"
+                  className="text-xs text-paper-dim border border-border-soft hover:border-signal/40 hover:text-signal px-2 py-1 transition disabled:opacity-50"
                 >
                   {cmd}
                 </button>
@@ -621,7 +621,7 @@ export default function GraphPage() {
                         This repo uses code-review-graph (large repo mode).
                         Ask any question in plain English about the codebase.
                       </p>
-                      <p className="mt-1.5 text-[10px] text-signal">
+                      <p className="mt-1.5 text-xs text-signal">
                         These queries use your AI provider key. Graph commands are unavailable for large repositories.
                       </p>
                     </>
@@ -632,7 +632,7 @@ export default function GraphPage() {
                         &quot;impact UserService&quot; or &quot;explain
                         src/api&quot; or &quot;path auth to billing&quot;
                       </p>
-                      <p className="mt-1.5 text-[10px] text-paper-faint">
+                      <p className="mt-1.5 text-xs text-paper-faint">
                         Type{" "}
                         <button
                           onClick={() => quickQuery("help")}
@@ -650,21 +650,21 @@ export default function GraphPage() {
               {results.map((r) => (
                 <div key={r._id} className="border border-border bg-surface/40">
                   <div className="px-3 py-2 border-b border-border-soft flex items-center gap-2">
-                    <span className="text-[10px] uppercase tracking-[0.15em] text-signal">
+                    <span className="text-xs uppercase tracking-[0.15em] text-signal">
                       Q
                     </span>
                     <span className="text-[12px] text-paper">
                       {r.query}
                     </span>
                     {r.status === "loading" && (
-                      <span className="ml-auto text-[10px] text-signal animate-pulse-signal">
+                      <span className="ml-auto text-xs text-signal animate-pulse-signal">
                         querying...
                       </span>
                     )}
                     {r.status === "streaming" && (
                       <span className="ml-auto flex items-center gap-2">
-                        <span className="text-[10px] text-info">AI</span>
-                        <span className="text-[10px] text-signal animate-pulse-signal">
+                        <span className="text-xs text-info">AI</span>
+                        <span className="text-xs text-signal animate-pulse-signal">
                           streaming...
                         </span>
                       </span>
@@ -672,16 +672,16 @@ export default function GraphPage() {
                     {r.status === "done" && (
                       <span className="ml-auto flex items-center gap-2">
                         {r.mode === "llm" && (
-                          <span className="text-[9px] text-info border border-info/30 px-1 py-0.5">
+                          <span className="text-[11px] text-info border border-info/30 px-1 py-0.5">
                             AI
                           </span>
                         )}
                         {r.compression && (
-                          <span className="text-[9px] text-paper-faint" title={r.compression}>
+                          <span className="text-[11px] text-paper-faint" title={r.compression}>
                             compressed
                           </span>
                         )}
-                        <span className="text-[10px] text-ok tabular-nums">
+                        <span className="text-xs text-ok tabular-nums">
                           ${(r.cost ?? 0).toFixed(4)}
                         </span>
                       </span>
@@ -761,7 +761,7 @@ export default function GraphPage() {
                 AST parsing across 25 languages and produce an
                 interactive, queryable knowledge graph.
               </p>
-              <div className="mt-4 grid grid-cols-3 gap-2 text-[10px] text-paper-faint max-w-sm mx-auto">
+              <div className="mt-4 grid grid-cols-3 gap-2 text-xs text-paper-faint max-w-sm mx-auto">
                 <div className="border border-border-soft px-2 py-2 text-center">
                   <div className="text-paper-dim text-[11px]">
                     trace
@@ -912,7 +912,7 @@ function MarkdownResponse({ text }: { text: string }) {
         if (block.type === "code") {
           return (
             <div key={i} className="overflow-x-auto">
-              <div className="flex items-center px-3 py-1 bg-ink/80 border border-border-soft border-b-0 text-[10px] text-paper-muted">
+              <div className="flex items-center px-3 py-1 bg-ink/80 border border-border-soft border-b-0 text-xs text-paper-muted">
                 <span className="font-mono">{block.lang || "code"}</span>
               </div>
               <pre className="overflow-x-auto px-3 py-2.5 bg-ink/60 border border-border-soft text-[11px] leading-snug font-mono whitespace-pre-wrap break-words">
@@ -967,14 +967,14 @@ function FollowUps({
 
   return (
     <div className="px-3 py-2 border-t border-border-soft flex items-center gap-2 flex-wrap">
-      <span className="text-[10px] text-paper-faint uppercase tracking-[0.1em]">
+      <span className="text-xs text-paper-faint uppercase tracking-[0.1em]">
         follow up:
       </span>
       {followUps.map((q) => (
         <button
           key={q}
           onClick={() => onPick(q)}
-          className="text-[10px] text-paper-dim border border-border-soft hover:border-signal/40 hover:text-signal px-2 py-1 transition"
+          className="text-xs text-paper-dim border border-border-soft hover:border-signal/40 hover:text-signal px-2 py-1 transition"
         >
           {q}
         </button>

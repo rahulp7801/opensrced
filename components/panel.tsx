@@ -32,7 +32,7 @@ export function Panel({
               <span className="mono-label text-paper-dim truncate">— {label}</span>
             )}
           </div>
-          {meta && <div className="shrink-0 text-[10px] text-paper-muted">{meta}</div>}
+          {meta && <div className="shrink-0 text-xs text-paper-muted">{meta}</div>}
         </header>
       )}
       <div className={cn(dense ? "p-0" : "p-5")}>{children}</div>

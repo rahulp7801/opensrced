@@ -96,7 +96,7 @@ export function SiteHeader() {
           >
             <div className="px-4 py-3 border-b border-border-soft flex items-center justify-between">
               <span id="quick-help-title" className="text-[11px] uppercase tracking-[0.15em] text-paper-muted">Quick help</span>
-              <button ref={closeButtonRef} onClick={closeHelp} className="text-[10px] text-paper-faint hover:text-paper-muted">close</button>
+              <button ref={closeButtonRef} onClick={closeHelp} className="text-xs text-paper-faint hover:text-paper-muted">close</button>
             </div>
             <div className="p-4 space-y-4 text-[12px]">
               {/* The "Key pages" list that used to sit here explained what
@@ -135,7 +135,7 @@ export function SiteHeader() {
 function HelpSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-[0.15em] text-paper-muted mb-1.5">{title}</div>
+      <div className="text-xs uppercase tracking-[0.15em] text-paper-muted mb-1.5">{title}</div>
       <div className="space-y-1">{children}</div>
     </div>
   );

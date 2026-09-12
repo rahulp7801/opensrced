@@ -314,7 +314,7 @@ export function IssueScanner() {
                   {["#", "TITLE", "OPENED", "CATEGORY", "SCOPE", "SEVERITY", "COMPLEXITY", "EST. TIME", "STATE", "ACTION"].map((h) => (
                     <th
                       key={h}
-                      className="py-2.5 px-3 text-left font-normal tracking-[0.15em] text-[10px] uppercase"
+                      className="py-2.5 px-3 text-left font-normal tracking-[0.15em] text-xs uppercase"
                     >
                       {h}
                     </th>
@@ -366,7 +366,7 @@ export function IssueScanner() {
                           <td className="px-3 py-2.5 text-paper max-w-[420px]">
                             <div className="flex items-center gap-1.5">
                               <span className={cn(
-                                "inline-block text-paper-faint text-[10px] transition-transform",
+                                "inline-block text-paper-faint text-xs transition-transform",
                                 expanded && "rotate-90",
                               )}>▸</span>
                               <span className="truncate flex-1">{issue.title}</span>
@@ -376,7 +376,7 @@ export function IssueScanner() {
                                 {issue.labels.slice(0, 4).map((l) => (
                                   <span
                                     key={l}
-                                    className="text-[9px] uppercase tracking-[0.1em] border border-border-soft px-1 py-0.5 text-paper-muted"
+                                    className="text-[11px] uppercase tracking-[0.1em] border border-border-soft px-1 py-0.5 text-paper-muted"
                                   >
                                     {l}
                                   </span>
@@ -390,13 +390,13 @@ export function IssueScanner() {
                                 {fmtRelative(issue.created_at, now)}
                               </span>
                               {now - Date.parse(issue.created_at) <= NEW_CUTOFF_MS && (
-                                <span className="text-[9px] uppercase tracking-[0.12em] text-signal border border-signal/40 bg-signal/5 px-1 py-px leading-none">
+                                <span className="text-[11px] uppercase tracking-[0.12em] text-signal border border-signal/40 bg-signal/5 px-1 py-px leading-none">
                                   new
                                 </span>
                               )}
                             </div>
                           </td>
-                          <td className="px-3 py-2.5 text-[10px] uppercase tracking-[0.12em] text-paper-dim">
+                          <td className="px-3 py-2.5 text-xs uppercase tracking-[0.12em] text-paper-dim">
                             {issue.category}
                           </td>
                           <td className="px-3 py-2.5">
@@ -428,7 +428,7 @@ export function IssueScanner() {
                                 onSolve={() => solve(issue.number, false)}
                               />
                             ) : (
-                              <span className="text-[10px] text-paper-muted italic" title={issue.reason}>
+                              <span className="text-xs text-paper-muted italic" title={issue.reason}>
                                 {issue.reason.slice(0, 48)}
                               </span>
                             )}
@@ -728,7 +728,7 @@ function ScopeBadge({ s }: { s: ScopeInfo }) {
     <span
       title={titleParts.join(" · ")}
       className={cn(
-        "inline-block text-[9px] uppercase tracking-[0.12em] border px-1.5 py-0.5 leading-none cursor-help",
+        "inline-block text-[11px] uppercase tracking-[0.12em] border px-1.5 py-0.5 leading-none cursor-help",
         styles[s.bucket],
       )}
     >
@@ -760,7 +760,7 @@ function ComplexityPips({ value }: { value: number }) {
           )}
         />
       ))}
-      <span className="ml-1.5 text-[10px] text-paper-muted tabular-nums">{value}/5</span>
+      <span className="ml-1.5 text-xs text-paper-muted tabular-nums">{value}/5</span>
     </span>
   );
 }

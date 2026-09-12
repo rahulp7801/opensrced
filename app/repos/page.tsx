@@ -128,7 +128,7 @@ export default function ReposPage() {
           >
             {t.label}
             {states[t.key].repos.length > 0 && (
-              <span className="ml-1.5 text-[10px] tabular-nums text-paper-faint">
+              <span className="ml-1.5 text-xs tabular-nums text-paper-faint">
                 ({states[t.key].repos.length}{states[t.key].hasMore ? "+" : ""})
               </span>
             )}
@@ -188,7 +188,7 @@ export default function ReposPage() {
                       {repo.nameWithOwner}
                     </a>
                     {repo.isPrivate && (
-                      <span className="text-[9px] text-paper-faint border border-border px-1 py-0.5">private</span>
+                      <span className="text-[11px] text-paper-faint border border-border px-1 py-0.5">private</span>
                     )}
                   </div>
                   {repo.description && (
@@ -203,13 +203,13 @@ export default function ReposPage() {
                 <div className="flex items-center gap-2 shrink-0">
                   <Link
                     href={`/graph?repo=${encodeURIComponent(repo.nameWithOwner)}`}
-                    className="text-[10px] text-signal border border-signal/30 hover:bg-signal/10 px-2 py-0.5 transition"
+                    className="text-xs text-signal border border-signal/30 hover:bg-signal/10 px-2 py-0.5 transition"
                   >
                     graph
                   </Link>
                   <Link
                     href={`/issues?repo=${encodeURIComponent(repo.nameWithOwner)}`}
-                    className="text-[10px] text-info border border-info/30 hover:bg-info/10 px-2 py-0.5 transition"
+                    className="text-xs text-info border border-info/30 hover:bg-info/10 px-2 py-0.5 transition"
                   >
                     issues
                   </Link>
@@ -238,7 +238,7 @@ export default function ReposPage() {
         )}
 
         {!current.hasMore && current.repos.length > 0 && (
-          <div className="mt-3 text-center text-[10px] text-paper-faint">
+          <div className="mt-3 text-center text-xs text-paper-faint">
             All {current.repos.length} repos loaded
           </div>
         )}

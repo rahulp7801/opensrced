@@ -164,8 +164,8 @@ export function DraftPreview({
                     )}
                   >
                     <div className="flex items-center gap-1.5">
-                      {f.is_new_file && <span className="text-[9px] text-ok">NEW</span>}
-                      {f.is_deleted && <span className="text-[9px] text-alert">DEL</span>}
+                      {f.is_new_file && <span className="text-[11px] text-ok">NEW</span>}
+                      {f.is_deleted && <span className="text-[11px] text-alert">DEL</span>}
                       <span className="truncate">{f.path}</span>
                     </div>
                   </li>

@@ -88,11 +88,11 @@ export function SuggestedIssues() {
       {partial && !loading && <p role="status" className="px-4 py-2 text-xs text-paper-muted">Some GitHub searches did not complete. Showing available results; refresh to try again.</p>}
       <div className="px-4 py-3 border-b border-border-soft flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="text-[10px] uppercase tracking-[0.15em] text-signal">suggested issues</span>
-          <span className="text-[10px] text-paper-faint">Good first issues matching your interests</span>
+          <span className="text-xs uppercase tracking-[0.15em] text-signal">suggested issues</span>
+          <span className="text-xs text-paper-faint">Good first issues matching your interests</span>
           {filteredOut > 0 && (
             <span
-              className="text-[10px] text-paper-faint"
+              className="text-xs text-paper-faint"
               title="Bot-engagement spam filtered out: bounty repos, token-farming quests, social-media tasks, follow/star quests."
             >
               · {filteredOut} bot-spam hidden
@@ -101,7 +101,7 @@ export function SuggestedIssues() {
         </div>
         <button
           onClick={() => setExpanded(!expanded)}
-          className="text-[10px] text-paper-faint hover:text-paper-muted transition"
+          className="text-xs text-paper-faint hover:text-paper-muted transition"
         >
           {expanded ? "collapse" : "expand"}
         </button>
@@ -111,13 +111,13 @@ export function SuggestedIssues() {
         <>
           {/* Language selector */}
           <div className="px-4 py-2 border-b border-border-soft bg-ink/20 flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] text-paper-faint">Languages:</span>
+            <span className="text-xs text-paper-faint">Languages:</span>
             {LANGUAGES.map((lang) => (
               <button
                 key={lang}
                 onClick={() => toggleLang(lang)}
                 className={cn(
-                  "text-[10px] px-2 py-0.5 border transition",
+                  "text-xs px-2 py-0.5 border transition",
                   selectedLangs.includes(lang)
                     ? "border-signal/40 text-signal bg-signal/10"
                     : "border-transparent text-paper-faint hover:text-paper-muted",
@@ -130,7 +130,7 @@ export function SuggestedIssues() {
               onClick={() => fetchIssues(true)}
               disabled={loading || selectedLangs.length === 0}
               title="Force a fresh search, bypassing the 5-minute cache"
-              className="ml-auto text-[10px] text-signal border border-signal/30 px-2.5 py-0.5 hover:bg-signal/10 transition disabled:opacity-50"
+              className="ml-auto text-xs text-signal border border-signal/30 px-2.5 py-0.5 hover:bg-signal/10 transition disabled:opacity-50"
             >
               {loading ? "searching..." : "refresh"}
             </button>
@@ -138,12 +138,12 @@ export function SuggestedIssues() {
 
           {/* Tag-strictness selector */}
           <div className="px-4 py-2 border-b border-border-soft bg-ink/10 flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] text-paper-faint">Tags:</span>
+            <span className="text-xs text-paper-faint">Tags:</span>
             <button
               onClick={() => setTags("strict")}
               title='Only issues labeled exactly "good first issue"'
               className={cn(
-                "text-[10px] px-2 py-0.5 border transition",
+                "text-xs px-2 py-0.5 border transition",
                 tags === "strict"
                   ? "border-ok/40 text-ok bg-ok/10"
                   : "border-transparent text-paper-faint hover:text-paper-muted",
@@ -155,7 +155,7 @@ export function SuggestedIssues() {
               onClick={() => setTags("broad")}
               title='Also match "beginner", "starter", "first-timers-only", "easy"'
               className={cn(
-                "text-[10px] px-2 py-0.5 border transition",
+                "text-xs px-2 py-0.5 border transition",
                 tags === "broad"
                   ? "border-ok/40 text-ok bg-ok/10"
                   : "border-transparent text-paper-faint hover:text-paper-muted",
@@ -199,13 +199,13 @@ export function SuggestedIssues() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-[11px] text-paper-dim">{issue.repo}</span>
-                        <span className="text-[10px] text-paper-faint">#{issue.number}</span>
+                        <span className="text-xs text-paper-faint">#{issue.number}</span>
                         {issue.language && (
-                          <span className="text-[9px] text-info border border-info/30 px-1 py-px">{issue.language}</span>
+                          <span className="text-[11px] text-info border border-info/30 px-1 py-px">{issue.language}</span>
                         )}
                         {issue.labels.slice(0, 3).map((l) => (
                           <span key={l} className={cn(
-                            "text-[9px] px-1 py-px border",
+                            "text-[11px] px-1 py-px border",
                             l.includes("good first") ? "text-ok border-ok/30" :
                             l.includes("help wanted") ? "text-signal border-signal/30" :
                             l.includes("bug") ? "text-alert border-alert/30" :
@@ -217,7 +217,7 @@ export function SuggestedIssues() {
                       </div>
                       <div className="text-[12px] text-paper mt-0.5 truncate">{issue.title}</div>
                     </div>
-                    <div className="flex items-center gap-3 shrink-0 text-[10px] pt-1">
+                    <div className="flex items-center gap-3 shrink-0 text-xs pt-1">
                       {issue.comments > 0 && (
                         <span className="text-paper-faint tabular-nums">{issue.comments} comment{issue.comments !== 1 ? "s" : ""}</span>
                       )}

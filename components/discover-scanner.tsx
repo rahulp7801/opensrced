@@ -304,7 +304,7 @@ export function DiscoverScanner() {
                     (h) => (
                       <th
                         key={h}
-                        className="py-2.5 px-3 text-left font-normal tracking-[0.15em] text-[10px] uppercase"
+                        className="py-2.5 px-3 text-left font-normal tracking-[0.15em] text-xs uppercase"
                       >
                         {h}
                       </th>
@@ -350,7 +350,7 @@ export function DiscoverScanner() {
                           {i.repo.fullName}
                         </Link>
                         {i.repo.language && (
-                          <span className="ml-2 text-[9px] uppercase tracking-[0.12em] text-paper-faint border border-border-soft px-1 py-0.5">
+                          <span className="ml-2 text-[11px] uppercase tracking-[0.12em] text-paper-faint border border-border-soft px-1 py-0.5">
                             {i.repo.language}
                           </span>
                         )}
@@ -376,7 +376,7 @@ export function DiscoverScanner() {
                             {i.labels.slice(0, 3).map((l) => (
                               <span
                                 key={l}
-                                className="text-[9px] uppercase tracking-[0.1em] border border-border-soft px-1 py-0.5 text-paper-muted"
+                                className="text-[11px] uppercase tracking-[0.1em] border border-border-soft px-1 py-0.5 text-paper-muted"
                               >
                                 {l}
                               </span>
@@ -387,7 +387,7 @@ export function DiscoverScanner() {
                       <td className="px-3 py-2.5 whitespace-nowrap text-paper-muted tabular-nums text-[11px]" title={i.created_at}>
                         {fmtRelative(i.created_at, now)}
                       </td>
-                      <td className="px-3 py-2.5 text-[10px] uppercase tracking-[0.12em] text-paper-dim">
+                      <td className="px-3 py-2.5 text-xs uppercase tracking-[0.12em] text-paper-dim">
                         {i.category}
                       </td>
                       <td className="px-3 py-2.5">
@@ -425,15 +425,15 @@ export function DiscoverScanner() {
       {bookmarks.length > 0 && (
         <div className="mt-4 border border-border bg-surface/40 px-4 py-3">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-[10px] uppercase tracking-[0.15em] text-signal">Saved repos</span>
-            <span className="text-[10px] text-paper-faint">{bookmarks.length} bookmarked</span>
+            <span className="text-xs uppercase tracking-[0.15em] text-signal">Saved repos</span>
+            <span className="text-xs text-paper-faint">{bookmarks.length} bookmarked</span>
           </div>
           <div className="flex flex-wrap gap-2">
             {bookmarks.map((repo) => (
               <div key={repo} className="flex items-center gap-1.5 border border-border bg-ink/30 px-2.5 py-1 text-[11px]">
                 <Link href={`/issues?repo=${encodeURIComponent(repo)}`} className="text-paper hover:text-signal transition">{repo}</Link>
-                <Link href={`/trigger?repo=${repo}`} className="text-signal hover:underline text-[10px]">fix</Link>
-                <button onClick={() => toggleBookmark(repo)} className="text-paper-faint hover:text-alert text-[10px] transition ml-1">x</button>
+                <Link href={`/trigger?repo=${repo}`} className="text-signal hover:underline text-xs">fix</Link>
+                <button onClick={() => toggleBookmark(repo)} className="text-paper-faint hover:text-alert text-xs transition ml-1">x</button>
               </div>
             ))}
           </div>
@@ -588,7 +588,7 @@ function ScopeBadge({ s }: { s: ScopeInfo }) {
     <span
       title={title}
       className={cn(
-        "inline-block text-[9px] uppercase tracking-[0.12em] border px-1.5 py-0.5 leading-none cursor-help",
+        "inline-block text-[11px] uppercase tracking-[0.12em] border px-1.5 py-0.5 leading-none cursor-help",
         styles[s.bucket],
       )}
     >
@@ -620,7 +620,7 @@ function ComplexityPips({ value }: { value: number }) {
           )}
         />
       ))}
-      <span className="ml-1.5 text-[10px] text-paper-muted tabular-nums">{value}/5</span>
+      <span className="ml-1.5 text-xs text-paper-muted tabular-nums">{value}/5</span>
     </span>
   );
 }

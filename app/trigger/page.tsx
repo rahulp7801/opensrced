@@ -25,7 +25,7 @@ export default function TriggerPage() {
 
       <section className="mt-16">
         <div className="mb-5 flex items-center gap-3">
-          <span className="text-[10px] uppercase tracking-[0.15em] text-paper-muted">How it works</span>
+          <span className="text-xs uppercase tracking-[0.15em] text-paper-muted">How it works</span>
           <div className="h-px flex-1 bg-border" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -47,7 +47,7 @@ export default function TriggerPage() {
             },
           ].map((step) => (
             <div key={step.code} className="border border-border bg-surface/40 p-5">
-              <span className="text-[10px] text-signal uppercase tracking-[0.15em]">{step.code}</span>
+              <span className="text-xs text-signal uppercase tracking-[0.15em]">{step.code}</span>
               <div className="mt-3 serif text-[28px] text-paper leading-none">
                 {step.title}
               </div>

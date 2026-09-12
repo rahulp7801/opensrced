@@ -153,7 +153,7 @@ function DispatchDemo() {
             <div className="flex items-center gap-2">
               <span className="text-[13px] text-paper-muted">acme-corp/web-app</span>
               <span className="text-[12px] text-info border border-info/40 px-1.5 py-0.5 leading-none">#47</span>
-              <span className="text-[10px] border border-red-700/40 text-red-300 px-1.5">security</span>
+              <span className="text-xs border border-red-700/40 text-red-300 px-1.5">security</span>
             </div>
             <div className="text-[15px] text-paper">SQL injection in user search endpoint</div>
             <div className="text-[12px] text-paper-dim leading-relaxed">
@@ -179,7 +179,7 @@ function DispatchDemo() {
               {PHASES.map((p, i) => (
                 <div key={p} className="flex items-center gap-1">
                   {i > 0 && <div className={cn("w-4 h-px", i <= phaseIdx ? "bg-ok/40" : "bg-border")} />}
-                  <span className={cn("flex items-center gap-1 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em] border leading-none",
+                  <span className={cn("flex items-center gap-1 px-1.5 py-0.5 text-[11px] uppercase tracking-[0.1em] border leading-none",
                     i < phaseIdx ? "border-ok/40 text-ok" : i === phaseIdx ? "border-signal/40 text-signal" : "border-border-soft text-paper-faint")}>
                     {i < phaseIdx ? "✓" : i === phaseIdx ? "●" : "○"} {p}
                   </span>
@@ -192,7 +192,7 @@ function DispatchDemo() {
               <span className="text-[13px] text-ok">Draft PR #48 opened — review required</span>
               <span className="ml-auto flex items-center gap-3">
                 <span className="text-[12px] text-paper-muted tabular-nums">$0.0847 · 3m 42s</span>
-                <button onClick={reset} className="flex items-center gap-1 border border-border hover:border-signal/50 hover:text-signal px-2 py-0.5 text-[10px] text-paper-muted transition">replay</button>
+                <button onClick={reset} className="flex items-center gap-1 border border-border hover:border-signal/50 hover:text-signal px-2 py-0.5 text-xs text-paper-muted transition">replay</button>
               </span>
             </div>
           )}
@@ -290,9 +290,9 @@ function ExploreDemo() {
       {(step === "running" || step === "done") && (
         <>
           <div className="px-4 py-2.5 border-b border-border-soft flex items-center gap-2">
-            <span className="text-[10px] uppercase tracking-[0.15em] text-signal">Q</span>
+            <span className="text-xs uppercase tracking-[0.15em] text-signal">Q</span>
             <span className="text-[13px] text-paper">Where is the authentication middleware and how does it work?</span>
-            {step === "done" && <span className="ml-auto text-[10px] text-ok">complete</span>}
+            {step === "done" && <span className="ml-auto text-xs text-ok">complete</span>}
           </div>
           {tools.length > 0 && (
             <div className="px-4 py-2 border-b border-border-soft bg-ink/30">
@@ -310,18 +310,18 @@ function ExploreDemo() {
             {answer.split("\n").map((line, i) => {
               if (line.startsWith("## ")) return <div key={i} className="text-[13px] text-paper font-medium mt-3 first:mt-0">{line.slice(3)}</div>;
               if (line.startsWith("- ")) return <div key={i} className="flex gap-2 ml-1"><span className="text-paper-faint">-</span><span>{renderInline(line.slice(2))}</span></div>;
-              if (line.startsWith("```")) return <div key={i} className="text-[10px] text-paper-faint font-mono">{line}</div>;
+              if (line.startsWith("```")) return <div key={i} className="text-xs text-paper-faint font-mono">{line}</div>;
               if (/^\s*(\/\/|export|const|function|if|try|catch|req\.|res\.|next|jwt\.|return|\}|{)/.test(line)) return <div key={i} className="font-mono text-[11.5px] text-paper-dim">{line}</div>;
               return <div key={i}>{renderInline(line) || "\u00a0"}</div>;
             })}
           </div>
           {step === "done" && (
             <div className="px-4 py-2.5 border-t border-border-soft flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] text-paper-faint uppercase tracking-[0.1em]">follow up:</span>
+              <span className="text-xs text-paper-faint uppercase tracking-[0.1em]">follow up:</span>
               {["What permissions does it check?", "How are tokens stored?", "Show me the test suite"].map((q, i) => (
                 <span key={i} className="text-[11px] text-paper-dim border border-border-soft px-2 py-1">{q}</span>
               ))}
-              <button onClick={reset} className="ml-auto flex items-center gap-1 border border-border hover:border-signal/50 hover:text-signal px-2 py-0.5 text-[10px] text-paper-muted transition">replay</button>
+              <button onClick={reset} className="ml-auto flex items-center gap-1 border border-border hover:border-signal/50 hover:text-signal px-2 py-0.5 text-xs text-paper-muted transition">replay</button>
             </div>
           )}
         </>
@@ -421,7 +421,7 @@ function SecurityDemo() {
               <div key={i} className="px-4 py-2.5 flex items-start justify-between gap-3 animate-fade-rise">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`inline-block px-1.5 py-0.5 text-[10px] font-mono border ${sevCls[f.sev]}`}>{f.sev}</span>
+                    <span className={`inline-block px-1.5 py-0.5 text-xs font-mono border ${sevCls[f.sev]}`}>{f.sev}</span>
                     <span className="text-[10.5px] font-mono text-paper-muted">{f.id}</span>
                     <span className="text-[10.5px] font-mono text-paper-muted">{f.pkg} {f.ver}</span>
                   </div>
@@ -433,7 +433,7 @@ function SecurityDemo() {
               </div>
             ))}
           </div>
-          {step === "scanning" && <div className="px-4 py-2 text-[10px] text-signal animate-pulse">scanning...</div>}
+          {step === "scanning" && <div className="px-4 py-2 text-xs text-signal animate-pulse">scanning...</div>}
           {step === "findings" && (
             <div className="px-4 py-2.5 border-t border-border text-[11px] text-paper-muted">
               {findings.length} findings · click &quot;Fix issue&quot; on the critical CVE
@@ -453,7 +453,7 @@ function SecurityDemo() {
               <span className="text-[13px] text-ok">PR #49 opened — CVE-2024-4068 remediated</span>
               <span className="ml-auto flex items-center gap-3">
                 <span className="text-[12px] text-paper-muted tabular-nums">$0.0614 · 1m 52s</span>
-                <button onClick={reset} className="flex items-center gap-1 border border-border hover:border-signal/50 hover:text-signal px-2 py-0.5 text-[10px] text-paper-muted transition">replay</button>
+                <button onClick={reset} className="flex items-center gap-1 border border-border hover:border-signal/50 hover:text-signal px-2 py-0.5 text-xs text-paper-muted transition">replay</button>
               </span>
             </div>
           )}
@@ -629,13 +629,13 @@ function CrucibleDemo() {
               <li key={iss.num} className="px-4 py-3 flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-[13px] text-paper"><span className="text-paper-muted">#{iss.num}</span> {iss.title}</div>
-                  <div className="mt-1 flex gap-1">{iss.labels.map(l => <span key={l} className={cn("text-[10px] font-mono border px-1.5", l === "security" ? "border-red-700/40 text-red-300" : l === "bug" || l === "p1" ? "border-orange-700/40 text-orange-300" : "border-border-soft text-paper-muted")}>{l}</span>)}</div>
+                  <div className="mt-1 flex gap-1">{iss.labels.map(l => <span key={l} className={cn("text-xs font-mono border px-1.5", l === "security" ? "border-red-700/40 text-red-300" : l === "bug" || l === "p1" ? "border-orange-700/40 text-orange-300" : "border-border-soft text-paper-muted")}>{l}</span>)}</div>
                 </div>
                 <button onClick={iss.num === 12 ? solve : undefined} className={cn("shrink-0 text-[11px] border px-2.5 py-1", iss.num === 12 ? "text-paper border-border bg-surface/60 hover:bg-surface" : "text-paper-faint border-border-soft cursor-default")}>Fix issue</button>
               </li>
             ))}
           </ul>
-          <div className="px-4 py-2 border-t border-border-soft text-[10px] text-paper-faint">Click &quot;Fix issue&quot; on issue #12</div>
+          <div className="px-4 py-2 border-t border-border-soft text-xs text-paper-faint">Click &quot;Fix issue&quot; on issue #12</div>
         </div>
       )}
 
@@ -650,7 +650,7 @@ function CrucibleDemo() {
               <span className="text-[13px] text-ok">Draft PR #15 opened — review required</span>
               <span className="ml-auto flex items-center gap-3">
                 <span className="text-[12px] text-paper-muted tabular-nums">$0.0923 · 2m 18s</span>
-                <button onClick={reset} className="flex items-center gap-1 border border-border hover:border-signal/50 hover:text-signal px-2 py-0.5 text-[10px] text-paper-muted transition">replay</button>
+                <button onClick={reset} className="flex items-center gap-1 border border-border hover:border-signal/50 hover:text-signal px-2 py-0.5 text-xs text-paper-muted transition">replay</button>
               </span>
             </div>
           )}

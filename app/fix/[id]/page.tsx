@@ -69,17 +69,17 @@ export default function SharedFixPage() {
       {/* Header */}
       <div className="border border-border bg-surface/40 px-5 py-4">
         <div className="flex items-center gap-3 mb-2">
-          <span className="text-[10px] uppercase tracking-[0.15em] text-signal">shared fix</span>
+          <span className="text-xs uppercase tracking-[0.15em] text-signal">shared fix</span>
           {fix.pr_number && (
-            <span className="text-[10px] text-info border border-info/30 px-1.5 py-0.5">PR #{fix.pr_number}</span>
+            <span className="text-xs text-info border border-info/30 px-1.5 py-0.5">PR #{fix.pr_number}</span>
           )}
-          <span className="text-[10px] text-paper-faint ml-auto">{new Date(fix.created_at).toLocaleString()}</span>
+          <span className="text-xs text-paper-faint ml-auto">{new Date(fix.created_at).toLocaleString()}</span>
         </div>
         <h1 className="serif text-[22px] text-paper">{fix.repo}</h1>
 
         {fix.comment_body && (
           <div className="mt-3 px-3 py-2 border-l-2 border-signal/40 bg-ink/30 text-[12px] text-paper-dim">
-            <span className="text-[9px] text-paper-faint uppercase tracking-[0.1em] block mb-1">Review comment</span>
+            <span className="text-[11px] text-paper-faint uppercase tracking-[0.1em] block mb-1">Review comment</span>
             {fix.comment_body}
           </div>
         )}
@@ -88,7 +88,7 @@ export default function SharedFixPage() {
       {/* Explainer */}
       {fix.explainer && (
         <div className="mt-3 border border-ok/20 bg-ok/5 px-5 py-3">
-          <span className="text-[9px] text-ok uppercase tracking-[0.1em] block mb-1">Why this fix</span>
+          <span className="text-[11px] text-ok uppercase tracking-[0.1em] block mb-1">Why this fix</span>
           <p className="text-[12px] text-paper-dim whitespace-pre-wrap">{fix.explainer}</p>
         </div>
       )}
@@ -97,14 +97,14 @@ export default function SharedFixPage() {
       {fix.diff && (
         <div className="mt-3 border border-border bg-ink/30">
           <div className="px-4 py-2 border-b border-border-soft flex items-center justify-between">
-            <span className="text-[10px] text-paper-muted uppercase tracking-[0.15em]">Diff</span>
+            <span className="text-xs text-paper-muted uppercase tracking-[0.15em]">Diff</span>
             <button
               onClick={() => {
                 navigator.clipboard.writeText(fix.diff!);
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
               }}
-              className="text-[10px] text-paper-faint hover:text-paper-muted transition"
+              className="text-xs text-paper-faint hover:text-paper-muted transition"
             >
               {copied ? "copied" : "copy"}
             </button>

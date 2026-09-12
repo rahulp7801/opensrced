@@ -199,7 +199,7 @@ export function CommandPalette() {
             placeholder="Search · or paste a GitHub repo URL to start a run"
             className="flex-1 bg-transparent text-[14px] text-paper placeholder:text-paper-faint focus:outline-none"
           />
-          <kbd className="text-[10px] text-paper-muted border border-border-soft px-1.5 py-0.5">ESC</kbd>
+          <kbd className="text-xs text-paper-muted border border-border-soft px-1.5 py-0.5">ESC</kbd>
         </div>
 
         {/* dispatch row when input looks like a repo */}
@@ -255,7 +255,7 @@ export function CommandPalette() {
                 <a.Icon className="text-paper-muted group-hover:text-paper" />
                 <span className="text-[13px] text-paper-dim group-hover:text-paper flex-1">{a.label}</span>
                 {a.keys && (
-                  <span className="text-[10px] text-paper-faint tabular-nums">{a.keys}</span>
+                  <span className="text-xs text-paper-faint tabular-nums">{a.keys}</span>
                 )}
               </button>
             ))}
@@ -293,7 +293,7 @@ export function CommandPalette() {
             </div>
           </Section>
 
-          <div className="border-t border-border px-4 py-2.5 flex items-center justify-between text-[10px] text-paper-muted">
+          <div className="border-t border-border px-4 py-2.5 flex items-center justify-between text-xs text-paper-muted">
             <div className="flex items-center gap-4">
               <span><kbd className="text-paper-dim">↑↓</kbd> select</span>
               <span><kbd className="text-paper-dim">g</kbd> then <kbd className="text-paper-dim">1–5</kbd> jump</span>

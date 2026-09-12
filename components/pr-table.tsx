@@ -125,7 +125,7 @@ export function PrTable({ prs }: { prs: PullRequest[] }) {
                   <td className="px-3 py-2.5 text-paper-dim max-w-[220px] truncate">{pr.repo}</td>
                   <td className="px-3 py-2.5 text-paper max-w-[440px] truncate">{pr.title}</td>
                   <td className="px-3 py-2.5">
-                    <span className="text-[10px] uppercase tracking-[0.12em] text-paper-dim">
+                    <span className="text-xs uppercase tracking-[0.12em] text-paper-dim">
                       {pr.contribution_type.replace(/_/g, " ")}
                     </span>
                   </td>
@@ -144,7 +144,7 @@ export function PrTable({ prs }: { prs: PullRequest[] }) {
                     <div className="flex items-center justify-end gap-3">
                       <Link
                         href={`/prs/${pr.repo}/${pr.pr_number}`}
-                        className="text-[10px] text-signal border border-signal/30 hover:bg-signal/10 px-1.5 py-0.5 transition"
+                        className="text-xs text-signal border border-signal/30 hover:bg-signal/10 px-1.5 py-0.5 transition"
                         title="Review & fix comments"
                       >
                         review
@@ -196,7 +196,7 @@ function Th({
   return (
     <th
       className={cn(
-        "py-2.5 px-3 font-normal tracking-[0.15em] text-[10px] uppercase",
+        "py-2.5 px-3 font-normal tracking-[0.15em] text-xs uppercase",
         align === "right" ? "text-right" : "text-left",
         sortable && "cursor-pointer hover:text-paper select-none",
         active && "text-paper",

@@ -875,13 +875,13 @@ export default function PrDetailPage() {
       {/* Session cost + keyboard shortcut hint */}
       <div className="flex items-center justify-between mt-1 mb-2">
         {sessionCost > 0 && (
-          <span className="text-[10px] text-paper-faint tabular-nums">
+          <span className="text-xs text-paper-faint tabular-nums">
             Session total: ${sessionCost.toFixed(4)}
           </span>
         )}
         <button
           onClick={() => setShowShortcuts(!showShortcuts)}
-          className="text-[10px] text-paper-faint hover:text-paper-muted transition-colors ml-auto"
+          className="text-xs text-paper-faint hover:text-paper-muted transition-colors ml-auto"
         >
           ? shortcuts
         </button>
@@ -891,13 +891,13 @@ export default function PrDetailPage() {
       {showShortcuts && (
         <div className="mb-3 border border-border bg-ink/80 px-4 py-3">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] uppercase tracking-[0.15em] text-paper-muted">Keyboard shortcuts</span>
-            <button onClick={() => setShowShortcuts(false)} className="text-[10px] text-paper-faint hover:text-paper-muted">close</button>
+            <span className="text-xs uppercase tracking-[0.15em] text-paper-muted">Keyboard shortcuts</span>
+            <button onClick={() => setShowShortcuts(false)} className="text-xs text-paper-faint hover:text-paper-muted">close</button>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-1">
             {SHORTCUTS.map((s) => (
               <div key={s.key} className="flex items-center gap-2 text-[11px]">
-                <kbd className="bg-surface border border-border px-1.5 py-0.5 text-[10px] text-paper font-mono min-w-[24px] text-center">{s.key}</kbd>
+                <kbd className="bg-surface border border-border px-1.5 py-0.5 text-xs text-paper font-mono min-w-[24px] text-center">{s.key}</kbd>
                 <span className="text-paper-dim">{s.label}</span>
               </div>
             ))}
@@ -909,7 +909,7 @@ export default function PrDetailPage() {
       {error && (
         <div className="mt-8 border border-alert/30 bg-alert/5 px-4 py-3 text-[12px] text-alert flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={() => fetchComments()} className="text-[10px] border border-alert/30 px-2 py-0.5 hover:bg-alert/10 transition">
+          <button onClick={() => fetchComments()} className="text-xs border border-alert/30 px-2 py-0.5 hover:bg-alert/10 transition">
             retry
           </button>
         </div>
@@ -921,7 +921,7 @@ export default function PrDetailPage() {
           <div className="mt-4 border border-border bg-surface/40 px-4 py-3">
             <div className="flex items-center gap-3">
               <span className={cn(
-                "text-[10px] uppercase tracking-[0.12em] px-1.5 py-0.5 border",
+                "text-xs uppercase tracking-[0.12em] px-1.5 py-0.5 border",
                 pr.state === "OPEN" ? "text-signal border-signal/30" : pr.state === "MERGED" ? "text-ok border-ok/30" : "text-paper-muted border-border",
               )}>
                 {pr.state}
@@ -942,7 +942,7 @@ export default function PrDetailPage() {
               {showDiff && prDiff && (
                 <button
                   onClick={() => setDiffViewMode(diffViewMode === "unified" ? "split" : "unified")}
-                  className="text-paper-faint hover:text-paper-dim transition-colors text-[10px]"
+                  className="text-paper-faint hover:text-paper-dim transition-colors text-xs"
                 >
                   {diffViewMode === "unified" ? "split view" : "unified view"}
                 </button>
@@ -954,7 +954,7 @@ export default function PrDetailPage() {
                 refresh
               </button>
               {newCommentsCount > 0 && (
-                <span className="text-[10px] text-signal animate-pulse-signal">
+                <span className="text-xs text-signal animate-pulse-signal">
                   {newCommentsCount} new
                 </span>
               )}
@@ -1007,7 +1007,7 @@ export default function PrDetailPage() {
                 </span>
               )}
               {stats.pending === 0 && stats.total > 0 && (
-                <span className="text-ok text-[10px] border border-ok/30 px-1.5 py-0.5">all addressed</span>
+                <span className="text-ok text-xs border border-ok/30 px-1.5 py-0.5">all addressed</span>
               )}
             </div>
           )}
@@ -1032,7 +1032,7 @@ export default function PrDetailPage() {
                   <button
                     onClick={() => setFixMode("quick")}
                     className={cn(
-                      "px-2.5 py-1 text-[10px] transition",
+                      "px-2.5 py-1 text-xs transition",
                       fixMode === "quick" ? "bg-ok/15 text-ok" : "text-paper-faint hover:text-paper-muted",
                     )}
                   >
@@ -1041,14 +1041,14 @@ export default function PrDetailPage() {
                   <button
                     onClick={() => setFixMode("deep")}
                     className={cn(
-                      "px-2.5 py-1 text-[10px] transition",
+                      "px-2.5 py-1 text-xs transition",
                       fixMode === "deep" ? "bg-signal/15 text-signal" : "text-paper-faint hover:text-paper-muted",
                     )}
                   >
                     deep
                   </button>
                 </div>
-                <div className="text-[10px] leading-relaxed">
+                <div className="text-xs leading-relaxed">
                   {fixMode === "quick" ? (
                     <div>
                       <span className="text-ok font-medium">Quick fix</span>
@@ -1095,31 +1095,31 @@ export default function PrDetailPage() {
                   {/* Comment header */}
                   <div className="px-4 py-2 border-b border-border-soft flex items-center gap-2 flex-wrap">
                     <span className="text-[11px] text-paper font-medium">{c.author}</span>
-                    {c.isOwnComment && <span className="text-[9px] text-paper-faint border border-border px-1 py-0.5">you</span>}
-                    <span className="text-[10px] text-paper-faint">
+                    {c.isOwnComment && <span className="text-[11px] text-paper-faint border border-border px-1 py-0.5">you</span>}
+                    <span className="text-xs text-paper-faint">
                       {new Date(c.createdAt).toLocaleDateString()} {new Date(c.createdAt).toLocaleTimeString()}
                     </span>
                     {/* Status indicator */}
                     {!c.isOwnComment && status !== "pending" && (
                       <span className={cn(
-                        "text-[9px] uppercase tracking-[0.1em] px-1 py-0.5 border",
+                        "text-[11px] uppercase tracking-[0.1em] px-1 py-0.5 border",
                         status === "fixed" ? "text-ok border-ok/30" : "text-info border-info/30",
                       )}>
                         {status}
                       </span>
                     )}
                     {c.path && (
-                      <span className="ml-auto text-[10px] text-info font-mono">{c.path}{c.line ? `:${c.line}` : ""}</span>
+                      <span className="ml-auto text-xs text-info font-mono">{c.path}{c.line ? `:${c.line}` : ""}</span>
                     )}
                     {c.type === "review" && (
-                      <span className="text-[9px] text-signal border border-signal/30 px-1 py-0.5">inline</span>
+                      <span className="text-[11px] text-signal border border-signal/30 px-1 py-0.5">inline</span>
                     )}
                   </div>
 
                   {/* Diff hunk */}
                   {c.diffHunk && (
                     <div className="px-4 py-2 border-b border-border-soft bg-ink/30 overflow-x-auto">
-                      <pre className="text-[10px] text-paper-faint font-mono whitespace-pre-wrap">{c.diffHunk}</pre>
+                      <pre className="text-xs text-paper-faint font-mono whitespace-pre-wrap">{c.diffHunk}</pre>
                     </div>
                   )}
 
@@ -1146,7 +1146,7 @@ export default function PrDetailPage() {
                           >
                             reply manually
                           </button>
-                          <span className="text-[10px] text-paper-faint">question — AI will draft a reply</span>
+                          <span className="text-xs text-paper-faint">question — AI will draft a reply</span>
                         </>
                       ) : (
                         <>
@@ -1178,10 +1178,10 @@ export default function PrDetailPage() {
                         </>
                       )}
                       {replySt?.status === "sent" && (
-                        <span className="text-[10px] text-ok">replied</span>
+                        <span className="text-xs text-ok">replied</span>
                       )}
                       {replySt?.status === "error" && (
-                        <span className="text-[10px] text-alert">failed to reply</span>
+                        <span className="text-xs text-alert">failed to reply</span>
                       )}
                     </div>
                   )}
@@ -1207,7 +1207,7 @@ export default function PrDetailPage() {
                           </button>
                           <button
                             onClick={() => setShowReplyFor(null)}
-                            className="text-[10px] text-paper-faint hover:text-paper-muted transition"
+                            className="text-xs text-paper-faint hover:text-paper-muted transition"
                           >
                             cancel
                           </button>
@@ -1224,24 +1224,24 @@ export default function PrDetailPage() {
           {fixState && (
             <div ref={fixRef} className="mt-4 border border-border bg-surface/40">
               <div className="px-4 py-2 border-b border-border-soft flex items-center gap-2">
-                <span className="text-[10px] uppercase tracking-[0.15em] text-signal">
+                <span className="text-xs uppercase tracking-[0.15em] text-signal">
                   {fixState.commentId === "all" ? "fix all comments" : "fix generation"}
                 </span>
                 {fixState.status === "generating" && (
                   <span className="ml-auto flex items-center gap-2">
-                    <span className="text-[10px] text-paper-dim">{fixState.step}</span>
-                    <span className="text-[10px] text-signal animate-pulse-signal">
+                    <span className="text-xs text-paper-dim">{fixState.step}</span>
+                    <span className="text-xs text-signal animate-pulse-signal">
                       <LoadingDots />
                     </span>
-                    <button onClick={cancelGeneration} className="text-[10px] text-paper-muted hover:text-alert transition border border-border px-1.5 py-0.5">cancel</button>
+                    <button onClick={cancelGeneration} className="text-xs text-paper-muted hover:text-alert transition border border-border px-1.5 py-0.5">cancel</button>
                   </span>
                 )}
                 {fixState.status === "done" && fixState.cost !== null && (
-                  <span className="ml-auto text-[10px] text-paper-muted tabular-nums">{costLabel(fixState.cost)}</span>
+                  <span className="ml-auto text-xs text-paper-muted tabular-nums">{costLabel(fixState.cost)}</span>
                 )}
-                {fixState.status === "cancelled" && <span className="ml-auto text-[10px] text-paper-muted">Cancelled</span>}
+                {fixState.status === "cancelled" && <span className="ml-auto text-xs text-paper-muted">Cancelled</span>}
                 {fixState.status === "error" && (
-                  <span className="ml-auto text-[10px] text-alert">failed</span>
+                  <span className="ml-auto text-xs text-alert">failed</span>
                 )}
               </div>
 
@@ -1249,9 +1249,9 @@ export default function PrDetailPage() {
               {fixState.tools.length > 0 && (
                 <div className="px-4 py-2 border-b border-border-soft bg-ink/30">
                   <div className="flex items-center gap-1 mb-1.5">
-                    <span className="text-[9px] uppercase tracking-[0.15em] text-paper-faint">Agent activity</span>
-                    <span className="text-[9px] text-paper-faint tabular-nums">{fixState.tools.length} tool calls</span>
-                    {fixState.status === "generating" && <span className="text-[9px] text-signal animate-pulse-signal ml-1">live</span>}
+                    <span className="text-[11px] uppercase tracking-[0.15em] text-paper-faint">Agent activity</span>
+                    <span className="text-[11px] text-paper-faint tabular-nums">{fixState.tools.length} tool calls</span>
+                    {fixState.status === "generating" && <span className="text-[11px] text-signal animate-pulse-signal ml-1">live</span>}
                   </div>
                   <div className="relative">
                     {/* Timeline line */}
@@ -1270,11 +1270,11 @@ export default function PrDetailPage() {
                         const isLast = i === fixState.tools.length - 1 && fixState.status === "generating";
                         return (
                           <div key={i} className={cn(
-                            "flex items-center gap-2 pl-3 text-[10px]",
+                            "flex items-center gap-2 pl-3 text-xs",
                             isLast && "font-medium",
                           )}>
                             <span className={cn(
-                              "relative z-10 shrink-0 w-3 h-3 flex items-center justify-center text-[8px] font-mono rounded-full border",
+                              "relative z-10 shrink-0 w-3 h-3 flex items-center justify-center text-[10px] font-mono rounded-full border",
                               isLast ? "bg-signal/20 border-signal/50 text-signal" : "bg-ink border-border-soft",
                               colorMap[t.tool] ?? "text-paper-faint",
                             )}>
@@ -1309,20 +1309,20 @@ export default function PrDetailPage() {
                             if (c) handleFix(c);
                           }
                         }}
-                        className="text-[10px] text-signal border border-signal/30 px-2 py-0.5 hover:bg-signal/10 transition"
+                        className="text-xs text-signal border border-signal/30 px-2 py-0.5 hover:bg-signal/10 transition"
                       >
                         retry from scratch
                       </button>
                       {fixRetryCount < 3 && lastFixComment && (
                         <button
                           onClick={handleRetryWithContext}
-                          className="text-[10px] text-ok border border-ok/30 px-2 py-0.5 hover:bg-ok/10 transition"
+                          className="text-xs text-ok border border-ok/30 px-2 py-0.5 hover:bg-ok/10 transition"
                         >
                           self-heal (retry with error context)
                         </button>
                       )}
                       {fixRetryCount >= 3 && (
-                        <span className="text-[10px] text-paper-faint">Max retries reached — try deep fix mode or fix manually</span>
+                        <span className="text-xs text-paper-faint">Max retries reached — try deep fix mode or fix manually</span>
                       )}
                     </div>
                   </div>
@@ -1344,13 +1344,13 @@ export default function PrDetailPage() {
               {/* Export buttons */}
               {fixState.status === "done" && extractDiff(fixState.response) && (
                 <div className="px-4 py-2 border-t border-border-soft flex items-center gap-2">
-                  <span className="text-[10px] text-paper-faint uppercase tracking-[0.15em]">export</span>
+                  <span className="text-xs text-paper-faint uppercase tracking-[0.15em]">export</span>
                   <button
                     onClick={() => {
                       navigator.clipboard.writeText(extractDiff(fixState.response)!);
                       toast("Diff copied to clipboard", "ok");
                     }}
-                    className="text-[10px] text-paper-dim border border-border hover:border-paper-muted hover:text-paper px-2 py-0.5 transition"
+                    className="text-xs text-paper-dim border border-border hover:border-paper-muted hover:text-paper px-2 py-0.5 transition"
                   >
                     copy diff
                   </button>
@@ -1366,7 +1366,7 @@ export default function PrDetailPage() {
                       URL.revokeObjectURL(url);
                       toast("Patch file downloaded", "ok");
                     }}
-                    className="text-[10px] text-paper-dim border border-border hover:border-paper-muted hover:text-paper px-2 py-0.5 transition"
+                    className="text-xs text-paper-dim border border-border hover:border-paper-muted hover:text-paper px-2 py-0.5 transition"
                   >
                     download .patch
                   </button>
@@ -1375,7 +1375,7 @@ export default function PrDetailPage() {
                       navigator.clipboard.writeText(fixState.response);
                       toast("Full response copied", "ok");
                     }}
-                    className="text-[10px] text-paper-faint border border-border hover:border-paper-muted hover:text-paper-dim px-2 py-0.5 transition"
+                    className="text-xs text-paper-faint border border-border hover:border-paper-muted hover:text-paper-dim px-2 py-0.5 transition"
                   >
                     copy full response
                   </button>
@@ -1406,7 +1406,7 @@ export default function PrDetailPage() {
                         }
                       } catch { toast("Failed to create share link", "alert"); }
                     }}
-                    className="text-[10px] text-signal border border-signal/30 hover:bg-signal/10 px-2 py-0.5 transition"
+                    className="text-xs text-signal border border-signal/30 hover:bg-signal/10 px-2 py-0.5 transition"
                   >
                     share fix
                   </button>
@@ -1418,17 +1418,17 @@ export default function PrDetailPage() {
               {fixState.status === "done" && extractDiff(fixState.response) && (
                 <div className="px-4 py-3 border-t border-border-soft">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[10px] uppercase tracking-[0.15em] text-paper-muted">
+                    <span className="text-xs uppercase tracking-[0.15em] text-paper-muted">
                       verification checks
                     </span>
                     {verifying && (
-                      <span className="text-[10px] text-signal animate-pulse-signal flex items-center gap-1">
+                      <span className="text-xs text-signal animate-pulse-signal flex items-center gap-1">
                         <LoadingDots /> running checks...
                       </span>
                     )}
                     {verifyResult && (
                       <span className={cn(
-                        "text-[10px] uppercase tracking-[0.1em] px-1.5 py-0.5 border",
+                        "text-xs uppercase tracking-[0.1em] px-1.5 py-0.5 border",
                         verifyResult.summary.verdict === "clean" ? "text-ok border-ok/30" :
                         verifyResult.summary.verdict === "review" ? "text-signal border-signal/30" :
                         "text-alert border-alert/30",
@@ -1462,18 +1462,18 @@ export default function PrDetailPage() {
                           </span>
                         </div>
                       ))}
-                      <div className="mt-2 pt-2 border-t border-border-soft text-[10px] text-paper-faint">
+                      <div className="mt-2 pt-2 border-t border-border-soft text-xs text-paper-faint">
                         +{verifyResult.summary.linesAdded} / -{verifyResult.summary.linesRemoved} lines | {verifyResult.summary.filesChanged} file(s) | {verifyResult.summary.pass} passed, {verifyResult.summary.warn} warnings, {verifyResult.summary.fail} failed
                       </div>
                       {verifyResult.summary.fail > 0 && fixRetryCount < 3 && lastFixComment && (
                         <div className="mt-2 pt-2 border-t border-border-soft">
                           <button
                             onClick={handleRetryWithContext}
-                            className="text-[10px] text-ok border border-ok/30 px-2.5 py-1 hover:bg-ok/10 transition"
+                            className="text-xs text-ok border border-ok/30 px-2.5 py-1 hover:bg-ok/10 transition"
                           >
                             Self-heal: retry fix using these verification results as context
                           </button>
-                          <span className="ml-2 text-[10px] text-paper-faint">Attempt {fixRetryCount + 1}/3</span>
+                          <span className="ml-2 text-xs text-paper-faint">Attempt {fixRetryCount + 1}/3</span>
                         </div>
                       )}
                     </div>
@@ -1490,7 +1490,7 @@ export default function PrDetailPage() {
                   >
                     {askOpen ? "close chat" : "ask about this change"}
                   </button>
-                  <span className="ml-2 text-[10px] text-paper-faint">
+                  <span className="ml-2 text-xs text-paper-faint">
                     Ask Claude to explain the reasoning, potential risks, or alternatives
                   </span>
 
@@ -1498,14 +1498,14 @@ export default function PrDetailPage() {
                     <div className="mt-3 border border-border bg-ink/30 max-h-[300px] flex flex-col">
                       <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-[80px]">
                         {askMessages.length === 0 && (
-                          <div className="text-[10px] text-paper-faint italic">
+                          <div className="text-xs text-paper-faint italic">
                             Ask anything about the generated fix — why it chose this approach, what could go wrong, alternative approaches, etc.
                           </div>
                         )}
                         {askMessages.map((msg, i) => (
                           <div key={i} className={cn("text-[11px]", msg.role === "user" ? "text-paper" : "text-paper-dim")}>
                             <span className={cn(
-                              "text-[9px] uppercase tracking-[0.1em] mr-1.5",
+                              "text-[11px] uppercase tracking-[0.1em] mr-1.5",
                               msg.role === "user" ? "text-signal" : "text-info",
                             )}>
                               {msg.role === "user" ? "you" : "ai"}
@@ -1515,8 +1515,8 @@ export default function PrDetailPage() {
                         ))}
                         {askLoading && (
                           <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-info animate-pulse-signal">thinking...</span>
-                            <button onClick={cancelGeneration} className="text-[10px] text-paper-muted hover:text-alert transition">cancel</button>
+                            <span className="text-xs text-info animate-pulse-signal">thinking...</span>
+                            <button onClick={cancelGeneration} className="text-xs text-paper-muted hover:text-alert transition">cancel</button>
                           </div>
                         )}
                       </div>
@@ -1533,7 +1533,7 @@ export default function PrDetailPage() {
                         <button
                           onClick={handleAsk}
                           disabled={!askInput.trim() || askLoading}
-                          className="border border-info/50 bg-info/10 text-info hover:bg-info/20 px-3 py-1.5 text-[10px] uppercase tracking-[0.12em] disabled:opacity-50 shrink-0 transition"
+                          className="border border-info/50 bg-info/10 text-info hover:bg-info/20 px-3 py-1.5 text-xs uppercase tracking-[0.12em] disabled:opacity-50 shrink-0 transition"
                         >
                           ask
                         </button>
@@ -1547,7 +1547,7 @@ export default function PrDetailPage() {
               {fixState.status === "done" && extractDiff(fixState.response) && (
                 <div className="px-4 py-3 border-t border-border-soft bg-ink/20">
                   <div className="flex items-center gap-3 flex-wrap">
-                    <span className="text-[10px] text-paper-faint uppercase tracking-[0.1em]">commit:</span>
+                    <span className="text-xs text-paper-faint uppercase tracking-[0.1em]">commit:</span>
                     <input
                       type="text"
                       value={commitMsg}
@@ -1578,7 +1578,7 @@ export default function PrDetailPage() {
                           <span className="whitespace-pre-wrap break-words">{pushMessage}</span>
                           <button
                             onClick={() => handlePush()}
-                            className="shrink-0 text-[10px] text-signal border border-signal/30 px-2 py-0.5 hover:bg-signal/10 transition"
+                            className="shrink-0 text-xs text-signal border border-signal/30 px-2 py-0.5 hover:bg-signal/10 transition"
                           >
                             retry
                           </button>
@@ -1592,31 +1592,31 @@ export default function PrDetailPage() {
                   <div className="mt-3 pt-3 border-t border-border-soft">
                     {autoExplainer && !followUpComment && (
                       <div className="mb-2 px-3 py-2 border border-ok/20 bg-ok/5 text-[11px] text-paper-dim">
-                        <span className="text-[9px] text-ok uppercase tracking-[0.1em] block mb-1">auto-generated explanation</span>
+                        <span className="text-[11px] text-ok uppercase tracking-[0.1em] block mb-1">auto-generated explanation</span>
                         <p className="whitespace-pre-wrap">{autoExplainer}</p>
                         <button
                           onClick={() => { setFollowUpComment(autoExplainer); }}
-                          className="mt-1.5 text-[10px] text-ok border border-ok/30 px-2 py-0.5 hover:bg-ok/10 transition"
+                          className="mt-1.5 text-xs text-ok border border-ok/30 px-2 py-0.5 hover:bg-ok/10 transition"
                         >
                           use as follow-up comment
                         </button>
                       </div>
                     )}
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-[10px] text-paper-faint uppercase tracking-[0.1em]">
+                      <span className="text-xs text-paper-faint uppercase tracking-[0.1em]">
                         follow-up comment
                       </span>
                       <button
                         onClick={handleGenerateFollowUp}
                         disabled={followUpGenerating || followUpSending || followUpSent}
-                        className="text-[10px] text-info border border-info/30 hover:bg-info/10 px-2 py-0.5 transition disabled:opacity-50"
+                        className="text-xs text-info border border-info/30 hover:bg-info/10 px-2 py-0.5 transition disabled:opacity-50"
                       >
                         {followUpGenerating ? "drafting..." : followUpComment ? "regenerate" : "draft detailed version"}
                       </button>
                       {followUpGenerating && (
-                        <button onClick={cancelGeneration} className="text-[10px] text-paper-muted hover:text-alert transition">cancel</button>
+                        <button onClick={cancelGeneration} className="text-xs text-paper-muted hover:text-alert transition">cancel</button>
                       )}
-                      <span className="text-[9px] text-paper-faint">
+                      <span className="text-[11px] text-paper-faint">
                         Explains the commit reasoning to the reviewer
                       </span>
                     </div>
@@ -1636,7 +1636,7 @@ export default function PrDetailPage() {
                             onClick={handleSendFollowUp}
                             disabled={!followUpComment.trim() || followUpGenerating || followUpSending || followUpSent}
                             className={cn(
-                              "px-3 py-1 text-[10px] uppercase tracking-[0.12em] transition",
+                              "px-3 py-1 text-xs uppercase tracking-[0.12em] transition",
                               followUpSent
                                 ? "border border-ok/50 bg-ok/10 text-ok"
                                 : "border border-info/50 bg-info/10 text-info hover:bg-info/20",
@@ -1645,7 +1645,7 @@ export default function PrDetailPage() {
                           >
                             {followUpSending ? "posting..." : followUpSent ? "sent" : "post comment to PR"}
                           </button>
-                          <span className="text-[9px] text-paper-faint">
+                          <span className="text-[11px] text-paper-faint">
                             {followUpSent ? "Comment posted on GitHub" : "Posts as a comment on the PR thread"}
                           </span>
                         </div>
@@ -1764,7 +1764,7 @@ function DiffPreview({ diff }: { diff: string }) {
 
   const diffContent = (
     <>
-      <div className="px-3 py-1.5 border-b border-border-soft bg-ink/50 text-[10px] text-paper-faint flex items-center justify-between">
+      <div className="px-3 py-1.5 border-b border-border-soft bg-ink/50 text-xs text-paper-faint flex items-center justify-between">
         <div>
           {files.map((f, i) => (
             <span key={i} className="mr-3 font-mono">{f}</span>
@@ -1787,7 +1787,7 @@ function DiffPreview({ diff }: { diff: string }) {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setExpanded(!expanded)}
-            className="flex items-center gap-2 text-[10px] text-paper-muted hover:text-paper-dim transition"
+            className="flex items-center gap-2 text-xs text-paper-muted hover:text-paper-dim transition"
           >
             <span className="uppercase tracking-[0.15em]">diff preview</span>
             <span className="text-ok tabular-nums">+{added}</span>
@@ -1797,7 +1797,7 @@ function DiffPreview({ diff }: { diff: string }) {
           </button>
           <button
             onClick={() => setPoppedOut(true)}
-            className="text-[10px] text-paper-faint hover:text-info transition ml-2"
+            className="text-xs text-paper-faint hover:text-info transition ml-2"
             title="Open in floating panel"
           >
             pop out
@@ -1825,13 +1825,13 @@ function DiffPreview({ diff }: { diff: string }) {
                   onClick={() => {
                     navigator.clipboard.writeText(diff);
                   }}
-                  className="text-[10px] text-paper-faint hover:text-paper-muted transition"
+                  className="text-xs text-paper-faint hover:text-paper-muted transition"
                 >
                   copy
                 </button>
                 <button
                   onClick={() => setPoppedOut(false)}
-                  className="text-[10px] text-paper-faint hover:text-alert transition"
+                  className="text-xs text-paper-faint hover:text-alert transition"
                 >
                   close (esc)
                 </button>
@@ -1870,7 +1870,7 @@ function FixResponse({ text }: { text: string }) {
           const isDiff = block.lang === "diff" || block.lang === "patch" || block.content.includes("@@");
           return (
             <div key={i} className="overflow-x-auto">
-              <div className="flex items-center px-3 py-1 bg-ink/80 border border-border-soft border-b-0 text-[10px] text-paper-muted">
+              <div className="flex items-center px-3 py-1 bg-ink/80 border border-border-soft border-b-0 text-xs text-paper-muted">
                 <span className="font-mono">{block.lang || (isDiff ? "diff" : "code")}</span>
               </div>
               <pre className="overflow-x-auto px-3 py-2.5 bg-ink/60 border border-border-soft text-[11px] leading-snug font-mono">

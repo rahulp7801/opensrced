@@ -86,7 +86,7 @@ export function Onboarding() {
             <div key={s.key} className="flex items-center gap-1.5">
               {i > 0 && <div className="w-3 h-px bg-border" />}
               <span
-                className={`inline-flex items-center justify-center w-5 h-5 text-[10px] border ${
+                className={`inline-flex items-center justify-center w-5 h-5 text-xs border ${
                   s.check(state)
                     ? "border-ok/40 text-ok bg-ok/10"
                     : s.key === currentStep.key

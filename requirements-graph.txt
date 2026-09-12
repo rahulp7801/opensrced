@@ -1,6 +1,7 @@
 graphifyy==0.9.58
 networkx==3.6.1
-numpy==2.5.3
+# Keep the graph runtime compatible with Debian Bookworm's Python 3.11.
+numpy==2.4.6
 rapidfuzz==3.14.6
 tree-sitter==0.25.2
 tree-sitter-bash==0.25.1

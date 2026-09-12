@@ -877,8 +877,8 @@ All three are `background-attachment: fixed` for parallax-like stability during 
 | `gh` CLI | 2.x+ | GitHub API calls (repos, issues, PRs) |
 | GNU `patch` | Any | Fallback diff application (ships with Git-for-Windows) |
 | Git | 2.30+ | Cloning, worktrees, push |
-| Gitleaks | Any | Secret scanning (optional, skipped gracefully if missing) |
-| Python | 3.9+ | Graph building via graphify (optional) |
+| Gitleaks | Any | Required secret-scanning gate for generated patches |
+| Python | 3.11+ | Graph building via graphify (optional) |
 
 ### Setup
 
@@ -1273,7 +1273,7 @@ When the Rust backend IS connected, its API returns sparse PR/repo/run records. 
 - **Base branch resolution works for common patterns** (trunk, GitFlow) but not for repos with exotic branching strategies. The fallback is always the repo's default branch.
 - **Gemini review is advisory and best-effort.** Rate limits, quota, or network errors cause it to silently skip — it never blocks the PR flow.
 - **Graph intelligence requires a pre-built graph.** If graphify or CRG hasn't been run, the graph tools return an error. Large repos may exceed Python's recursion limit even with the 10,000-deep override.
-- **Gitleaks is optional.** If not installed, the secret scan is skipped. The PR still opens, but without the secret-leak safety net.
+- **Gitleaks is required for publishing patches.** If it is unavailable or its scan fails, the PR is blocked.
 - **Tree-sitter WASMs are pinned to v0.22.** The grammar bundles in `tree-sitter-wasms@0.1.13` are incompatible with newer web-tree-sitter versions. This limits language support to 6 languages until the grammars are upgraded.
 
 ---

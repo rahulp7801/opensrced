@@ -20,7 +20,7 @@ FROM node:22-bookworm-slim
 
 # git       — clone, worktree, apply (the whole PR pipeline)
 # patch     — GNU patch, the last tier of the diff-apply ladder
-# python3   — optional graph features (CRG); harmless if CRG_PYTHONPATH is unset
+# python3   — graphify runtime used by repository graph generation
 # ca-certs  — HTTPS to github.com and the model APIs
 RUN apt-get update && apt-get install -y --no-install-recommends \
       git patch python3 python3-venv ca-certificates curl gnupg \
@@ -34,9 +34,8 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     && apt-get update && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 
-# gitleaks — hard gate on secrets in generated patches. The pipeline skips the
-# scan gracefully when it's absent, which is exactly the failure mode we don't
-# want in a container that opens PRs.
+# gitleaks — hard gate on secrets in generated patches. The pipeline fails
+# closed when the scanner is absent.
 ARG GITLEAKS_VERSION=8.30.1
 RUN set -eux; \
     arch="$(dpkg --print-architecture)"; \

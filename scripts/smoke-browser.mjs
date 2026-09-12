@@ -181,11 +181,13 @@ try {
   const onboardingOrgRequests = [];
   const connectRequests = [];
   const suggestionRequests = [];
+  const setupReads = [];
   page.on('request', request => {
     const path = new URL(request.url()).pathname;
     if (path === '/api/crucible/orgs') onboardingOrgRequests.push(request.url());
     if (path === '/api/crucible/connect') connectRequests.push(request.url());
     if (path === '/api/issues/suggested') suggestionRequests.push(request.url());
+    if (request.method() === 'GET' && ['/api/settings/keys', '/api/dispatches'].includes(path)) setupReads.push(path);
   });
   await page.route('**/auth/profile', route => route.fulfill({ json: { sub: 'test-user', name: 'Test User' } }));
   const run = { id: 'test-preview', repo_url: 'https://github.com/acme/app', mode: 'agentic', dry_run: true, issue_number: 1, started_at: new Date().toISOString(), status: 'failed', log: '', log_size: 0 };
@@ -323,6 +325,15 @@ try {
   await page.goto(base + '/crucible?settings_load_failure=1');
   await page.getByText('Could not load settings.', { exact: true }).waitFor();
   assert.equal(await page.getByText('unavailable', { exact: true }).count(), 2, 'failed settings reads must leave the loading state');
+  const settingsSetupReadStart = setupReads.length;
+  const repeatedSettingsRead = page.waitForResponse(response => new URL(response.url()).pathname === '/api/settings/keys');
+  await page.goto(base + '/crucible?settings_load_failure=1&repeat=1');
+  await repeatedSettingsRead;
+  assert.deepEqual(
+    setupReads.slice(settingsSetupReadStart),
+    ['/api/settings/keys'],
+    'hidden global setup prompts must not duplicate settings-page reads',
+  );
   await page.goto(base + '/crucible');
   const keyInput = page.getByLabel('Anthropic API key', { exact: true });
   await page.getByLabel('Gemini API key', { exact: true }).waitFor();

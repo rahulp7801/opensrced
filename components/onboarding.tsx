@@ -41,9 +41,10 @@ export function Onboarding({ localMode = false }: { localMode?: boolean }) {
   const pathname = usePathname();
   const [state, setState] = useState<OnboardingState | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  const hidden = HIDDEN_ON.some((path) => pathname === path || pathname.startsWith(path + "/"));
 
   useEffect(() => {
-    if (!user && !localMode) return;
+    if (hidden || (!user && !localMode)) return;
     try {
       if (sessionStorage.getItem("opensrcer-onboarding-dismissed") === "1") {
         setDismissed(true);
@@ -75,7 +76,7 @@ export function Onboarding({ localMode = false }: { localMode?: boolean }) {
       // Do not turn a service failure into incorrect setup guidance.
     });
     return () => controller.abort();
-  }, [user, localMode]);
+  }, [user, localMode, hidden]);
 
   if ((!user && !localMode) || !state || dismissed) return null;
 
@@ -84,7 +85,7 @@ export function Onboarding({ localMode = false }: { localMode?: boolean }) {
   if (allDone) return null;
 
   // Don't show on certain pages
-  if (HIDDEN_ON.some((p) => pathname === p || pathname.startsWith(p + "/"))) return null;
+  if (hidden) return null;
 
   const currentStep = STEPS.find((s) => !s.check(state)) ?? STEPS[0];
   const currentStepNumber = STEPS.findIndex((s) => s.key === currentStep.key) + 1;

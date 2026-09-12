@@ -14,10 +14,11 @@ export function ApiKeyGate({ localMode = false }: { localMode?: boolean }) {
   const { user } = useCurrentUser(localMode);
   const pathname = usePathname();
   const [hasKey, setHasKey] = useState<boolean | null>(null);
+  const needsKey = KEY_REQUIRED_PAGES.some((path) => pathname === path || pathname.startsWith(path + "/"));
 
   useEffect(() => {
     setHasKey(null);
-    if (!user && !localMode) return;
+    if (!needsKey || (!user && !localMode)) return;
     let stop: (() => void) | undefined;
     function check() {
       stop?.();
@@ -26,12 +27,11 @@ export function ApiKeyGate({ localMode = false }: { localMode?: boolean }) {
     check();
     window.addEventListener("opensrcer-keys-updated", check);
     return () => { stop?.(); window.removeEventListener("opensrcer-keys-updated", check); };
-  }, [user, localMode]);
+  }, [user, localMode, needsKey]);
 
   // Don't show if: not logged in, still loading, key is set, or this page's
   // primary action works without a provider key.
-  if ((!user && !localMode) || hasKey === null || hasKey) return null;
-  if (!KEY_REQUIRED_PAGES.some((p) => pathname === p || pathname.startsWith(p + "/"))) return null;
+  if (!needsKey || (!user && !localMode) || hasKey === null || hasKey) return null;
 
   return (
     <aside aria-label="Provider setup" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-b border-signal/40 bg-signal/5 px-4 py-2.5 text-[12px]">

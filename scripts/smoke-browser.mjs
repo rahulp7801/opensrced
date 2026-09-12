@@ -160,6 +160,7 @@ try {
     }
     if (url.pathname === '/api/issues/suggested') return route.fulfill({ json: { issues: [{ repo: 'acme/compiler', title: 'Improve parser diagnostics', number: 72, url: 'https://github.com/acme/compiler/issues/72', labels: ['good first issue'], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), comments: 1, language: 'TypeScript', stars: 24300 }], filteredOut: 0 } });
     if (url.pathname === '/api/issues/scan') return route.fulfill({ json: { repo: 'acme/app', total: 1, solvable: 1, issues: [{ number: 1, title: 'Fix parser error', body: 'Fix the parser.', labels: ['bug'], url: 'https://github.com/acme/app/issues/1', author: 'test', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), comments: 0, category: 'bug', severity: 'low', complexity: 1, est_minutes: 5, solvable: true, reason: 'Small fix', scope: { bucket: 'leaf', confidence: 'high', files: ['parser.ts'], symbols: [], reason: 'Parser file' } }] } });
+    if (url.pathname === '/api/discover') return route.fulfill({ json: { repo_count: 0, issue_count: 0, issues: [], warnings: [] } });
     if (url.pathname === '/api/activity') return route.fulfill({ json: {
       dispatchWindow: 50, scans: 128, discoverRuns: 9, dispatches: 42, prsCreated: 11,
       bugsSquashed: 0, totalCostUsd: 14.82, patchesGenerated: 31, successRate: 0.74, prRate: 0.26,
@@ -268,6 +269,11 @@ try {
 
   await page.goto(base + '/discover');
   await page.getByRole('button', { name: 'Discover', exact: true }).waitFor();
+  await Promise.all([
+    page.waitForResponse(response => new URL(response.url()).pathname === '/api/discover'),
+    page.getByLabel('minimum stars', { exact: true }).press('Enter'),
+  ]);
+  await page.getByText('No repos matched.', { exact: false }).waitFor();
   assert.deepEqual(interactionErrors, [], 'malformed saved bookmarks must not crash discovery');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'authenticated discovery must fit mobile');
 

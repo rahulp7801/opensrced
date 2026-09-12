@@ -158,7 +158,10 @@ export function DiscoverScanner() {
   return (
     <div>
       {/* Filter form */}
-      <div className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-surface p-4 sm:gap-4 sm:p-5 lg:grid-cols-6">
+      <form
+        onSubmit={(event) => { event.preventDefault(); void runDiscover(); }}
+        className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-surface p-4 sm:gap-4 sm:p-5 lg:grid-cols-6"
+      >
         <LabeledInput
           label="minimum stars"
           value={minStars}
@@ -202,7 +205,7 @@ export function DiscoverScanner() {
         />
         <div className="col-span-2 flex justify-end lg:col-span-6">
           <button
-            onClick={runDiscover}
+            type="submit"
             disabled={loading || !minStars}
             className="inline-flex min-h-11 items-center gap-2 rounded-md bg-signal px-5 py-2 text-sm font-medium text-ink hover:bg-signal-soft disabled:opacity-50"
           >
@@ -211,7 +214,7 @@ export function DiscoverScanner() {
             <IconArrow />
           </button>
         </div>
-      </div>
+      </form>
 
       {!!data?.warnings?.length && (
         <div role="status" className="mt-4 border border-alert/30 bg-alert/5 p-3 text-[12px] text-alert">

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 const base = process.env.SMOKE_BASE_URL || 'http://localhost:3100';
 const browser = await chromium.launch({ headless: true });
-let releaseFix;
+let releaseFix, releaseReply;
 try {
   const context = await browser.newContext();
   context.setDefaultTimeout(15000);
@@ -13,7 +13,7 @@ try {
   await page.route('**/auth/profile', route => route.fulfill({ json: { sub: 'review-test', name: 'Reviewer' } }));
   const patch = '## Fix\n\n```diff\n--- a/parser.ts\n+++ b/parser.ts\n@@ -1 +1 @@\n-return items[0];\n+return items[0] ?? null;\n```\n';
   const sse = events => events.map(event => `data: ${JSON.stringify(event)}\n\n`).join('');
-  let fixes = 0, explanations = 0, verifications = 0, drafts = 0, pushes = 0, diffs = 0;
+  let fixes = 0, explanations = 0, verifications = 0, drafts = 0, pushes = 0, diffs = 0, replies = 0;
   let thirdStarted;
   const thirdRequest = new Promise(resolve => { thirdStarted = resolve; });
   await page.route('**/api/**', async route => {
@@ -33,6 +33,11 @@ try {
     if (path === '/api/prs/diff') {
       diffs++;
       return diffs === 1 ? route.fulfill({ status: 503, json: { error: 'Diff service unavailable' } }) : route.fulfill({ json: { diff: '--- a/parser.ts\n+++ b/parser.ts\n@@ -1 +1 @@\n-oldValue\n+newValue\n' } });
+    }
+    if (path === '/api/prs/reply') {
+      replies++;
+      await new Promise(resolve => { releaseReply = resolve; });
+      return route.fulfill({ json: { ok: true } });
     }
     if (path === '/api/prs/push') {
       pushes++;
@@ -70,6 +75,16 @@ try {
   await page.getByText('network failure: push outcome unknown', { exact: true }).waitFor();
   await page.waitForTimeout(2200); // Exceeds the old automatic retry delay.
   assert.equal(pushes, 1, 'uncertain writes must not be automatically repeated');
+  await page.getByRole('button', { name: 'use as follow-up comment', exact: true }).click();
+  await page.getByRole('button', { name: 'post comment to PR', exact: true }).click();
+  const posting = page.getByRole('button', { name: 'posting...', exact: true });
+  await posting.waitFor();
+  assert.equal(await posting.isDisabled(), true);
+  assert.equal(await page.getByPlaceholder('Generating comment...').isDisabled(), true);
+  assert.equal(replies, 1);
+  releaseReply();
+  await page.getByText('Comment posted on GitHub', { exact: true }).waitFor();
+  assert.equal(replies, 1);
   await page.getByRole('button', { name: 'quick fix', exact: true }).click();
   await page.getByText(/The fix stream ended before completion/).first().waitFor();
   assert.equal(explanations, 1, 'partial output must not trigger follow-up work');
@@ -95,6 +110,6 @@ try {
   assert.ok((await page.locator('textarea').evaluateAll(nodes => nodes.map(node => node.value))).includes('I added the empty-array guard.'));
   assert.equal(drafts, 3);
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ commentRefreshes: 3, explanations, verificationFailureHandled: true, truncatedFixRejected: true, cancellation: true, draftRecovery: true, terminalFailure: true, correctPushTarget: true, noWriteRetry: true, diffRetry: true }));
+  console.log(JSON.stringify({ commentRefreshes: 3, explanations, verificationFailureHandled: true, truncatedFixRejected: true, cancellation: true, draftRecovery: true, terminalFailure: true, correctPushTarget: true, noWriteRetry: true, diffRetry: true, singleCommentPost: true }));
   await context.close();
-} finally { releaseFix?.(); await browser.close(); }
+} finally { releaseFix?.(); releaseReply?.(); await browser.close(); }

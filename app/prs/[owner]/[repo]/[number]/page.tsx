@@ -168,6 +168,8 @@ export default function PrDetailPage() {
   const [followUpComment, setFollowUpComment] = useState("");
   const [followUpGenerating, setFollowUpGenerating] = useState(false);
   const [followUpSent, setFollowUpSent] = useState(false);
+  const [followUpSending, setFollowUpSending] = useState(false);
+  const pendingReplies = useRef(new Set<number | "follow-up">());
 
   // Replies
   const [replyStates, setReplyStates] = useState<Map<number, ReplyState>>(new Map());
@@ -665,13 +667,15 @@ export default function PrDetailPage() {
 
   async function handleReply(comment: ReviewComment) {
     const text = replyTexts.get(comment.id)?.trim();
-    if (!text) return;
+    if (!text || pendingReplies.current.has(comment.id)) return;
+    pendingReplies.current.add(comment.id);
 
     setReplyStates((prev) => new Map(prev).set(comment.id, { commentId: comment.id, status: "sending" }));
 
     try {
       const res = await fetch("/api/prs/reply", {
         method: "POST",
+        signal: AbortSignal.timeout(45_000),
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           repo: repoFull,
@@ -694,8 +698,8 @@ export default function PrDetailPage() {
       }
     } catch {
       setReplyStates((prev) => new Map(prev).set(comment.id, { commentId: comment.id, status: "error" }));
-      toast("Network error — reply not sent", "alert");
-    }
+      toast("Reply result unknown. Check the PR on GitHub before retrying.", "alert");
+    } finally { pendingReplies.current.delete(comment.id); }
   }
 
   // ── Draft reply ────────────────────────────────────────────────────
@@ -777,12 +781,15 @@ export default function PrDetailPage() {
   }
 
   async function handleSendFollowUp() {
-    if (!followUpComment.trim()) return;
+    if (!followUpComment.trim() || followUpSent || pendingReplies.current.has("follow-up")) return;
+    pendingReplies.current.add("follow-up");
+    setFollowUpSending(true);
     setFollowUpSent(false);
 
     try {
       const res = await fetch("/api/prs/reply", {
         method: "POST",
+        signal: AbortSignal.timeout(45_000),
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           repo: repoFull,
@@ -799,7 +806,10 @@ export default function PrDetailPage() {
         toast("Failed to post follow-up comment", "alert");
       }
     } catch {
-      toast("Network error — comment not sent", "alert");
+      toast("Comment result unknown. Check the PR on GitHub before retrying.", "alert");
+    } finally {
+      pendingReplies.current.delete("follow-up");
+      setFollowUpSending(false);
     }
   }
 
@@ -1596,7 +1606,7 @@ export default function PrDetailPage() {
                       </span>
                       <button
                         onClick={handleGenerateFollowUp}
-                        disabled={followUpGenerating || followUpSent}
+                        disabled={followUpGenerating || followUpSending || followUpSent}
                         className="text-[10px] text-info border border-info/30 hover:bg-info/10 px-2 py-0.5 transition disabled:opacity-50"
                       >
                         {followUpGenerating ? "drafting..." : followUpComment ? "regenerate" : "draft detailed version"}
@@ -1614,7 +1624,7 @@ export default function PrDetailPage() {
                         <textarea
                           value={followUpComment}
                           onChange={(e) => setFollowUpComment(e.target.value)}
-                          disabled={followUpGenerating || followUpSent}
+                          disabled={followUpGenerating || followUpSending || followUpSent}
                           rows={5}
                           className="w-full bg-surface border border-border px-3 py-2 text-[12px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-info/50 disabled:opacity-50 resize-y"
                           placeholder="Generating comment..."
@@ -1622,7 +1632,7 @@ export default function PrDetailPage() {
                         <div className="mt-2 flex items-center gap-2">
                           <button
                             onClick={handleSendFollowUp}
-                            disabled={!followUpComment.trim() || followUpGenerating || followUpSent}
+                            disabled={!followUpComment.trim() || followUpGenerating || followUpSending || followUpSent}
                             className={cn(
                               "px-3 py-1 text-[10px] uppercase tracking-[0.12em] transition",
                               followUpSent
@@ -1631,7 +1641,7 @@ export default function PrDetailPage() {
                               "disabled:opacity-50 disabled:cursor-not-allowed",
                             )}
                           >
-                            {followUpSent ? "sent" : "post comment to PR"}
+                            {followUpSending ? "posting..." : followUpSent ? "sent" : "post comment to PR"}
                           </button>
                           <span className="text-[9px] text-paper-faint">
                             {followUpSent ? "Comment posted on GitHub" : "Posts as a comment on the PR thread"}

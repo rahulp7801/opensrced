@@ -26,7 +26,7 @@ export function SectionNav({ localMode = false }: { localMode?: boolean }) {
   return (
     // Not sticky on its own — app/layout.tsx sticks the header and this bar
     // together as one unit, so neither needs to know the other's height.
-    <nav aria-label={`${section.label} section`} className="border-b border-border-soft bg-ink/85 backdrop-blur-md">
+    <nav aria-label={`${section.label} section`} className="border-b border-border-soft bg-ink">
       <div className="mx-auto flex w-full max-w-[1400px] items-center gap-1 px-4 sm:px-6">
         <span className="mono-label mr-2 hidden shrink-0 py-2.5 sm:inline">
           {section.label}

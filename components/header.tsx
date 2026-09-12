@@ -52,7 +52,7 @@ export function SiteHeader({ localMode = false }: { localMode?: boolean }) {
     <>
       {/* Stickiness lives on the wrapper in app/layout.tsx, which pins this
           header and the section tab bar together. */}
-      <header className="border-b border-border bg-ink/85 backdrop-blur-md">
+      <header className="border-b border-border bg-ink">
         <div className="flex items-stretch w-full min-h-16 max-w-[1440px] mx-auto">
           <Link
             href={signedIn ? "/discover" : "/"}

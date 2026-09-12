@@ -55,7 +55,7 @@ export default function LandingPage() {
           </ul>
         </div>
 
-        <article className="min-w-0 overflow-hidden rounded-xl border border-border bg-surface" aria-label="Illustrative agent run">
+        <article className="min-w-0 overflow-hidden rounded-md border border-border bg-surface" aria-label="Illustrative agent run">
           <div className="flex items-center justify-between gap-4 border-b border-border px-5 py-4 text-xs text-paper-muted">
             <span>Example run</span>
             <span className="font-mono">acme/search #184</span>

@@ -67,6 +67,24 @@ const PUBLIC_PATHS = new Set([
 // server-rendered /repos/<private-data> page public too.
 const PUBLIC_PREFIXES = ["/prs/", "/fix/", "/api/fixes/"];
 
+// When Auth0 is missing, only surfaces that are useful without an account
+// stay public. The authenticated client shells above normally render first
+// and let SessionGate resolve the user in the browser. With no Auth0 tenant,
+// that profile request can only fail and used to leave visitors waiting for
+// the ten-second recovery screen. Redirect those shells straight to the
+// explanatory login page instead.
+const UNCONFIGURED_PUBLIC_PATHS = new Set([
+  "/",
+  "/api/health",
+  "/login",
+  "/robots.txt",
+  "/sitemap.xml",
+  "/demo",
+  "/fix",
+  "/api/fixes",
+]);
+const UNCONFIGURED_PUBLIC_PREFIXES = ["/fix/", "/api/fixes/"];
+
 function isPublic(pathname: string): boolean {
   return (
     PUBLIC_PATHS.has(pathname) ||
@@ -105,7 +123,8 @@ export async function middleware(req: NextRequest) {
   // middleware and can leave Next trying to write two responses.
   if (!authConfigured()) {
     const publicRead = (req.method === "GET" || req.method === "HEAD") &&
-      isPublic(pathname) && pathname !== "/api/crucible/github/install-callback";
+      (UNCONFIGURED_PUBLIC_PATHS.has(pathname) ||
+        UNCONFIGURED_PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix)));
     if (publicRead || pathname === "/api/crucible/github/webhook") {
       const response = NextResponse.next();
       response.headers.set("X-Auth", "not-configured");

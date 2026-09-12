@@ -12,6 +12,14 @@ for (const path of ['/', '/demo', '/login']) {
   assert.equal(response.headers.get('x-auth'), 'not-configured', `${path} should report missing auth`);
 }
 
+for (const path of ['/issues', '/dispatches', '/trigger', '/stats', '/graph', '/prs/acme/app/1']) {
+  const response = await request(path);
+  assert.equal(response.status, 307, `${path} should skip the unavailable session check`);
+  const location = new URL(response.headers.get('location'), base);
+  assert.equal(location.pathname, '/login');
+  assert.equal(location.searchParams.get('returnTo'), path);
+}
+
 const login = await request('/login');
 const loginHtml = await login.text();
 assert.match(loginHtml, /Sign-in is being configured/);
@@ -31,4 +39,4 @@ for (const path of ['/api/activity', '/auth/login']) {
   assert.deepEqual(await response.json(), { error: 'Authentication is not configured for this deployment.' });
 }
 
-console.log(JSON.stringify({ publicPages: 3, health: 'degraded', protectedStatus: 503 }));
+console.log(JSON.stringify({ publicPages: 3, redirectedShells: 6, health: 'degraded', protectedStatus: 503 }));

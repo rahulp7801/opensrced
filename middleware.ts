@@ -18,6 +18,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
 import { authDisabled, unsafeAuthConfig } from "@/lib/require-session";
+import { authConfigured } from "@/lib/auth-config";
 
 const AUTH_DISABLED = authDisabled();
 
@@ -95,6 +96,28 @@ export async function middleware(req: NextRequest) {
   // Readiness must still explain a missing Auth0 setup. Calling the SDK first
   // can fail before the health route gets a chance to report auth0_config.
   if (pathname === "/api/health") return NextResponse.next();
+
+  // Keep the public product and diagnostic surfaces usable while a deploy is
+  // being configured. Calling the Auth0 SDK with missing settings throws in
+  // middleware and can leave Next trying to write two responses.
+  if (!authConfigured()) {
+    const publicRead = (req.method === "GET" || req.method === "HEAD") &&
+      isPublic(pathname) && pathname !== "/api/crucible/github/install-callback";
+    if (publicRead || pathname === "/api/crucible/github/webhook") {
+      const response = NextResponse.next();
+      response.headers.set("X-Auth", "not-configured");
+      return response;
+    }
+    if (pathname.startsWith("/api/") || pathname.startsWith("/auth/")) {
+      return NextResponse.json(
+        { error: "Authentication is not configured for this deployment." },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    const loginUrl = new URL("/login", req.url);
+    loginUrl.searchParams.set("returnTo", pathname + search);
+    return NextResponse.redirect(loginUrl);
+  }
 
   // 1. Let the SDK serve /auth/* and refresh the session cookie. `authRes`
   //    holds any Set-Cookie the refresh produced — carry it forward.

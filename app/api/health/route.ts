@@ -12,15 +12,9 @@ import { getDependencies } from "@/lib/health";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { cloudExecution } from "@/lib/cloud-run-state";
+import { authConfigured } from "@/lib/auth-config";
 
 export const dynamic = "force-dynamic";
-
-function authConfigured(): boolean {
-  const domain = process.env.AUTH0_DOMAIN || process.env.AUTH0_ISSUER_BASE_URL;
-  const appBaseUrl = process.env.APP_BASE_URL || process.env.AUTH0_BASE_URL;
-  const clientAuthentication = process.env.AUTH0_CLIENT_SECRET || process.env.AUTH0_CLIENT_ASSERTION_SIGNING_KEY;
-  return Boolean(process.env.AUTH0_SECRET && domain && appBaseUrl && process.env.AUTH0_CLIENT_ID && clientAuthentication);
-}
 
 async function countDispatchLogs(): Promise<number> {
   try {

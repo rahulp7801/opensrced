@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { authConfigured } from "@/lib/auth-config";
 
 function safeReturnTo(value: string | undefined): string {
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.length > 2048) return "/";
@@ -13,6 +14,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     redirect(returnTo === "/" || returnTo.startsWith("/login") ? "/discover" : returnTo);
   }
   const loginHref = `/auth/login?returnTo=${encodeURIComponent(returnTo)}`;
+  const canSignIn = authConfigured();
 
   return (
     <div className="mx-auto grid w-full max-w-[1000px] flex-1 gap-12 px-5 py-16 sm:px-8 lg:grid-cols-[1fr_420px] lg:items-center lg:gap-20 lg:py-24">
@@ -24,22 +26,29 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       </section>
 
       <section className="rounded-lg border border-border bg-surface p-6 sm:p-8" aria-labelledby="sign-in-heading">
-        <h2 id="sign-in-heading" className="text-xl font-medium tracking-tight">Sign in to opensrcer</h2>
-        <p className="mt-2 text-sm leading-6 text-paper-muted">Authentication is handled by Auth0 using your GitHub account.</p>
-        <a href={loginHref} className="mt-6 flex min-h-12 w-full items-center justify-center gap-3 rounded-md bg-signal px-5 py-3 text-sm font-medium text-ink transition hover:bg-signal-soft">
-          <GitHubMark />
-          Continue with GitHub
-        </a>
+        <h2 id="sign-in-heading" className="text-xl font-medium tracking-tight">{canSignIn ? "Sign in to opensrcer" : "Sign-in is being configured"}</h2>
+        <p className="mt-2 text-sm leading-6 text-paper-muted">{canSignIn ? "Authentication is handled by Auth0 using your GitHub account." : "This deployment is available for preview, but its GitHub sign-in is not ready yet."}</p>
+        {canSignIn ? (
+          <a href={loginHref} className="mt-6 flex min-h-12 w-full items-center justify-center gap-3 rounded-md bg-signal px-5 py-3 text-sm font-medium text-ink transition hover:bg-signal-soft">
+            <GitHubMark />
+            Continue with GitHub
+          </a>
+        ) : (
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link href="/demo" className="inline-flex min-h-12 items-center rounded-md bg-signal px-5 py-3 text-sm font-medium text-ink hover:bg-signal-soft">Explore the demo</Link>
+            <a href="/api/health" className="inline-flex min-h-12 items-center rounded-md border border-border px-5 py-3 text-sm text-paper-dim hover:border-border-strong hover:text-paper">Service status</a>
+          </div>
+        )}
 
-        <div className="mt-8 border-t border-border pt-6">
+        {canSignIn && <div className="mt-8 border-t border-border pt-6">
           <h3 className="text-sm font-medium">Access requested</h3>
           <ul className="mt-3 space-y-3 text-sm leading-6 text-paper-dim">
             <li><strong className="font-medium text-paper">Public repositories</strong> to fork repositories and open draft pull requests.</li>
             <li><strong className="font-medium text-paper">Profile and email</strong> to identify your account and attribute commits.</li>
             <li><strong className="font-medium text-paper">Organization membership</strong> to verify administrator access when you connect an organization.</li>
           </ul>
-        </div>
-        <p className="mt-6 text-xs leading-5 text-paper-muted">Private repositories require a separate GitHub App connection that you initiate from Settings. You can revoke OAuth access from GitHub at any time.</p>
+        </div>}
+        {canSignIn && <p className="mt-6 text-xs leading-5 text-paper-muted">Private repositories require a separate GitHub App connection that you initiate from Settings. You can revoke OAuth access from GitHub at any time.</p>}
       </section>
     </div>
   );

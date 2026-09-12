@@ -107,6 +107,17 @@ jobs:
           node scripts/smoke-lists.mjs
           node scripts/smoke-graph-ui.mjs
 
+      - name: Missing Auth0 configuration fails predictably
+        run: |
+          npm start -- --port 3101 > "$RUNNER_TEMP/opensrcer-unconfigured.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://localhost:3101/api/health > /dev/null; then break; fi
+            sleep 1
+          done
+          SMOKE_BASE_URL=http://localhost:3101 node scripts/smoke-unconfigured.mjs
+
   graph:
     runs-on: ubuntu-latest
     steps:

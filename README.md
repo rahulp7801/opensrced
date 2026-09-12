@@ -131,8 +131,9 @@ curl http://localhost:3000/api/health
 
 Persist the four volumes defined in `compose.yaml` and keep
 `AUTH0_SECRET` stable. Put an HTTPS reverse proxy in front of the service and
-preserve streaming responses. `/api/health` reports `degraded` when a required
-runtime tool is absent; HTTP 200 alone is only a liveness signal.
+preserve streaming responses. `/api/health` reports `degraded` when Auth0,
+hosted storage, a worker snapshot, or a required local runtime tool is absent;
+HTTP 200 alone is only a liveness signal.
 
 ## Vercel configuration
 

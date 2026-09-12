@@ -88,6 +88,7 @@ await Promise.all(Array.from({length: 20}, async () => {
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.ok(['ok', 'degraded'].includes(body.status));
+    assert.equal(body.deps.auth0_config, true, 'health must verify Auth0 configuration');
     latencies.push(performance.now() - start);
     count++;
   }

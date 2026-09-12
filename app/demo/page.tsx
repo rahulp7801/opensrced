@@ -39,7 +39,7 @@ export default function DemoPage() {
           Four simulated workflows with example results. Click through each step — no API calls, no cost.
         </p>
       </div>
-      <div className="flex overflow-x-auto border-b border-border mb-0" role="tablist" aria-label="Demo workflows">
+      <div className="grid grid-cols-2 border-b border-border sm:flex sm:overflow-x-auto" role="tablist" aria-label="Demo workflows">
         {DEMOS.map((d, index) => (
           <button key={d.key} id={`demo-tab-${d.key}`} role="tab" aria-selected={activeDemo === d.key} aria-controls={`demo-${d.key}`} tabIndex={activeDemo === d.key ? 0 : -1} onClick={() => setActiveDemo(d.key)} onKeyDown={(event) => moveTab(event, index)} className={cn("shrink-0 px-4 py-3 text-[13px] font-medium transition relative", activeDemo === d.key ? "text-paper" : "text-paper-muted hover:text-paper-dim")}>
             {d.label}

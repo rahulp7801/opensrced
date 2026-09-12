@@ -37,6 +37,7 @@ try {
         await page.getByRole('tab', { name: 'Bug fix pipeline', exact: true }).focus();
         await page.keyboard.press('ArrowRight');
         assert.equal(await page.getByRole('tab', { name: 'Codebase explorer', exact: true }).getAttribute('aria-selected'), 'true');
+        assert.equal(await page.getByRole('tablist').evaluate(element => element.scrollWidth > element.clientWidth), false, 'demo tabs must all fit without horizontal scrolling');
       }
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, `overflow ${width} ${path}`);
       assert.deepEqual(errors, [], `client errors ${path}`);

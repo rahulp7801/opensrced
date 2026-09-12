@@ -282,6 +282,24 @@ async function starsForRepos(
   return out;
 }
 
+const queuedStarRepos = new Set<string>();
+let starRefresh: Promise<void> | null = null;
+
+function scheduleStarRefresh(repos: string[]) {
+  repos.forEach((repo) => queuedStarRepos.add(repo));
+  if (starRefresh) return;
+  starRefresh = (async () => {
+    while (queuedStarRepos.size > 0) {
+      const batch = [...queuedStarRepos];
+      queuedStarRepos.clear();
+      await starsForRepos(batch);
+    }
+  })().catch(() => {}).finally(() => {
+    starRefresh = null;
+    if (queuedStarRepos.size > 0) scheduleStarRefresh([]);
+  });
+}
+
 // Non-blocking star lookup — returns cached data immediately, triggers
 // background fetch for stale/missing repos. Never blocks the response.
 async function starsForReposCached(
@@ -302,7 +320,7 @@ async function starsForReposCached(
   }
   // Fire-and-forget background fetch for stale/missing repos
   if (stale.length > 0) {
-    starsForRepos(stale).catch(() => {});
+    scheduleStarRefresh(stale);
   }
   return out;
 }

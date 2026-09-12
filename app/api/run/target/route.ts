@@ -3,6 +3,7 @@ import { canDispatchLocally, startDispatch } from "@/lib/dispatcher";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { resolveAnthropicKey } from "@/lib/api-keys";
 import { sessionUserId } from "@/lib/require-session";
+import { cloudExecution } from "@/lib/cloud-run-state";
 
 export async function POST(req: NextRequest) {
   const auth0UserId = await sessionUserId();
@@ -20,23 +21,22 @@ export async function POST(req: NextRequest) {
   }
   const dry_run: boolean = Boolean(body?.dry_run);
 
-  const token = await resolveGitHubToken();
-  const anthropicKey = (await resolveAnthropicKey()) ?? undefined;
-
   // The deterministic path needs the contribai binary. There is no remote
   // fallback: the old one proxied to a Rust endpoint that was a stub, and
   // when that was absent (always) it returned 202 "queued" for work that
   // never happened. Failing loudly beats reporting a phantom success.
-  if (!canDispatchLocally()) {
+  if (cloudExecution() || !canDispatchLocally()) {
     return NextResponse.json(
       {
         status: "error",
-        message:
-          "Deterministic dispatch is not configured — set CONTRIBAI_BIN to the contribai binary, or use the agentic path (POST /api/run/agentic).",
+        message: "Deterministic dispatch is local-only. Use POST /api/run/agentic in hosted deployments.",
       },
       { status: 501 },
     );
   }
+
+  const token = await resolveGitHubToken();
+  const anthropicKey = (await resolveAnthropicKey()) ?? undefined;
 
   {
     try {

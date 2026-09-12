@@ -3,6 +3,7 @@ import { canDispatchLocally, startDispatch } from "@/lib/dispatcher";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { resolveAnthropicKey } from "@/lib/api-keys";
 import { sessionUserId } from "@/lib/require-session";
+import { cloudExecution } from "@/lib/cloud-run-state";
 
 export async function POST(req: NextRequest) {
   const auth0UserId = await sessionUserId();
@@ -22,10 +23,13 @@ export async function POST(req: NextRequest) {
   const issue_number: number | undefined =
     typeof body?.issue_number === "number" ? body.issue_number : undefined;
 
-  if (!canDispatchLocally()) {
+  if (cloudExecution() || !canDispatchLocally()) {
     return NextResponse.json(
-      { status: "error", message: "Local dispatcher not configured (CONTRIBAI_BIN unset)." },
-      { status: 400 },
+      {
+        status: "error",
+        message: "Deterministic dispatch is local-only. Use POST /api/run/agentic in hosted deployments.",
+      },
+      { status: 501 },
     );
   }
 

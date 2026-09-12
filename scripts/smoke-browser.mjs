@@ -181,6 +181,7 @@ try {
   assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), 'close', 'help moves focus into the dialog');
   await page.keyboard.press('Escape');
   assert.equal(await page.getByRole('dialog').count(), 0, 'Escape closes help');
+  await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Open help');
   assert.equal(await helpButton.evaluate(element => element === document.activeElement), true, 'help returns focus to its trigger');
   assert.equal(await page.evaluate(() => window.__notificationPromptCount), 0, 'runs page must not prompt for notifications on load');
   assert.equal(await page.getByText('Add an Anthropic API key', { exact: true }).count(), 0, 'completed onboarding stays hidden');

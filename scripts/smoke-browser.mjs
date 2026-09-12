@@ -6,6 +6,21 @@ const browser = await chromium.launch({
   ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
 });
 let pagesChecked = 0;
+
+async function assertUsableControls(page, label) {
+  const problems = await page.locator('button:visible, [role="button"]:visible').evaluateAll(elements =>
+    elements.flatMap((element, index) => {
+      const rect = element.getBoundingClientRect();
+      const name = element.getAttribute('aria-label') || element.getAttribute('title') || element.textContent?.trim();
+      const issues = [];
+      if (!name) issues.push(`${index}: missing accessible name`);
+      if (rect.width < 24 || rect.height < 24) issues.push(`${index}: ${Math.round(rect.width)}x${Math.round(rect.height)} target`);
+      return issues;
+    }),
+  );
+  assert.deepEqual(problems, [], `unusable controls ${label}`);
+}
+
 try {
   for (const width of [1440, 390]) {
     const context = await browser.newContext({ viewport: { width, height: 900 } });
@@ -45,6 +60,7 @@ try {
         assert.equal(await page.getByRole('tab', { name: 'Codebase explorer', exact: true }).getAttribute('aria-selected'), 'true');
         assert.equal(await page.getByRole('tablist').evaluate(element => element.scrollWidth > element.clientWidth), false, 'demo tabs must all fit without horizontal scrolling');
       }
+      await assertUsableControls(page, `${width} ${path}`);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, `overflow ${width} ${path}`);
       assert.deepEqual(errors, [], `client errors ${path}`);
       pagesChecked++;
@@ -115,6 +131,7 @@ try {
   });
   await page.goto(base + '/dispatches?dispatch=test-preview');
   await page.getByRole('link', { name: 'Find', exact: true }).waitFor();
+  await assertUsableControls(page, 'authenticated dispatches');
   for (const label of ['Find', 'Fix', 'Ship', 'Explore']) {
     assert.equal(await page.getByRole('link', { name: label, exact: true }).count(), 1, `${label} navigation needs an accessible name`);
   }
@@ -161,6 +178,7 @@ try {
   await page.goto(base + '/crucible');
   const keyInput = page.getByLabel('Anthropic API key', { exact: true });
   await page.getByLabel('Gemini API key', { exact: true }).waitFor();
+  await assertUsableControls(page, 'authenticated settings');
   await keyInput.fill('test-replacement-value');
   await page.getByRole('button', { name: '$0.10', exact: true }).click();
   assert.equal(await page.getByRole('button', { name: '$0.10', exact: true }).getAttribute('aria-pressed'), 'true');
@@ -174,5 +192,5 @@ try {
   assert.equal(await page.getByText('API keys needed for this page', { exact: true }).count(), 0, 'Gemini is optional');
 
   await context.close();
-  console.log(JSON.stringify({ pagesChecked, viewports: [1440, 390], helpDialog: true, previewRetry: true, issueActions: 2, settingsRecovery: true, authPrefetch: false }));
+  console.log(JSON.stringify({ pagesChecked, viewports: [1440, 390], controlTargets: true, helpDialog: true, previewRetry: true, issueActions: 2, settingsRecovery: true, authPrefetch: false }));
 } finally { await browser.close(); }

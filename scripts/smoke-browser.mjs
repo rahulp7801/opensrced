@@ -23,8 +23,16 @@ try {
       }
       if (path === '/demo') {
         for (const name of ['Codebase explorer', 'Security scan', 'Private repo flow', 'Bug fix pipeline']) {
-          await page.getByRole('button', { name, exact: true }).click();
-          await main.getByRole('button', { name: name === 'Security scan' ? /Start scan/ : name === 'Private repo flow' ? /Connect GitHub Org/ : /Start walkthrough/ }).waitFor();
+          const tab = page.getByRole('tab', { name, exact: true });
+          await tab.click();
+          assert.equal(await tab.getAttribute('aria-selected'), 'true');
+          const action = main.getByRole('button', { name: name === 'Security scan' ? /Start scan/ : name === 'Private repo flow' ? /Connect GitHub Org/ : /Start walkthrough/ });
+          await action.waitFor();
+          if (name === 'Private repo flow') {
+            await action.click();
+            await main.getByRole('button', { name: /Install & Authorize/ }).click();
+            await main.getByText('acme-corp connected', { exact: true }).waitFor();
+          }
         }
       }
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, `overflow ${width} ${path}`);

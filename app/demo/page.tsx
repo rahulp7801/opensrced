@@ -26,18 +26,20 @@ export default function DemoPage() {
           Four simulated workflows with example results. Click through each step — no API calls, no cost.
         </p>
       </div>
-      <div className="flex overflow-x-auto border-b border-border mb-0">
+      <div className="flex overflow-x-auto border-b border-border mb-0" role="tablist" aria-label="Demo workflows">
         {DEMOS.map((d) => (
-          <button key={d.key} onClick={() => setActiveDemo(d.key)} className={cn("shrink-0 px-4 py-3 text-[13px] font-medium transition relative", activeDemo === d.key ? "text-paper" : "text-paper-muted hover:text-paper-dim")}>
+          <button key={d.key} id={`demo-tab-${d.key}`} role="tab" aria-selected={activeDemo === d.key} aria-controls={`demo-${d.key}`} onClick={() => setActiveDemo(d.key)} className={cn("shrink-0 px-4 py-3 text-[13px] font-medium transition relative", activeDemo === d.key ? "text-paper" : "text-paper-muted hover:text-paper-dim")}>
             {d.label}
             {activeDemo === d.key && <span className="absolute inset-x-0 -bottom-px h-px bg-signal" />}
           </button>
         ))}
       </div>
-      {activeDemo === "dispatch" && <DispatchDemo />}
-      {activeDemo === "explore" && <ExploreDemo />}
-      {activeDemo === "security" && <SecurityDemo />}
-      {activeDemo === "crucible" && <CrucibleDemo />}
+      <div id={`demo-${activeDemo}`} role="tabpanel" aria-labelledby={`demo-tab-${activeDemo}`}>
+        {activeDemo === "dispatch" && <DispatchDemo />}
+        {activeDemo === "explore" && <ExploreDemo />}
+        {activeDemo === "security" && <SecurityDemo />}
+        {activeDemo === "crucible" && <CrucibleDemo />}
+      </div>
       <div className="mt-8 text-center">
         <div className="mt-4 flex justify-center gap-3">
           <Link href="/login" className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-5 py-2.5 text-[13px] transition">Get started</Link>
@@ -109,6 +111,7 @@ function DispatchDemo() {
   const logRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [lines]);
+  useEffect(() => () => { timers.current.forEach(clearTimeout); timers.current = []; }, []);
 
   function reset() { timers.current.forEach(clearTimeout); timers.current = []; setStep("intro"); setLines([]); setPhaseIdx(-1); }
 
@@ -229,6 +232,7 @@ function ExploreDemo() {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => { if (ref.current) ref.current.scrollTop = ref.current.scrollHeight; }, [answer]);
+  useEffect(() => () => { timers.current.forEach(clearTimeout); timers.current = []; }, []);
 
   function reset() { timers.current.forEach(clearTimeout); timers.current = []; setStep("intro"); setTools([]); setAnswer(""); }
 
@@ -355,6 +359,7 @@ function SecurityDemo() {
   const logRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [solveLines]);
+  useEffect(() => () => { timers.current.forEach(clearTimeout); timers.current = []; }, []);
 
   function reset() { timers.current.forEach(clearTimeout); timers.current = []; setStep("intro"); setFindings([]); setSolveLines([]); }
 
@@ -513,6 +518,12 @@ function CrucibleDemo() {
   const logRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [solveLines]);
+  useEffect(() => () => { timers.current.forEach(clearTimeout); timers.current = []; }, []);
+  useEffect(() => {
+    if (step !== "install") return;
+    const timer = setTimeout(() => setStep("connected"), 1200);
+    return () => clearTimeout(timer);
+  }, [step]);
 
   function reset() { timers.current.forEach(clearTimeout); timers.current = []; setStep("start"); setSolveLines([]); }
 
@@ -554,7 +565,6 @@ function CrucibleDemo() {
         <div className="p-6 text-center space-y-3">
           <div className="inline-block w-8 h-8 border-2 border-signal/30 border-t-signal rounded-full animate-spin" />
           <div className="text-[12px] text-paper-muted">Redirecting from GitHub...</div>
-          {(() => { setTimeout(() => setStep("connected"), 1200); return null; })()}
         </div>
       )}
 

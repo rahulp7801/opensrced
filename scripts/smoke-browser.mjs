@@ -282,8 +282,8 @@ try {
   for (const preview of [true, false]) {
     await page.goto(base + '/issues?repo=acme/app');
     const runResponse = page.waitForResponse(response => response.url().endsWith('/api/run/agentic'));
-    await page.getByRole('button', { name: preview ? 'preview' : 'solve & open PR', exact: true }).click();
-    await page.getByRole('button', { name: 'starting…', exact: true }).waitFor();
+    await page.getByRole('button', { name: preview ? 'Preview patch' : 'Solve & open PR', exact: true }).first().click();
+    await page.getByRole('button', { name: 'Starting…', exact: true }).waitFor();
     await runResponse;
     assert.equal(submissions.at(-1).dry_run, preview);
     assert.equal(submissions.at(-1).issue_number, 1);
@@ -379,7 +379,7 @@ try {
   const activeFindLabel = page.getByRole('link', { name: 'Find', exact: true }).getByText('Find', { exact: true });
   await activeFindLabel.waitFor();
   assert.equal(await activeFindLabel.isVisible(), true, 'active task label stays visible on mobile');
-  const suggestedFix = page.getByRole('link', { name: 'fix this', exact: true });
+  const suggestedFix = page.getByRole('link', { name: 'Fix issue', exact: true });
   await suggestedFix.waitFor();
   assert.equal(await suggestedFix.evaluate(element => getComputedStyle(element).opacity), '1', 'suggested issue action stays visible on touch layouts');
   assert.equal(await page.getByText('Scan a repository.', { exact: true }).count(), 0, 'manual scan form does not repeat its empty instructions');

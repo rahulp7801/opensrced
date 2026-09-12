@@ -25,6 +25,7 @@ import { gitAuthArgs, redactGitCredentials } from "./git-auth";
 import { GEMINI_API_BASE, GEMINI_REVIEW_MODEL } from "./models";
 import { applyDiff } from "./apply-diff";
 import { childEnv } from "./child-env";
+import { parseGitHubPullUrl } from "./github-pull-url";
 
 const execFileAsync = promisify(execFile);
 
@@ -618,8 +619,11 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
 
   // 7. Worktree cleanup on success too — the branch lives on the fork now.
   await cleanupWorktree();
-  if (!prUrl) return { ok: false, reason: "gh pr create returned no URL" };
-  return { ok: true, url: prUrl, branch, base: baseRes, tests };
+  const parsedPr = parseGitHubPullUrl(prUrl);
+  if (!parsedPr || parsedPr.repoFull.toLowerCase() !== args.repoFull.toLowerCase()) {
+    return { ok: false, reason: "Pull request creation returned an invalid URL" };
+  }
+  return { ok: true, url: parsedPr.url, branch, base: baseRes, tests };
 }
 
 // ── PR title/body assembly ─────────────────────────────────────────────

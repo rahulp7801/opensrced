@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { listAll as listSidecars, persist, read as readSidecar } from "./dispatch-store";
 import { childEnv, ghEnv } from "./child-env";
+import { findGitHubPullUrl } from "./github-pull-url";
 
 const DISPATCH_DIR = join(process.cwd(), ".dispatches");
 
@@ -217,16 +218,7 @@ export function enrichWithPrStatus(input: Dispatch): Dispatch {
     // shows both markers in the log. Surface the opened PR as the
     // terminal state, annotated with `tests_passed` only when the
     // PR isn't yet opened.
-    const prOpened = text.split("\n").some((line) => {
-      const start = line.indexOf("https://github.com/");
-      if (start < 0) return false;
-      try {
-        const url = new URL(line.slice(start).split(" ")[0]);
-        const parts = url.pathname.split("/").filter(Boolean);
-        const number = Number(parts[3]);
-        return url.hostname === "github.com" && parts.length === 4 && parts[2] === "pull" && Number.isSafeInteger(number) && number > 0 && String(number) === parts[3];
-      } catch { return false; }
-    });
+    const prOpened = Boolean(findGitHubPullUrl(text));
     const testsPassed = /\[crucible-tests\] status=passed/.test(text);
     const testsFailed = /\[crucible-tests\] status=(?:failed|error)/.test(text);
     const gitleaksFailed = /\[gitleaks\] status=leaks_found/.test(text);

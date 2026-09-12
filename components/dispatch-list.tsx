@@ -8,6 +8,7 @@ import { DraftPreview } from "./draft-preview";
 import { pollJson } from "@/lib/poll-json";
 import { cn, formatRelative } from "@/lib/utils";
 import { parseSplitHunks, type DiffRow } from "@/lib/diff-view";
+import { findGitHubPullUrl } from "@/lib/github-pull-url";
 
 type PrStatus = "opened" | "failed" | "pending" | "tests_passed" | "tests_failed" | "none";
 
@@ -755,12 +756,13 @@ function ExportButton({ dispatch }: { dispatch: DispatchWithLog }) {
 }
 
 function PipelineTimeline({ log, status }: { log: string; status: string }) {
+  const hasPullRequest = Boolean(findGitHubPullUrl(log));
   const phases = [
     { label: "clone", done: log.includes("[agentic-dispatcher] repo:"), active: status === "running" && !/grep|read_file|find_definition/.test(log), failed: false },
     { label: "explore", done: /find_definition|read_file|grep|list_files|repo_info/.test(log), active: status === "running" && /find_definition|read_file|grep/.test(log) && !/```diff/.test(log), failed: false },
     { label: "patch", done: /```(?:diff|patch)/.test(log), active: status === "running" && /## Diagnosis/.test(log) && !/```diff/.test(log), failed: status !== "running" && !/```(?:diff|patch)/.test(log) && /exited at/.test(log) },
     { label: "test", done: /\[crucible-tests\]/.test(log), active: /\[agentic-pr\] starting/.test(log) && !/\[crucible-tests\]/.test(log), failed: /\[crucible-tests\] status=(?:failed|error)/.test(log) },
-    { label: "PR", done: /github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+/.test(log), active: /\[agentic-pr\] starting/.test(log) && !/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+/.test(log) && !/skipped:/.test(log), failed: /\[agentic-pr\] skipped:/.test(log) },
+    { label: "PR", done: hasPullRequest, active: /\[agentic-pr\] starting/.test(log) && !hasPullRequest && !/skipped:/.test(log), failed: /\[agentic-pr\] skipped:/.test(log) },
   ];
 
   return (
@@ -1178,13 +1180,7 @@ type PrInfo = { url: string; repoFull: string; prNumber: number };
 //   agentic auto-PR:        '[agentic-pr] opened draft PR: https://github.com/.../pull/N'
 function extractPrInfo(log: string): PrInfo | null {
   if (!log) return null;
-  const m = /https?:\/\/github\.com\/([^/\s]+\/[^/\s]+)\/pull\/(\d+)/.exec(log);
-  if (!m) return null;
-  return {
-    url: `https://github.com/${m[1]}/pull/${m[2]}`,
-    repoFull: m[1],
-    prNumber: Number(m[2]),
-  };
+  return findGitHubPullUrl(log);
 }
 
 function isMac() {

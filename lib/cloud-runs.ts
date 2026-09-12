@@ -4,7 +4,7 @@ import { Sandbox } from "@vercel/sandbox";
 import type { FindingInput, StartAgenticOpts } from "./agentic-dispatcher";
 import { CapacityError } from "./concurrency";
 import { CloudRun, newCloudRunId, ownerPrefix, runIsActive, runPath, validCloudRun } from "./cloud-run-state";
-import { cloudRunLease } from "./cloud-leases";
+import { cloudRunLease, cloudRunLeaseIsStarting } from "./cloud-leases";
 import { cloudWorkerJobJson } from "./cloud-worker-job";
 import { assertWorkerProtocol } from "./worker-protocol";
 
@@ -26,8 +26,13 @@ async function reserveCapacity(path: string, expires: number): Promise<string> {
       let previous: Awaited<ReturnType<typeof readJson<unknown>>>;
       try { previous = await readJson<unknown>(lease.path); }
       catch { continue; }
-      if (!previous) continue;
-      if (typeof previous.value === "object" && previous.value !== null &&
+      // reserveCapacity writes the lease immediately before startCloudRun
+      // writes the run. Keep that normal race protected briefly. If the
+      // creating function died and the record is still absent afterward,
+      // reclaim the slot instead of wedging capacity for the 45-minute TTL.
+      if (!previous) {
+        if (cloudRunLeaseIsStarting(lease)) continue;
+      } else if (typeof previous.value === "object" && previous.value !== null &&
           (previous.value as Partial<CloudRun>).id === lease.id && runIsActive(previous.value as CloudRun) &&
           !await readJson(`cancelled/${lease.id}.json`)) continue;
     }

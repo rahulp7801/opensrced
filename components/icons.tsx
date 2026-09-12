@@ -3,7 +3,6 @@ import {
   ArrowSquareOut,
   BookOpen,
   Check,
-  Command,
   Copy,
   Funnel,
   GitPullRequest,
@@ -35,7 +34,6 @@ export const IconSearch = appIcon(MagnifyingGlass);
 export const IconArrow = appIcon(ArrowRight);
 export const IconExternal = appIcon(ArrowSquareOut);
 export const IconCopy = appIcon(Copy);
-export const IconCommand = appIcon(Command);
 export const IconPulse = appIcon(Pulse);
 export const IconFilter = appIcon(Funnel);
 export const IconShield = appIcon(ShieldCheck);

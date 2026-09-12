@@ -63,13 +63,18 @@ function useBookmarks() {
   useEffect(() => {
     try {
       const raw = localStorage.getItem("opensrcer-bookmarks");
-      if (raw) setBookmarks(JSON.parse(raw));
+      const parsed: unknown = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed)) {
+        setBookmarks(parsed.filter((repo): repo is string =>
+          typeof repo === "string" && repo.length <= 201 && /^[^/\s]+\/[^/\s]+$/.test(repo),
+        ).slice(0, 100));
+      }
     } catch { /* ignore */ }
   }, []);
   function toggle(repo: string) {
     setBookmarks((prev) => {
-      const next = prev.includes(repo) ? prev.filter((r) => r !== repo) : [...prev, repo];
-      localStorage.setItem("opensrcer-bookmarks", JSON.stringify(next));
+      const next = (prev.includes(repo) ? prev.filter((r) => r !== repo) : [...prev, repo]).slice(-100);
+      try { localStorage.setItem("opensrcer-bookmarks", JSON.stringify(next)); } catch { /* storage unavailable */ }
       return next;
     });
   }

@@ -117,6 +117,7 @@ try {
   // Real Auth0 and provider workflows remain a separate deployment release gate.
   const context = await browser.newContext();
   await context.addInitScript(() => {
+    try { localStorage.setItem('opensrcer-bookmarks', '{"stale":true}'); } catch {}
     window.__notificationPromptCount = 0;
     if (typeof Notification !== "undefined") {
       Notification.requestPermission = async () => {
@@ -128,6 +129,8 @@ try {
   context.setDefaultTimeout(15000);
     context.setDefaultNavigationTimeout(30000);
   const page = await context.newPage();
+  const interactionErrors = [];
+  page.on('pageerror', error => interactionErrors.push(error.message));
   const onboardingOrgRequests = [];
   page.on('request', request => {
     if (new URL(request.url()).pathname === '/api/crucible/orgs') onboardingOrgRequests.push(request.url());
@@ -262,6 +265,11 @@ try {
   assert.equal(await page.getByText('Scan a repository.', { exact: true }).count(), 0, 'manual scan form does not repeat its empty instructions');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'authenticated issues must fit mobile');
   await assertNoSeriousAccessibilityViolations(page, 'authenticated mobile issues');
+
+  await page.goto(base + '/discover');
+  await page.getByRole('button', { name: 'Discover', exact: true }).waitFor();
+  assert.deepEqual(interactionErrors, [], 'malformed saved bookmarks must not crash discovery');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'authenticated discovery must fit mobile');
 
   await page.goto(base + '/stats');
   await page.getByRole('heading', { name: 'Biggest contributions', exact: true }).waitFor();

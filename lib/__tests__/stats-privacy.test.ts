@@ -10,6 +10,13 @@ test("activity excludes other users and preserves simultaneous scan counters", a
   process.chdir(root);
   try {
     const stats = await import("../stats");
+    const checkedAt = Date.now();
+    assert.deepEqual(stats.normalizeStarsFile(null), {});
+    assert.deepEqual(stats.normalizeStarsFile({
+      "acme/good": { stars: 42, checkedAt },
+      "missing-fields/repo": {},
+      "negative/stars": { stars: -1, checkedAt },
+    }), { "acme/good": { stars: 42, checkedAt } });
     mkdirSync(".dispatches");
     for (const [id, owner, repo, status] of [
       ["own", "alice", "alice/project", "succeeded"],

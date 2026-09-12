@@ -63,6 +63,18 @@ export function normalizeStatsFile(value: unknown): StatsFile {
 
 type StarsFile = Record<string, { stars: number; checkedAt: number }>;
 
+export function normalizeStarsFile(value: unknown): StarsFile {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const entries = Object.entries(value).filter(([repo, record]) => {
+    if (!/^[^/\s]+\/[^/\s]+$/.test(repo) || repo.length > 201) return false;
+    if (!record || typeof record !== "object" || Array.isArray(record)) return false;
+    const item = record as { stars?: unknown; checkedAt?: unknown };
+    return Number.isSafeInteger(item.stars) && Number(item.stars) >= 0 && Number(item.stars) <= 1_000_000_000 &&
+      Number.isSafeInteger(item.checkedAt) && Number(item.checkedAt) > 0 && Number(item.checkedAt) <= Date.now() + STARS_TTL_MS;
+  }).slice(0, 5_000) as Array<[string, { stars: number; checkedAt: number }]>;
+  return Object.fromEntries(entries);
+}
+
 function ghBin(): string {
   if (process.env.GH_CLI && existsSync(process.env.GH_CLI)) return process.env.GH_CLI;
   return "gh";
@@ -232,7 +244,7 @@ async function scanLogs(owner: string): Promise<LogRecord[]> {
 
 async function loadStars(): Promise<StarsFile> {
   try {
-    return JSON.parse(await readFile(STARS_FILE, "utf8")) as StarsFile;
+    return normalizeStarsFile(JSON.parse(await readFile(STARS_FILE, "utf8")));
   } catch {
     return {};
   }

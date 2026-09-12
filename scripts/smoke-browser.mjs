@@ -113,6 +113,20 @@ try {
     await context.close();
   }
 
+  const slowAuthContext = await browser.newContext({ viewport: { width: 390, height: 900 } });
+  slowAuthContext.setDefaultTimeout(15_000);
+  await slowAuthContext.route('**/auth/profile', () => new Promise(() => {}));
+  const slowAuthPage = await slowAuthContext.newPage();
+  await slowAuthPage.goto(base + '/issues', { waitUntil: 'domcontentloaded' });
+  await slowAuthPage.getByRole('heading', { name: 'Sign-in check took too long', exact: true }).waitFor();
+  assert.equal(
+    await slowAuthPage.getByRole('link', { name: 'Sign in again', exact: true }).getAttribute('href'),
+    '/auth/login?returnTo=%2Fissues',
+  );
+  assert.equal(await slowAuthPage.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'auth recovery must fit mobile');
+  await assertNoSeriousAccessibilityViolations(slowAuthPage, 'auth timeout recovery');
+  await slowAuthContext.close();
+
   // Client interaction test only: fake session/data, intercept every mutation.
   // Real Auth0 and provider workflows remain a separate deployment release gate.
   const context = await browser.newContext();

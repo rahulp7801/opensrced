@@ -1,4 +1,6 @@
 /** GitHub requests use only the caller's token, never a host CLI credential. */
+const GITHUB_API_PATH = /^\/[A-Za-z0-9._~!$&'()*+,;=:@%/-]*(?:\?[A-Za-z0-9._~!$&'()*+,;=:@%/?-]*)?$/;
+
 export async function githubResponse(
   path: string,
   token?: string | null,
@@ -6,7 +8,7 @@ export async function githubResponse(
   accept = "application/vnd.github+json",
   signal?: AbortSignal,
 ): Promise<Response> {
-  if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\")) {
+  if (path.length > 8_000 || !GITHUB_API_PATH.test(path) || path.startsWith("//")) {
     throw new Error("Invalid GitHub API path");
   }
   const url = new URL(path, "https://api.github.com");

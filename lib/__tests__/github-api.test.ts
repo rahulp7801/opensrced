@@ -32,7 +32,9 @@ test("GitHub requests use caller credentials, a deadline, and reject redirects",
   assert.equal(new Headers(requests[1].headers).has("Authorization"), false);
   assert.equal(requests[0].redirect, "error");
   assert.ok(requests[0].signal);
-  await assert.rejects(githubApi("//evil.example"), /Invalid/);
+  for (const path of ["//evil.example", "/repos/acme/app#@evil.example", "/repos/acme/app\n//evil.example", `/${"a".repeat(8_001)}`]) {
+    await assert.rejects(githubApi(path), /Invalid/);
+  }
 });
 
 test("GitHub failures are not reported as successful empty issue scans", async (t) => {

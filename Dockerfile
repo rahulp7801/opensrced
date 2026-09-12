@@ -16,7 +16,7 @@
 # non-root `node` user (uid 1000), so both volumes must be writable by it —
 # hence /home/node rather than /root.
 
-FROM node:22-bookworm-slim
+FROM node:24-bookworm-slim
 
 # git       — clone, worktree, apply (the whole PR pipeline)
 # patch     — GNU patch, the last tier of the diff-apply ladder

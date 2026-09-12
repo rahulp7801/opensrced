@@ -82,7 +82,7 @@ checked in the target repository's own CI or another credential-free sandbox.
 
 Requirements:
 
-- Node.js 22
+- Node.js 24
 - Python 3.11 or later for graph features
 - Git and GitHub CLI
 - Auth0 credentials for authenticated workflows

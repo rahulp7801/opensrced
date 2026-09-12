@@ -82,6 +82,10 @@ export async function middleware(req: NextRequest) {
     );
   }
 
+  // Readiness must still explain a missing Auth0 setup. Calling the SDK first
+  // can fail before the health route gets a chance to report auth0_config.
+  if (pathname === "/api/health") return NextResponse.next();
+
   // 1. Let the SDK serve /auth/* and refresh the session cookie. `authRes`
   //    holds any Set-Cookie the refresh produced — carry it forward.
   const authRes = await auth0.middleware(req);

@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:worker": "tsc -p tsconfig.worker.json && node --check scripts/sandbox-worker.cjs",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

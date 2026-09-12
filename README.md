@@ -170,6 +170,7 @@ npm test
 npm run typecheck
 npm run lint
 npm audit --audit-level=high
+npm run build:worker
 npm --prefix mcp-server run build
 npm --prefix mcp-server audit --audit-level=high
 npm run build

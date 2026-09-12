@@ -54,6 +54,9 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Build hosted worker
+        run: npm run build:worker
+
       # Separate package, separate tsconfig and deps.
       - name: Build MCP server
         run: |

@@ -6,7 +6,10 @@ assert.ok(['localhost', '127.0.0.1'].includes(new URL(base).hostname), 'Session 
 assert.equal(process.env.AUTH0_SECRET, 'ci-build-only-not-a-real-secret');
 const now = Math.floor(Date.now() / 1000);
 const session = await encrypt({ user: { sub: 'graph-test', name: 'Graph tester' }, tokenSet: { accessToken: 'test-auth0-value', expiresAt: now + 3600 }, internal: { sid: 'graph-test', createdAt: now } }, process.env.AUTH0_SECRET, now + 3600);
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  headless: true,
+  ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
+});
 let releaseBuild, releaseQuery;
 try {
   const context = await browser.newContext();
@@ -38,7 +41,7 @@ try {
     return route.fulfill({ json: {} });
   });
   await page.goto(base + '/graph?repo=https://github.com/acme/project.name');
-  const repoInput = page.getByPlaceholder('github.com/owner/repo or owner/repo');
+  const repoInput = page.getByLabel('GitHub repository', { exact: true });
   await page.getByRole('button', { name: 'build graph', exact: true }).click();
   await page.getByText('Error: Build fixture failed', { exact: true }).waitFor();
   assert.equal(await page.locator('iframe').count(), 0);

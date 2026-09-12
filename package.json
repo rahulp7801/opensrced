@@ -16,6 +16,7 @@
     "@auth0/nextjs-auth0": "^4.29.0",
     "@octokit/app": "^16.1.4",
     "@octokit/request": "^10.0.8",
+    "@phosphor-icons/react": "2.1.10",
     "@vercel/blob": "2.8.0",
     "@vercel/sandbox": "3.3.0",
     "clsx": "^2.1.1",

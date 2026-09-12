@@ -417,18 +417,22 @@ export default function GraphPage() {
   return (
     <div
       ref={shellRef}
-      className="mx-auto w-full max-w-[1800px] px-4 sm:px-6 py-6 flex flex-col"
-      style={{ height: shellHeight ? `${shellHeight}px` : "calc(100dvh - 56px)" }}
+      className="mx-auto flex w-full max-w-[1800px] flex-col px-4 py-6 sm:px-6 xl:h-[var(--graph-shell-height)] xl:min-h-[560px]"
+      style={{ "--graph-shell-height": shellHeight ? `${shellHeight}px` : "calc(100dvh - 56px)" } as React.CSSProperties}
     >
       <PageHeading
-        title={<>Codebase map</>}
-        description="Visualize and query any codebase as an interactive knowledge graph. Commands are free (AST-powered). Plain English questions use AI."
+        title="Codebase map"
+        description="Build an interactive map of a GitHub repository, then trace dependencies, inspect impact, and ask questions about the code."
       />
 
       {/* Repo input + build */}
-      <div className="mt-4 flex items-center gap-3 flex-wrap">
-        <div className="flex-1 min-w-[280px] max-w-xl relative">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="relative w-full max-w-xl flex-1 sm:min-w-[280px]">
+          <label htmlFor="graph-repository" className="mb-1.5 block text-[12px] font-medium text-paper-dim">
+            GitHub repository
+          </label>
           <input
+            id="graph-repository"
             type="text"
             value={repoUrl}
             onChange={(e) => {
@@ -440,7 +444,8 @@ export default function GraphPage() {
               loadSuggestions();
             }}
             onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-            placeholder="github.com/owner/repo or owner/repo"
+            placeholder="owner/repository"
+            autoComplete="off"
             className="w-full bg-surface border border-border px-3 py-2 text-[13px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50"
           />
           {showSuggestions && suggestions.length > 0 && (
@@ -586,8 +591,8 @@ export default function GraphPage() {
           <div className="xl:w-[45%] flex flex-col min-h-[300px] xl:min-h-0">
             {/* Quick actions */}
             <div className="flex flex-wrap gap-1.5 mb-3">
-              <span className="text-xs text-paper-faint uppercase tracking-[0.1em] self-center mr-1">
-                {engine === "crg" ? "ask:" : "quick:"}
+              <span className="mr-1 self-center text-xs text-paper-faint">
+                Suggestions
               </span>
               {(engine === "crg"
                 ? ["what is the architecture?", "what are the main modules?", "how is this codebase structured?"]
@@ -751,51 +756,16 @@ export default function GraphPage() {
         buildStatus !== "building" && (
           /* Empty state */
           <div className="mt-8 flex-1 flex items-start justify-center">
-            <div className="border border-border bg-surface/40 p-8 text-center max-w-lg">
-              <div className="serif text-[22px] text-paper">
-                Build a codebase knowledge graph
-              </div>
-              <p className="mt-3 text-[12px] text-paper-muted">
-                Enter a GitHub repo above and click Build Graph.
-                opensrcer will analyze the codebase with tree-sitter
-                AST parsing across 25 languages and produce an
-                interactive, queryable knowledge graph.
+            <div className="w-full max-w-xl border border-border bg-surface/40 p-6 sm:p-8">
+              <h2 className="text-[18px] font-medium text-paper">Start with a repository</h2>
+              <p className="mt-2 max-w-lg text-[13px] text-paper-muted">
+                Enter a public repository or one your connected GitHub account can access. Building the map reads source structure and relationships; it does not call an AI model.
               </p>
-              <div className="mt-4 grid grid-cols-3 gap-2 text-xs text-paper-faint max-w-sm mx-auto">
-                <div className="border border-border-soft px-2 py-2 text-center">
-                  <div className="text-paper-dim text-[11px]">
-                    trace
-                  </div>
-                  <div>execution flows</div>
-                </div>
-                <div className="border border-border-soft px-2 py-2 text-center">
-                  <div className="text-paper-dim text-[11px]">
-                    impact
-                  </div>
-                  <div>blast radius</div>
-                </div>
-                <div className="border border-border-soft px-2 py-2 text-center">
-                  <div className="text-paper-dim text-[11px]">
-                    explain
-                  </div>
-                  <div>module overview</div>
-                </div>
-                <div className="border border-border-soft px-2 py-2 text-center">
-                  <div className="text-paper-dim text-[11px]">
-                    path
-                  </div>
-                  <div>A connects to B</div>
-                </div>
-                <div className="border border-border-soft px-2 py-2 text-center">
-                  <div className="text-paper-dim text-[11px]">
-                    god nodes
-                  </div>
-                  <div>key components</div>
-                </div>
-                <div className="border border-border-soft px-2 py-2 text-center">
-                  <div className="text-ok text-[11px]">local</div>
-                  <div>no AI required</div>
-                </div>
+              <div className="mt-6 grid gap-x-8 gap-y-4 border-t border-border-soft pt-5 text-[12px] sm:grid-cols-2">
+                <div><code className="text-signal">trace Symbol</code><p className="mt-1 text-paper-muted">Follow calls and dependencies.</p></div>
+                <div><code className="text-signal">impact Symbol</code><p className="mt-1 text-paper-muted">Find affected callers and modules.</p></div>
+                <div><code className="text-signal">explain src/api</code><p className="mt-1 text-paper-muted">Summarize one area of the repository.</p></div>
+                <div><code className="text-signal">path A to B</code><p className="mt-1 text-paper-muted">Show how two symbols connect.</p></div>
               </div>
             </div>
           </div>

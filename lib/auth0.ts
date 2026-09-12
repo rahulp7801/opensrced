@@ -22,8 +22,10 @@
 
 import { Auth0Client } from "@auth0/nextjs-auth0/server";
 import { prepareSession } from "./auth-session";
+import { authConfigured } from "./auth-config";
 
 const localMode = process.env.AUTH_DISABLED === "1" && process.env.NODE_ENV !== "production";
+const inactiveConfig = localMode || !authConfigured();
 
 /** Accept the v3 spelling of the two renamed vars so an existing .env.local
  *  keeps working. AUTH0_DOMAIN wants a bare host, but AUTH0_ISSUER_BASE_URL
@@ -39,11 +41,13 @@ function domain(): string | undefined {
 
 export const auth0 = new Auth0Client({
   // The SDK is still imported by server modules in local mode even though no
-  // request calls it. Reserved placeholder values prevent misleading missing
-  // tenant warnings without creating a usable authentication configuration.
-  domain: domain() ?? (localMode ? "local.invalid" : undefined),
-  clientId: process.env.AUTH0_CLIENT_ID ?? (localMode ? "local-development" : undefined),
-  clientSecret: process.env.AUTH0_CLIENT_SECRET ?? (localMode ? "unused-in-local-mode" : undefined),
+  // request calls it. Middleware also blocks auth calls while configuration is
+  // incomplete. Inert placeholders keep preview builds quiet in both states;
+  // authConfigured() continues to inspect only the real environment values.
+  domain: domain() ?? (inactiveConfig ? "local.invalid" : undefined),
+  clientId: process.env.AUTH0_CLIENT_ID ?? (inactiveConfig ? "inactive-client" : undefined),
+  clientSecret: process.env.AUTH0_CLIENT_SECRET ?? (inactiveConfig ? "inactive-client-secret" : undefined),
+  secret: process.env.AUTH0_SECRET ?? (inactiveConfig ? "0".repeat(64) : undefined),
   beforeSessionSaved: prepareSession,
   appBaseUrl: process.env.APP_BASE_URL ?? process.env.AUTH0_BASE_URL,
   authorizationParameters: {

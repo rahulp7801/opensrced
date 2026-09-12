@@ -162,57 +162,67 @@ export function DiscoverScanner() {
       {/* Filter form */}
       <form
         onSubmit={(event) => { event.preventDefault(); void runDiscover(); }}
-        className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-surface p-4 sm:gap-4 sm:p-5 lg:grid-cols-6"
+        className="rounded-lg border border-border bg-surface p-4 sm:p-5"
       >
-        <LabeledInput
-          label="minimum stars"
-          value={minStars}
-          onChange={setMinStars}
-          placeholder="500"
-          type="number"
-        />
-        <LabeledInput
-          label="maximum stars"
-          value={maxStars}
-          onChange={setMaxStars}
-          placeholder="(no ceiling)"
-          type="number"
-        />
-        <LabeledSelect
-          label="language"
-          value={language}
-          onChange={setLanguage}
-          options={LANGUAGES.map((l) => ({ value: l, label: l || "(any)" }))}
-        />
-        <LabeledInput
-          label="repositories"
-          value={repoLimit}
-          onChange={setRepoLimit}
-          placeholder="12"
-          type="number"
-        />
-        <LabeledInput
-          label="issues per repo"
-          value={issuesPerRepo}
-          onChange={setIssuesPerRepo}
-          placeholder="20"
-          type="number"
-        />
-        <LabeledInput
-          label="updated within (days)"
-          value={repoAgeDays}
-          onChange={setRepoAgeDays}
-          placeholder="180"
-          type="number"
-        />
-        <div className="col-span-2 flex justify-end lg:col-span-6">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <LabeledSelect
+            label="language"
+            value={language}
+            onChange={setLanguage}
+            options={LANGUAGES.map((l) => ({ value: l, label: l || "(any)" }))}
+          />
+          <LabeledInput
+            label="minimum stars"
+            value={minStars}
+            onChange={setMinStars}
+            placeholder="500"
+            type="number"
+          />
+          <LabeledInput
+            label="maximum stars"
+            value={maxStars}
+            onChange={setMaxStars}
+            placeholder="(no ceiling)"
+            type="number"
+          />
+        </div>
+        <div className="mt-4 grid gap-4 border-t border-border-soft pt-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+          <details>
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium text-paper-dim hover:text-paper">
+              <span>Advanced filters</span>
+              <span className="text-xs font-normal text-paper-muted">Search size and repository freshness</span>
+            </summary>
+            <div className="grid gap-4 pb-2 pt-3 sm:grid-cols-3">
+              <LabeledInput
+                label="repositories"
+                value={repoLimit}
+                onChange={setRepoLimit}
+                placeholder="12"
+                type="number"
+              />
+              <LabeledInput
+                label="issues per repo"
+                value={issuesPerRepo}
+                onChange={setIssuesPerRepo}
+                placeholder="20"
+                type="number"
+              />
+              <LabeledInput
+                label="updated within (days)"
+                value={repoAgeDays}
+                onChange={setRepoAgeDays}
+                placeholder="180"
+                type="number"
+              />
+            </div>
+          </details>
           <button
             type="submit"
             disabled={loading || !minStars}
-            className="inline-flex min-h-11 items-center gap-2 rounded-md bg-signal px-5 py-2 text-sm font-medium text-ink hover:bg-signal-soft disabled:opacity-50"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-paper px-5 py-2 text-sm font-semibold text-ink transition hover:bg-paper-2 disabled:opacity-50"
           >
             <IconSearch />
-            {loading ? "Searching GitHub…" : "Discover"}
+            {loading ? "Searching GitHub…" : "Search GitHub"}
             <IconArrow />
           </button>
         </div>

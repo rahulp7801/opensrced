@@ -379,7 +379,7 @@ try {
   await assertNoSeriousAccessibilityViolations(page, 'authenticated mobile issues');
 
   await page.goto(base + '/discover');
-  await page.getByRole('button', { name: 'Discover', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Search GitHub', exact: true }).waitFor();
   await Promise.all([
     page.waitForResponse(response => new URL(response.url()).pathname === '/api/discover'),
     page.getByLabel('minimum stars', { exact: true }).press('Enter'),

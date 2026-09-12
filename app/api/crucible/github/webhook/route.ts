@@ -9,6 +9,7 @@
 import crypto from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { deleteByInstallationId } from "@/lib/crucible/orgs";
+import { readTextBody } from "@/lib/request-body";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,10 @@ function verifySignature(body: string, signature: string | null): boolean {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.text();
+  const body = await readTextBody(req);
+  if (body === null) {
+    return NextResponse.json({ error: "invalid webhook body" }, { status: 400 });
+  }
   const signature = req.headers.get("x-hub-signature-256");
   if (!verifySignature(body, signature)) {
     return NextResponse.json({ error: "bad signature" }, { status: 401 });
@@ -36,7 +40,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, ignored: event });
   }
 
-  const payload = JSON.parse(body) as {
+  let payload: {
     action: string;
     installation?: {
       id: number;
@@ -44,6 +48,15 @@ export async function POST(req: NextRequest) {
     };
     sender?: { login: string };
   };
+  try {
+    const parsed: unknown = JSON.parse(body);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || typeof (parsed as { action?: unknown }).action !== "string") {
+      throw new Error("invalid payload");
+    }
+    payload = parsed as typeof payload;
+  } catch {
+    return NextResponse.json({ error: "invalid webhook JSON" }, { status: 400 });
+  }
 
   const installationId = payload.installation?.id;
   if (typeof installationId !== "number" || !Number.isSafeInteger(installationId) || installationId < 1) return NextResponse.json({ ok: true });

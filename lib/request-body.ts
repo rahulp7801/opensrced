@@ -1,7 +1,6 @@
 const DEFAULT_MAX_BYTES = 1_000_000;
 
-/** Parse JSON without allowing an unbounded request stream into memory. */
-export async function readJsonBody<T = unknown>(request: Request, maxBytes = DEFAULT_MAX_BYTES): Promise<T | null> {
+async function readBodyBytes(request: Request, maxBytes: number): Promise<Uint8Array | null> {
   const declared = request.headers.get("content-length");
   if (declared !== null) {
     const bytes = Number(declared);
@@ -34,9 +33,23 @@ export async function readJsonBody<T = unknown>(request: Request, maxBytes = DEF
     body.set(chunk, offset);
     offset += chunk.byteLength;
   }
+  return body;
+}
+
+/** Read text without allowing an unbounded request stream into memory. */
+export async function readTextBody(request: Request, maxBytes = DEFAULT_MAX_BYTES): Promise<string | null> {
+  const body = await readBodyBytes(request, maxBytes);
+  if (!body) return null;
   try {
-    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(body)) as T;
+    return new TextDecoder("utf-8", { fatal: true }).decode(body);
   } catch {
     return null;
   }
+}
+
+/** Parse JSON without allowing an unbounded request stream into memory. */
+export async function readJsonBody<T = unknown>(request: Request, maxBytes = DEFAULT_MAX_BYTES): Promise<T | null> {
+  const text = await readTextBody(request, maxBytes);
+  if (text === null) return null;
+  try { return JSON.parse(text) as T; } catch { return null; }
 }

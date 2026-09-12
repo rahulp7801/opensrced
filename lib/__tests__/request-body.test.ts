@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readJsonBody } from "../request-body";
+import { readJsonBody, readTextBody } from "../request-body";
 
 test("JSON request bodies are parsed within a hard byte limit", async () => {
   const valid = new Request("http://localhost", { method: "POST", body: JSON.stringify({ ok: true }) });
@@ -17,4 +17,6 @@ test("JSON request bodies are parsed within a hard byte limit", async () => {
   } as RequestInit & { duplex: "half" });
   assert.equal(await readJsonBody(streamedLarge, 50), null);
   assert.equal(await readJsonBody(new Request("http://localhost", { method: "POST", body: "{" })), null);
+  assert.equal(await readTextBody(new Request("http://localhost", { method: "POST", body: "signed payload" }), 20), "signed payload");
+  assert.equal(await readTextBody(new Request("http://localhost", { method: "POST", body: "too large" }), 4), null);
 });

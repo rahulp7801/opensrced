@@ -7,6 +7,7 @@ const browser = await chromium.launch({
   ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
 });
 let pagesChecked = 0;
+let landingVitals = null;
 
 async function assertUsableControls(page, label) {
   const problems = await page.locator('button:visible, [role="button"]:visible, input:visible, select:visible, textarea:visible').evaluateAll(elements =>
@@ -35,6 +36,21 @@ async function assertNoSeriousAccessibilityViolations(page, label) {
 try {
   for (const width of [1440, 390]) {
     const context = await browser.newContext({ viewport: { width, height: 900 } });
+    if (width === 1440) await context.addInitScript(() => {
+      const vitals = { cls: 0, lcp: 0 };
+      Object.defineProperty(window, '__opensrcerVitals', { value: vitals });
+      if (PerformanceObserver.supportedEntryTypes.includes('layout-shift')) {
+        new PerformanceObserver(list => {
+          for (const entry of list.getEntries()) if (!entry.hadRecentInput) vitals.cls += entry.value ?? 0;
+        }).observe({ type: 'layout-shift', buffered: true });
+      }
+      if (PerformanceObserver.supportedEntryTypes.includes('largest-contentful-paint')) {
+        new PerformanceObserver(list => {
+          const entries = list.getEntries();
+          vitals.lcp = entries.at(-1)?.startTime ?? vitals.lcp;
+        }).observe({ type: 'largest-contentful-paint', buffered: true });
+      }
+    });
     context.setDefaultTimeout(15000);
     context.setDefaultNavigationTimeout(30000);
     const page = await context.newPage();
@@ -75,6 +91,12 @@ try {
       await assertNoSeriousAccessibilityViolations(page, `${width} ${path}`);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, `overflow ${width} ${path}`);
       assert.deepEqual(errors, [], `client errors ${path}`);
+      if (width === 1440 && path === '/') {
+        await page.waitForTimeout(250);
+        landingVitals = await page.evaluate(() => window.__opensrcerVitals);
+        assert.ok(landingVitals.lcp > 0 && landingVitals.lcp < 2_500, `landing LCP ${landingVitals.lcp}ms`);
+        assert.ok(landingVitals.cls < 0.1, `landing CLS ${landingVitals.cls}`);
+      }
       pagesChecked++;
     }
     await page.goto(base + '/login?returnTo=https%3A%2F%2Fevil.example');
@@ -206,5 +228,5 @@ try {
   assert.equal(await page.getByText('API keys needed for this page', { exact: true }).count(), 0, 'Gemini is optional');
 
   await context.close();
-  console.log(JSON.stringify({ pagesChecked, viewports: [1440, 390], controlTargets: true, helpDialog: true, previewRetry: true, issueActions: 2, settingsRecovery: true, authPrefetch: false }));
+  console.log(JSON.stringify({ pagesChecked, viewports: [1440, 390], landingVitals, controlTargets: true, accessibility: 'serious-and-critical', helpDialog: true, previewRetry: true, issueActions: 2, settingsRecovery: true, authPrefetch: false }));
 } finally { await browser.close(); }

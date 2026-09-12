@@ -1,3 +1,4 @@
+import { readJsonBody } from "@/lib/request-body";
 // POST /api/explore
 // Spawns `claude -p` with the MCP repo tools and a focused exploration
 // prompt. Streams the response back as SSE so the UI renders progressively.
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
   const unauth = await requireSession();
   if (unauth) return unauth;
 
-  const body = (await req.json().catch(() => ({}))) as {
+  const body = ((await readJsonBody(req)) ?? {}) as {
     repo_url?: string;
     query?: string;
     budget?: number;

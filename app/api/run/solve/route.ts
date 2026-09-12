@@ -1,3 +1,4 @@
+import { readJsonBody } from "@/lib/request-body";
 import { NextRequest, NextResponse } from "next/server";
 import { canDispatchLocally, startDispatch } from "@/lib/dispatcher";
 import { resolveGitHubToken } from "@/lib/github-token";
@@ -11,8 +12,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const body = await req.json().catch(() => ({}));
-  const repo_url: string | undefined = body?.repo_url;
+  const body = (await readJsonBody<Record<string, unknown>>(req)) ?? {};
+  const repo_url = typeof body.repo_url === "string" ? body.repo_url : undefined;
   if (!repo_url || typeof repo_url !== "string") {
     return NextResponse.json(
       { status: "error", message: "Missing required field: repo_url" },

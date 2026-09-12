@@ -1,3 +1,4 @@
+import { readJsonBody } from "@/lib/request-body";
 // POST /api/fixes — save a fix and return a shareable ID
 //
 // There is deliberately no GET here. This route used to expose a listing of
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
   const unauth = await requireSession();
   if (unauth) return unauth;
 
-  const body = (await req.json().catch(() => ({}))) as {
+  const body = ((await readJsonBody(req)) ?? {}) as {
     repo?: string;
     pr_number?: number;
     comment_body?: string;

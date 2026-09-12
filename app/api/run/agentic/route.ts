@@ -1,3 +1,4 @@
+import { readJsonBody } from "@/lib/request-body";
 import { NextRequest, NextResponse } from "next/server";
 import { startAgenticDispatch } from "@/lib/agentic-dispatcher";
 import { resolveGitHubToken } from "@/lib/github-token";
@@ -16,8 +17,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const body = await req.json().catch(() => ({}));
-  const repo_url: string | undefined = body?.repo_url;
+  const body = (await readJsonBody<Record<string, unknown>>(req)) ?? {};
+  const repo_url = typeof body.repo_url === "string" ? body.repo_url : undefined;
   const issue_number: number | undefined =
     typeof body?.issue_number === "number" ? body.issue_number : undefined;
 

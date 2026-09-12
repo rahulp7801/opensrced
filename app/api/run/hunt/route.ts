@@ -1,3 +1,4 @@
+import { readJsonBody } from "@/lib/request-body";
 import { NextRequest, NextResponse } from "next/server";
 import { canDispatchLocally, startDispatch } from "@/lib/dispatcher";
 import { resolveGitHubToken } from "@/lib/github-token";
@@ -11,7 +12,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const body = await req.json().catch(() => ({}));
+  const body = (await readJsonBody<Record<string, unknown>>(req)) ?? {};
   const dry_run: boolean = Boolean(body?.dry_run ?? true);
   // Both of these become argv for the contribai binary. execFile means no
   // shell, but an unvalidated string still lets a caller inject an extra

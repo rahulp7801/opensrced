@@ -1,3 +1,4 @@
+import { readJsonBody } from "@/lib/request-body";
 // POST /api/prs/fix
 // Two-tier fix generation:
 //   1. Quick fix (default): Haiku + file content fetched via gh API. ~$0.001.
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
   const unauth = await requireSession();
   if (unauth) return unauth;
 
-  const raw = (await req.json().catch(() => ({}))) as {
+  const raw = ((await readJsonBody(req)) ?? {}) as {
     repo?: string;
     pr_number?: number;
     branch?: string;

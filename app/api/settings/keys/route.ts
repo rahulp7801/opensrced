@@ -1,3 +1,4 @@
+import { readJsonBody } from "@/lib/request-body";
 // GET /api/settings/keys — check which keys are configured (never returns values)
 // POST /api/settings/keys — save API keys to encrypted cookie
 // DELETE /api/settings/keys — clear all stored keys
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
   const session = await auth0.getSession();
   if (!session?.user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
-  const body = (await req.json().catch(() => ({}))) as {
+  const body = ((await readJsonBody(req)) ?? {}) as {
     anthropic?: string;
     gemini?: string;
     maxSpendUsd?: number;

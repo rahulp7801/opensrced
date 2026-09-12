@@ -1,3 +1,4 @@
+import { readJsonBody } from "@/lib/request-body";
 // POST /api/prs/draft-reply
 // Uses the Anthropic API directly (no MCP tools, no code exploration)
 // to draft a reply to a reviewer's question. Fast and cheap (~$0.001).
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest) {
   const unauth = await requireSession();
   if (unauth) return unauth;
 
-  const raw = (await req.json().catch(() => ({}))) as {
+  const raw = ((await readJsonBody(req)) ?? {}) as {
     repo?: string;
     pr_title?: string;
     pr_body?: string;

@@ -1,3 +1,4 @@
+import { readJsonBody } from "@/lib/request-body";
 // POST /api/crucible/run/agentic
 // Crucible's private-repo variant of /api/run/agentic. Pre-resolves the
 // installation token for the caller's verified org and hands it (plus the
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: "error", message: "unauthenticated" }, { status: 401 });
   }
 
-  const body = (await req.json().catch(() => ({}))) as {
+  const body = ((await readJsonBody(req)) ?? {}) as {
     repo_url?: string;
     issue_number?: number;
     github_org?: string;

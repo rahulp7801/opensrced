@@ -1,3 +1,4 @@
+import { readJsonBody } from "@/lib/request-body";
 // POST /api/prs/verify
 // Runs verification checks on a generated diff before pushing.
 // All checks are deterministic and make no model calls. Cached graph data can
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest) {
   const userId = await sessionUserId();
   if (!userId) return Response.json({ error: "Not authenticated" }, { status: 401 });
 
-  const raw = (await req.json().catch(() => ({}))) as {
+  const raw = ((await readJsonBody(req)) ?? {}) as {
     diff?: string;
     comment_body?: string;
     file_path?: string | null;

@@ -1,3 +1,4 @@
+import { readJsonBody } from "@/lib/request-body";
 import { NextRequest } from "next/server";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { sanitizeRepoId, sanitizeBranchName, sanitizeCommitMessage } from "@/lib/sanitize";
@@ -13,7 +14,7 @@ export async function POST(req: NextRequest) {
   const unauth = await requireSession();
   if (unauth) return unauth;
 
-  const raw = (await req.json().catch(() => ({}))) as {
+  const raw = ((await readJsonBody(req)) ?? {}) as {
     repo?: string;
     upstream?: string;
     branch?: string;

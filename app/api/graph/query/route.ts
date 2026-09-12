@@ -1,3 +1,4 @@
+import { readJsonBody } from "@/lib/request-body";
 // POST /api/graph/query
 // First tries pure JS graph traversal (free). If the query doesn't
 // match any command or node, falls back to the Anthropic API with
@@ -94,7 +95,7 @@ async function answerGraph(graph: GraphData, query: string, repo: string, signal
 export async function POST(req: NextRequest) {
   const userId = await sessionUserId();
   if (!userId) return Response.json({ error: "Not authenticated" }, { status: 401 });
-  const raw = await req.json().catch(() => ({}));
+  const raw = (await readJsonBody<Record<string, unknown>>(req)) ?? {};
   if (!raw || typeof raw.owner !== "string" || typeof raw.repo !== "string" || typeof raw.query !== "string") return Response.json({ error: "Missing repository or query" }, { status: 400 });
   const repoId = sanitizeRepoId(`${raw.owner}/${raw.repo}`);
   const query = sanitizeForPrompt(raw.query);

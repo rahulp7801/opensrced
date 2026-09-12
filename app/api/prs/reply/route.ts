@@ -1,3 +1,4 @@
+import { readJsonBody } from "@/lib/request-body";
 // POST /api/prs/reply
 // Posts a reply to a PR review comment or a general PR comment.
 
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest) {
   const unauth = await requireSession();
   if (unauth) return unauth;
 
-  const raw = (await req.json().catch(() => ({}))) as {
+  const raw = ((await readJsonBody(req)) ?? {}) as {
     repo?: string;
     pr_number?: number;
     comment_id?: number;

@@ -1,3 +1,4 @@
+import { readJsonBody } from "@/lib/request-body";
 import { NextRequest } from "next/server";
 import { sessionUserId } from "@/lib/require-session";
 import { resolveGitHubToken } from "@/lib/github-token";
@@ -16,7 +17,7 @@ export const maxDuration = 300;
 export async function POST(req: NextRequest) {
   const userId = await sessionUserId();
   if (!userId) return Response.json({ error: "Not authenticated" }, { status: 401 });
-  const body = await req.json().catch(() => ({}));
+  const body = (await readJsonBody<Record<string, unknown>>(req)) ?? {};
   if (!body || typeof body.repo_url !== "string" || (body.force !== undefined && typeof body.force !== "boolean")) {
     return Response.json({ error: "Invalid graph request" }, { status: 400 });
   }

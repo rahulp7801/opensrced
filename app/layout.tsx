@@ -9,6 +9,7 @@ import { ApiKeyGate } from "@/components/api-key-gate";
 import { Onboarding } from "@/components/onboarding";
 import { ToastProvider } from "@/components/toast";
 import { Auth0Provider } from "@auth0/nextjs-auth0";
+import { siteUrl } from "@/lib/site-url";
 
 const sans = Geist({
   subsets: ["latin"],
@@ -27,6 +28,7 @@ const title = "opensrcer | Review your next contribution";
 const description = "Find an issue, explore the code, and review an AI-generated patch before opening a pull request.";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl()),
   title,
   description,
   applicationName: "opensrcer",

@@ -32,6 +32,9 @@ const PUBLIC_PATHS = new Set([
   "/api/health",
   // Login page — renders before the user has a session.
   "/login",
+  // Public crawler metadata must not be redirected through authentication.
+  "/robots.txt",
+  "/sitemap.xml",
   // GitHub App webhook — authenticates via HMAC, not session.
   "/api/crucible/github/webhook",
   // Install callback — authenticates via nonce cookie.

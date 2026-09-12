@@ -190,6 +190,9 @@ try {
       }
       return route.fulfill({ json: { anthropic: keyAvailable, gemini: false, maxSpendUsd: 2 } });
     }
+    if (url.pathname === '/api/auth/revoke-all') {
+      return route.fulfill({ status: 200, json: { redirect: 'https://evil.example/logout' } });
+    }
     return route.fulfill({ json: {} });
   });
   await page.goto(base + '/dispatches?dispatch=test-preview');
@@ -288,6 +291,11 @@ try {
   assert.equal(await keyInput.inputValue(), '');
   assert.equal(settings.at(-1).maxSpendUsd, 0.1);
   assert.equal(await page.getByText('Anthropic key required', { exact: true }).count(), 0, 'Gemini is optional');
+  await page.getByRole('button', { name: 'Delete all connections & sign out', exact: true }).click();
+  await page.getByRole('button', { name: 'Yes, revoke everything', exact: true }).click();
+  await page.getByRole('button', { name: 'Confirm — delete everything', exact: true }).click();
+  await page.getByRole('alert').getByText('The server returned an invalid logout response.', { exact: true }).waitFor();
+  assert.ok(page.url().includes('/crucible'), 'an untrusted logout redirect must stay on settings');
 
   keyAvailable = false;
   await page.setViewportSize({ width: 390, height: 900 });

@@ -4,34 +4,42 @@ import { useState } from "react";
 
 export function RevokeAllButton() {
   const [state, setState] = useState<"idle" | "confirm1" | "confirm2" | "pending">("idle");
+  const [error, setError] = useState<string | null>(null);
 
   async function revoke() {
     setState("pending");
+    setError(null);
     try {
       const res = await fetch("/api/auth/revoke-all", {
         method: "POST",
         signal: AbortSignal.timeout(15_000),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as { redirect?: string };
-      if (data.redirect) {
-        window.location.href = data.redirect;
+      const data = await res.json().catch(() => null) as { redirect?: string } | null;
+      if (typeof data?.redirect !== "string" || !data.redirect.startsWith("/auth/logout?")) {
+        throw new Error("The server returned an invalid logout response.");
       }
+      window.location.assign(data.redirect);
     } catch (error) {
-      alert(error instanceof Error && error.name === "TimeoutError" ? "Revoke timed out. Try again." : "Failed to revoke. Try again.");
+      setError(error instanceof Error && error.name === "TimeoutError"
+        ? "Revoke timed out. Try again."
+        : error instanceof Error ? error.message : "Failed to revoke. Try again.");
       setState("idle");
     }
   }
 
   if (state === "idle") {
     return (
-      <button
-        type="button"
-        onClick={() => setState("confirm1")}
-        className="text-[12px] text-alert hover:text-red-200 transition"
-      >
-        Delete all connections &amp; sign out
-      </button>
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={() => { setError(null); setState("confirm1"); }}
+          className="text-[12px] text-alert hover:text-red-200 transition"
+        >
+          Delete all connections &amp; sign out
+        </button>
+        {error && <p role="alert" className="text-xs text-alert">{error}</p>}
+      </div>
     );
   }
 
@@ -110,7 +118,7 @@ export function RevokeAllButton() {
   }
 
   return (
-    <div className="text-[12px] text-red-300 animate-pulse">
+    <div className="text-[12px] text-red-300 animate-pulse" role="status">
       Revoking all access and signing out…
     </div>
   );

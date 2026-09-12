@@ -6,9 +6,8 @@
 // statement so authorization survives a middleware regression.
 //
 // AUTH_DISABLED=1 is honored here too, so local dev without Auth0 keeps
-// working exactly as before — but only outside production. Shipping with it
-// set turns both gates off at once, which is not a configuration anyone
-// intends; `assertAuthConfig()` refuses that combination at import time.
+// working exactly as before — but only outside production. Middleware returns
+// a deterministic 503 if that flag reaches production, before any route runs.
 
 import { auth0 } from "@/lib/auth0";
 
@@ -17,17 +16,9 @@ export function authDisabled(): boolean {
   return process.env.AUTH_DISABLED === "1" && process.env.NODE_ENV !== "production";
 }
 
-/** Fail fast rather than serve an open instance. Called from middleware, so
- *  it runs once on every cold start of the server. */
-export function assertAuthConfig(): void {
-  if (process.env.AUTH_DISABLED === "1" && process.env.NODE_ENV === "production") {
-    throw new Error(
-      "AUTH_DISABLED=1 with NODE_ENV=production: refusing to start. " +
-        "This disables the middleware gate AND every per-route guard, leaving " +
-        "the dispatch, push and crucible endpoints open to anyone who can reach " +
-        "the port. Unset AUTH_DISABLED and configure Auth0.",
-    );
-  }
+/** True for the unsafe production configuration middleware must reject. */
+export function unsafeAuthConfig(): boolean {
+  return process.env.AUTH_DISABLED === "1" && process.env.NODE_ENV === "production";
 }
 
 /** Null when the caller is authorized; otherwise the 401 to return as-is. */

@@ -17,11 +17,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
-import { assertAuthConfig, authDisabled } from "@/lib/require-session";
-
-// Throws on a production build with AUTH_DISABLED=1 — that combination
-// switches off this gate and every per-route guard simultaneously.
-assertAuthConfig();
+import { authDisabled, unsafeAuthConfig } from "@/lib/require-session";
 
 const AUTH_DISABLED = authDisabled();
 
@@ -75,6 +71,16 @@ function isPublic(pathname: string): boolean {
 
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
+
+  // Fail closed with a normal response. Throwing at module initialization
+  // previously sent every request through Next's error renderer and caused a
+  // second "headers already sent" failure.
+  if (unsafeAuthConfig()) {
+    return NextResponse.json(
+      { error: "Authentication cannot be disabled in production." },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
 
   // 1. Let the SDK serve /auth/* and refresh the session cookie. `authRes`
   //    holds any Set-Cookie the refresh produced — carry it forward.

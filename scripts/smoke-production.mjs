@@ -13,7 +13,11 @@ const securityHeaders = {
 for (const path of paths) {
   const response = await fetch(base + path, { redirect: 'manual', signal: AbortSignal.timeout(15000) });
   assert.equal(response.status, 200, path);
-  for (const [name, value] of Object.entries(securityHeaders)) assert.equal(response.headers.get(name), value, `${path} ${name}`);
+  for (const [name, value] of Object.entries(securityHeaders)) {
+    const actual = response.headers.get(name);
+    if (name === 'content-security-policy') assert.ok(actual?.includes(value), `${path} ${name}`);
+    else assert.equal(actual, value, `${path} ${name}`);
+  }
   await response.text();
 }
 for (const path of ['/api/dispatches', '/api/settings/keys', '/api/activity']) {

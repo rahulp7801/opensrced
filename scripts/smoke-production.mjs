@@ -47,14 +47,17 @@ assert.match(await sharedFixPage.text(), /<meta name="robots" content="noindex, 
 const robots = await fetch(`${base}/robots.txt`, { signal: AbortSignal.timeout(15000) });
 assert.equal(robots.status, 200);
 const robotsText = await robots.text();
-const escapedBase = base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 assert.match(robotsText, /Disallow: \/api\//);
-assert.match(robotsText, new RegExp(`Sitemap: ${escapedBase}/sitemap\\.xml`));
+const sitemapUrl = robotsText.match(/^Sitemap: (https?:\/\/\S+)$/m)?.[1];
+assert.ok(sitemapUrl, "robots.txt must advertise an absolute sitemap URL");
+const metadataOrigin = new URL(sitemapUrl).origin;
+assert.equal(new URL(sitemapUrl).pathname, "/sitemap.xml");
 const sitemap = await fetch(`${base}/sitemap.xml`, { signal: AbortSignal.timeout(15000) });
 assert.equal(sitemap.status, 200);
 const sitemapText = await sitemap.text();
-assert.match(sitemapText, new RegExp(`<loc>${escapedBase}</loc>`));
-assert.match(sitemapText, new RegExp(`<loc>${escapedBase}/demo</loc>`));
+const escapedOrigin = metadataOrigin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+assert.match(sitemapText, new RegExp(`<loc>${escapedOrigin}</loc>`));
+assert.match(sitemapText, new RegExp(`<loc>${escapedOrigin}/demo</loc>`));
 assert.doesNotMatch(sitemapText, /\/fix\//);
 
 const privateCruciblePage = await fetch(`${base}/crucible/orgs/smoke-test`, {

@@ -11,15 +11,21 @@ test("activity excludes other users and preserves simultaneous scan counters", a
   try {
     const stats = await import("../stats");
     mkdirSync(".dispatches");
-    for (const [id, owner, repo] of [["own", "alice", "alice/project"], ["private", "bob", "private-org/secret"]]) {
+    for (const [id, owner, repo, status] of [
+      ["own", "alice", "alice/project", "succeeded"],
+      ["own-failed", "alice", "alice/other", "failed"],
+      ["private", "bob", "private-org/secret", "failed"],
+    ]) {
       writeFileSync(`.dispatches/${id}.json`, JSON.stringify({ id, auth0_user_id: owner }));
-      writeFileSync(`.dispatches/${id}.log`, `[agentic-dispatcher] 2026-09-11T00:00:00Z repo: ${repo} issue: 1\n`);
+      writeFileSync(`.dispatches/${id}.log`, `[agentic-dispatcher] 2026-09-11T00:00:00Z repo: ${repo} issue: 1\n\`\`\`diff\n+change\n\`\`\`\nexited at 2026-09-11T00:01:00Z · status=${status}\n`);
     }
     await Promise.all(Array.from({ length: 20 }, () => stats.recordScan("alice/project", "alice")));
     await stats.recordScan("private-org/secret", "bob");
     const summary = await stats.getStatsSummary("alice");
     assert.equal(summary.scans, 20);
-    assert.equal(summary.dispatches, 1);
+    assert.equal(summary.dispatches, 2);
+    assert.equal(summary.patchesGenerated, 2);
+    assert.equal(summary.successRate, 0.5);
     assert.ok(!JSON.stringify(summary).includes("private-org"));
     assert.equal((await stats.getStatsSummary("bob")).scans, 1);
     assert.equal((await stats.getStatsSummary("unknown")).dispatches, 0);

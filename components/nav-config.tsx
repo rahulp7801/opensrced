@@ -93,7 +93,7 @@ export const SECTIONS: NavSection[] = [
       {
         href: "/stats",
         label: "Impact",
-        title: "Contribution activity, streaks, and merged-PR impact",
+        title: "Recorded runs, pull requests, and provider spend",
       },
     ],
   },

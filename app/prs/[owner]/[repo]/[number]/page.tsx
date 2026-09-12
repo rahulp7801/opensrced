@@ -5,7 +5,6 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
 import { useToast } from "@/components/toast";
-import { recordContribution } from "@/components/contribution-streaks";
 import { cn } from "@/lib/utils";
 import { parseSplitHunks, parseUnifiedRows, type UnifiedKind } from "@/lib/diff-view";
 import { sseEvents, readTextResponse } from "@/lib/sse";
@@ -639,8 +638,6 @@ export default function PrDetailPage() {
         setPushState("pushed");
         setPushMessage(data.message ?? `Pushed commit ${data.commit}`);
         toast(`Pushed commit ${data.commit} to ${pr.branch}`, "ok");
-        recordContribution();
-
         // Mark addressed comments
         if (fixState.commentId === "all") {
           setCommentStatuses((prev) => {

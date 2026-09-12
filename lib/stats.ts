@@ -286,7 +286,7 @@ export async function getStatsSummary(owner: string): Promise<StatsSummary> {
   const totalCostUsd = logs.reduce((sum, l) => sum + (l.costUsd ?? 0), 0);
   const patchesGenerated = logs.filter((l) => l.hasDiff).length;
   const completed = logs.filter((l) => l.status === "succeeded" || l.status === "failed").length;
-  const successRate = completed > 0 ? logs.filter(l => l.hasDiff && (l.status === "succeeded" || l.status === "failed")).length / completed : 0;
+  const successRate = completed > 0 ? logs.filter((l) => l.status === "succeeded").length / completed : 0;
   const prRate = dispatches > 0 ? prsCreated / dispatches : 0;
 
   // Gather unique repos that produced a PR. Use cached stars only —

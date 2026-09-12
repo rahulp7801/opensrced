@@ -1,6 +1,5 @@
 import { PageHeading } from "@/components/page-heading";
 import { StatsBoard } from "@/components/stats-board";
-import { ContributionStreaks } from "@/components/contribution-streaks";
 
 export default function StatsPage() {
   return (
@@ -8,13 +7,8 @@ export default function StatsPage() {
       <PageHeading
         eyebrow="your contributions"
         title={<>Impact</>}
-        description="Track your contribution activity, streaks, and impact across open-source repos."
+        description="Track recorded runs, patches, pull requests, and provider spend across your work."
       />
-
-      {/* Contribution calendar */}
-      <div className="mt-6">
-        <ContributionStreaks />
-      </div>
 
       {/* Dispatch stats */}
       <div className="mt-6">

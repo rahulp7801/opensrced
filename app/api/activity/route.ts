@@ -2,9 +2,8 @@ import { NextResponse } from "next/server";
 import { sessionUserId } from "@/lib/require-session";
 import { getStatsSummary } from "@/lib/stats";
 
-// /api/activity — real opensrcer activity (scans, dispatches, PRs,
-// "biggest contributions"). Not to be confused with /api/stats which
-// serves the Overview page's seed/demo numbers.
+// /api/activity — account-scoped opensrcer activity derived from recorded
+// scans, dispatches, provider spend, and opened pull requests.
 export const dynamic = "force-dynamic";
 
 export async function GET() {

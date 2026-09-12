@@ -76,10 +76,12 @@ try {
   await page.waitForTimeout(2200); // Exceeds the old automatic retry delay.
   assert.equal(pushes, 1, 'uncertain writes must not be automatically repeated');
   await page.getByRole('button', { name: 'use as follow-up comment', exact: true }).click();
+  await page.getByPlaceholder('Generating comment...').fill('First fix follow-up');
   await page.getByRole('button', { name: 'post comment to PR', exact: true }).click();
   const posting = page.getByRole('button', { name: 'posting...', exact: true });
   await posting.waitFor();
   assert.equal(await posting.isDisabled(), true);
+  assert.equal(await page.getByRole('button', { name: 'quick fix', exact: true }).isDisabled(), true);
   assert.equal(await page.getByPlaceholder('Generating comment...').isDisabled(), true);
   assert.equal(replies, 1);
   releaseReply();
@@ -100,6 +102,10 @@ try {
   await page.getByText('Provider rejected this fix.', { exact: true }).first().waitFor();
   await page.getByText('failed', { exact: true }).first().waitFor();
   assert.equal(await page.getByText('Complete', { exact: true }).count(), 0, 'a later done event cannot erase a provider error');
+  await page.getByRole('button', { name: 'quick fix', exact: true }).click();
+  await page.getByRole('button', { name: 'use as follow-up comment', exact: true }).waitFor();
+  assert.equal(await page.getByText('Comment posted on GitHub', { exact: true }).count(), 0);
+  assert.equal(await page.getByPlaceholder('Generating comment...').count(), 0, 'previous fix draft must be cleared');
   await page.getByRole('button', { name: 'draft reply', exact: true }).click();
   await page.getByText('Draft provider failed.', { exact: true }).first().waitFor();
   assert.equal(await page.getByRole('button', { name: 'send reply', exact: true }).count(), 0);
@@ -110,6 +116,6 @@ try {
   assert.ok((await page.locator('textarea').evaluateAll(nodes => nodes.map(node => node.value))).includes('I added the empty-array guard.'));
   assert.equal(drafts, 3);
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ commentRefreshes: 3, explanations, verificationFailureHandled: true, truncatedFixRejected: true, cancellation: true, draftRecovery: true, terminalFailure: true, correctPushTarget: true, noWriteRetry: true, diffRetry: true, singleCommentPost: true }));
+  console.log(JSON.stringify({ commentRefreshes: 3, explanations, verificationFailureHandled: true, truncatedFixRejected: true, cancellation: true, draftRecovery: true, terminalFailure: true, correctPushTarget: true, noWriteRetry: true, diffRetry: true, singleCommentPost: true, freshFollowUp: true }));
   await context.close();
 } finally { releaseFix?.(); releaseReply?.(); await browser.close(); }

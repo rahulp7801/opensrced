@@ -219,6 +219,7 @@ export default function PrDetailPage() {
     [comments],
   );
   const isFixing = fixState?.status === "generating";
+  const writesPending = pushState === "pushing" || followUpSending;
 
   // Summary stats
   const stats = useMemo(() => {
@@ -368,7 +369,7 @@ export default function PrDetailPage() {
           e.preventDefault();
           if (focusedComment >= 0 && focusedComment < actionableComments.length) {
             const c = actionableComments[focusedComment];
-            if (!isFixing) handleFix(c);
+            if (!isFixing && !writesPending) handleFix(c);
           }
           break;
         case "r":
@@ -396,7 +397,7 @@ export default function PrDetailPage() {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [actionableComments, focusedComment, isFixing, showReplyFor, showDiff, prDiff]);
+  }, [actionableComments, focusedComment, isFixing, writesPending, showReplyFor, showDiff, prDiff]);
 
   // ── Lazy-load diff ─────────────────────────────────────────────────
 
@@ -424,6 +425,7 @@ export default function PrDetailPage() {
   // ── Fix ────────────────────────────────────────────────────────────
 
   async function handleFix(comment: ReviewComment) {
+    if (writesPending) return;
     setVerifyResult(null);
     setPushState("idle");
     setPushMessage("");
@@ -443,6 +445,7 @@ export default function PrDetailPage() {
 
   // Self-healing retry: re-generate with error context
   async function handleRetryWithContext() {
+    if (writesPending) return;
     if (!lastFixComment || fixRetryCount >= 3) return;
     const prevError = pushMessage || fixState?.response || "Unknown error";
     const verifyErrors = verifyResult?.checks
@@ -476,6 +479,7 @@ export default function PrDetailPage() {
   }
 
   async function handleFixAll() {
+    if (writesPending) return;
     if (actionableComments.length === 0) return;
 
     const combinedComment = actionableComments
@@ -518,6 +522,9 @@ export default function PrDetailPage() {
     line: number | null,
     diffHunk: string | null,
   ) {
+    setFollowUpComment("");
+    setFollowUpSent(false);
+    setFollowUpGenerating(false);
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -705,6 +712,7 @@ export default function PrDetailPage() {
   // ── Draft reply ────────────────────────────────────────────────────
 
   async function handleDraftReply(comment: ReviewComment) {
+    if (writesPending) return;
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -1015,7 +1023,7 @@ export default function PrDetailPage() {
                 {actionableComments.length > 1 && (
                   <button
                     onClick={handleFixAll}
-                    disabled={isFixing}
+                    disabled={isFixing || writesPending}
                     className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-1.5 text-[11px] uppercase tracking-[0.12em] disabled:opacity-50 disabled:cursor-not-allowed transition"
                   >
                     {isFixing && fixState?.commentId === "all" ? "generating fixes..." : `fix all ${actionableComments.length} comments`}
@@ -1135,7 +1143,7 @@ export default function PrDetailPage() {
                         <>
                           <button
                             onClick={() => handleDraftReply(c)}
-                            disabled={isFixing}
+                            disabled={isFixing || writesPending}
                             className="text-[11px] text-info border border-info/40 hover:bg-info/10 px-3 py-1 transition disabled:opacity-50"
                           >
                             {fixState?.commentId === c.id && isFixing ? "drafting..." : "draft reply"}
@@ -1152,7 +1160,7 @@ export default function PrDetailPage() {
                         <>
                           <button
                             onClick={() => handleFix(c)}
-                            disabled={isFixing}
+                            disabled={isFixing || writesPending}
                             className={cn(
                               "text-[11px] px-3 py-1 transition disabled:opacity-50 border",
                               fixMode === "quick"
@@ -1164,7 +1172,7 @@ export default function PrDetailPage() {
                           </button>
                           <button
                             onClick={() => handleDraftReply(c)}
-                            disabled={isFixing}
+                            disabled={isFixing || writesPending}
                             className="text-[11px] text-info border border-info/40 hover:bg-info/10 px-3 py-1 transition disabled:opacity-50"
                           >
                             draft reply

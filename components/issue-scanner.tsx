@@ -55,7 +55,7 @@ export function IssueScanner() {
   const [filter, setFilter] = useState<"all" | "solvable">("solvable");
   const [age, setAge] = useState<"recent" | "any">("recent");
   const [beginner, setBeginner] = useState<"any" | "good-first">("any");
-  const [dispatchingNumber, setDispatchingNumber] = useState<number | null>(null);
+  const [dispatching, setDispatching] = useState<{ number: number; kind: ActionKind } | null>(null);
   const scanRequest = useRef<AbortController | null>(null);
   // Row expansion — one issue at a time, showing the full body + scope
   // details inline. Auto-opens when ?issue=N is in the URL (used by the
@@ -129,7 +129,7 @@ export function IssueScanner() {
 
   async function solve(n: number, dryRun: boolean) {
     if (!scan) return;
-    setDispatchingNumber(n);
+    setDispatching({ number: n, kind: dryRun ? "preview" : "solve" });
     try {
       const res = await fetch("/api/run/agentic", {
         method: "POST",
@@ -149,7 +149,7 @@ export function IssueScanner() {
         ? "Starting the run timed out. Please try again."
         : e instanceof Error ? e.message : String(e));
     } finally {
-      setDispatchingNumber(null);
+      setDispatching(null);
     }
   }
 
@@ -434,8 +434,8 @@ export function IssueScanner() {
                             {issue.solvable ? (
                               <ActionButtons
                                 recommended={rec.action}
-                                disabled={dispatchingNumber !== null}
-                                dispatching={dispatchingNumber === issue.number}
+                                disabled={dispatching !== null}
+                                dispatching={dispatching?.number === issue.number ? dispatching.kind : null}
                                 onPreview={() => solve(issue.number, true)}
                                 onSolve={() => solve(issue.number, false)}
                               />
@@ -452,8 +452,8 @@ export function IssueScanner() {
                               <IssueDetail
                                 issue={issue}
                                 rec={rec}
-                                disabled={dispatchingNumber !== null}
-                                dispatching={dispatchingNumber === issue.number}
+                                disabled={dispatching !== null}
+                                dispatching={dispatching?.number === issue.number ? dispatching.kind : null}
                                 onPreview={() => solve(issue.number, true)}
                                 onSolve={() => solve(issue.number, false)}
                               />
@@ -548,16 +548,16 @@ function ActionButtons({
 }: {
   recommended: ActionKind;
   disabled: boolean;
-  dispatching: boolean;
+  dispatching: ActionKind | null;
   onPreview: () => void;
   onSolve: () => void;
 }) {
   return (
     <div className="flex gap-1.5 justify-end">
       <ActionButton kind="preview" recommended={recommended === "preview"}
-        disabled={disabled} dispatching={dispatching && recommended === "preview"} onClick={onPreview} />
+        disabled={disabled} dispatching={dispatching === "preview"} onClick={onPreview} />
       <ActionButton kind="solve" recommended={recommended === "solve"}
-        disabled={disabled} dispatching={dispatching && recommended === "solve"} onClick={onSolve} />
+        disabled={disabled} dispatching={dispatching === "solve"} onClick={onSolve} />
     </div>
   );
 }
@@ -607,7 +607,7 @@ function ActionButton({
           className={cn("h-1.5 w-1.5 rounded-full", kind === "solve" ? "bg-signal" : "bg-paper-dim")}
         />
       )}
-      {dispatching ? "…" : meta.label}
+      {dispatching ? "starting…" : meta.label}
     </button>
   );
 }
@@ -623,7 +623,7 @@ function IssueDetail({
   issue: Issue;
   rec: Recommendation;
   disabled: boolean;
-  dispatching: boolean;
+  dispatching: ActionKind | null;
   onPreview: () => void;
   onSolve: () => void;
 }) {
@@ -663,9 +663,9 @@ function IssueDetail({
           <div className="mono-label text-paper-muted mb-2">start a run</div>
           <div className="flex flex-col gap-2">
             <ActionButton kind="solve" recommended={rec.action === "solve"}
-              disabled={disabled} dispatching={dispatching && rec.action === "solve"} onClick={onSolve} large />
+              disabled={disabled} dispatching={dispatching === "solve"} onClick={onSolve} large />
             <ActionButton kind="preview" recommended={rec.action === "preview"}
-              disabled={disabled} dispatching={dispatching && rec.action === "preview"} onClick={onPreview} large />
+              disabled={disabled} dispatching={dispatching === "preview"} onClick={onPreview} large />
           </div>
           <div className="mt-2 text-[10.5px] text-paper-faint leading-snug">
             <span className="text-signal">Solve &amp; open PR</span> = generate a fix and open a draft PR after checks.{" "}

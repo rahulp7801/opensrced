@@ -150,6 +150,7 @@ try {
     const url = new URL(route.request().url());
     if (url.pathname === '/api/run/agentic') {
       submissions.push(route.request().postDataJSON());
+      await new Promise(resolve => setTimeout(resolve, 250));
       return route.fulfill({ status: 202, json: { dispatch_id: submissions.length === 1 ? 'test-retry' : 'test-preview' } });
     }
     if (url.pathname === '/api/dispatches') return route.fulfill({ json: { dispatches: [activeRun, run, huntRun] } });
@@ -221,10 +222,10 @@ try {
   assert.equal(cancelAttempts, 2, 'a failed stop remains retryable');
   for (const preview of [true, false]) {
     await page.goto(base + '/issues?repo=acme/app');
-    await Promise.all([
-      page.waitForResponse(response => response.url().endsWith('/api/run/agentic')),
-      page.getByRole('button', { name: preview ? 'preview' : 'solve & open PR', exact: true }).click(),
-    ]);
+    const runResponse = page.waitForResponse(response => response.url().endsWith('/api/run/agentic'));
+    await page.getByRole('button', { name: preview ? 'preview' : 'solve & open PR', exact: true }).click();
+    await page.getByRole('button', { name: 'starting…', exact: true }).waitFor();
+    await runResponse;
     assert.equal(submissions.at(-1).dry_run, preview);
     assert.equal(submissions.at(-1).issue_number, 1);
     await page.waitForURL('**/dispatches?dispatch=test-preview');

@@ -19,16 +19,13 @@ export function sanitizeForPrompt(input: string): string {
  * Sanitize a GitHub repo identifier (owner/name).
  * Only allows alphanumeric, hyphens, underscores, dots, and the slash separator.
  */
-export function sanitizeRepoId(input: string): string | null {
-  const trimmed = input.trim().replace(/\.git$/i, "");
-  // Extract owner/name from full URL or bare slug
-  const m = /(?:github\.com[:/]+)?([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)/.exec(trimmed);
-  if (!m) return null;
-  const owner = m[1].slice(0, 100);
-  const name = m[2].slice(0, 100);
-  // Reject if either part contains path traversal
-  if (owner.includes("..") || name.includes("..")) return null;
-  return `${owner}/${name}`;
+export function sanitizeRepoId(input: unknown): string | null {
+  if (typeof input !== "string") return null;
+  const match = /^(?:(?:https:\/\/)?github\.com\/)?([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\/?$/.exec(input.trim());
+  if (!match) return null;
+  const owner = sanitizeGitHubName(match[1]);
+  const name = sanitizeGitHubName(match[2]);
+  return owner && name ? owner + "/" + name : null;
 }
 
 /**

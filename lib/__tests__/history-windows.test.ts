@@ -30,6 +30,11 @@ test("local activity and generated PR histories stay within product windows", as
     const summary = await stats.getStatsSummary("alice");
     assert.equal(summary.dispatches, 50);
     assert.equal(summary.dispatchWindow, 50);
+    const { listAll } = await import("../dispatch-store");
+    const recent = listAll("alice", 20);
+    assert.equal(recent.length, 20);
+    assert.equal(recent[0].id, "d_run_119");
+    assert.equal(recent[19].id, "d_run_100");
 
     for (let i = 0; i < 120; i++) {
       const id = `d_run_${String(i).padStart(3, "0")}`;

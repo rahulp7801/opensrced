@@ -9,12 +9,12 @@
 //
 // The dispatcher already knows every one of those facts at the moment it
 // happens. So write them down: `<id>.json` next to `<id>.log`, updated at
-// each transition. Listing becomes readdir + JSON.parse over ~1KB files.
+// each transition. The dashboard asks only for its newest records, while
+// stats and PR history can still request the complete set.
 //
 // The log files stay exactly as they were — they're for humans to read,
-// not for the machine to parse. Dispatches predating the sidecars still
-// render, because lib/dispatcher.ts keeps the log-scraping path as a
-// fallback for any id with no .json.
+// not for the machine to parse. Ownerless runs from before sidecars are not
+// served because their ownership cannot be established safely.
 
 import { existsSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -55,7 +55,8 @@ export function patch(id: string, fields: Partial<DispatchRecord>): void {
 
 export function read(id: string): DispatchRecord | null {
   try {
-    return JSON.parse(readFileSync(sidecarPath(id), "utf8")) as DispatchRecord;
+    const value = JSON.parse(readFileSync(sidecarPath(id), "utf8")) as Partial<DispatchRecord>;
+    return typeof value.id === "string" && value.id === id ? value as DispatchRecord : null;
   } catch {
     return null;
   }
@@ -65,16 +66,21 @@ export function has(id: string): boolean {
   return existsSync(sidecarPath(id));
 }
 
-/** Every dispatch that has a sidecar, newest first. */
-export function listAll(): DispatchRecord[] {
+/** Dispatches with sidecars, newest first. A bounded owner query stops as
+ * soon as it has enough records, keeping the dashboard polling path cheap. */
+export function listAll(owner?: string, limit = Number.POSITIVE_INFINITY): DispatchRecord[] {
   if (!existsSync(DISPATCH_DIR)) return [];
+  const cappedLimit = Number.isFinite(limit) ? Math.max(0, Math.trunc(limit)) : Number.POSITIVE_INFINITY;
+  if (cappedLimit === 0) return [];
   const out: DispatchRecord[] = [];
-  for (const f of readdirSync(DISPATCH_DIR)) {
-    if (!f.endsWith(".json")) continue;
+  const files = readdirSync(DISPATCH_DIR).filter((f) => f.endsWith(".json")).sort().reverse();
+  for (const f of files) {
     // Skip the caches that share this directory.
     if (f === "issue-titles.json" || f === "repo-stars.json") continue;
     const rec = read(f.slice(0, -5));
-    if (rec?.id) out.push(rec);
+    if (!rec?.id || (owner && rec.auth0_user_id !== owner)) continue;
+    out.push(rec);
+    if (out.length >= cappedLimit) break;
   }
   return out;
 }

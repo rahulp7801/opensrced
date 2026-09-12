@@ -169,6 +169,18 @@ function saveTitleCache(c: TitleCache) {
   }
 }
 
+function completeDispatch(d: Partial<Dispatch>): d is Dispatch {
+  return isValidDispatchId(d.id ?? "")
+    && typeof d.auth0_user_id === "string"
+    && typeof d.repo_url === "string"
+    && ["target", "solve", "hunt", "agentic"].includes(d.mode ?? "")
+    && typeof d.dry_run === "boolean"
+    && typeof d.started_at === "string"
+    && Number.isFinite(Date.parse(d.started_at))
+    && ["running", "succeeded", "failed", "killed"].includes(d.status ?? "")
+    && typeof d.log_path === "string";
+}
+
 function titleCacheKey(repoFull: string, issueNumber: number): string {
   return `${repoFull}#${issueNumber}`;
 }
@@ -520,89 +532,13 @@ export function readDraft(id: string, issueNumber: number) {
   }
 }
 
-export function listDispatches(viewerId: string | null): Dispatch[] {
-  // Sidecars are the fast path: one small JSON per dispatch, written at
-  // each state transition. Anything with a sidecar never needs its log
-  // opened. See lib/dispatch-store.ts.
-  const fromSidecars = listSidecars();
-  const covered = new Set<string>([...registry.keys(), ...fromSidecars.map((d) => d.id)]);
-
-  // Legacy fallback: dispatches from before sidecars existed. Their state
-  // is reconstructed by parsing the log, which is why this is slow and why
-  // it only runs for ids the sidecars don't cover.
-  const fromFs: Dispatch[] = [];
-  if (existsSync(DISPATCH_DIR)) {
-    for (const f of readdirSync(DISPATCH_DIR)) {
-      if (!f.endsWith(".log")) continue;
-      const id = f.slice(0, -4);
-      if (covered.has(id)) continue;
-      // Reconstruct a minimal record from header
-      try {
-        const full = readMachineLog(join(DISPATCH_DIR, f));
-        const head = full.slice(0, 800);
-        // Three log formats to handle:
-        //   [dispatcher] — deterministic contribai path (lib/dispatcher.ts)
-        //   [agentic-dispatcher] — claude -p MCP path (lib/agentic-dispatcher.ts)
-        //   legacy/unknown — fall back to blank fields
-        const isAgentic = /^\[agentic-dispatcher\]/m.test(head);
-
-        // Started-at: accept either prefix. Matches ISO 8601 with or
-        // without fractional seconds / timezone offset.
-        const startedMatch = /^\[(?:agentic-)?dispatcher\]\s+(\d{4}-\d\d-\d\dT[^\s]+)/m.exec(head);
-
-        let mode: DispatchMode;
-        let repo = "";
-        let dry = false;
-        let issueNum: number | undefined;
-
-        if (isAgentic) {
-          // [agentic-dispatcher] repo: owner/name  issue: #N
-          mode = "agentic";
-          dry = true; // agentic path is always preview-side; auto-PR runs after
-          const repoM = /\[agentic-dispatcher\]\s+repo:\s*(\S+)\s+issue:\s*#?(\d+)/m.exec(head);
-          if (repoM) {
-            repo = repoM[1].startsWith("http") ? repoM[1] : `https://github.com/${repoM[1]}`;
-            issueNum = Number(repoM[2]);
-          }
-        } else {
-          // Deterministic path — parse the args line.
-          const argsMatch = /^\[dispatcher\]\s+args:\s+(\S+)\s?(.*)$/m.exec(head);
-          mode = (argsMatch?.[1] as DispatchMode) ?? "target";
-          const rest = argsMatch?.[2] ?? "";
-          repo = mode === "hunt" ? "" : (rest.split(" ")[0] ?? "");
-          dry = /--dry-run/.test(rest);
-          const issueMatch = /--issue\s+(\d+)/.exec(rest);
-          issueNum = issueMatch ? Number(issueMatch[1]) : undefined;
-        }
-
-        // Exit-status line lives somewhere in the tail and is written by
-        // both dispatcher variants with the same shape.
-        const endedMatch = /exited at (\S+)\s+·\s+status=(\w+)\s+·\s+exit=(\S+)/.exec(full);
-
-        // Pull title from cache if we have a repo+issue pair; missing
-        // titles trigger a background gh fetch for the next poll cycle.
-        const repoFull = repo ? parseRepoFull(repo) : null;
-        const title =
-          repoFull && issueNum !== undefined ? lookupTitle(repoFull, issueNum) : undefined;
-
-        fromFs.push({
-          id,
-          repo_url: repo,
-          mode,
-          dry_run: dry,
-          issue_number: issueNum,
-          issue_title: title,
-          started_at: startedMatch?.[1] ?? new Date(0).toISOString(),
-          ended_at: endedMatch?.[1],
-          status: (endedMatch?.[2] as DispatchStatus) ?? "running",
-          exit_code: endedMatch ? Number(endedMatch[3]) : undefined,
-          log_path: join(DISPATCH_DIR, f),
-        });
-      } catch {
-        /* skip unreadable */
-      }
-    }
-  }
+export function listDispatches(viewerId: string | null, limit = Number.POSITIVE_INFINITY): Dispatch[] {
+  const cappedLimit = Number.isFinite(limit) ? Math.max(0, Math.trunc(limit)) : Number.POSITIVE_INFINITY;
+  if (cappedLimit === 0) return [];
+  // Sidecars are the source of truth: one small JSON per dispatch, written
+  // at each state transition. Ownerless logs from before sidecars cannot be
+  // shown because there is no safe way to establish who owns them.
+  const fromSidecars = listSidecars(viewerId ?? undefined, cappedLimit).filter(completeDispatch);
   // In-memory records win over their own sidecar — a live dispatch has a
   // pid and an up-to-the-moment status the file can lag behind by one
   // transition.
@@ -610,7 +546,6 @@ export function listDispatches(viewerId: string | null): Dispatch[] {
   const merged: Dispatch[] = [
     ...registry.values(),
     ...fromSidecars.filter((d) => !inMemory.has(d.id)),
-    ...fromFs,
   ];
 
   // Ownership filter runs BEFORE the enrichment below — enrichWithPrStatus
@@ -630,7 +565,7 @@ export function listDispatches(viewerId: string | null): Dispatch[] {
     return out.pr_status ? out : enrichWithPrStatus(out);
   });
   list.sort((a, b) => b.started_at.localeCompare(a.started_at));
-  return list;
+  return list.slice(0, cappedLimit);
 }
 
 /** Fetch a dispatch, or undefined when it doesn't exist OR isn't the
@@ -645,11 +580,8 @@ export function getDispatch(id: string, viewerId: string | null): Dispatch | und
       return fromRegistry.pr_status ? fromRegistry : enrichWithPrStatus(fromRegistry);
     }
     const sidecar = readSidecar(id);
-    if (sidecar) return sidecar.pr_status ? sidecar : enrichWithPrStatus(sidecar);
-    const logPath = join(DISPATCH_DIR, `${id}.log`);
-    if (!existsSync(logPath)) return undefined;
-    // Legacy record with no sidecar — reconstruct from the log.
-    return listDispatches(viewerId).find((d) => d.id === id);
+    if (sidecar && completeDispatch(sidecar)) return sidecar.pr_status ? sidecar : enrichWithPrStatus(sidecar);
+    return undefined;
   })();
 
   if (!found || !ownsDispatch(found, viewerId)) return undefined;

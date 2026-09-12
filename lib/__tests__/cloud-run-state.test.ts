@@ -48,6 +48,10 @@ test("hosted run records are bound to their owner, id, sandbox, and bounded log 
     { status: "complete" },
     { log_path: "/tmp/private.log" },
     { log_size: 1 },
+    { log: "x".repeat(250_001), log_size: 250_001 },
+    { issue_number: -1 },
+    { pr_url: "javascript:alert(1)" },
+    { pr_failure_reason: "x".repeat(501) },
     { expires_at: Number.NaN },
   ]) assert.equal(validCloudRun({ ...run, ...changed }, "alice", id), false);
 });

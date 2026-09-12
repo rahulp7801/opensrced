@@ -4,6 +4,7 @@ import { Sandbox } from "@vercel/sandbox";
 import type { FindingInput, StartAgenticOpts } from "./agentic-dispatcher";
 import { CapacityError } from "./concurrency";
 import { CloudRun, newCloudRunId, ownerPrefix, runIsActive, runPath, validCloudRun } from "./cloud-run-state";
+import { cloudRunLease } from "./cloud-leases";
 
 const TTL = 45 * 60_000;
 import { readJson, updateJson, privateJsonOptions as writeOptions } from "./blob-store";
@@ -16,17 +17,20 @@ async function writeRun(path: string, run: CloudRun) {
 async function reserveCapacity(path: string, expires: number): Promise<string> {
   for (let slot = 0; slot < 3; slot++) {
     const key = `capacity/${slot}.json`;
-    const lease = await readJson<{ path: string; expires: number }>(key);
-    if (lease && lease.value.expires > Date.now()) {
-      let previous: Awaited<ReturnType<typeof readJson<CloudRun>>>;
-      try { previous = await readJson<CloudRun>(lease.value.path); }
+    const stored = await readJson<unknown>(key);
+    const lease = stored ? cloudRunLease(stored.value) : null;
+    if (lease && lease.expires > Date.now()) {
+      let previous: Awaited<ReturnType<typeof readJson<unknown>>>;
+      try { previous = await readJson<unknown>(lease.path); }
       catch { continue; }
       if (!previous) continue;
-      if (runIsActive(previous.value) && !await readJson(`cancelled/${previous.value.id}.json`)) continue;
+      if (typeof previous.value === "object" && previous.value !== null &&
+          (previous.value as Partial<CloudRun>).id === lease.id && runIsActive(previous.value as CloudRun) &&
+          !await readJson(`cancelled/${lease.id}.json`)) continue;
     }
     try {
       await put(key, JSON.stringify({ path, expires }), {
-        ...writeOptions, allowOverwrite: !!lease, ...(lease ? { ifMatch: lease.etag } : {}),
+        ...writeOptions, allowOverwrite: !!stored, ...(stored ? { ifMatch: stored.etag } : {}),
         abortSignal: AbortSignal.timeout(15_000),
       });
       return key;
@@ -75,7 +79,10 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
     await sandbox?.stop().catch(() => {});
     const log = "Could not start the isolated worker. Please retry.\n";
     await writeRun(path, { ...run, status: "failed", ended_at: new Date().toISOString(), log, log_size: Buffer.byteLength(log) }).catch(() => {});
-    await updateJson(leaseKey, { path, expires: 0 }, lease => lease.path === path ? { path, expires: 0 } : lease).catch(() => {});
+    await updateJson<unknown>(leaseKey, { path, expires: 0 }, value => {
+      const lease = cloudRunLease(value);
+      return lease?.path === path ? { path, expires: 0 } : value;
+    }).catch(() => {});
     throw error;
   }
 }

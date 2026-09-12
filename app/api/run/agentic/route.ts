@@ -29,8 +29,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  let canonicalRepoUrl: string;
   try {
-    parseRunTarget(repo_url);
+    canonicalRepoUrl = `https://github.com/${parseRunTarget(repo_url).repo}`;
   } catch {
     return NextResponse.json({ message: "Invalid GitHub repository URL" }, { status: 400 });
   }
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest) {
     const geminiKey = (await resolveGeminiKey()) ?? undefined;
     const maxSpendUsd = await resolveMaxSpendUsd();
     const start = cloudExecution() ? startCloudRun : startAgenticDispatch;
-    const d = await start(repo_url, issue_number, {
+    const d = await start(canonicalRepoUrl, issue_number, {
       token: token ?? undefined,
       anthropicKey,
       geminiKey,
@@ -73,7 +74,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         status: "running",
-        message: `Agentic solve spawned for ${repo_url} issue #${issue_number} (dispatch ${d.id}).`,
+        message: `Agentic solve spawned for ${canonicalRepoUrl} issue #${issue_number} (dispatch ${d.id}).`,
         dispatch_id: d.id,
         mode: "agentic",
         issue_number,

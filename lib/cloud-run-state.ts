@@ -11,6 +11,7 @@ export type CloudRun = DispatchRecord & {
 const RUN_STATUSES = new Set(["running", "succeeded", "failed", "killed"]);
 const PR_STATUSES = new Set(["opened", "failed", "pending", "tests_passed", "tests_failed", "none"]);
 const TEST_STATUSES = new Set(["passed", "failed", "skipped", "not_run"]);
+const MAX_STORED_LOG_BYTES = 250_000;
 
 export function validCloudRun(value: unknown, owner: string, id: string): value is CloudRun {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -18,13 +19,18 @@ export function validCloudRun(value: unknown, owner: string, id: string): value 
   return run.id === id && run.auth0_user_id === owner &&
     run.sandbox_name === id.replaceAll("_", "-") && run.mode === "agentic" && run.log_path === "" &&
     typeof run.repo_url === "string" && run.repo_url.length > 0 && run.repo_url.length <= 500 &&
+    (run.issue_number === undefined || (Number.isSafeInteger(run.issue_number) && run.issue_number! >= 0)) &&
+    (run.issue_title === undefined || (typeof run.issue_title === "string" && run.issue_title.length <= 500)) &&
     typeof run.dry_run === "boolean" && typeof run.started_at === "string" && Number.isFinite(Date.parse(run.started_at)) &&
+    (run.ended_at === undefined || (typeof run.ended_at === "string" && Number.isFinite(Date.parse(run.ended_at)))) &&
     typeof run.status === "string" && RUN_STATUSES.has(run.status) &&
     (run.pr_status === undefined || PR_STATUSES.has(run.pr_status)) &&
+    (run.pr_url === undefined || (typeof run.pr_url === "string" && /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/[1-9]\d*$/.test(run.pr_url))) &&
+    (run.pr_failure_reason === undefined || (typeof run.pr_failure_reason === "string" && run.pr_failure_reason.length <= 500)) &&
     (run.tests === undefined || TEST_STATUSES.has(run.tests)) &&
     typeof run.expires_at === "number" && Number.isFinite(run.expires_at) && run.expires_at > 0 &&
     typeof run.log === "string" && typeof run.log_size === "number" && Number.isSafeInteger(run.log_size) &&
-    run.log_size >= Buffer.byteLength(run.log);
+    Buffer.byteLength(run.log) <= MAX_STORED_LOG_BYTES && run.log_size >= Buffer.byteLength(run.log);
 }
 
 export function cloudExecution(): boolean {

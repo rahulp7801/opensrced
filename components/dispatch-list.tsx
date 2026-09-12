@@ -354,11 +354,11 @@ export function DispatchList() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <IconTrigger className="text-signal" />
-                    <a href={detail.repo_url} target="_blank" rel="noreferrer" className="text-[13px] text-paper-muted hover:text-signal truncate">
+                    <a href={repoHref(detail.repo_url)} target="_blank" rel="noreferrer" className="text-[13px] text-paper-muted hover:text-signal truncate">
                       {shortRepo(detail.repo_url)}
                     </a>
                     {detail.issue_number !== undefined && (
-                      <a href={`${detail.repo_url.replace(/\/$/, "")}/issues/${detail.issue_number}`} target="_blank" rel="noreferrer" className="text-[12px] text-info hover:text-signal border border-info/40 px-1.5 py-0.5 leading-none">
+                      <a href={`${repoHref(detail.repo_url)}/issues/${detail.issue_number}`} target="_blank" rel="noreferrer" className="text-[12px] text-info hover:text-signal border border-info/40 px-1.5 py-0.5 leading-none">
                         #{detail.issue_number}
                       </a>
                     )}
@@ -797,6 +797,11 @@ function toneFor(s: Dispatch["status"]): "ok" | "signal" | "alert" | "muted" {
 function shortRepo(url: string) {
   const m = /github\.com\/([^/]+\/[^/?#]+)/.exec(url);
   return m ? m[1] : url;
+}
+
+function repoHref(url: string) {
+  const repo = shortRepo(url).replace(/^\/+|\/+$/g, "");
+  return `https://github.com/${repo}`;
 }
 
 // Dispatcher falls back to `new Date(0).toISOString()` = 1970 when it

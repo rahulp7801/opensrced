@@ -5,6 +5,7 @@ import { resolveGitHubToken } from "@/lib/github-token";
 import { resolveAnthropicKey } from "@/lib/api-keys";
 import { sessionUserId } from "@/lib/require-session";
 import { cloudExecution } from "@/lib/cloud-run-state";
+import { parseRunTarget } from "@/lib/run-target";
 
 export async function POST(req: NextRequest) {
   const auth0UserId = await sessionUserId();
@@ -20,9 +21,20 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
-  const dry_run: boolean = Boolean(body?.dry_run);
+  if (body.dry_run !== undefined && typeof body.dry_run !== "boolean") {
+    return NextResponse.json({ status: "error", message: "dry_run must be a boolean" }, { status: 400 });
+  }
+  const dry_run = body.dry_run === true;
   const issue_number: number | undefined =
     typeof body?.issue_number === "number" ? body.issue_number : undefined;
+
+  let canonicalRepoUrl: string;
+  try {
+    canonicalRepoUrl = `https://github.com/${parseRunTarget(repo_url).repo}`;
+    if (issue_number !== undefined && (!Number.isSafeInteger(issue_number) || issue_number < 1)) throw new Error();
+  } catch {
+    return NextResponse.json({ status: "error", message: "Invalid GitHub repository URL or issue number" }, { status: 400 });
+  }
 
   if (cloudExecution() || !canDispatchLocally()) {
     return NextResponse.json(
@@ -41,7 +53,7 @@ export async function POST(req: NextRequest) {
   const anthropicKey = (await resolveAnthropicKey()) ?? undefined;
 
   try {
-    const d = startDispatch(repo_url, dry_run, "solve", extra, {
+    const d = startDispatch(canonicalRepoUrl, dry_run, "solve", extra, {
       token: token ?? undefined,
       anthropicKey,
       auth0UserId,
@@ -50,8 +62,8 @@ export async function POST(req: NextRequest) {
       {
         status: "running",
         message: issue_number
-          ? `Solve pipeline spawned for ${repo_url} issue #${issue_number} (dispatch ${d.id}).`
-          : `Solve pipeline spawned (dispatch ${d.id}). Will pull open issues from ${repo_url}.`,
+          ? `Solve pipeline spawned for ${canonicalRepoUrl} issue #${issue_number} (dispatch ${d.id}).`
+          : `Solve pipeline spawned (dispatch ${d.id}). Will pull open issues from ${canonicalRepoUrl}.`,
         dispatch_id: d.id,
         mode: "solve",
         dry_run,

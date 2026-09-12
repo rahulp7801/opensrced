@@ -62,8 +62,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  let canonicalRepoUrl: string;
   try {
     const target = parseRunTarget(repo_url);
+    canonicalRepoUrl = `https://github.com/${target.repo}`;
     if (typeof github_org !== "string" || target.repo.split("/")[0].toLowerCase() !== github_org.toLowerCase()) throw new Error("Repository must belong to the connected organization.");
     if (!isSecurityFinding && (!Number.isSafeInteger(issue_number) || issue_number! < 1)) throw new Error("Invalid issue number.");
     if (isSecurityFinding && (typeof finding?.id !== "string" || finding.id.length > 200 || finding.kind !== kind || Buffer.byteLength(JSON.stringify(finding)) > 50_000)) throw new Error("Invalid security finding.");
@@ -106,17 +108,17 @@ export async function POST(req: NextRequest) {
       auth0UserId: sub,
     };
     const d = await (cloudExecution()
-      ? startCloudRun(repo_url, issue_number ?? 0, sharedOpts, isSecurityFinding ? finding : undefined)
+      ? startCloudRun(canonicalRepoUrl, issue_number ?? 0, sharedOpts, isSecurityFinding ? finding : undefined)
       : isSecurityFinding
-      ? startFindingDispatch(repo_url, finding!, sharedOpts)
-      : startAgenticDispatch(repo_url, issue_number!, sharedOpts));
+      ? startFindingDispatch(canonicalRepoUrl, finding!, sharedOpts)
+      : startAgenticDispatch(canonicalRepoUrl, issue_number!, sharedOpts));
     const label = isSecurityFinding
       ? `${finding!.kind} ${finding!.id}`
       : `issue #${issue_number}`;
     return NextResponse.json(
       {
         status: "running",
-        message: `Crucible agentic solve spawned for ${repo_url} ${label} (dispatch ${d.id}).`,
+        message: `Crucible agentic solve spawned for ${canonicalRepoUrl} ${label} (dispatch ${d.id}).`,
         dispatch_id: d.id,
         mode: "agentic",
         issue_number: issue_number ?? null,

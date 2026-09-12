@@ -23,7 +23,7 @@ for (const path of paths) {
   }
   await response.text();
 }
-for (const path of ['/api/dispatches', '/api/settings/keys', '/api/activity']) {
+for (const path of ['/api/dispatches', '/api/settings/keys', '/api/activity', '/api/local-profile']) {
   const response = await fetch(base + path, { signal: AbortSignal.timeout(15000) });
   assert.equal(response.status, 401, path);
   await response.text();
@@ -97,4 +97,4 @@ await Promise.all(Array.from({length: 20}, async () => {
   }
 }));
 latencies.sort((a,b) => a-b);
-console.log(JSON.stringify({pages: paths.length, protectedRequests: 7, landingLoad, authBoundaryLoad, healthRequests: count, concurrency: 20, healthP50Ms: Math.round(latencies[100]), healthP95Ms: Math.round(latencies[190]), healthMaxMs: Math.round(latencies.at(-1))}));
+console.log(JSON.stringify({pages: paths.length, protectedRequests: 8, landingLoad, authBoundaryLoad, healthRequests: count, concurrency: 20, healthP50Ms: Math.round(latencies[100]), healthP95Ms: Math.round(latencies[190]), healthMaxMs: Math.round(latencies.at(-1))}));

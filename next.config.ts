@@ -10,6 +10,7 @@ const scriptSource = process.env.NODE_ENV === "production"
 // README → Deterministic dispatch), so the exclusion has nothing to exclude.
 const config: NextConfig = {
   reactStrictMode: true,
+  poweredByHeader: false,
   async headers() {
     return [{
       source: "/(.*)",

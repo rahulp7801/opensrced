@@ -21,6 +21,7 @@ for (const path of paths) {
     }
     else assert.equal(actual, value, `${path} ${name}`);
   }
+  assert.equal(response.headers.get('x-powered-by'), null, `${path} must not disclose its framework`);
   await response.text();
 }
 for (const path of ['/api/dispatches', '/api/settings/keys', '/api/activity', '/api/local-profile']) {

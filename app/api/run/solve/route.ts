@@ -13,6 +13,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
+  if (cloudExecution() || !canDispatchLocally()) {
+    return NextResponse.json(
+      {
+        status: "error",
+        message: "Deterministic dispatch is local-only. Use POST /api/run/agentic in hosted deployments.",
+      },
+      { status: 501 },
+    );
+  }
+
   const body = (await readJsonBody<Record<string, unknown>>(req)) ?? {};
   const repo_url = typeof body.repo_url === "string" ? body.repo_url : undefined;
   if (!repo_url || typeof repo_url !== "string") {
@@ -34,16 +44,6 @@ export async function POST(req: NextRequest) {
     if (issue_number !== undefined && (!Number.isSafeInteger(issue_number) || issue_number < 1)) throw new Error();
   } catch {
     return NextResponse.json({ status: "error", message: "Invalid GitHub repository URL or issue number" }, { status: 400 });
-  }
-
-  if (cloudExecution() || !canDispatchLocally()) {
-    return NextResponse.json(
-      {
-        status: "error",
-        message: "Deterministic dispatch is local-only. Use POST /api/run/agentic in hosted deployments.",
-      },
-      { status: 501 },
-    );
   }
 
   const extra: string[] = [];

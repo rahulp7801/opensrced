@@ -12,24 +12,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const body = (await readJsonBody<Record<string, unknown>>(req)) ?? {};
-  const dry_run: boolean = Boolean(body?.dry_run ?? true);
-  // Both of these become argv for the contribai binary. execFile means no
-  // shell, but an unvalidated string still lets a caller inject an extra
-  // FLAG (`--config /etc/…`) rather than a value. Constrain the shapes.
-  const rounds = Number(body?.rounds ?? 1);
-  const rawLanguage: unknown = body?.language;
-  const language =
-    typeof rawLanguage === "string" && /^[A-Za-z][A-Za-z0-9+#.-]{0,31}$/.test(rawLanguage)
-      ? rawLanguage
-      : undefined;
-  if (!Number.isInteger(rounds) || rounds < 1 || rounds > 20) {
-    return NextResponse.json(
-      { status: "error", message: "rounds must be an integer between 1 and 20" },
-      { status: 400 },
-    );
-  }
-
   if (cloudExecution() || !canDispatchLocally()) {
     return NextResponse.json(
       {
@@ -37,6 +19,27 @@ export async function POST(req: NextRequest) {
         message: "Deterministic dispatch is local-only. Use repository discovery and POST /api/run/agentic in hosted deployments.",
       },
       { status: 501 },
+    );
+  }
+
+  const body = (await readJsonBody<Record<string, unknown>>(req)) ?? {};
+  if (body.dry_run !== undefined && typeof body.dry_run !== "boolean") {
+    return NextResponse.json({ status: "error", message: "dry_run must be a boolean" }, { status: 400 });
+  }
+  const dry_run = body.dry_run ?? true;
+  // Both of these become argv for the contribai binary. execFile means no
+  // shell, but an unvalidated string still lets a caller inject an extra
+  // FLAG (`--config /etc/…`) rather than a value. Constrain the shapes.
+  const rounds = body.rounds ?? 1;
+  const rawLanguage: unknown = body?.language;
+  const language =
+    typeof rawLanguage === "string" && /^[A-Za-z][A-Za-z0-9+#.-]{0,31}$/.test(rawLanguage)
+      ? rawLanguage
+      : undefined;
+  if (typeof rounds !== "number" || !Number.isInteger(rounds) || rounds < 1 || rounds > 20) {
+    return NextResponse.json(
+      { status: "error", message: "rounds must be an integer between 1 and 20" },
+      { status: 400 },
     );
   }
 

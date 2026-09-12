@@ -32,16 +32,16 @@ export function ApiKeyGate() {
   if (KEY_FREE_PAGES.some((p) => pathname === p || pathname.startsWith(p + "/"))) return null;
 
   return (
-    <div className="border-b border-signal/40 bg-signal/5 px-4 py-2.5 flex items-center justify-center gap-3 text-[12px]">
-      <span className="text-signal font-medium">API keys needed for this page</span>
-      <span className="text-paper-muted">
+    <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-b border-signal/40 bg-signal/5 px-4 py-2.5 text-[12px]">
+      <span className="font-medium text-signal">Anthropic key required</span>
+      <span className="hidden text-paper-muted md:inline">
         Add your Anthropic key to start an AI run. Gemini review is optional.
       </span>
       <Link
         href="/crucible"
-        className="text-signal border border-signal/30 px-2.5 py-0.5 hover:bg-signal/10 transition"
+        className="inline-flex min-h-8 items-center border border-signal/30 px-2.5 text-signal transition hover:bg-signal/10"
       >
-        Add keys in Settings
+        Open settings
       </Link>
     </div>
   );

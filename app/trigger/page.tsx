@@ -16,7 +16,7 @@ export default function TriggerPage() {
         }
       />
 
-      <div className="mt-6 animate-fade-rise">
+      <div className="mt-6">
         <Suspense fallback={<div className="text-paper-muted text-[12px]">Loading...</div>}>
           <TriggerForm />
         </Suspense>

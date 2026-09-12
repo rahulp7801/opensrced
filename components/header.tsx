@@ -54,6 +54,7 @@ export function SiteHeader() {
         <div className="flex items-stretch w-full min-h-16 max-w-[1440px] mx-auto">
           <Link
             href={user ? "/discover" : "/"}
+            aria-label="opensrcer home"
             className="group flex items-center gap-2.5 px-3 sm:px-6 py-3 shrink-0"
           >
             <Mark />

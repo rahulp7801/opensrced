@@ -217,7 +217,7 @@ export function TriggerForm() {
       <aside className="col-span-12 lg:col-span-4 border border-border bg-surface/40 p-0">
         <div className="flex items-center justify-between border-b border-border px-4 py-2">
           <span className="mono-label text-paper-muted">Run history</span>
-          <span className="mono-label text-paper-faint tabular-nums">
+          <span className="mono-label text-paper-muted tabular-nums">
             {log.length.toString().padStart(2, "0")}
           </span>
         </div>
@@ -232,7 +232,7 @@ export function TriggerForm() {
                 key={i}
                 className={`flex items-center gap-3 px-4 py-2.5 text-[12px] ${i > 0 ? "border-t border-border-soft" : ""}`}
               >
-                <span className="mono-label text-paper-faint tabular-nums">{l.t}</span>
+                <span className="mono-label text-paper-muted tabular-nums">{l.t}</span>
                 <span
                   className={cn(
                     "inline-flex items-center justify-center h-4 w-4 text-xs",
@@ -268,7 +268,7 @@ function Row({
       <div className="col-span-12 md:col-span-3">
         <div className="text-[12px] text-paper font-medium">{label}</div>
         {hint && (
-          <div className="mt-1 text-[10.5px] text-paper-faint leading-relaxed">
+          <div className="mt-1 text-[11px] leading-relaxed text-paper-muted">
             {hint}
           </div>
         )}

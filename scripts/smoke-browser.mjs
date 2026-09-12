@@ -29,7 +29,11 @@ async function assertNoSeriousAccessibilityViolations(page, label) {
   const results = await new AxeBuilder({ page }).analyze();
   const serious = results.violations
     .filter(violation => ['serious', 'critical'].includes(violation.impact ?? ''))
-    .map(violation => ({ id: violation.id, impact: violation.impact, targets: violation.nodes.map(node => node.target.join(' ')) }));
+    .map(violation => ({
+      id: violation.id,
+      impact: violation.impact,
+      nodes: violation.nodes.map(node => ({ target: node.target.join(' '), html: node.html, summary: node.failureSummary })),
+    }));
   assert.deepEqual(serious, [], `accessibility violations ${label}`);
 }
 
@@ -133,6 +137,7 @@ try {
   const activeRun = { ...run, id: 'test-active', status: 'running' };
   const submissions = [];
   const settings = [];
+  let keyAvailable = true;
   let cancelAttempts = 0;
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url());
@@ -159,7 +164,7 @@ try {
         settings.push(route.request().postDataJSON());
         if (settings.length === 1) return route.fulfill({ status: 400, json: { error: 'Settings rejected for test.' } });
       }
-      return route.fulfill({ json: { anthropic: true, gemini: false, maxSpendUsd: 2 } });
+      return route.fulfill({ json: { anthropic: keyAvailable, gemini: false, maxSpendUsd: 2 } });
     }
     return route.fulfill({ json: {} });
   });
@@ -225,7 +230,15 @@ try {
   await page.getByText('Settings saved.', { exact: true }).waitFor();
   assert.equal(await keyInput.inputValue(), '');
   assert.equal(settings.at(-1).maxSpendUsd, 0.1);
-  assert.equal(await page.getByText('API keys needed for this page', { exact: true }).count(), 0, 'Gemini is optional');
+  assert.equal(await page.getByText('Anthropic key required', { exact: true }).count(), 0, 'Gemini is optional');
+
+  keyAvailable = false;
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.evaluate(() => window.dispatchEvent(new Event('opensrcer-keys-updated')));
+  await page.goto(base + '/trigger');
+  await page.getByText('Anthropic key required', { exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'missing-key banner must fit mobile');
+  await assertNoSeriousAccessibilityViolations(page, 'mobile missing-key banner');
 
   await context.close();
   console.log(JSON.stringify({ pagesChecked, viewports: [1440, 390], landingVitals, controlTargets: true, accessibility: 'serious-and-critical', helpDialog: true, previewRetry: true, issueActions: 2, settingsRecovery: true, authPrefetch: false }));

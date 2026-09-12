@@ -5,6 +5,7 @@ import type { FindingInput, StartAgenticOpts } from "./agentic-dispatcher";
 import { CapacityError } from "./concurrency";
 import { CloudRun, newCloudRunId, ownerPrefix, runIsActive, runPath, validCloudRun } from "./cloud-run-state";
 import { cloudRunLease } from "./cloud-leases";
+import { cloudWorkerJobJson } from "./cloud-worker-job";
 import { assertWorkerProtocol } from "./worker-protocol";
 
 const TTL = 45 * 60_000;
@@ -72,7 +73,7 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
     // enter the VM. Never pass AUTH0_SECRET, the Blob store token, or OIDC.
     await sandbox.runCommand({ cmd: "node", args: ["scripts/sandbox-worker.cjs"], cwd: "/vercel/sandbox",
       detached: true, signal: AbortSignal.timeout(15_000), env: {
-        OPENSRCER_JOB: JSON.stringify({ run, path, finding, opts: { ...opts, installationToken: Boolean(opts.orgCtx), orgCtx: undefined } }),
+        OPENSRCER_JOB: cloudWorkerJobJson(run, path, opts, finding),
         OPENSRCER_UPLOAD_TOKEN: uploadToken,
         OPENSRCER_RUN_TESTS: "off",
         OPENSRCER_AGENTIC_TIMEOUT_MS: String(30 * 60_000),

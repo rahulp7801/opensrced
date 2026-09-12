@@ -27,8 +27,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const token = (await resolveRepositoryToken(userId, repo)).token ?? null;
-    const diff = await githubText(`/repos/${repo}/pulls/${pr}`, token, "application/vnd.github.diff", 4_000_000);
+    const token = (await resolveRepositoryToken(userId, repo, req.signal)).token ?? null;
+    const diff = await githubText(`/repos/${repo}/pulls/${pr}`, token, "application/vnd.github.diff", 4_000_000, req.signal);
     return Response.json({ diff });
   } catch (err) {
     return Response.json(

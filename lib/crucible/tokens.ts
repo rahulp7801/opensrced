@@ -48,13 +48,14 @@ export async function resolveGithubToken(
 export async function resolveRepositoryToken(
   auth0UserId: string,
   repo: string,
+  signal?: AbortSignal,
 ): Promise<ResolvedToken> {
   const canonical = parseRunTarget(repo).repo;
   const owner = canonical.split("/")[0];
   try {
     const installation = await resolveGithubToken({ auth0UserId, githubOrg: owner });
     if (installation.token) {
-      await githubApi(`/repos/${canonical}`, installation.token);
+      await githubApi(`/repos/${canonical}`, installation.token, undefined, signal);
       return installation;
     }
   } catch {
@@ -63,6 +64,6 @@ export async function resolveRepositoryToken(
     // repositories under the same owner.
   }
   const token = await resolveGitHubToken();
-  await githubApi(`/repos/${canonical}`, token);
+  await githubApi(`/repos/${canonical}`, token, undefined, signal);
   return { token: token ?? undefined, source: token ? "oauth" : "none" };
 }

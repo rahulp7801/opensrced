@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   catch { return Response.json({ error: "Invalid repository URL" }, { status: 400 }); }
   let token: string | null;
   try {
-    token = (await resolveRepositoryToken(userId, repo)).token ?? null;
+    token = (await resolveRepositoryToken(userId, repo, req.signal)).token ?? null;
   }
   catch { return Response.json({ error: "Repository not accessible" }, { status: 403 }); }
   const [owner, name] = repo.split("/");

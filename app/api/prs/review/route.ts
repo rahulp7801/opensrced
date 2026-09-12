@@ -37,24 +37,24 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const resolved = await resolveRepositoryToken(userId, repo);
+    const resolved = await resolveRepositoryToken(userId, repo, req.signal);
     const token = resolved.token ?? null;
     type Comment = { id: number; user: { login: string }; body: string; path: string; line: number | null; original_line: number | null; diff_hunk: string; created_at: string; in_reply_to_id?: number };
     async function comments(path: string): Promise<Comment[]> {
       const all: Comment[] = [];
       for (let page = 1; page <= 10; page++) {
-        const batch = await githubApi<Comment[]>(`${path}?per_page=100&page=${page}`, token);
+        const batch = await githubApi<Comment[]>(`${path}?per_page=100&page=${page}`, token, undefined, req.signal);
         all.push(...batch);
         if (batch.length < 100) return all;
       }
       throw new Error("This PR has too many comments to load here. Open the conversation on GitHub.");
     }
     const [pull, rawComments, rawIssueComments, viewer] = await Promise.all([
-      githubApi<{ title: string; state: string; merged: boolean; html_url: string; head: { ref: string; repo: { full_name: string } | null }; base: { ref: string }; user: { login: string } }>(`/repos/${repo}/pulls/${pr}`, token),
+      githubApi<{ title: string; state: string; merged: boolean; html_url: string; head: { ref: string; repo: { full_name: string } | null }; base: { ref: string }; user: { login: string } }>(`/repos/${repo}/pulls/${pr}`, token, undefined, req.signal),
       comments(`/repos/${repo}/pulls/${pr}/comments`),
       comments(`/repos/${repo}/issues/${pr}/comments`),
       token && resolved.source !== "installation"
-        ? githubApi<{ login: string }>("/user", token)
+        ? githubApi<{ login: string }>("/user", token, undefined, req.signal)
         : Promise.resolve(null),
     ]);
     const prData = { title: pull.title, state: pull.merged ? "MERGED" : pull.state.toUpperCase(), url: pull.html_url, headRefName: pull.head.ref, baseRefName: pull.base.ref, author: pull.user };

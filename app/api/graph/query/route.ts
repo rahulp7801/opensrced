@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
   if (!repoId || !query.trim()) return Response.json({ error: "Invalid repository or query" }, { status: 400 });
   const [owner, repo] = repoId.split("/");
   try {
-    await resolveRepositoryToken(userId, repoId);
+    await resolveRepositoryToken(userId, repoId, req.signal);
   }
   catch { return Response.json({ error: "Repository not accessible" }, { status: 403 }); }
   try {

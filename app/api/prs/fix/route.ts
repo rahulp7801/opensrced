@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
   }
 
   let token: string | null;
-  try { token = (await resolveRepositoryToken(userId, body.repo)).token ?? null; }
+  try { token = (await resolveRepositoryToken(userId, body.repo, req.signal)).token ?? null; }
   catch { return Response.json({ error: "Repository not accessible" }, { status: 403 }); }
 
   // Concurrency limit. Acquired LAST, after every cheap rejection above —
@@ -110,10 +110,10 @@ export async function POST(req: NextRequest) {
 async function quickFix(body: { repo: string | null; pr_number: number | null; branch: string | null; comment_body: string | null; file_path: string | null; line: number | null; diff_hunk: string | null }, apiKey: string, token: string | null, signal: AbortSignal) {
   try {
     // Read the actual PR head, including forks, instead of a stale shared checkout.
-    const pull = await githubApi<{ head: { sha: string; repo: { full_name: string } | null } }>(`/repos/${body.repo}/pulls/${body.pr_number}`, token);
+    const pull = await githubApi<{ head: { sha: string; repo: { full_name: string } | null } }>(`/repos/${body.repo}/pulls/${body.pr_number}`, token, undefined, signal);
     if (!pull.head.repo) throw new Error("The PR source repository is no longer available.");
     const file = body.file_path!.split("/").map(encodeURIComponent).join("/");
-    const text = await githubText(`/repos/${pull.head.repo.full_name}/contents/${file}?ref=${encodeURIComponent(pull.head.sha)}`, token, "application/vnd.github.raw", 500_000);
+    const text = await githubText(`/repos/${pull.head.repo.full_name}/contents/${file}?ref=${encodeURIComponent(pull.head.sha)}`, token, "application/vnd.github.raw", 500_000, signal);
     const lines = text.split("\n");
     const start = lines.length > 200 && body.line ? Math.max(0, body.line - 50) : 0;
     const context = lines.slice(start, start + 200).map((line, index) => `${start + index + 1} | ${line}`).join("\n");
@@ -158,7 +158,7 @@ async function deepFix(
 
   let head: { sha: string; repo: { full_name: string } | null };
   try {
-    head = (await githubApi<{ head: typeof head }>(`/repos/${body.repo}/pulls/${body.pr_number}`, ghToken)).head;
+    head = (await githubApi<{ head: typeof head }>(`/repos/${body.repo}/pulls/${body.pr_number}`, ghToken, undefined, signal)).head;
     if (!head.repo) throw new Error("The PR source repository is no longer available.");
   } catch {
     releaseSlot("fix");

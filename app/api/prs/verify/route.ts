@@ -217,7 +217,7 @@ export async function POST(req: NextRequest) {
   // graphify (fallback) to check downstream impact of the change.
   let repositoryToken: string | null = null;
   if (body.repo) {
-    try { repositoryToken = (await resolveRepositoryToken(userId, body.repo)).token ?? null; }
+    try { repositoryToken = (await resolveRepositoryToken(userId, body.repo, req.signal)).token ?? null; }
     catch { return Response.json({ error: "Repository not accessible" }, { status: 403 }); }
     if (cloudExecution()) {
       const stored = await getStoredGraph(userId, body.repo);

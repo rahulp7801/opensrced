@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   }
 
   let token: string | null;
-  try { token = (await resolveRepositoryToken(userId, body.repo)).token ?? null; }
+  try { token = (await resolveRepositoryToken(userId, body.repo, req.signal)).token ?? null; }
   catch { return Response.json({ error: "Repository not accessible" }, { status: 403 }); }
   if (!token) {
     return Response.json(

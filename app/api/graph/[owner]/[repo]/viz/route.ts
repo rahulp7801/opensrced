@@ -27,7 +27,7 @@ function safeParams(owner: string, repo: string): { owner: string; repo: string 
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ owner: string; repo: string }> },
 ) {
   const userId = await sessionUserId();
@@ -37,7 +37,7 @@ export async function GET(
   const safe = safeParams(raw.owner, raw.repo);
   if (!safe) return new Response("Invalid repo", { status: 400 });
   const { owner, repo } = safe;
-  try { await resolveRepositoryToken(userId, `${owner}/${repo}`); }
+  try { await resolveRepositoryToken(userId, `${owner}/${repo}`, req.signal); }
   catch { return new Response("Repository not accessible", { status: 403 }); }
   if (cloudExecution()) {
     const stored = await getStoredGraph(userId, `${owner}/${repo}`);
@@ -104,7 +104,7 @@ export async function GET(
 
 // HEAD — check if graph data exists (json OR html)
 export async function HEAD(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ owner: string; repo: string }> },
 ) {
   const userId = await sessionUserId();
@@ -114,7 +114,7 @@ export async function HEAD(
   const safe = safeParams(raw.owner, raw.repo);
   if (!safe) return new Response(null, { status: 400 });
   const { owner, repo } = safe;
-  try { await resolveRepositoryToken(userId, `${owner}/${repo}`); }
+  try { await resolveRepositoryToken(userId, `${owner}/${repo}`, req.signal); }
   catch { return new Response("Repository not accessible", { status: 403 }); }
 
   if (cloudExecution()) {

@@ -44,8 +44,8 @@ export async function githubApi<T>(path: string, token?: string | null, body?: u
   return (await githubResponse(path, token, body, undefined, signal)).json() as Promise<T>;
 }
 
-export async function githubText(path: string, token: string | null, accept: string, maxBytes: number): Promise<string> {
-  const response = await githubResponse(path, token, undefined, accept);
+export async function githubText(path: string, token: string | null, accept: string, maxBytes: number, signal?: AbortSignal): Promise<string> {
+  const response = await githubResponse(path, token, undefined, accept, signal);
   const reader = response.body?.getReader();
   if (!reader) throw new Error("GitHub returned an empty response.");
   const chunks: Uint8Array[] = [];

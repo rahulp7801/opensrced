@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   }
 
   let token: string | null;
-  try { token = (await resolveRepositoryToken(userId, body.repo)).token ?? null; }
+  try { token = (await resolveRepositoryToken(userId, body.repo, req.signal)).token ?? null; }
   catch { return Response.json({ error: "Repository not accessible" }, { status: 403 }); }
   if (!token) {
     return Response.json({ error: "No GitHub token" }, { status: 401 });
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     const path = body.type === "review"
       ? `/repos/${body.repo}/pulls/${body.pr_number}/comments/${body.comment_id}/replies`
       : `/repos/${body.repo}/issues/${body.pr_number}/comments`;
-    await githubApi(path, token, { body: body.body });
+    await githubApi(path, token, { body: body.body }, req.signal);
 
     return Response.json({ ok: true });
   } catch (err) {

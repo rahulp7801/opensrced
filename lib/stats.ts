@@ -18,8 +18,8 @@
 //   cached in .dispatches/repo-stars.json with a 7-day TTL.
 
 import { createHash, randomUUID } from "node:crypto";
-import { cloudExecution } from "./cloud-run-state";
-import { listCloudRuns } from "./cloud-runs";
+import { cloudExecution, dispatchStatsFromLog } from "./cloud-run-state";
+import { listCloudRunSummaries } from "./cloud-runs";
 import { readJson, updateJson } from "./blob-store";
 import { listAll as listDispatches, patch as patchDispatch, type DispatchRecord } from "./dispatch-store";
 import { execFile } from "node:child_process";
@@ -176,13 +176,12 @@ const REPO_RE = /repo:\s*(\S+)\s/;
 const ISSUE_RE = /issue:\s*#?(\d+)/;
 const EXIT_RE = /exited at\s+(\S+)\s+·\s+status=(\w+)/;
 const STARTED_RE = /^\[(?:agentic-)?dispatcher\]\s+(\d{4}-\d{2}-\d{2}T[^\s]+)/;
-const COST_RE = /total_cost_usd=([\d.]+)/;
 
 async function scanLogs(owner: string): Promise<LogRecord[]> {
-  if (cloudExecution()) return (await listCloudRuns(owner)).map(run => ({
+  if (cloudExecution()) return (await listCloudRunSummaries(owner, 50)).map(run => ({
     id: run.id, repoFull: run.repo_url.replace(/^https:\/\/github.com\//, "").replace(/\.git$/, ""),
     issueNumber: run.issue_number ?? null, prUrl: run.pr_url ?? null, status: run.status,
-    startedAt: run.started_at, costUsd: Number(COST_RE.exec(run.log)?.[1] ?? 0), hasDiff: /```(?:diff|patch)/.test(run.log),
+    startedAt: run.started_at, costUsd: run.stats?.cost_usd ?? null, hasDiff: run.stats?.has_diff ?? false,
   }));
   if (!existsSync(DISPATCH_DIR)) return [];
   const dispatches = listDispatches()
@@ -211,11 +210,11 @@ async function scanLogs(owner: string): Promise<LogRecord[]> {
         const s = exitM[2];
         if (s === "succeeded" || s === "failed" || s === "killed") status = s;
       }
-      const costM = COST_RE.exec(text);
-      const costUsd = cached?.cost_usd ?? (costM ? parseFloat(costM[1]) : null);
-      const hasDiff = cached?.has_diff ?? /```(?:diff|patch)/.test(text);
+      const derived = dispatchStatsFromLog(text, cached);
+      const costUsd = derived.cost_usd;
+      const hasDiff = derived.has_diff;
       if (!cached && status !== "running") {
-        patchDispatch(dispatch.id, { stats: { cost_usd: costUsd, has_diff: hasDiff } });
+        patchDispatch(dispatch.id, { stats: derived });
       }
       const repoUrl = typeof dispatch.repo_url === "string" ? dispatch.repo_url : repoM?.[1];
       return {

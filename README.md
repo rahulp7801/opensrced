@@ -31,7 +31,7 @@ Browser
   -> Next.js application on Vercel
        -> Auth0 session and GitHub OAuth token
        -> private Vercel Blob records
-          -> compact run summaries for dashboard polling
+          -> compact run summaries for runs, activity, and PR history
        -> bounded GitHub and provider requests
        -> isolated Vercel Sandbox worker
             -> Claude CLI with read-only repository MCP tools

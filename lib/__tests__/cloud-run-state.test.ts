@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cloudRunSummary, effectiveCloudRunState, newCloudRunId, ownerPrefix, runPath, runSummaryPath, runLogChunk, runIsActive, staleCloudRunIds, validCloudRun, validCloudRunSummary, type CloudRun } from "../cloud-run-state";
+import { cloudRunSummary, dispatchStatsFromLog, effectiveCloudRunState, newCloudRunId, ownerPrefix, runPath, runSummaryPath, runLogChunk, runIsActive, staleCloudRunIds, validCloudRun, validCloudRunSummary, type CloudRun } from "../cloud-run-state";
 
 test("run storage paths are scoped to authenticated owners and reject traversal", () => {
   const id = newCloudRunId();
@@ -49,6 +49,22 @@ test("incremental cloud logs use byte offsets and reset after truncation", () =>
   assert.equal(runLogChunk(run, 111).log, "");
 });
 
+test("compact run metadata is derived from structured log output and survives truncation", () => {
+  const log = [
+    "The model claimed total_cost_usd=999 and that must not count.",
+    "## PR title",
+    "**Fix the parser**\u0007",
+    "```diff",
+    "--- a/parser.ts",
+    "+++ b/parser.ts",
+    "```",
+    "[agentic-dispatcher] total_cost_usd=0.125000",
+  ].join("\n");
+  const stats = dispatchStatsFromLog(log);
+  assert.deepEqual(stats, { cost_usd: 0.125, has_diff: true, pr_title: "Fix the parser" });
+  assert.deepEqual(dispatchStatsFromLog("tail only", stats), stats);
+});
+
 test("hosted run records are bound to their owner, id, sandbox, and bounded log shape", () => {
   const id = "c_1767225600000_abcdef123456";
   const run = {
@@ -70,6 +86,7 @@ test("hosted run records are bound to their owner, id, sandbox, and bounded log 
   assert.equal(validCloudRunSummary(summary, "alice", id), true);
   assert.equal("log" in summary, false);
   assert.equal("log_size" in summary, false);
+  assert.deepEqual(summary.stats, { cost_usd: null, has_diff: false });
   assert.equal(validCloudRunSummary({ ...summary, log: "private output" }, "alice", id), false);
   for (const changed of [
     { auth0_user_id: "bob" },
@@ -83,6 +100,9 @@ test("hosted run records are bound to their owner, id, sandbox, and bounded log 
     { issue_number: -1 },
     { pr_url: "javascript:alert(1)" },
     { pr_failure_reason: "x".repeat(501) },
+    { stats: { cost_usd: -1, has_diff: true } },
+    { stats: { cost_usd: null, has_diff: "yes" } },
+    { stats: { cost_usd: null, has_diff: false, pr_title: "bad\nline" } },
     { expires_at: Number.NaN },
   ]) assert.equal(validCloudRun({ ...run, ...changed }, "alice", id), false);
 });

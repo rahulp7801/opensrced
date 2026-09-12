@@ -190,18 +190,24 @@ export async function listCloudRunSummaries(owner: string, limit = 20): Promise<
   }))).filter((summary): summary is CloudRunSummary => summary !== null);
   summaries.sort((a, b) => b.started_at.localeCompare(a.started_at));
 
-  if (await readJson(summariesReadyPath(owner))) return summaries.slice(0, cappedLimit);
+  const marker = await readJson<{ version?: unknown }>(summariesReadyPath(owner));
+  if (marker?.value.version === 2) return summaries.slice(0, cappedLimit);
 
   const legacy = await listCloudRuns(owner, cappedLimit);
-  const known = new Set(summaries.map((summary) => summary.id));
-  const missing = legacy.filter((run) => !known.has(run.id));
-  const writes = await Promise.allSettled(missing.map((run) => writeSummary(runSummaryPath(owner, run.id), run)));
+  const known = new Map(summaries.map((summary) => [summary.id, summary]));
+  // Version 2 also refreshes summaries written before derived activity and PR
+  // metadata existed. This is one bounded legacy read per account, not a cost
+  // paid on every Activity or Pull Requests refresh.
+  const stale = legacy.filter((run) => !known.get(run.id)?.stats);
+  const writes = await Promise.allSettled(stale.map((run) => writeSummary(runSummaryPath(owner, run.id), run)));
   if (writes.every((result) => result.status === "fulfilled")) {
-    await put(summariesReadyPath(owner), JSON.stringify({ version: 1 }), {
+    await put(summariesReadyPath(owner), JSON.stringify({ version: 2 }), {
       ...writeOptions, allowOverwrite: true, abortSignal: AbortSignal.timeout(15_000),
     }).catch(() => {});
   }
-  return [...summaries, ...missing.map(cloudRunSummary)]
+  const merged = new Map(summaries.map((summary) => [summary.id, summary]));
+  stale.forEach((run) => merged.set(run.id, cloudRunSummary(run)));
+  return [...merged.values()]
     .sort((a, b) => b.started_at.localeCompare(a.started_at))
     .slice(0, cappedLimit);
 }

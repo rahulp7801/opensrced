@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { DispatchRecord } from "./dispatch-store";
+import type { DispatchRecord, DispatchStats } from "./dispatch-store";
 import { parseRunTarget } from "./run-target";
+import { sanitizeLogValue } from "./sanitize";
 
 export type CloudRun = DispatchRecord & {
   sandbox_name: string;
@@ -15,6 +16,31 @@ const RUN_STATUSES = new Set(["running", "succeeded", "failed", "killed"]);
 const PR_STATUSES = new Set(["opened", "failed", "pending", "tests_passed", "tests_failed", "none"]);
 const TEST_STATUSES = new Set(["passed", "failed", "skipped", "not_run"]);
 const MAX_STORED_LOG_BYTES = 250_000;
+
+/** Metadata needed by history views, extracted while the worker already has
+ * the log in memory. Keeping it in the compact summary prevents Activity and
+ * Pull Requests from downloading every full log on each refresh. */
+export function dispatchStatsFromLog(log: string, previous?: DispatchStats): DispatchStats {
+  const costs = [...log.matchAll(/^\[agentic-dispatcher\] total_cost_usd=(\d+(?:\.\d+)?)\s*$/gm)];
+  const parsedCost = costs.length ? Number(costs.at(-1)![1]) : null;
+  const rawTitle = /^##\s+PR title\s*\n+([^\r\n]+)/im.exec(log)?.[1];
+  const prTitle = rawTitle
+    ? sanitizeLogValue(rawTitle, 240).replace(/^[`#*>\s-]+/, "").replace(/[`*_\s]+$/, "").slice(0, 200)
+    : previous?.pr_title;
+  return {
+    cost_usd: parsedCost !== null && Number.isFinite(parsedCost) ? parsedCost : previous?.cost_usd ?? null,
+    has_diff: previous?.has_diff === true || /```(?:diff|patch)\s*\n/i.test(log),
+    ...(prTitle ? { pr_title: prTitle } : {}),
+  };
+}
+
+function validDispatchStats(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const stats = value as Partial<DispatchStats>;
+  return (stats.cost_usd === null || (typeof stats.cost_usd === "number" && Number.isFinite(stats.cost_usd) && stats.cost_usd >= 0 && stats.cost_usd <= 10_000)) &&
+    typeof stats.has_diff === "boolean" &&
+    (stats.pr_title === undefined || (typeof stats.pr_title === "string" && stats.pr_title.length > 0 && stats.pr_title.length <= 200 && !/[\x00-\x1F\x7F]/.test(stats.pr_title)));
+}
 
 function isCanonicalRepoUrl(value: unknown): value is string {
   if (typeof value !== "string" || value.length > 500) return false;
@@ -37,13 +63,17 @@ export function validCloudRun(value: unknown, owner: string, id: string): value 
     (run.pr_url === undefined || (typeof run.pr_url === "string" && /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/[1-9]\d*$/.test(run.pr_url))) &&
     (run.pr_failure_reason === undefined || (typeof run.pr_failure_reason === "string" && run.pr_failure_reason.length <= 500)) &&
     (run.tests === undefined || TEST_STATUSES.has(run.tests)) &&
+    (run.stats === undefined || validDispatchStats(run.stats)) &&
     typeof run.expires_at === "number" && Number.isFinite(run.expires_at) && run.expires_at > 0 &&
     typeof run.log === "string" && typeof run.log_size === "number" && Number.isSafeInteger(run.log_size) &&
     Buffer.byteLength(run.log) <= MAX_STORED_LOG_BYTES && run.log_size >= Buffer.byteLength(run.log);
 }
 
 export function cloudRunSummary(run: CloudRun): CloudRunSummary {
-  return Object.fromEntries(Object.entries(run).filter(([key]) => key !== "log" && key !== "log_size")) as CloudRunSummary;
+  return {
+    ...Object.fromEntries(Object.entries(run).filter(([key]) => key !== "log" && key !== "log_size")),
+    stats: dispatchStatsFromLog(run.log, run.stats),
+  } as CloudRunSummary;
 }
 
 export function validCloudRunSummary(value: unknown, owner: string, id: string): value is CloudRunSummary {

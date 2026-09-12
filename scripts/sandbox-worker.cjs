@@ -4,6 +4,7 @@ const { setTimeout: delay } = require('node:timers/promises');
 const { startAgenticDispatch, startFindingDispatch } = require('../.worker-build/lib/agentic-dispatcher');
 const store = require('../.worker-build/lib/dispatch-store');
 const { readLogSince } = require('../.worker-build/lib/dispatcher');
+const { cloudRunSummary, dispatchStatsFromLog } = require('../.worker-build/lib/cloud-run-state');
 
 async function main() {
   const { run, path, summaryPath, opts, finding } = JSON.parse(process.env.OPENSRCER_JOB);
@@ -18,7 +19,7 @@ async function main() {
   async function publish(record) {
     const body = JSON.stringify(record);
     if (body === previous) return;
-    const summary = Object.fromEntries(Object.entries(record).filter(([key]) => key !== 'log' && key !== 'log_size'));
+    const summary = cloudRunSummary(record);
     const summaryBody = JSON.stringify(summary);
     for (let attempt = 0; ; attempt++) {
       try {
@@ -44,7 +45,8 @@ async function main() {
       await delay(3000);
       const record = store.read(dispatch.id) || dispatch;
       const log = readLogSince(dispatch.id, 0);
-      const update = { ...run, ...record, id: run.id, log_path: '', log: log.chunk, log_size: log.size };
+      const update = { ...run, ...record, id: run.id, log_path: '', log: log.chunk, log_size: log.size,
+        stats: dispatchStatsFromLog(log.chunk, lastRecord.stats) };
       await publish(update);
       if (record.status !== 'running' && record.pr_status !== 'pending') return;
     }

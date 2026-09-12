@@ -46,6 +46,12 @@ assert.equal((await own.json()).anthropic, true);
 const other = await request('/api/settings/keys', bob + '; ' + keys);
 assert.equal(other.status, 200);
 assert.equal((await other.json()).anthropic, false, 'An account cannot reuse another account\'s key cookie');
+const activity = await request('/api/activity', alice);
+assert.equal(activity.status, 200);
+assert.equal((await activity.json()).dispatches, 0);
+const generatedPrs = await request('/api/prs', alice);
+assert.equal(generatedPrs.status, 200);
+assert.deepEqual(await generatedPrs.json(), []);
 for (const path of ['/api/settings/keys', '/api/explore', '/api/fixes', '/api/prs/fix', '/api/prs/reply', '/api/prs/draft-reply', '/api/prs/verify', '/api/prs/push', '/api/crucible/run/agentic', '/api/run/agentic', '/api/graph/query', '/api/graph/generate']) {
   const invalid = await request(path, alice, { method: 'POST', body: 'null' });
   assert.equal(invalid.status, 400, path + ' must reject invalid JSON values without crashing');
@@ -60,4 +66,4 @@ const live = await request('/api/run/agentic', withoutGithub, {
 });
 assert.equal(live.status, 401);
 assert.match((await live.json()).message, /Sign in with GitHub/);
-console.log(JSON.stringify({ realSessionDecryption: true, privateProfile: true, settingsRoundTrip: true, accountIsolation: true }));
+console.log(JSON.stringify({ realSessionDecryption: true, privateProfile: true, settingsRoundTrip: true, accountIsolation: true, activityAndPrHistory: true }));

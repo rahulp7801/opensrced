@@ -3,7 +3,7 @@
 
 import { listAll } from "./dispatch-store";
 import { cloudExecution } from "./cloud-run-state";
-import { listCloudRuns } from "./cloud-runs";
+import { listCloudRunSummaries } from "./cloud-runs";
 import { readLog } from "./dispatcher";
 import type { PullRequest } from "./types";
 
@@ -13,14 +13,15 @@ const TITLE_RE = /^##\s+PR title\s*\n+(.+)/m;
 
 export async function loadPRsFromLogs(owner: string): Promise<PullRequest[]> {
   if (!owner) throw new Error("PR owner is required");
-  const records = (cloudExecution() ? await listCloudRuns(owner) : listAll().filter(run => run.auth0_user_id === owner))
+  const cloud = cloudExecution();
+  const records = (cloud ? await listCloudRunSummaries(owner, 50) : listAll(owner, 100))
     .sort((a, b) => (b.started_at ?? "").localeCompare(a.started_at ?? ""))
     .slice(0, 100);
   const prs: PullRequest[] = [];
   for (const record of records) {
     if (!record.pr_url) continue;
     try {
-      const text = "log" in record && typeof record.log === "string" ? record.log : readLog(record.id);
+      const text = cloud ? "" : readLog(record.id);
       const prM = PR_URL_RE.exec(record.pr_url);
       if (!prM) continue;
 
@@ -28,7 +29,7 @@ export async function loadPRsFromLogs(owner: string): Promise<PullRequest[]> {
       const prNumber = prM[2];
       const startM = STARTED_RE.exec(text);
       const titleM = TITLE_RE.exec(text);
-      const title = titleM?.[1]?.replace(/^[`#*\s]+|[`\s]+$/g, "") ?? `PR #${prNumber}`;
+      const title = record.stats?.pr_title ?? titleM?.[1]?.replace(/^[`#*\s]+|[`\s]+$/g, "") ?? `PR #${prNumber}`;
 
       prs.push({
         id: `pr_${repoFull.replace("/", "_")}_${prNumber}`,

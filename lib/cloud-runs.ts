@@ -7,6 +7,7 @@ import {
   CloudRun,
   CloudRunSummary,
   cloudRunSummary,
+  effectiveCloudRunState,
   newCloudRunId,
   ownerPrefix,
   runIsActive,
@@ -146,10 +147,7 @@ export async function getCloudRun(owner: string, id: string): Promise<CloudRun |
   if (!found || !validCloudRun(found.value, owner, id)) return null;
   const run = found.value;
   if (await readJson(`cancelled/${id}.json`)) return { ...run, status: "killed", pr_status: "none" };
-  if (run.expires_at <= Date.now() && (run.status === "running" || run.pr_status === "pending")) {
-    return { ...run, status: "failed", pr_status: "failed", pr_failure_reason: "Worker time limit reached or its result could not be saved." };
-  }
-  return run;
+  return effectiveCloudRunState(run);
 }
 
 export async function listCloudRuns(owner: string, limit = 50): Promise<CloudRun[]> {
@@ -188,7 +186,7 @@ export async function listCloudRunSummaries(owner: string, limit = 20): Promise<
     const id = /c_\d{13}_[a-f0-9]{12}/.exec(blob.pathname)?.[0];
     if (!id) return null;
     const stored = await readJson<CloudRunSummary>(blob.pathname);
-    return stored && validCloudRunSummary(stored.value, owner, id) ? stored.value : null;
+    return stored && validCloudRunSummary(stored.value, owner, id) ? effectiveCloudRunState(stored.value) : null;
   }))).filter((summary): summary is CloudRunSummary => summary !== null);
   summaries.sort((a, b) => b.started_at.localeCompare(a.started_at));
 

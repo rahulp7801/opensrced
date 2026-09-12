@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cloudRunSummary, newCloudRunId, ownerPrefix, runPath, runSummaryPath, runLogChunk, runIsActive, staleCloudRunIds, validCloudRun, validCloudRunSummary, type CloudRun } from "../cloud-run-state";
+import { cloudRunSummary, effectiveCloudRunState, newCloudRunId, ownerPrefix, runPath, runSummaryPath, runLogChunk, runIsActive, staleCloudRunIds, validCloudRun, validCloudRunSummary, type CloudRun } from "../cloud-run-state";
 
 test("run storage paths are scoped to authenticated owners and reject traversal", () => {
   const id = newCloudRunId();
@@ -17,6 +17,18 @@ test("expired and completed jobs free capacity; PR work keeps it occupied", () =
   assert.equal(runIsActive({ ...run, expires_at: 0 }), false);
   assert.equal(runIsActive({ ...run, status: "succeeded" }), false);
   assert.equal(runIsActive({ ...run, status: "succeeded", pr_status: "pending" }), true);
+});
+
+test("expired full and compact run records expose a terminal failure", () => {
+  const run = { status: "running", expires_at: 100, pr_status: "pending" } as CloudRun;
+  assert.deepEqual(effectiveCloudRunState(run, 101), {
+    ...run,
+    status: "failed",
+    pr_status: "failed",
+    pr_failure_reason: "Worker time limit reached or its result could not be saved.",
+  });
+  assert.equal(effectiveCloudRunState({ ...run, status: "succeeded", pr_status: "opened" }, 101).status, "succeeded");
+  assert.equal(effectiveCloudRunState(run, 99).status, "running");
 });
 
 test("cloud history retention selects only the owner's oldest canonical records", () => {

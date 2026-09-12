@@ -51,6 +51,16 @@ export function validCloudRunSummary(value: unknown, owner: string, id: string):
   return validCloudRun({ ...value, log: "", log_size: 0 }, owner, id);
 }
 
+export function effectiveCloudRunState<T extends CloudRunSummary>(run: T, now = Date.now()): T {
+  if (run.expires_at > now || (run.status !== "running" && run.pr_status !== "pending")) return run;
+  return {
+    ...run,
+    status: "failed",
+    pr_status: "failed",
+    pr_failure_reason: "Worker time limit reached or its result could not be saved.",
+  } as T;
+}
+
 export function cloudExecution(): boolean {
   return process.env.VERCEL === "1" || process.env.OPENSRCER_EXECUTION === "sandbox";
 }

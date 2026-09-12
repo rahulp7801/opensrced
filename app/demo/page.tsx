@@ -3,17 +3,19 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { ArrowRight, Binoculars, Buildings, Bug, ShieldCheck } from "@phosphor-icons/react";
 
 const DEMOS = [
-  { key: "dispatch", label: "Bug fix run" },
-  { key: "explore", label: "Codebase explorer" },
-  { key: "security", label: "Security scan" },
-  { key: "crucible", label: "Private repo flow" },
+  { key: "dispatch", label: "Bug fix run", description: "Trace an issue from diagnosis to a draft pull request.", Icon: Bug },
+  { key: "explore", label: "Codebase explorer", description: "Ask a repository question and inspect the evidence.", Icon: Binoculars },
+  { key: "security", label: "Security scan", description: "Review advisories and walk through a dependency fix.", Icon: ShieldCheck },
+  { key: "crucible", label: "Private repo flow", description: "Connect an organization without exposing a personal token.", Icon: Buildings },
 ] as const;
 type DemoKey = (typeof DEMOS)[number]["key"];
 
 export default function DemoPage() {
   const [activeDemo, setActiveDemo] = useState<DemoKey>("dispatch");
+  const active = DEMOS.find((demo) => demo.key === activeDemo)!;
 
   function moveTab(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     let next = index;
@@ -28,37 +30,87 @@ export default function DemoPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1100px] px-4 sm:px-6 py-10">
-      <div className="text-left mb-10">
-        <div className="inline-flex items-center gap-2 text-[12px] text-paper-dim mb-4">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-signal" />
-          interactive demo — no API key required
+    <div className="mx-auto w-full max-w-[1180px] px-5 py-12 sm:px-8 sm:py-16">
+      <header className="grid gap-8 border-b border-border pb-10 lg:grid-cols-[1fr_23rem] lg:items-end">
+        <div>
+          <p className="font-mono text-xs uppercase tracking-[0.14em] text-signal">Interactive product tour</p>
+          <h1 className="mt-5 max-w-3xl text-[42px] font-semibold leading-[0.98] tracking-[-0.055em] text-balance text-paper sm:text-[58px]">
+            See the complete path from issue to draft.
+          </h1>
         </div>
-        <h1 className="text-[36px] sm:text-[44px] leading-tight font-semibold text-paper tracking-[-0.04em]">See opensrcer in action</h1>
-        <p className="mt-3 text-[15px] text-paper-dim max-w-xl">
-          Four simulated workflows with example results. Click through each step — no API calls, no cost.
-        </p>
-      </div>
-      <div className="grid grid-cols-2 border-b border-border sm:flex sm:overflow-x-auto" role="tablist" aria-label="Demo workflows">
-        {DEMOS.map((d, index) => (
-          <button key={d.key} id={`demo-tab-${d.key}`} role="tab" aria-selected={activeDemo === d.key} aria-controls={`demo-${d.key}`} tabIndex={activeDemo === d.key ? 0 : -1} onClick={() => setActiveDemo(d.key)} onKeyDown={(event) => moveTab(event, index)} className={cn("shrink-0 px-4 py-3 text-[13px] font-medium transition relative", activeDemo === d.key ? "text-paper" : "text-paper-muted hover:text-paper-dim")}>
-            {d.label}
-            {activeDemo === d.key && <span className="absolute inset-x-0 -bottom-px h-px bg-signal" />}
-          </button>
-        ))}
-      </div>
-      <div id={`demo-${activeDemo}`} role="tabpanel" aria-labelledby={`demo-tab-${activeDemo}`}>
-        {activeDemo === "dispatch" && <DispatchDemo />}
-        {activeDemo === "explore" && <ExploreDemo />}
-        {activeDemo === "security" && <SecurityDemo />}
-        {activeDemo === "crucible" && <CrucibleDemo />}
-      </div>
-      <div className="mt-8 text-center">
-        <div className="mt-4 flex justify-center gap-3">
-          <Link href="/login" className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-5 py-2.5 text-[13px] transition">Get started</Link>
-          <Link href="/" className="border border-border text-paper-muted hover:text-paper px-5 py-2.5 text-[13px] transition">Learn more</Link>
+        <div className="lg:pb-1">
+          <p className="max-w-md text-[15px] leading-7 text-paper-dim">
+            Walk through four realistic workflows with deterministic example data. Every control works; nothing here calls an API or spends provider credit.
+          </p>
         </div>
-      </div>
+      </header>
+
+      <section className="grid gap-8 py-10 lg:grid-cols-[17rem_minmax(0,1fr)] lg:gap-12 lg:py-12" aria-label="Choose a product workflow">
+        <div>
+          <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-paper-muted">Choose a workflow</p>
+          <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-1" role="tablist" aria-label="Demo workflows">
+            {DEMOS.map((demo, index) => {
+              const selected = activeDemo === demo.key;
+              const { Icon } = demo;
+              return (
+                <button
+                  key={demo.key}
+                  id={`demo-tab-${demo.key}`}
+                  role="tab"
+                  aria-selected={selected}
+                  aria-controls={`demo-${demo.key}`}
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => setActiveDemo(demo.key)}
+                  onKeyDown={(event) => moveTab(event, index)}
+                  className={cn(
+                    "group relative flex min-h-28 items-start gap-3 rounded-lg border p-3.5 text-left transition sm:p-4 lg:min-h-0",
+                    selected ? "border-border-strong bg-surface-2 text-paper" : "border-border-soft text-paper-muted hover:border-border hover:bg-surface/60 hover:text-paper",
+                  )}
+                >
+                  <Icon aria-hidden className={cn("mt-0.5 shrink-0", selected ? "text-signal" : "text-paper-faint group-hover:text-paper-dim")} size={18} />
+                  <span className="min-w-0">
+                    <span className="block text-[13px] font-medium leading-5">{demo.label}</span>
+                    <span className="mt-1 hidden text-[11.5px] leading-5 text-paper-muted sm:block">{demo.description}</span>
+                  </span>
+                  {selected && <span className="absolute inset-y-3 left-0 w-0.5 rounded-r bg-signal" />}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-5 hidden border-t border-border-soft pt-4 text-[11.5px] leading-5 text-paper-faint lg:block">
+            Simulated environment<br />No account or API key required
+          </p>
+        </div>
+
+        <div className="min-w-0">
+          <div className="mb-3 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-paper">{active.label}</p>
+              <p className="mt-1 text-xs text-paper-muted">Interactive sample · reset any time</p>
+            </div>
+            <span className="rounded-full border border-ok/30 bg-ok/5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.1em] text-ok">Ready</span>
+          </div>
+          <div id={`demo-${activeDemo}`} role="tabpanel" aria-labelledby={`demo-tab-${activeDemo}`}>
+            {activeDemo === "dispatch" && <DispatchDemo />}
+            {activeDemo === "explore" && <ExploreDemo />}
+            {activeDemo === "security" && <SecurityDemo />}
+            {activeDemo === "crucible" && <CrucibleDemo />}
+          </div>
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-5 border-t border-border py-8 sm:flex-row sm:items-center sm:justify-between" aria-label="Start using opensrcer">
+        <div>
+          <h2 className="text-lg font-medium tracking-[-0.02em] text-paper">Ready to use a real repository?</h2>
+          <p className="mt-1 text-sm text-paper-muted">Connect GitHub, add your provider key, and keep review control over every proposed change.</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-5">
+          <Link href="/" className="text-sm font-medium text-paper-muted transition hover:text-paper">How it works</Link>
+          <Link href="/login" className="inline-flex min-h-11 items-center gap-2 rounded-md bg-paper px-4 text-sm font-semibold text-ink transition hover:-translate-y-px hover:bg-paper-2">
+            Connect GitHub <ArrowRight aria-hidden size={16} weight="bold" />
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }
@@ -135,7 +187,7 @@ function DispatchDemo() {
   }
 
   return (
-    <div className="border border-border border-t-0 bg-surface/40">
+    <div className="overflow-hidden rounded-lg border border-border bg-surface/40">
       {step === "intro" && (
         <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
           <div className="max-w-2xl space-y-2 text-left">
@@ -261,7 +313,7 @@ function ExploreDemo() {
   const icons: Record<string, string> = { repo_info: "i", grep: "/", read_file: "#", find_definition: "@" };
 
   return (
-    <div className="border border-border border-t-0 bg-surface/40">
+    <div className="overflow-hidden rounded-lg border border-border bg-surface/40">
       {step === "intro" && (
         <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
           <div className="max-w-2xl space-y-2 text-left">
@@ -399,7 +451,7 @@ function SecurityDemo() {
   };
 
   return (
-    <div className="border border-border border-t-0 bg-surface/40">
+    <div className="overflow-hidden rounded-lg border border-border bg-surface/40">
       {step === "intro" && (
         <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
           <div className="max-w-2xl space-y-2 text-left">
@@ -552,7 +604,7 @@ function CrucibleDemo() {
   }
 
   return (
-    <div className="border border-border border-t-0 bg-surface/40">
+    <div className="overflow-hidden rounded-lg border border-border bg-surface/40">
       {step === "start" && (
         <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
           <div className="max-w-2xl space-y-2 text-left">

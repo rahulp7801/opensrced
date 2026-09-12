@@ -97,10 +97,10 @@ ships a safe dependency. Both package lockfiles must remain committed.
 
 ## Acceptance evidence (September 12, 2026)
 
-Application commit `ac22586` passed the full GitHub CI and CodeQL workflows.
+Application commit `b3eda0b` passed the full GitHub CI and CodeQL workflows.
 The production acceptance evidence now includes:
 
-- 145 application tests, MCP tests, app/worker type checks, dependency audits,
+- 151 application tests, MCP tests, app/worker type checks, dependency audits,
   the real restricted Claude CLI, and the optimized production build.
 - The production Docker image built on a Linux runner, booted as its non-root
   user, reported every required runtime dependency healthy, and passed the HTTP
@@ -133,10 +133,15 @@ The production acceptance evidence now includes:
 - Full-history secret scanning passed; GitHub reported zero secret-scanning
   alerts. The real pinned Claude CLI exposed nine read-only MCP tools and no
   built-in tools in its restricted worker configuration.
-- The landing and discovery journeys were reviewed at desktop and mobile sizes
-  using the existing Geist and Phosphor design stack. The browser gate
-  covers the simplified discovery controls and the two-row mobile onboarding
-  prompt; the exact-head run reported an LCP of 420 ms and CLS of 0.035.
+- The landing, settings, and discovery journeys were reviewed at desktop and
+  mobile sizes using the existing Geist and Phosphor design stack. The browser
+  gate covers the discovery controls, help-dialog focus, and the mobile
+  onboarding prompt. The local optimized build reported an LCP of 1,428 ms and
+  CLS below 0.001; CI repeats the browser behavior and accessibility gates.
+- Hosted worker jobs use explicit input allowlists. Target-controlled install
+  and test commands cannot receive the PR workflow's GitHub or provider tokens
+  through their process environment. Repository tests remain disabled in the
+  hosted worker until the execution itself is isolated from the worker host.
 
 CI runs `smoke-session.mjs`, `smoke-browser.mjs`, `smoke-review.mjs`,
 `smoke-lists.mjs`, `smoke-graph-ui.mjs`, and the HTTP/graph/runtime checks.

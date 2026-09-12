@@ -231,6 +231,17 @@ try {
     await page.waitForURL('**/dispatches?dispatch=test-preview');
   }
   assert.equal(submissions.length, 3);
+  await page.goto(base + '/trigger');
+  const triggerInput = page.getByLabel('Repository', { exact: true });
+  await triggerInput.fill('https://github.com/acme/app/issues/1');
+  const triggerRequests = submissions.length;
+  const triggerResponse = page.waitForResponse(response => response.url().endsWith('/api/run/agentic'));
+  await page.getByRole('button', { name: 'Generate preview', exact: true }).click();
+  await page.getByRole('status').getByText('Starting an isolated worker. This can take up to 90 seconds.', { exact: true }).waitFor();
+  await triggerInput.press('Enter');
+  await triggerResponse;
+  assert.equal(submissions.length, triggerRequests + 1, 'pending trigger submissions must not duplicate');
+  await page.waitForURL('**/dispatches?dispatch=test-preview');
   console.log('Checking settings recovery');
   await page.goto(base + '/crucible?settings_load_failure=1');
   await page.getByText('Could not load settings.', { exact: true }).waitFor();

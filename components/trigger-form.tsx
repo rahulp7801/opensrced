@@ -48,6 +48,7 @@ export function TriggerForm() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (state.kind === "pending") return;
     if (!repoUrl.trim()) {
       setState({ kind: "err", message: "Please enter a GitHub repository URL" });
       return;
@@ -181,7 +182,7 @@ export function TriggerForm() {
           />
         </Row>
 
-        <div className="mt-4 flex items-center gap-4">
+        <div className="mt-4 flex flex-wrap items-center gap-4">
           <button
             type="submit"
             disabled={state.kind === "pending"}
@@ -221,6 +222,11 @@ export function TriggerForm() {
             <div className="text-[12px] text-alert flex items-center gap-1" role="alert">
               <span aria-hidden>x</span> {state.message}
             </div>
+          )}
+          {state.kind === "pending" && (
+            <p className="basis-full text-xs text-paper-muted" role="status">
+              Starting an isolated worker. This can take up to 90 seconds.
+            </p>
           )}
         </div>
       </form>

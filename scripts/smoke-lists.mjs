@@ -46,7 +46,7 @@ try {
   assert.equal(cursors[2], 'cursor+page/2==');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'repository controls fit mobile screens');
   await page.goto(base + '/prs');
-  await page.getByText('Fix an issue', { exact: true }).waitFor();
+  await page.getByRole('link', { name: /Fix an issue/ }).waitFor();
   await page.getByRole('tab', { name: /All PRs/ }).click();
   await settle();
   assert.equal(prs, 1, 'switching PR tabs reuses the loaded list');

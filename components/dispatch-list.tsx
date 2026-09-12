@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { StatusChip, StatusDot } from "./status-dot";
 import { IconExternal, IconTrigger } from "./icons";
@@ -213,10 +214,21 @@ export function DispatchList() {
   }
   if (items.length === 0) {
     return (
-      <div className="border border-border bg-surface/40 p-10 text-center">
-        <div className="serif text-[24px] text-paper">No runs yet.</div>
-        <p className="mt-2 text-[12px] text-paper-muted">
-          Start one from <a href="/trigger" className="text-signal hover:underline">New run</a>, or hit the command palette ({isMac() ? "⌘K" : "Ctrl K"}) and paste a repo URL.
+      <div className="border border-border bg-surface/40 px-6 py-10 text-center sm:px-10">
+        <h2 className="text-lg font-medium text-paper">No runs yet</h2>
+        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-paper-muted">
+          Start with a GitHub repository or issue. Preview mode lets you inspect the proposed patch before anything is published.
+        </p>
+        <div className="mt-5 flex flex-wrap justify-center gap-3">
+          <Link href="/trigger" className="inline-flex min-h-11 items-center rounded-md bg-signal px-4 py-2 text-sm font-medium text-ink hover:bg-signal-soft">
+            Start a run
+          </Link>
+          <Link href="/issues" className="inline-flex min-h-11 items-center rounded-md border border-border px-4 py-2 text-sm text-paper-dim hover:border-border-strong hover:text-paper">
+            Browse issues
+          </Link>
+        </div>
+        <p className="mt-4 text-xs text-paper-faint">
+          Shortcut: press {isMac() ? "⌘K" : "Ctrl K"} and paste a repository URL.
         </p>
       </div>
     );

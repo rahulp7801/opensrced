@@ -6,14 +6,13 @@ import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { graphHtmlPath, graphJsonPath } from "@/lib/graph";
 import { hasCrg } from "@/lib/graph-build";
-import { requireSession, sessionUserId } from "@/lib/require-session";
+import { sessionUserId } from "@/lib/require-session";
 import { sanitizeGitHubName } from "@/lib/sanitize";
 
-import { githubApi } from "@/lib/github-api";
-import { resolveGitHubToken } from "@/lib/github-token";
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { getStoredGraph } from "@/lib/graph-store";
 import { graphHtmlResponse } from "@/lib/graph-html";
+import { resolveRepositoryToken } from "@/lib/crucible/tokens";
 
 export const dynamic = "force-dynamic";
 
@@ -31,17 +30,17 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ owner: string; repo: string }> },
 ) {
-  const unauth = await requireSession();
-  if (unauth) return unauth;
+  const userId = await sessionUserId();
+  if (!userId) return Response.json({ error: "Not authenticated" }, { status: 401 });
 
   const raw = await params;
   const safe = safeParams(raw.owner, raw.repo);
   if (!safe) return new Response("Invalid repo", { status: 400 });
   const { owner, repo } = safe;
-  try { await githubApi(`/repos/${owner}/${repo}`, await resolveGitHubToken()); }
+  try { await resolveRepositoryToken(userId, `${owner}/${repo}`); }
   catch { return new Response("Repository not accessible", { status: 403 }); }
   if (cloudExecution()) {
-    const stored = await getStoredGraph((await sessionUserId())!, `${owner}/${repo}`);
+    const stored = await getStoredGraph(userId, `${owner}/${repo}`);
     return stored ? graphHtmlResponse(stored.html) : new Response("Graph not built", { status: 404 });
   }
   const htmlPath = graphHtmlPath(owner, repo);
@@ -108,18 +107,18 @@ export async function HEAD(
   _req: NextRequest,
   { params }: { params: Promise<{ owner: string; repo: string }> },
 ) {
-  const unauth = await requireSession();
-  if (unauth) return new Response(null, { status: 401 });
+  const userId = await sessionUserId();
+  if (!userId) return new Response(null, { status: 401 });
 
   const raw = await params;
   const safe = safeParams(raw.owner, raw.repo);
   if (!safe) return new Response(null, { status: 400 });
   const { owner, repo } = safe;
-  try { await githubApi(`/repos/${owner}/${repo}`, await resolveGitHubToken()); }
+  try { await resolveRepositoryToken(userId, `${owner}/${repo}`); }
   catch { return new Response("Repository not accessible", { status: 403 }); }
 
   if (cloudExecution()) {
-    const stored = await getStoredGraph((await sessionUserId())!, `${owner}/${repo}`);
+    const stored = await getStoredGraph(userId, `${owner}/${repo}`);
     return new Response(null, { status: stored ? 200 : 404, headers: { "X-Graph-Engine": "graphify", "Cache-Control": "private, no-store" } });
   }
   const hasGraphify = existsSync(graphHtmlPath(owner, repo)) || existsSync(graphJsonPath(owner, repo));

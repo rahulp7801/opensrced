@@ -22,14 +22,13 @@ import { promisify } from "node:util";
 
 import { sanitizeRepoId, sanitizeFilePath } from "@/lib/sanitize";
 import { childEnv } from "@/lib/child-env";
-import { resolveGitHubToken } from "@/lib/github-token";
 import { sessionUserId } from "@/lib/require-session";
 
 const execFileAsync = promisify(execFile);
 
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { getStoredGraph } from "@/lib/graph-store";
-import { githubApi } from "@/lib/github-api";
+import { resolveRepositoryToken } from "@/lib/crucible/tokens";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -216,8 +215,9 @@ export async function POST(req: NextRequest) {
   // ── 6. Blast radius analysis ─────────────────────────────────────────
   // Uses code-review-graph (preferred — defensive, capped traversal) or
   // graphify (fallback) to check downstream impact of the change.
+  let repositoryToken: string | null = null;
   if (body.repo) {
-    try { await githubApi(`/repos/${body.repo}`, await resolveGitHubToken()); }
+    try { repositoryToken = (await resolveRepositoryToken(userId, body.repo)).token ?? null; }
     catch { return Response.json({ error: "Repository not accessible" }, { status: 403 }); }
     if (cloudExecution()) {
       const stored = await getStoredGraph(userId, body.repo);
@@ -285,7 +285,7 @@ export async function POST(req: NextRequest) {
 
         // Clone as the requesting user — ensureGraph no longer falls back
         // to the host GITHUB_TOKEN or gh keychain.
-        const buildResult = await ensureGraph(m[1], m[2], await resolveGitHubToken());
+        const buildResult = await ensureGraph(m[1], m[2], repositoryToken);
         // Remove the "building" placeholder
         checks.pop();
 

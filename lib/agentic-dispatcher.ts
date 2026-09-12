@@ -60,7 +60,7 @@ export function pipeStreamJson(
         if (typeof evt.total_cost_usd === "number" && Number.isFinite(evt.total_cost_usd)) {
           out.write(`\n[agentic-dispatcher] total_cost_usd=${evt.total_cost_usd.toFixed(6)}\n`);
         }
-        if (evt.is_error || (evt.subtype && evt.subtype !== "success")) {
+        if (evt.is_error || (evt.subtype && evt.subtype !== "success") || (evt.stop_reason && evt.stop_reason !== "end_turn")) {
           state.failed = true;
           out.write("\n[agentic-dispatcher] Agent could not complete the task. Check provider access and the task budget.\n");
         } else state.complete = true;

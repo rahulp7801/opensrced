@@ -38,7 +38,7 @@ test("only completed agent output reaches the PR hook and persists a successful 
     });
     const { startFindingDispatch } = await import("../agentic-dispatcher");
     let lastId = "";
-    for (const result of [null, { type: "result", is_error: true }, { type: "result", subtype: "success", is_error: false }]) {
+    for (const result of [null, { type: "result", is_error: true }, { type: "result", subtype: "success", stop_reason: "max_tokens", is_error: false }, { type: "result", subtype: "success", stop_reason: "end_turn", is_error: false }]) {
       const dispatch = await startFindingDispatch("acme/app", { id: "test-finding", kind: "advisory", summary: "Test only" }, { auth0UserId: "test-owner", token: "test-user-token", anthropicKey: "test-provider-value" });
       lastId = dispatch.id;
       const worker = workers.at(-1)!;
@@ -46,7 +46,7 @@ test("only completed agent output reaches the PR hook and persists a successful 
       await once(worker.stdout, "end");
       worker.child.emit("close", 0, null);
       const record = JSON.parse(readFileSync(join(".dispatches", `${dispatch.id}.json`), "utf8"));
-      const successful = result?.is_error === false;
+      const successful = result?.is_error === false && result?.stop_reason === "end_turn";
       assert.equal(dispatch.status, successful ? "succeeded" : "failed");
       assert.equal(record.pr_status, successful ? "pending" : "none");
       assert.equal(publications, 0, "failed and truncated outputs cannot publish");

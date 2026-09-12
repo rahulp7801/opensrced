@@ -11,7 +11,7 @@ test("text streaming reports usage and releases capacity exactly once", async (t
     return providerStream([
       { type: "message_start", message: { usage: { input_tokens: 100 } } },
       { type: "content_block_delta", delta: { text: "A reply" } },
-      { type: "message_delta", usage: { output_tokens: 10 } },
+      { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 10 } },
       { type: "message_stop" },
     ]);
   });
@@ -44,4 +44,20 @@ test("cancelling the browser stream aborts the provider request and frees capaci
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(aborted, true);
   assert.equal(released, true);
+});
+
+test("token limits, refusals, missing stop reasons and empty answers cannot succeed", async t => {
+  for (const reason of ["max_tokens", "refusal", "tool_use", undefined, "end_turn"]) {
+    let releases = 0;
+    const mock = t.mock.method(globalThis, "fetch", async () => providerStream([
+      { type: "content_block_delta", delta: { text: reason === "end_turn" ? "  " : "Partial answer" } },
+      { type: "message_delta", delta: { stop_reason: reason } },
+      { type: "message_stop" },
+    ]));
+    const body = await anthropicStream("test-key", "system", "user", 300, new AbortController().signal, () => releases++).text();
+    assert.ok(body.includes('"error":'), String(reason));
+    assert.ok(!body.includes('"done":true'), String(reason));
+    assert.equal(releases, 1);
+    mock.mock.restore();
+  }
 });

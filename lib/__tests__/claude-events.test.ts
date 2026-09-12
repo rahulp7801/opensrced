@@ -19,3 +19,11 @@ test("provider failures are visible even when the CLI emits a result", () => {
 test("malformed and unrelated Claude events do not interrupt streaming", () => {
   for (const line of ["not json", "null", "{}", '{"type":"assistant","message":{"content":false}}']) assert.deepEqual(claudeEvents(line), []);
 });
+
+test("a successful CLI envelope does not hide an incomplete model stop", () => {
+  for (const stop_reason of ["max_tokens", "refusal", "tool_use"]) {
+    const events = claudeEvents(JSON.stringify({ type: "result", subtype: "success", stop_reason }));
+    assert.ok(events.some(event => typeof event.error === "string"));
+    assert.ok(!events.some(event => event.done));
+  }
+});

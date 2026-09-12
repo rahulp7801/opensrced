@@ -16,7 +16,7 @@ export function claudeEvents(line: string): Record<string, unknown>[] {
     }
     if (event.type === "result") {
       if (typeof event.total_cost_usd === "number" && Number.isFinite(event.total_cost_usd)) events.push({ cost: event.total_cost_usd });
-      if (event.is_error || (event.subtype && event.subtype !== "success")) events.push({ error: "Exploration could not complete. Check provider access and retry." });
+      if (event.is_error || (event.subtype && event.subtype !== "success") || (event.stop_reason && event.stop_reason !== "end_turn")) events.push({ error: "Exploration could not complete. Check provider access and retry." });
       else events.push({ done: true });
     }
     return events;

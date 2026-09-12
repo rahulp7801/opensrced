@@ -36,25 +36,29 @@ export default async function CruciblePage({
   const orgs = user?.sub ? await listOrgsFor(user.sub) : [];
 
   return (
-    <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 py-6">
+    <div className="mx-auto w-full max-w-[1000px] px-5 sm:px-8 py-10">
       <PageHeading
         title={<>Settings</>}
         description={
           <>
-            Manage API keys, connect GitHub organizations for private repo scanning,
-            and configure your account. API keys are encrypted in your browser — never stored on our servers.
+            Configure AI providers, set a run budget, and manage access to private repositories.
           </>
         }
       />
 
-      <div className="mt-6 flex items-center justify-between gap-3 text-[12px] text-paper-muted">
+      <section className="mt-6 grid gap-6 border-t border-border pt-8 md:grid-cols-[240px_1fr] md:gap-10" aria-labelledby="provider-heading">
+        <div><h2 id="provider-heading" className="text-lg font-medium">AI providers &amp; budget</h2><p className="mt-2 text-sm leading-6 text-paper-muted">Bring your own keys. Configure the providers needed for the features you use.</p><p className="mt-4 text-xs leading-5 text-paper-muted">Keys are encrypted in account-bound browser cookies and used server-side to contact your provider.</p></div>
+        <ApiKeysForm />
+      </section>
+
+      <div className="mt-6 flex items-center justify-between gap-3 text-sm text-paper-muted">
         <div>
-          signed in as{" "}
-          <span className="text-paper">{user?.name || user?.email || "(unknown)"}</span>
+          Account:{" "}
+          <span className="text-paper">{user?.name || user?.email || "GitHub account"}</span>
         </div>
         <Link
           href="/api/crucible/connect"
-          className="border border-border bg-surface/60 px-3 py-1.5 text-[12px] text-paper hover:bg-surface"
+          className="border border-border bg-surface/60 px-3 py-1.5 text-sm text-paper hover:bg-surface"
         >
           Connect GitHub Org
         </Link>
@@ -67,13 +71,10 @@ export default async function CruciblePage({
       )}
 
       <section className="mt-6">
-        <div className="mono-label text-paper-muted">verified orgs</div>
+        <h2 className="text-lg font-medium">GitHub organizations</h2>
         {orgs.length === 0 ? (
-          <div className="mt-2 border border-border bg-surface/40 p-6 text-[12.5px] text-paper-dim leading-relaxed">
-            No orgs connected yet. Click <span className="text-paper">Connect GitHub Org</span>{" "}
-            to install the <code>opensrcer-crucible</code> GitHub App on an
-            organization you administer. After install, GitHub will redirect
-            you back here and the org will appear below.
+          <div className="mt-3 rounded-lg border border-border bg-surface p-6 text-sm text-paper-dim leading-relaxed">
+            No organizations connected. Connect an organization you administer to scan private repositories. Public repository workflows do not need this connection.
           </div>
         ) : (
           <ul className="mt-2 divide-y divide-border-soft border border-border bg-surface/40">
@@ -90,7 +91,7 @@ export default async function CruciblePage({
                   <DisconnectButton org={o.github_org} />
                   <Link
                     href={`/crucible/orgs/${o.github_org}`}
-                    className="text-[12px] text-paper-dim hover:text-paper"
+                    className="text-sm text-paper-dim hover:text-paper"
                   >
                     open →
                   </Link>
@@ -101,16 +102,9 @@ export default async function CruciblePage({
         )}
       </section>
 
-      <section className="mt-8">
-        <div className="mono-label text-paper-muted">api keys</div>
-        <div className="mt-2 border border-border bg-surface/40 p-4">
-          <ApiKeysForm />
-        </div>
-      </section>
-
       <section className="mt-12 pt-6 border-t border-border-soft">
-        <div className="mono-label text-paper-muted">danger zone</div>
-        <div className="mt-2 text-[12px] text-paper-dim leading-relaxed max-w-xl">
+        <h2 className="text-lg font-medium">Disconnect account</h2>
+        <div className="mt-2 text-sm text-paper-dim leading-relaxed max-w-xl">
           Permanently disconnect all organizations, revoke all cached tokens,
           and sign out. Your GitHub OAuth authorization will remain active
           until you revoke it at{" "}

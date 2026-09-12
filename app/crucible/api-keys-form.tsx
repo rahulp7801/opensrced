@@ -88,38 +88,28 @@ export function ApiKeysForm() {
   }
 
   return (
-    <div className="space-y-5">
-      {/* Security explainer */}
-      <div className="border border-border-soft bg-ink/40 p-3 text-[11px] text-paper-faint leading-relaxed space-y-1.5">
-        <div className="text-[11.5px] text-paper-muted font-medium">How your keys are protected</div>
-        <ul className="space-y-1 list-disc list-inside">
-          <li>Keys are <span className="text-paper-dim">encrypted (AES-256-GCM)</span> and stored in a browser cookie — never in a database or on disk</li>
-          <li>When you click &quot;deep solve&quot;, the server decrypts the key <span className="text-paper-dim">in memory only</span> to call Claude/Gemini, then discards it</li>
-          <li>Keys are <span className="text-paper-dim">never logged</span>, never transmitted to any third party beyond the AI provider you chose</li>
-          <li>Cookie is httpOnly (invisible to JavaScript) and encrypted (unreadable without the server secret)</li>
-          <li>Cleared instantly when you sign out or click &quot;Clear&quot;</li>
-        </ul>
-      </div>
-
+    <div className="space-y-7">
       {/* Anthropic key */}
       <div className="space-y-2">
-        <div className="flex items-center gap-2 text-[12px]">
-          <span className="text-paper-muted">Anthropic API key</span>
+        <div className="flex items-center gap-2 text-sm">
+          <label htmlFor="anthropic-key" className="font-medium text-paper">Anthropic API key</label>
           {status === null ? (
             <span className="text-paper-faint text-[11px]">loading…</span>
           ) : status.anthropic ? (
-            <span className="text-[10.5px] text-ok border border-ok/30 px-1.5 py-0.5">configured</span>
+            <span className="text-xs text-ok border border-ok/30 px-1.5 py-0.5">configured</span>
           ) : (
-            <span className="text-[10.5px] text-alert border border-alert/30 px-1.5 py-0.5">required</span>
+            <span className="text-xs text-alert border border-alert/30 px-1.5 py-0.5">required</span>
           )}
         </div>
         <div className="flex gap-2">
           <input
             type="password"
+            id="anthropic-key"
+            aria-describedby="anthropic-help"
             value={anthropicInput}
             onChange={(e) => setAnthropicInput(e.target.value)}
             placeholder={status?.anthropic ? "••••••• (replace)" : "sk-ant-api03-..."}
-            className="flex-1 min-w-0 bg-ink border border-border px-2.5 py-1.5 text-[12px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/60"
+            className="flex-1 min-w-0 bg-ink border border-border rounded-md px-3 py-3 text-base text-paper placeholder:text-paper-faint focus:border-signal"
             autoComplete="off"
             spellCheck={false}
           />
@@ -154,7 +144,7 @@ export function ApiKeysForm() {
             )
           )}
         </div>
-        <div className="text-[10.5px] text-paper-faint">
+        <div id="anthropic-help" className="text-xs leading-5 text-paper-muted">
           Required for agentic dispatches. Get one at{" "}
           <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" className="underline hover:text-paper-muted">
             console.anthropic.com
@@ -164,23 +154,25 @@ export function ApiKeysForm() {
 
       {/* Gemini key */}
       <div className="space-y-2">
-        <div className="flex items-center gap-2 text-[12px]">
-          <span className="text-paper-muted">Gemini API key</span>
+        <div className="flex items-center gap-2 text-sm">
+          <label htmlFor="gemini-key" className="font-medium text-paper">Gemini API key</label>
           {status === null ? (
             <span className="text-paper-faint text-[11px]">loading…</span>
           ) : status.gemini ? (
-            <span className="text-[10.5px] text-ok border border-ok/30 px-1.5 py-0.5">configured</span>
+            <span className="text-xs text-ok border border-ok/30 px-1.5 py-0.5">configured</span>
           ) : (
-            <span className="text-[10.5px] text-alert border border-alert/30 px-1.5 py-0.5">required</span>
+            <span className="text-xs text-paper-muted px-1.5 py-0.5">not configured</span>
           )}
         </div>
         <div className="flex gap-2">
           <input
             type="password"
+            id="gemini-key"
+            aria-describedby="gemini-help"
             value={geminiInput}
             onChange={(e) => setGeminiInput(e.target.value)}
             placeholder={status?.gemini ? "••••••• (replace)" : "AIza..."}
-            className="flex-1 min-w-0 bg-ink border border-border px-2.5 py-1.5 text-[12px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/60"
+            className="flex-1 min-w-0 bg-ink border border-border rounded-md px-3 py-3 text-base text-paper placeholder:text-paper-faint focus:border-signal"
             autoComplete="off"
             spellCheck={false}
           />
@@ -215,24 +207,25 @@ export function ApiKeysForm() {
             )
           )}
         </div>
-        <div className="text-[10.5px] text-paper-faint">
-          Required for patch review and advisory analysis. Get one at{" "}
+        <div id="gemini-help" className="text-xs leading-5 text-paper-muted">
+          Used for patch review and advisory analysis. Get one at{" "}
           <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="underline hover:text-paper-muted">
             aistudio.google.com
           </a>
         </div>
       </div>
 
-      {/* Max spend per task */}
+      {/* Agent budget per run */}
       <div className="space-y-2">
-        <div className="text-[12px] text-paper-muted">Max spend per task</div>
+        <div className="text-sm font-medium text-paper">Agent budget per run</div>
         <div className="flex flex-wrap gap-1.5">
           {SPEND_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               type="button"
               onClick={() => setMaxSpend(opt.value)}
-              className={`text-[11.5px] px-2.5 py-1 border transition ${
+              aria-pressed={maxSpend === opt.value}
+              className={`text-sm min-h-11 rounded-md px-3 py-2 border transition ${
                 maxSpend === opt.value
                   ? "border-signal/60 bg-signal/10 text-signal"
                   : "border-border bg-surface/40 text-paper-muted hover:border-border-strong"
@@ -242,24 +235,23 @@ export function ApiKeysForm() {
             </button>
           ))}
         </div>
-        <div className="text-[10.5px] text-paper-faint">
-          Hard cap on Anthropic API spend for a single agentic dispatch.
-          Claude stops cleanly when the limit is reached.
+        <div className="text-xs text-paper-faint">
+          Applies to a single Claude agent run. Review, chat, and other provider calls are billed separately.
         </div>
       </div>
 
       {/* Save */}
-      <div className="flex items-center gap-3 pt-1">
+      <div className="flex flex-wrap items-center gap-3 pt-1">
         <button
           type="button"
           onClick={save}
           disabled={saving}
-          className="text-[12px] text-paper border border-border bg-surface/60 hover:bg-surface px-4 py-1.5 disabled:opacity-50"
+          className="min-h-12 rounded-md bg-signal px-5 py-3 text-sm font-medium text-ink hover:bg-signal-soft disabled:opacity-50"
         >
           {saving ? "Saving…" : "Save settings"}
         </button>
         {message && (
-          <span className={`text-[11px] ${message.ok ? "text-ok" : "text-alert"}`}>
+          <span role="status" className={`text-sm ${message.ok ? "text-ok" : "text-alert"}`}>
             {message.text}
           </span>
         )}

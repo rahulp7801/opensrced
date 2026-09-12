@@ -18,10 +18,10 @@ function SignedIn({ children }: { children: ReactNode }) {
   if (user) return children;
   const returnTo = path + (params.size ? `?${params.toString()}` : "");
   return (
-    <section className="m-auto max-w-lg px-6 py-16 text-center">
-      <h1 className="serif text-3xl text-paper">{isLoading ? "Checking sign-in..." : "Sign in to continue"}</h1>
+    <section className="m-auto w-full max-w-lg px-6 py-20">
+      <h1 className="text-3xl font-semibold tracking-tight text-paper">{isLoading ? "Checking sign-in..." : "Sign in to continue"}</h1>
       <p className="mt-4 text-sm text-paper-muted">Connect your GitHub account to browse repositories, start runs, and view your activity.</p>
-      <Link href={`/login?returnTo=${encodeURIComponent(returnTo)}`} className="mt-6 inline-block border border-signal bg-signal/10 px-5 py-3 text-sm text-paper">Sign in with GitHub</Link>
+      <Link href={`/login?returnTo=${encodeURIComponent(returnTo)}`} className="mt-6 inline-flex min-h-12 items-center rounded-md bg-signal px-5 py-3 text-sm font-medium text-ink hover:bg-signal-soft">Sign in with GitHub</Link>
       <p className="mt-4"><Link href="/demo" className="text-sm text-paper-muted underline">Try the interactive demo</Link></p>
     </section>
   );

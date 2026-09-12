@@ -15,18 +15,18 @@ export function SiteHeader() {
       {/* Stickiness lives on the wrapper in app/layout.tsx, which pins this
           header and the section tab bar together. */}
       <header className="border-b border-border bg-ink/85 backdrop-blur-md">
-        <div className="flex items-stretch w-full">
+        <div className="flex items-stretch w-full min-h-16 max-w-[1440px] mx-auto">
           <Link
             href={user ? "/discover" : "/"}
-            className="group flex items-center gap-3 border-r border-border px-5 py-3 shrink-0"
+            className="group flex items-center gap-2.5 px-3 sm:px-6 py-3 shrink-0"
           >
             <Mark />
-            <span className="serif text-[20px] text-paper tracking-tight whitespace-nowrap">
+            <span className={`${user ? "hidden md:inline" : ""} text-[20px] font-semibold text-paper tracking-[-0.04em] whitespace-nowrap`}>
               opensrcer
             </span>
           </Link>
 
-          {user && <Nav />}
+          {user ? <Nav /> : <nav aria-label="Main navigation" className="ml-auto flex items-center gap-5 px-4 text-sm"><Link href="/demo" className="text-paper-dim hover:text-paper">Demo</Link></nav>}
 
           {user && (
             <button

@@ -86,9 +86,11 @@ try {
   assert.equal(submissions.length, 3);
   console.log('Checking settings recovery');
   await page.goto(base + '/crucible');
-  const keyInput = page.locator('input[type="password"]').first();
+  const keyInput = page.getByLabel('Anthropic API key', { exact: true });
+  await page.getByLabel('Gemini API key', { exact: true }).waitFor();
   await keyInput.fill('test-replacement-value');
   await page.getByRole('button', { name: '$0.10', exact: true }).click();
+  assert.equal(await page.getByRole('button', { name: '$0.10', exact: true }).getAttribute('aria-pressed'), 'true');
   await page.getByRole('button', { name: 'Save settings', exact: true }).click();
   await page.getByText('Settings rejected for test.', { exact: true }).waitFor();
   assert.equal(await keyInput.inputValue(), 'test-replacement-value', 'failed saves preserve the input');

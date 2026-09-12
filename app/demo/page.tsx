@@ -16,19 +16,19 @@ export default function DemoPage() {
   const [activeDemo, setActiveDemo] = useState<DemoKey>("dispatch");
   return (
     <div className="mx-auto w-full max-w-[1100px] px-4 sm:px-6 py-10">
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center gap-2 border border-border bg-surface/40 px-3 py-1 text-[11px] text-paper-muted mb-6">
+      <div className="text-left mb-10">
+        <div className="inline-flex items-center gap-2 text-[12px] text-paper-dim mb-4">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-signal" />
           interactive demo — no API key required
         </div>
-        <h1 className="serif text-[36px] text-paper tracking-tight">See opensrcer in action</h1>
-        <p className="mt-3 text-[13px] text-paper-dim max-w-lg mx-auto">
-          Four interactive demos. Click through each step — no API calls, no cost.
+        <h1 className="text-[36px] sm:text-[44px] leading-tight font-semibold text-paper tracking-[-0.04em]">See opensrcer in action</h1>
+        <p className="mt-3 text-[15px] text-paper-dim max-w-xl">
+          Four simulated workflows with example results. Click through each step — no API calls, no cost.
         </p>
       </div>
-      <div className="flex border-b border-border mb-0">
+      <div className="flex overflow-x-auto border-b border-border mb-0">
         {DEMOS.map((d) => (
-          <button key={d.key} onClick={() => setActiveDemo(d.key)} className={cn("px-4 py-2.5 text-[12px] transition relative", activeDemo === d.key ? "text-paper" : "text-paper-muted hover:text-paper-dim")}>
+          <button key={d.key} onClick={() => setActiveDemo(d.key)} className={cn("shrink-0 px-4 py-3 text-[13px] font-medium transition relative", activeDemo === d.key ? "text-paper" : "text-paper-muted hover:text-paper-dim")}>
             {d.label}
             {activeDemo === d.key && <span className="absolute inset-x-0 -bottom-px h-px bg-signal" />}
           </button>
@@ -124,7 +124,7 @@ function DispatchDemo() {
       {step === "intro" && (
         <div className="p-6 text-center space-y-4">
           <div className="text-[14px] text-paper">Bug fix pipeline</div>
-          <p className="text-[12px] text-paper-dim max-w-md mx-auto">Watch the agent find a SQL injection vulnerability, generate a parameterized-query fix, run the test suite, and open a verified draft PR.</p>
+          <p className="text-[12px] text-paper-dim max-w-md mx-auto">Walk through an example diagnosis, patch, and draft pull request. Check results shown here are simulated; hosted runs do not execute repository tests.</p>
           <button onClick={() => setStep("issue")} className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-2 text-[12px] transition">Start walkthrough →</button>
         </div>
       )}

@@ -10,13 +10,13 @@ export function PageHeading({
   actions?: React.ReactNode;
 }) {
   return (
-    <header className="flex flex-wrap items-center justify-between gap-4">
+    <header className="flex flex-wrap items-center justify-between gap-4 pb-6">
       <div className="min-w-0">
-        <h1 className="serif text-[26px] leading-tight tracking-tight text-paper">
+        <h1 className="text-[30px] font-semibold leading-tight tracking-[-0.035em] text-paper">
           {title}
         </h1>
         {description && (
-          <p className="mt-1 text-[12.5px] text-paper-dim leading-snug max-w-3xl">
+          <p className="mt-2 text-[14px] text-paper-dim leading-relaxed max-w-2xl">
             {description}
           </p>
         )}

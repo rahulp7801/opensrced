@@ -101,7 +101,7 @@ ships a safe dependency. Both package lockfiles must remain committed.
 
 The production acceptance evidence on the current main branch includes:
 
-- 153 application tests, MCP tests, app/worker type checks, dependency audits,
+- 154 application tests, MCP tests, app/worker type checks, dependency audits,
   the real restricted Claude CLI, and the optimized production build.
 - The production Docker image built on a Linux runner, booted as its non-root
   user, reported every required runtime dependency healthy, and passed the HTTP

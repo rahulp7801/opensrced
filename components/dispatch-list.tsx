@@ -455,14 +455,17 @@ function RetryButton({ dispatch }: { dispatch: DispatchWithLog }) {
           issue_number: dispatch.issue_number,
           dry_run: dispatch.dry_run,
         }),
+        signal: AbortSignal.timeout(90_000),
       });
       const json = (await res.json().catch(() => ({}))) as { dispatch_id?: string; message?: string; error?: string };
       if (!res.ok || !json.dispatch_id) throw new Error(json.message ?? json.error ?? "Could not restart this run.");
       if (json.dispatch_id) {
-        window.location.href = `/dispatches?dispatch=${json.dispatch_id}`;
+        window.location.href = `/dispatches?dispatch=${encodeURIComponent(json.dispatch_id)}`;
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(e instanceof Error && e.name === "TimeoutError"
+        ? "Restarting the run timed out. Please try again."
+        : e instanceof Error ? e.message : String(e));
     } finally {
       setPending(false);
     }

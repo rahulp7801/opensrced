@@ -62,6 +62,7 @@ export function TriggerForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ repo_url: target.repo, issue_number: target.issue, dry_run: dryRun, notes }),
+        signal: AbortSignal.timeout(90_000),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message ?? data?.error ?? `HTTP ${res.status}`);
@@ -95,7 +96,9 @@ export function TriggerForm() {
         }, 1500);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = err instanceof Error && err.name === "TimeoutError"
+        ? "Starting the run timed out. Please try again."
+        : err instanceof Error ? err.message : String(err);
       setState({ kind: "err", message: friendlyError(msg) });
       toast(friendlyError(msg), "alert");
       setLog((prev) =>

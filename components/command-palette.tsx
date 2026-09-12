@@ -159,17 +159,20 @@ export function CommandPalette() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ repo_url: target.repo, issue_number: target.issue, dry_run: dry }),
+        signal: AbortSignal.timeout(90_000),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message ?? data?.error ?? `HTTP ${res.status}`);
       if (data.dispatch_id) {
         setDispatchId(data.dispatch_id);
-        setStatus(`● spawned — pid pipeline running`);
+        setStatus("Run started. Open the live view to follow progress.");
       } else {
-        setStatus(`✓ ${data.message ?? "queued"} — (no local dispatcher)`);
+        setStatus(data.message ?? "Run queued.");
       }
     } catch (err) {
-      setStatus(`✗ ${err instanceof Error ? err.message : String(err)}`);
+      setStatus(err instanceof Error && err.name === "TimeoutError"
+        ? "Starting the run timed out. Please try again."
+        : err instanceof Error ? err.message : String(err));
     } finally {
       setPending(false);
     }

@@ -72,13 +72,16 @@ export function DraftPreview({
           issue_number: selectedIssue,
           dry_run: false,
         }),
+        signal: AbortSignal.timeout(90_000),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message ?? data?.error ?? `HTTP ${res.status}`);
       setResult({ tone: "ok", msg: `Live run queued. Navigating to dispatch…` });
       router.push(`/dispatches?dispatch=${encodeURIComponent(data.dispatch_id)}`);
     } catch (e) {
-      setResult({ tone: "alert", msg: e instanceof Error ? e.message : String(e) });
+      setResult({ tone: "alert", msg: e instanceof Error && e.name === "TimeoutError"
+        ? "Starting the run timed out. Please try again."
+        : e instanceof Error ? e.message : String(e) });
     } finally {
       setSubmitting(false);
     }

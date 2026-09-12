@@ -137,12 +137,15 @@ export function IssueScanner() {
           issue_number: n,
           dry_run: dryRun,
         }),
+        signal: AbortSignal.timeout(90_000),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message ?? data?.error ?? `HTTP ${res.status}`);
       router.push(`/dispatches?dispatch=${encodeURIComponent(data.dispatch_id)}`);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(e instanceof Error && e.name === "TimeoutError"
+        ? "Starting the run timed out. Please try again."
+        : e instanceof Error ? e.message : String(e));
     } finally {
       setDispatchingNumber(null);
     }

@@ -59,6 +59,7 @@ export function SolveButton({
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(90_000),
       });
       const json = (await res.json().catch(() => ({}))) as {
         status?: string;
@@ -70,7 +71,9 @@ export function SolveButton({
       }
       router.push(`/dispatches?dispatch=${json.dispatch_id}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(e instanceof Error && e.name === "TimeoutError"
+        ? "Starting the run timed out. Please try again."
+        : e instanceof Error ? e.message : String(e));
       setState("error");
     }
   }

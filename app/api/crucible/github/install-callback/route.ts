@@ -28,6 +28,7 @@ import { getGitHubTokenFromSession } from "@/lib/github-token";
 import { auth0 } from "@/lib/auth0";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 function redirectToCrucible(req: NextRequest, err?: string) {
   const url = new URL("/crucible", req.url);
@@ -69,7 +70,7 @@ async function verifyOrgAdmin(
   // read:org; 404 means the caller simply isn't a member.
   const memRes = await fetch(
     `https://api.github.com/user/memberships/orgs/${encodeURIComponent(org)}`,
-    { headers },
+    { headers, signal: AbortSignal.timeout(15_000), redirect: "error", cache: "no-store" },
   );
   if (memRes.status === 403) return { ok: false, reason: "missing_read_org_scope" };
   if (memRes.status === 404) return { ok: false, reason: "not_a_member_of_org" };
@@ -129,17 +130,22 @@ export async function GET(req: NextRequest) {
 
   // Installation metadata — which org is this? App JWT is the right
   // credential for /app/installations/:id.
-  const metaRes = await fetch(
-    `https://api.github.com/app/installations/${installationId}`,
-    {
-      signal: AbortSignal.timeout(15_000), redirect: "error", cache: "no-store",
-      headers: {
-        Authorization: `Bearer ${appJwt()}`,
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-    }
-  );
+  let metaRes: Response;
+  try {
+    metaRes = await fetch(
+      `https://api.github.com/app/installations/${installationId}`,
+      {
+        signal: AbortSignal.timeout(15_000), redirect: "error", cache: "no-store",
+        headers: {
+          Authorization: `Bearer ${appJwt()}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+      }
+    );
+  } catch {
+    return redirectToCrucible(req, "install_lookup_unavailable");
+  }
   if (!metaRes.ok) {
     return redirectToCrucible(req, `install_lookup_failed_${metaRes.status}`);
   }
@@ -164,29 +170,43 @@ export async function GET(req: NextRequest) {
   if (!userToken) {
     return redirectToCrucible(req, "no_github_identity");
   }
-  const admin = await verifyOrgAdmin(githubOrg, userToken);
+  let admin: Awaited<ReturnType<typeof verifyOrgAdmin>>;
+  try {
+    admin = await verifyOrgAdmin(githubOrg, userToken);
+  } catch {
+    return redirectToCrucible(req, "membership_lookup_unavailable");
+  }
   if (!admin.ok) {
     return redirectToCrucible(req, admin.reason);
   }
 
   // Warm the token cache and confirm the install actually selected repos —
   // a zero-repo install would make the mapping useless.
-  await getInstallationToken(installationId);
-  const probe = await installationFetch(
-    installationId,
-    "https://api.github.com/installation/repositories?per_page=1"
-  );
+  let probe: Response;
+  try {
+    await getInstallationToken(installationId);
+    probe = await installationFetch(
+      installationId,
+      "https://api.github.com/installation/repositories?per_page=1"
+    );
+  } catch {
+    return redirectToCrucible(req, "repo_probe_unavailable");
+  }
   if (!probe.ok) {
     return redirectToCrucible(req, `repo_probe_failed_${probe.status}`);
   }
 
-  await saveMapping({
-    auth0_user_id: parsed.sub,
-    github_org: githubOrg,
-    installation_id: installationId,
-    installer: admin.login,
-    verified_at: new Date().toISOString(),
-  });
+  try {
+    await saveMapping({
+      auth0_user_id: parsed.sub,
+      github_org: githubOrg,
+      installation_id: installationId,
+      installer: admin.login,
+      verified_at: new Date().toISOString(),
+    });
+  } catch {
+    return redirectToCrucible(req, "connection_storage_unavailable");
+  }
 
   return redirectToCrucible(req);
 }

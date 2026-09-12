@@ -17,8 +17,27 @@ const CONNECT_ERRORS: Record<string, string> = {
   missing_state_cookie: "Install state cookie was missing — start the connect flow from this page.",
   bad_state_cookie: "Install state cookie was malformed.",
   state_mismatch: "Install state didn't match — possible CSRF attempt, please retry.",
+  state_expired: "The GitHub connection window expired. Start the connection again.",
+  session_mismatch: "Your sign-in changed during setup. Sign in again, then reconnect the organization.",
   not_an_org_install: "That installation was on a personal account. Crucible needs an Organization install.",
+  no_github_identity: "GitHub access is missing from this session. Sign out and continue with GitHub again.",
+  missing_read_org_scope: "GitHub did not grant organization access. Sign out, continue with GitHub again, and approve organization access.",
+  not_a_member_of_org: "Your GitHub account is not an active member of that organization.",
+  org_membership_not_active: "Your GitHub organization membership is not active.",
+  not_an_org_admin: "Only a GitHub organization administrator can connect this installation.",
+  install_lookup_unavailable: "GitHub did not respond while checking the installation. Please retry.",
+  membership_lookup_unavailable: "GitHub did not respond while checking your organization role. Please retry.",
+  repo_probe_unavailable: "GitHub did not respond while checking repository access. Please retry.",
+  connection_storage_unavailable: "The verified connection could not be saved. Please retry.",
 };
+
+function connectErrorMessage(key: string): string {
+  if (CONNECT_ERRORS[key]) return CONNECT_ERRORS[key];
+  if (key.startsWith("install_lookup_failed_")) return "GitHub could not verify that installation. Check the installation and retry.";
+  if (key.startsWith("membership_lookup_failed_")) return "GitHub could not verify your organization role. Check your access and retry.";
+  if (key.startsWith("repo_probe_failed_")) return "The GitHub App cannot access a selected repository. Review its repository access and retry.";
+  return "The GitHub organization connection failed. Please try again.";
+}
 
 export default async function CruciblePage({
   searchParams,
@@ -30,7 +49,7 @@ export default async function CruciblePage({
   const params = await searchParams;
   const connectErrorKey = params?.connect_error;
   const connectError = connectErrorKey
-    ? CONNECT_ERRORS[connectErrorKey] || `Connect failed: ${connectErrorKey}`
+    ? connectErrorMessage(connectErrorKey)
     : null;
 
   const orgs = user?.sub ? await listOrgsFor(user.sub) : [];

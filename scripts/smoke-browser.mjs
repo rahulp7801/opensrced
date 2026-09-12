@@ -133,10 +133,12 @@ try {
   page.on('pageerror', error => interactionErrors.push(error.message));
   const onboardingOrgRequests = [];
   const connectRequests = [];
+  const suggestionRequests = [];
   page.on('request', request => {
     const path = new URL(request.url()).pathname;
     if (path === '/api/crucible/orgs') onboardingOrgRequests.push(request.url());
     if (path === '/api/crucible/connect') connectRequests.push(request.url());
+    if (path === '/api/issues/suggested') suggestionRequests.push(request.url());
   });
   await page.route('**/auth/profile', route => route.fulfill({ json: { sub: 'test-user', name: 'Test User' } }));
   const run = { id: 'test-preview', repo_url: 'https://github.com/acme/app', mode: 'agentic', dry_run: true, issue_number: 1, started_at: new Date().toISOString(), status: 'failed', log: '', log_size: 0 };
@@ -231,6 +233,11 @@ try {
     await page.waitForURL('**/dispatches?dispatch=test-preview');
   }
   assert.equal(submissions.length, 3);
+  await page.goto(base + '/issues');
+  const suggestionResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/issues/suggested' && new URL(response.url()).searchParams.get('languages')?.includes('javascript'));
+  await page.getByRole('button', { name: 'javascript', exact: true }).click();
+  await suggestionResponse;
+  assert.ok(new URL(suggestionRequests.at(-1)).searchParams.get('languages')?.includes('javascript'), 'language changes must refresh suggested issues');
   await page.goto(base + '/trigger');
   await page.getByRole('heading', { name: 'Before you start', exact: true }).waitFor();
   assert.equal(await page.getByText('No runs yet.', { exact: false }).count(), 0, 'new-run page must not show ephemeral history');

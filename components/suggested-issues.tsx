@@ -43,7 +43,14 @@ export function SuggestedIssues() {
 
   function fetchIssues(force = false) {
     stopRequest.current?.();
-    if (selectedLangs.length === 0) { setLoading(false); return; }
+    if (selectedLangs.length === 0) {
+      setIssues([]);
+      setFilteredOut(0);
+      setPartial(false);
+      setError(null);
+      setLoading(false);
+      return;
+    }
 
     // Cache key: stable across language order (sort), unique per tag mode.
     const key = `${tags}|${[...selectedLangs].sort().join(",")}`;
@@ -81,7 +88,7 @@ export function SuggestedIssues() {
     fetchIssues();
     return () => stopRequest.current?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tags]); // Refetch when the tag mode changes; languages still need explicit refresh
+  }, [tags, selectedLangs]);
 
   return (
     <div className="border border-border bg-surface/40">
@@ -186,7 +193,9 @@ export function SuggestedIssues() {
 
             {!loading && issues.length === 0 && !error && (
               <div className="px-4 py-6 text-center text-[12px] text-paper-muted">
-                No issues found. Try selecting different languages.
+                {selectedLangs.length === 0
+                  ? "Choose at least one language."
+                  : "No issues found. Try selecting different languages."}
               </div>
             )}
 

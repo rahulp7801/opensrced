@@ -26,7 +26,7 @@ import { registerDispatch, type Dispatch } from "./dispatcher";
 import { patch, persist } from "./dispatch-store";
 import { createDraftPrFromLog } from "./agentic-pr";
 import { classifyScope, type ScopeInfo } from "./scope";
-import { sanitizeForPrompt } from "./sanitize";
+import { sanitizeForPrompt, sanitizeLogValue } from "./sanitize";
 import { childEnv } from "./child-env";
 import { reserveSlot } from "./concurrency";
 
@@ -623,9 +623,9 @@ async function spawnDispatch(
             geminiKey: opts.geminiKey,
           });
           const line = result.ok
-            ? `[agentic-pr] opened draft PR: ${result.url}\n` +
-              `[agentic-pr] head: ${result.branch}  →  base: ${result.base.branch} (${result.base.confidence} confidence — ${result.base.reason})\n`
-            : `[agentic-pr] skipped: ${result.reason}\n`;
+            ? `[agentic-pr] opened draft PR: ${sanitizeLogValue(result.url)}\n` +
+              `[agentic-pr] head: ${sanitizeLogValue(result.branch, 200)}  →  base: ${sanitizeLogValue(result.base.branch, 200)} (${sanitizeLogValue(result.base.confidence, 20)} confidence — ${sanitizeLogValue(result.base.reason)})\n`
+            : `[agentic-pr] skipped: ${sanitizeLogValue(result.reason)}\n`;
           await appendFile(logPath, line).catch(() => {});
           patch(id, result.ok
             ? { pr_status: "opened", pr_url: result.url, tests: result.tests }
@@ -635,7 +635,7 @@ async function spawnDispatch(
                 tests: result.tests,
               });
         } catch (e) {
-          const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+          const msg = sanitizeLogValue(e instanceof Error ? `${e.name}: ${e.message}` : e);
           await appendFile(logPath, `[agentic-pr] unexpected error: ${msg}\n`).catch(() => {});
           patch(id, { pr_status: "failed", pr_failure_reason: msg.slice(0, 500) });
         } finally {

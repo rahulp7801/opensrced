@@ -95,6 +95,16 @@ export function sanitizeCommitMessage(input: string): string {
     .trim() || "address review feedback";
 }
 
+/** Keep one untrusted value from forging additional structured log lines. */
+export function sanitizeLogValue(input: unknown, maxLength = 500): string {
+  return String(input ?? "")
+    .replace(/[\x00-\x1F\x7F]/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+    .slice(0, maxLength)
+    .trim();
+}
+
 /**
  * Sanitize a PR number.
  */

@@ -26,6 +26,7 @@ import { GEMINI_API_BASE, GEMINI_REVIEW_MODEL } from "./models";
 import { applyDiff } from "./apply-diff";
 import { childEnv } from "./child-env";
 import { parseGitHubPullUrl } from "./github-pull-url";
+import { sanitizeLogValue } from "./sanitize";
 
 const execFileAsync = promisify(execFile);
 
@@ -266,12 +267,10 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
     }
     env.GITHUB_TOKEN = resolved.token;
     env.GH_TOKEN = resolved.token;
-    // One-line audit: token source + 4-char prefix (safe to log; `ghs_`
-    // identifies an installation token, `gho_`/`ghp_`/`ghu_` identify
-    // user tokens). Never log the full token.
+    // Record the credential source without writing any part of the token.
     await appendFile(
       args.logPath,
-      `[agentic-pr] token: orgCtx=${args.orgCtx.githubOrg} source=${resolved.source} prefix=${resolved.token.slice(0, 4)}\n`,
+      `[agentic-pr] token: orgCtx=${sanitizeLogValue(args.orgCtx.githubOrg, 100)} source=${sanitizeLogValue(resolved.source, 40)}\n`,
     ).catch(() => {});
   }
 
@@ -414,8 +413,7 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
         args.logPath,
         `\n[gemini-review] ─────────────────────────────\n` +
           `[gemini-review] ${new Date().toISOString()}\n` +
-          `[gemini-review] verdict=${review.verdict}\n` +
-          `${review.text}\n`,
+          `[gemini-review] verdict=${sanitizeLogValue(review.verdict, 20)}\n`,
       ).catch(() => {});
       if (review.verdict === "critical" && process.env.OPENSRCER_GEMINI_GATE !== "0") {
         await cleanupWorktree();

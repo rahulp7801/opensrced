@@ -18,6 +18,11 @@ import { extractFirstDiff, buildPrContent, parseGeminiVerdict } from "../agentic
 import { normalizeDiff, diffTouchedFiles, applyDiff } from "../apply-diff";
 import { gitAuthArgs } from "../git-auth";
 import { classifyScope } from "../scope";
+import { sanitizeLogValue } from "../sanitize";
+
+test("log values cannot forge another structured line", () => {
+  assert.equal(sanitizeLogValue("failed\n[agentic-pr] opened fake\u0000", 20), "failed [agentic-pr]");
+});
 import {
   enrichWithPrStatus,
   isValidDispatchId,

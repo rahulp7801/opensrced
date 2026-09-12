@@ -20,6 +20,7 @@ const execFileAsync = promisify(execFile);
 
 const MAX_OUTPUT = 60_000; // chars; Sonnet can handle more but we'd rather it call again than drown
 const MAX_FILE_BYTES = 400_000;
+const MAX_RANGED_FILE_BYTES = 2_000_000;
 
 function truncate(s: string, cap = MAX_OUTPUT): string {
   if (s.length <= cap) return s;
@@ -32,7 +33,7 @@ export async function listFiles(args: { repo: string; glob?: string; limit?: num
   const limit = Math.min(Math.max(args.limit ?? 200, 1), 2000);
   const gitArgs = ["-C", dir, "ls-files"];
   if (args.glob) gitArgs.push("--", args.glob);
-  const { stdout } = await execFileAsync("git", gitArgs, { maxBuffer: 20 * 1024 * 1024 });
+  const { stdout } = await execFileAsync("git", gitArgs, { timeout: 30_000, windowsHide: true, maxBuffer: 20 * 1024 * 1024 });
   const files = stdout.split("\n").filter(Boolean).slice(0, limit);
   return truncate(
     `# ${files.length} file(s)` +
@@ -52,6 +53,9 @@ export async function readFileTool(args: {
   const abs = await safeRepoPath(dir, args.path);
   const s = await stat(abs);
   if (!s.isFile()) throw new Error(`not a file: ${args.path}`);
+  if (s.size > MAX_RANGED_FILE_BYTES) {
+    throw new Error(`File exceeds the 2 MB read limit: ${args.path}. Use grep to locate relevant text.`);
+  }
   if (s.size > MAX_FILE_BYTES) {
     // Very large file + no range: refuse with a helpful hint instead of
     // silently truncating somewhere arbitrary. The model should narrow.
@@ -91,7 +95,7 @@ export async function grepTool(args: {
   if (args.glob) gitArgs.push("--", args.glob);
   try {
     const { stdout } = await execFileAsync("git", gitArgs, {
-      maxBuffer: 30 * 1024 * 1024,
+      timeout: 30_000, windowsHide: true, maxBuffer: 30 * 1024 * 1024,
     });
     const lines = stdout.split("\n").filter(Boolean).slice(0, max);
     return truncate(
@@ -151,7 +155,7 @@ export async function findDefinition(args: { repo: string; symbol: string }) {
     const { stdout } = await execFileAsync(
       "git",
       ["-C", dir, "grep", "-n", "-P", "-I", "--no-color", "-e", pattern],
-      { maxBuffer: 10 * 1024 * 1024 },
+      { timeout: 30_000, windowsHide: true, maxBuffer: 10 * 1024 * 1024 },
     );
     grepHits = stdout.split("\n").filter(Boolean);
   } catch (err: unknown) {
@@ -210,7 +214,7 @@ export async function findReferences(args: {
     const { stdout } = await execFileAsync(
       "git",
       ["-C", dir, "grep", "-n", "-E", "-I", "--no-color", "-e", pattern],
-      { maxBuffer: 40 * 1024 * 1024 },
+      { timeout: 30_000, windowsHide: true, maxBuffer: 40 * 1024 * 1024 },
     );
     const all = stdout.split("\n").filter(Boolean);
     const hits = all.slice(0, max);
@@ -244,15 +248,15 @@ export async function repoInfo(args: { repo: string }) {
   const { stdout: headSha } = await execFileAsync(
     "git",
     ["-C", dir, "rev-parse", "HEAD"],
-    { maxBuffer: 1 * 1024 * 1024 },
+    { timeout: 30_000, windowsHide: true, maxBuffer: 1 * 1024 * 1024 },
   );
   const { stdout: headMsg } = await execFileAsync(
     "git",
     ["-C", dir, "log", "-1", "--pretty=%s"],
-    { maxBuffer: 1 * 1024 * 1024 },
+    { timeout: 30_000, windowsHide: true, maxBuffer: 1 * 1024 * 1024 },
   );
   const { stdout: topFiles } = await execFileAsync("git", ["-C", dir, "ls-files"], {
-    maxBuffer: 20 * 1024 * 1024,
+    timeout: 30_000, windowsHide: true, maxBuffer: 20 * 1024 * 1024,
   });
   const files = topFiles.split("\n").filter(Boolean);
   const topLevel = new Set<string>();

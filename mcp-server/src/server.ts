@@ -74,7 +74,7 @@ server.tool(
 
 server.tool(
   "read_file",
-  "Read a repo file with line numbers. For large files, pass line_start/line_end (1-indexed, inclusive).",
+  "Read a repo file with line numbers. For files over 400 KB, pass line_start/line_end (1-indexed, inclusive). Files over 2 MB require grep instead.",
   {
     repo: repoArg,
     path: z.string().describe("Repo-relative path, e.g. 'src/lib.rs'."),

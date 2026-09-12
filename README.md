@@ -417,7 +417,7 @@ A standalone Node.js MCP server that communicates over stdio. Built with `@model
 |------|------------|----------------|
 | `repo_info` | Basic metadata: HEAD SHA, commit message, file count, top-level entries | `git rev-parse HEAD` + `git ls-files` |
 | `list_files` | List tracked files with optional glob filter (up to 2000 files) | `git ls-files [-- <glob>]` |
-| `read_file` | Read a file with line numbers; supports `line_start`/`line_end` for large files (>400KB requires range) | `fs.readFile` + line slicing |
+| `read_file` | Read a file with line numbers; supports `line_start`/`line_end` for large files (>400 KB requires range; >2 MB requires search) | `fs.readFile` + line slicing |
 | `grep` | Regex search, .gitignore-aware, skips binaries (up to 1000 matches) | `git grep -n -I --no-color` |
 | `find_definition` | Definition lookup for a symbol name | **Two-tier:** tree-sitter AST index → regex-over-git-grep fallback |
 | `find_references` | Every line mentioning a symbol (whole-word), with per-file count summary (up to 1500 matches) | `git grep -n -E` with `\b` word boundaries |

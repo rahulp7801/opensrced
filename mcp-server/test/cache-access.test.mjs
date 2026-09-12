@@ -32,6 +32,9 @@ test('cached source and graphs require current GitHub access, separately for eac
     const results = await Promise.all(Array.from({ length: 10 }, () => readFileTool(args)));
     assert.ok(results.every(result => result.includes('private test fixture')));
     assert.equal(requests, 1, 'parallel tools share the authorization check');
+    await writeFile(path.join(repo, 'large.txt'), Buffer.alloc(2_000_001));
+    await assert.rejects(readFileTool({ ...args, path: 'large.txt', line_start: 1, line_end: 1 }), /2 MB read limit/);
+    await assert.rejects(readFileTool({ ...args, path: '.git/config' }), /repository source/);
     process.env.GITHUB_TOKEN = 'test-bob';
     await assert.rejects(readFileTool(args), /not accessible/);
     await assert.rejects(traceFlowTool('owner/private', 'secret'), /not accessible/);

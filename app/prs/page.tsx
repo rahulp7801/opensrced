@@ -205,9 +205,7 @@ export default function PRsPage() {
           )}
 
           {!loading && !error && githubPrs.length === 0 && (
-            <div className="border border-border bg-surface/40 p-8 text-center text-[12px] text-paper-muted">
-              No open PRs yet. <Link href="/discover" className="text-signal hover:underline">Discover issues to fix</Link> or <Link href="/issues" className="text-signal hover:underline">browse suggested issues</Link> to get started.
-            </div>
+            <EmptyPrState />
           )}
 
           {!loading && githubPrs.length > 0 && (() => {
@@ -319,9 +317,7 @@ export default function PRsPage() {
           )}
 
           {!loading && !error && githubPrs.length === 0 && (
-            <div className="border border-border bg-surface/40 p-8 text-center text-[12px] text-paper-muted">
-              No open PRs found for {githubLogin || "your account"}. <Link href="/discover" className="text-signal hover:underline">Find an issue to fix</Link>.
-            </div>
+            <EmptyPrState account={githubLogin || "your account"} />
           )}
 
           {!loading && githubPrs.length > 0 && (
@@ -661,6 +657,25 @@ function InboxSection({ title, subtitle, color, prs, actionHint }: { title: stri
             </div>
           </Link>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function EmptyPrState({ account }: { account?: string }) {
+  return (
+    <div className="border border-border bg-surface/40 px-6 py-10 text-center sm:px-10">
+      <h2 className="text-lg font-medium text-paper">No open pull requests</h2>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-paper-muted">
+        {account ? `GitHub returned no open pull requests for ${account}.` : "Choose an issue and opensrcer will keep the resulting draft and review feedback here."}
+      </p>
+      <div className="mt-5 flex flex-wrap justify-center gap-3">
+        <Link href="/discover" className="inline-flex min-h-11 items-center rounded-md bg-signal px-4 py-2 text-sm font-medium text-ink hover:bg-signal-soft">
+          Find an issue
+        </Link>
+        <Link href="/issues" className="inline-flex min-h-11 items-center rounded-md border border-border px-4 py-2 text-sm text-paper-dim hover:border-border-strong hover:text-paper">
+          Browse suggested issues
+        </Link>
       </div>
     </div>
   );

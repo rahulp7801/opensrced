@@ -78,12 +78,12 @@ export default async function CruciblePage({
           <span className="text-paper">{localMode ? "Local workspace" : user?.name || user?.email || "GitHub account"}</span>
         </div>
         {!localMode && (
-          <Link
+          <a
             href="/api/crucible/connect"
             className="border border-border bg-surface/60 px-3 py-1.5 text-sm text-paper hover:bg-surface"
           >
             Connect GitHub Org
-          </Link>
+          </a>
         )}
       </div>
 

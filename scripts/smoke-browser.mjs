@@ -132,8 +132,11 @@ try {
   const interactionErrors = [];
   page.on('pageerror', error => interactionErrors.push(error.message));
   const onboardingOrgRequests = [];
+  const connectRequests = [];
   page.on('request', request => {
-    if (new URL(request.url()).pathname === '/api/crucible/orgs') onboardingOrgRequests.push(request.url());
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/crucible/orgs') onboardingOrgRequests.push(request.url());
+    if (path === '/api/crucible/connect') connectRequests.push(request.url());
   });
   await page.route('**/auth/profile', route => route.fulfill({ json: { sub: 'test-user', name: 'Test User' } }));
   const run = { id: 'test-preview', repo_url: 'https://github.com/acme/app', mode: 'agentic', dry_run: true, issue_number: 1, started_at: new Date().toISOString(), status: 'failed', log: '', log_size: 0 };
@@ -234,6 +237,7 @@ try {
   await page.goto(base + '/crucible');
   const keyInput = page.getByLabel('Anthropic API key', { exact: true });
   await page.getByLabel('Gemini API key', { exact: true }).waitFor();
+  assert.equal(connectRequests.length, 0, 'organization connection starts only after an explicit click');
   await assertUsableControls(page, 'authenticated settings');
   await assertNoSeriousAccessibilityViolations(page, 'authenticated settings');
   await keyInput.fill('test-replacement-value');

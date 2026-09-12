@@ -7,6 +7,10 @@ updates:
     groups:
       app-dependencies:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /mcp-server
@@ -15,6 +19,13 @@ updates:
     groups:
       mcp-dependencies:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+      # 0.23+ changed the parser initialization/query API used by indexer.ts.
+      - dependency-name: web-tree-sitter
+        versions: [">=0.23.0"]
 
   - package-ecosystem: pip
     directory: /
@@ -23,6 +34,11 @@ updates:
     groups:
       graph-dependencies:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      # graphifyy currently declares tree-sitter>=0.23,<0.26.
+      - dependency-name: tree-sitter
+        versions: [">=0.26.0"]
 
   - package-ecosystem: github-actions
     directory: /

@@ -82,6 +82,15 @@ export async function middleware(req: NextRequest) {
     );
   }
 
+  // Local mode must not touch the Auth0 SDK: by definition its configuration
+  // can be absent, and SDK discovery would fail before the request reaches the
+  // local session fallback.
+  if (AUTH_DISABLED) {
+    const response = NextResponse.next();
+    response.headers.set("X-Auth", "disabled-via-env");
+    return response;
+  }
+
   // Readiness must still explain a missing Auth0 setup. Calling the SDK first
   // can fail before the health route gets a chance to report auth0_config.
   if (pathname === "/api/health") return NextResponse.next();
@@ -114,11 +123,6 @@ export async function middleware(req: NextRequest) {
   }
 
   if (isPublic(pathname)) return authRes;
-
-  if (AUTH_DISABLED) {
-    authRes.headers.set("X-Auth", "disabled-via-env");
-    return authRes;
-  }
 
   const session = await auth0.getSession(req);
   if (session?.user) return authRes;

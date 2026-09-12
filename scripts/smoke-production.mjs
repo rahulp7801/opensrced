@@ -15,7 +15,10 @@ for (const path of paths) {
   assert.equal(response.status, 200, path);
   for (const [name, value] of Object.entries(securityHeaders)) {
     const actual = response.headers.get(name);
-    if (name === 'content-security-policy') assert.ok(actual?.includes(value), `${path} ${name}`);
+    if (name === 'content-security-policy') {
+      assert.ok(actual?.includes(value), `${path} ${name}`);
+      assert.ok(!actual.includes("'unsafe-eval'"), `${path} must not allow unsafe-eval in production`);
+    }
     else assert.equal(actual, value, `${path} ${name}`);
   }
   await response.text();

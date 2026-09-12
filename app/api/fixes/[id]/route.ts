@@ -27,7 +27,7 @@ export async function GET(
     try {
       const fix = await readJson<unknown>(`shares/${id}.json`);
       return fix && validSharedFix(fix.value, id) ? json(fix.value) : json({ error: "Fix not found" }, 404);
-    } catch { return json({ error: "Fix not found" }, 404); }
+    } catch { return json({ error: "This fix is temporarily unavailable. Please retry." }, 503); }
   }
   const safeId = id;
   const filePath = join(FIXES_DIR, `${safeId}.json`);
@@ -40,6 +40,6 @@ export async function GET(
     const data: unknown = JSON.parse(readFileSync(filePath, "utf8"));
     return validSharedFix(data, id) ? json(data) : json({ error: "Fix not found" }, 404);
   } catch {
-    return json({ error: "Failed to read fix" }, 500);
+    return json({ error: "This fix is temporarily unavailable. Please retry." }, 503);
   }
 }

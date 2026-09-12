@@ -87,18 +87,22 @@ export async function POST(req: NextRequest) {
     created_at: new Date().toISOString(),
   };
 
-  if (cloudExecution()) {
-    await put(`shares/${id}.json`, JSON.stringify(fix), { ...privateJsonOptions, abortSignal: AbortSignal.timeout(15_000) });
-  } else {
-    const target = join(FIXES_DIR, `${id}.json`);
-    const temporary = `${target}.${randomUUID()}.tmp`;
-    try {
-      writeFileSync(temporary, JSON.stringify(fix, null, 2), { flag: "wx", mode: 0o600 });
-      renameSync(temporary, target);
-    } finally {
-      rmSync(temporary, { force: true });
+  try {
+    if (cloudExecution()) {
+      await put(`shares/${id}.json`, JSON.stringify(fix), { ...privateJsonOptions, abortSignal: AbortSignal.timeout(15_000) });
+    } else {
+      const target = join(FIXES_DIR, `${id}.json`);
+      const temporary = `${target}.${randomUUID()}.tmp`;
+      try {
+        writeFileSync(temporary, JSON.stringify(fix, null, 2), { flag: "wx", mode: 0o600 });
+        renameSync(temporary, target);
+      } finally {
+        try { rmSync(temporary, { force: true }); } catch { /* best effort */ }
+      }
+      evictOldest();
     }
-    evictOldest();
+  } catch {
+    return Response.json({ error: "Could not save the share. Please retry." }, { status: 503 });
   }
 
   return Response.json({ id, url: `/fix/${id}` });

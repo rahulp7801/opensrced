@@ -7,6 +7,7 @@ import { CloudRun, newCloudRunId, ownerPrefix, runIsActive, runPath, validCloudR
 import { cloudRunLease } from "./cloud-leases";
 
 const TTL = 45 * 60_000;
+const MAX_LISTED_RECORDS = 250;
 import { readJson, updateJson, privateJsonOptions as writeOptions } from "./blob-store";
 
 async function writeRun(path: string, run: CloudRun) {
@@ -103,17 +104,29 @@ export async function getCloudRun(owner: string, id: string): Promise<CloudRun |
 
 export async function listCloudRuns(owner: string, limit = 50): Promise<CloudRun[]> {
   const cappedLimit = Math.max(1, Math.min(50, Math.trunc(limit)));
-  const page = await list({ prefix: ownerPrefix(owner), limit: cappedLimit, abortSignal: AbortSignal.timeout(15_000) });
   const runs: CloudRun[] = [];
-  // Bound storage concurrency while avoiding one serial round trip per run.
-  for (let i = 0; i < page.blobs.length; i += 10) {
-    const batch = await Promise.all(page.blobs.slice(i, i + 10).map(async (blob) => {
-      const id = /c_\d{13}_[a-f0-9]{12}/.exec(blob.pathname)?.[0];
-      return id ? getCloudRun(owner, id) : null;
-    }));
-    runs.push(...batch.filter((run): run is CloudRun => run !== null));
-  }
-  return runs;
+  let cursor: string | undefined;
+  let scanned = 0;
+  let pages = 0;
+  do {
+    const page = await list({
+      prefix: ownerPrefix(owner), cursor, limit: Math.min(50, MAX_LISTED_RECORDS - scanned),
+      abortSignal: AbortSignal.timeout(15_000),
+    });
+    pages++;
+    scanned += page.blobs.length;
+    // Bound storage concurrency while avoiding one serial round trip per run.
+    for (let i = 0; i < page.blobs.length && runs.length < cappedLimit; i += 10) {
+      const batch = await Promise.all(page.blobs.slice(i, i + 10).map(async (blob) => {
+        const id = /c_\d{13}_[a-f0-9]{12}/.exec(blob.pathname)?.[0];
+        return id ? getCloudRun(owner, id) : null;
+      }));
+      runs.push(...batch.filter((run): run is CloudRun => run !== null));
+    }
+    cursor = page.hasMore ? page.cursor : undefined;
+  } while (runs.length < cappedLimit && scanned < MAX_LISTED_RECORDS && pages < 5 && cursor);
+  runs.sort((a, b) => b.started_at.localeCompare(a.started_at));
+  return runs.slice(0, cappedLimit);
 }
 
 export async function cancelCloudRun(owner: string, id: string): Promise<boolean> {

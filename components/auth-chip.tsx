@@ -4,6 +4,7 @@
 
 import Link from "next/link";
 import { useUser } from "@auth0/nextjs-auth0";
+import { safeAvatarUrl } from "@/lib/avatar-url";
 
 export function AuthChip() {
   const { user, isLoading } = useUser();
@@ -32,7 +33,7 @@ export function AuthChip() {
 
   const display = (user.name || user.email || "User") as string;
   const initial = display.slice(0, 1).toUpperCase();
-  const picture = user.picture as string | undefined;
+  const picture = safeAvatarUrl(user.picture);
 
   return (
     <div className="flex items-stretch shrink-0 ml-auto">

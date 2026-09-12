@@ -27,6 +27,7 @@ import { applyDiff } from "./apply-diff";
 import { childEnv } from "./child-env";
 import { parseGitHubPullUrl } from "./github-pull-url";
 import { sanitizeLogValue } from "./sanitize";
+import { sensitiveTextKind } from "./sensitive-text";
 
 const execFileAsync = promisify(execFile);
 
@@ -396,38 +397,10 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
   }
   await appendFile(args.logPath, `[agentic-pr] diff applied via: ${applied.tier}\n`).catch(() => {});
 
-  // 4.4 Gemini self-review. Asks Gemini to review the patch for
-  //     correctness and security before it can become a PR.
-  //
-  //     This is a real gate: a `critical` verdict blocks the PR. It used
-  //     to log the review and continue unconditionally, which meant the
-  //     "reviews its own work" step could flag a patch as actively
-  //     dangerous and open the PR anyway. `concerns` still proceeds — the
-  //     PR is a draft and the note is in the log for the human.
-  //
-  //     Set OPENSRCER_GEMINI_GATE=0 to go back to advisory-only.
-  if (args.geminiKey) {
-    const review = await geminiReviewDiff(diff, args.geminiKey);
-    if (review) {
-      await appendFile(
-        args.logPath,
-        `\n[gemini-review] ─────────────────────────────\n` +
-          `[gemini-review] ${new Date().toISOString()}\n` +
-          `[gemini-review] verdict=${sanitizeLogValue(review.verdict, 20)}\n`,
-      ).catch(() => {});
-      if (review.verdict === "critical" && process.env.OPENSRCER_GEMINI_GATE !== "0") {
-        await cleanupWorktree();
-        return {
-          ok: false,
-          reason: `gemini review returned a critical verdict — PR blocked. See [gemini-review] in the dispatch log.`,
-        };
-      }
-    }
-  }
-
-  // 4.45 Gitleaks secret scan. Runs on every flow (public and Crucible)
+  // 4.4 Gitleaks secret scan. Runs on every flow (public and Crucible)
   //      to prevent the agent from accidentally pushing hardcoded secrets
-  //      in AI-generated code. Hard gate: any finding blocks the PR.
+  //      in AI-generated code. It runs before Gemini so generated content
+  //      cannot leave this worker until the scan completes cleanly.
   {
     const { scanSecrets, formatLogBlock: fmtGitleaks } = await import("./gitleaks-scanner");
     const scanResult = await scanSecrets(worktreeDir);
@@ -440,6 +413,32 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
       };
     }
     // Only a completed, clean scan permits publishing.
+  }
+
+  // 4.45 Gemini self-review. Ask Gemini to review the patch only after the
+  //      disclosure gate above. A `critical` verdict blocks the PR;
+  //      `concerns` proceeds because the PR remains a draft for human review.
+  //      Set OPENSRCER_GEMINI_GATE=0 to make the verdict advisory-only.
+  if (args.geminiKey) {
+    const review = await geminiReviewDiff(diff, args.geminiKey);
+    if (review) {
+      const verdict = review.verdict === "clean"
+        ? "clean"
+        : review.verdict === "critical" ? "critical" : "concerns";
+      await appendFile(
+        args.logPath,
+        `\n[gemini-review] ─────────────────────────────\n` +
+          `[gemini-review] ${new Date().toISOString()}\n` +
+          `[gemini-review] verdict=${verdict}\n`,
+      ).catch(() => {});
+      if (verdict === "critical" && process.env.OPENSRCER_GEMINI_GATE !== "0") {
+        await cleanupWorktree();
+        return {
+          ok: false,
+          reason: `gemini review returned a critical verdict — PR blocked. See [gemini-review] in the dispatch log.`,
+        };
+      }
+    }
   }
 
   // 4.5 Test runner — the thing that makes "Verified" mean something.
@@ -509,6 +508,15 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
     logText,
     diff,
   );
+  const sensitivePrContent = sensitiveTextKind([prTitle, prBody]);
+  if (sensitivePrContent) {
+    await cleanupWorktree();
+    return {
+      ok: false,
+      tests,
+      reason: `PR title or description appears to contain a ${sensitivePrContent} - publication blocked`,
+    };
+  }
   const commitMsg = prTitle;
   try {
     await run(

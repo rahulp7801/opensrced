@@ -69,7 +69,9 @@ UI uses `/api/run/agentic`.
 - Claude runs with built-in tools disabled and only the repository's read-only
   MCP tools allowed. Issue bodies, review comments, and user prompts are treated
   as untrusted input.
-- Gitleaks is a fail-closed gate before generated code can be pushed.
+- Gitleaks is a fail-closed gate before generated code can be sent for optional
+  external review or pushed. Generated PR titles and descriptions receive a
+  separate credential-pattern check before publication.
 - Run, organization, graph, activity, and shared-fix records are scoped to their
   owners. Public shared fixes require an unguessable ID, cannot be listed, expire
   30 days after creation, and retain at most 900 records per account.

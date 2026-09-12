@@ -158,7 +158,7 @@ export function DiscoverScanner() {
   return (
     <div>
       {/* Filter form */}
-      <div className="rounded-lg border border-border bg-surface p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-surface p-4 sm:gap-4 sm:p-5 lg:grid-cols-6">
         <LabeledInput
           label="minimum stars"
           value={minStars}
@@ -200,7 +200,7 @@ export function DiscoverScanner() {
           placeholder="180"
           type="number"
         />
-        <div className="sm:col-span-2 lg:col-span-6 flex justify-end">
+        <div className="col-span-2 flex justify-end lg:col-span-6">
           <button
             onClick={runDiscover}
             disabled={loading || !minStars}
@@ -489,7 +489,7 @@ function LabeledInput({
   type?: "text" | "number";
 }) {
   return (
-    <label className="flex flex-col gap-1">
+    <label className="flex min-w-0 flex-col gap-1">
       <span className="text-xs font-medium text-paper-dim">{label}</span>
       <input
         type={type}
@@ -497,7 +497,7 @@ function LabeledInput({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         spellCheck={false}
-        className="min-h-11 rounded-md border border-border bg-ink px-3 py-2 text-base text-paper placeholder:text-paper-faint focus:border-signal"
+        className="min-h-11 min-w-0 rounded-md border border-border bg-ink px-3 py-2 text-base text-paper placeholder:text-paper-faint focus:border-signal"
       />
     </label>
   );
@@ -515,12 +515,12 @@ function LabeledSelect({
   options: Array<{ value: string; label: string }>;
 }) {
   return (
-    <label className="flex flex-col gap-1">
+    <label className="flex min-w-0 flex-col gap-1">
       <span className="text-xs font-medium text-paper-dim">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="min-h-11 rounded-md border border-border bg-ink px-3 py-2 text-base text-paper focus:border-signal"
+        className="min-h-11 min-w-0 rounded-md border border-border bg-ink px-3 py-2 text-base text-paper focus:border-signal"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>

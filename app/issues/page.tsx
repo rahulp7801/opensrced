@@ -10,9 +10,8 @@ export default function IssuesPage() {
         title={<>Issues</>}
         description={
           <>
-            Point at any public GitHub repo. The scanner reads every open issue, classifies it
-            by category, severity, and complexity, then estimates a rough time-to-fix. You
-            pick which one you want opensrcer to solve — nothing runs until you click.
+            Scan a public GitHub repository for open issues, compare their scope and complexity,
+            then choose one to preview or solve. Nothing runs until you choose an action.
           </>
         }
       />

@@ -92,9 +92,12 @@ export default function PRsPage() {
         description="View and follow up on your open PRs. Click any PR to see review comments and push fixes."
       />
 
-      {/* Tabs */}
-      <div className="mt-4 flex items-center gap-0 border-b border-border">
+      <div className="mt-4 flex items-center gap-0 border-b border-border" role="tablist" aria-label="Pull request view">
         <button
+          id="prs-tab-inbox"
+          role="tab"
+          aria-selected={tab === "inbox"}
+          aria-controls="prs-panel-inbox"
           onClick={() => setTab("inbox")}
           className={cn(
             "px-4 py-2 text-[12px] transition-colors border-b-2 -mb-px",
@@ -112,6 +115,10 @@ export default function PRsPage() {
           })()}
         </button>
         <button
+          id="prs-tab-github"
+          role="tab"
+          aria-selected={tab === "github"}
+          aria-controls="prs-panel-github"
           onClick={() => setTab("github")}
           className={cn(
             "px-4 py-2 text-[12px] transition-colors border-b-2 -mb-px",
@@ -128,6 +135,10 @@ export default function PRsPage() {
           )}
         </button>
         <button
+          id="prs-tab-dashboard"
+          role="tab"
+          aria-selected={tab === "dashboard"}
+          aria-controls="prs-panel-dashboard"
           onClick={() => setTab("dashboard")}
           className={cn(
             "px-4 py-2 text-[12px] transition-colors border-b-2 -mb-px",
@@ -142,7 +153,7 @@ export default function PRsPage() {
 
       {/* Inbox tab — prioritized overview */}
       {tab === "inbox" && (
-        <div className="mt-4">
+        <div id="prs-panel-inbox" role="tabpanel" aria-labelledby="prs-tab-inbox" className="mt-4">
           {loading && (
             <div className="border border-border bg-surface/40 divide-y divide-border-soft animate-pulse">
               {[1, 2, 3].map((i) => (
@@ -252,7 +263,7 @@ export default function PRsPage() {
 
       {/* GitHub PRs tab */}
       {tab === "github" && (
-        <div className="mt-4">
+        <div id="prs-panel-github" role="tabpanel" aria-labelledby="prs-tab-github" className="mt-4">
           {loading && (
             <div className="border border-border bg-surface/40 divide-y divide-border-soft animate-pulse">
               {[1, 2, 3, 4].map((i) => (
@@ -322,6 +333,7 @@ export default function PRsPage() {
                 <div className="w-full md:w-auto md:ml-auto flex flex-wrap items-center gap-2">
                   {/* Search */}
                   <input
+                    aria-label="Search pull requests"
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -329,7 +341,7 @@ export default function PRsPage() {
                     className="bg-surface border border-border px-2.5 py-1 text-[11px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50 w-full sm:w-[180px]"
                   />
                   {/* Status filter */}
-                  <div className="flex flex-wrap items-center gap-0.5">
+                  <div className="flex flex-wrap items-center gap-0.5" role="group" aria-label="Pull request status">
                     {([
                       { key: "all", label: "All" },
                       { key: "changes_requested", label: "Needs changes" },
@@ -339,6 +351,7 @@ export default function PRsPage() {
                     ] as const).map((f) => (
                       <button
                         key={f.key}
+                        aria-pressed={statusFilter === f.key}
                         onClick={() => setStatusFilter(f.key)}
                         className={cn(
                           "text-xs px-2 py-1 transition border",
@@ -481,7 +494,7 @@ export default function PRsPage() {
       )}
 
       {/* Dashboard PRs tab */}
-      {tab === "dashboard" && <DashboardPrs />}
+      {tab === "dashboard" && <div id="prs-panel-dashboard" role="tabpanel" aria-labelledby="prs-tab-dashboard"><DashboardPrs /></div>}
     </div>
   );
 }
@@ -581,13 +594,13 @@ function InboxSection({ title, subtitle, color, prs, actionHint }: { title: stri
   const statusIcon = color === "alert" ? "x" : color === "ok" ? "+" : color === "signal" ? "!" : color === "info" ? "~" : "-";
   return (
     <div className="border border-border bg-surface/40">
-      <div className="px-4 py-2.5 border-b border-border-soft flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border-soft px-4 py-2.5">
         <span className="text-[12px] font-mono" role="img" aria-label={title}>{statusIcon}</span>
         <div>
           <span className="text-[12px] text-paper font-medium">{title}</span>
           <span className="ml-2 text-xs text-paper-faint tabular-nums">{prs.length}</span>
         </div>
-        <span className="text-xs text-paper-faint ml-1">{subtitle}</span>
+        <span className="w-full text-xs text-paper-faint sm:ml-1 sm:w-auto">{subtitle}</span>
       </div>
       {actionHint && (
         <div className="px-4 py-1.5 border-b border-border-soft bg-ink/20 text-xs text-paper-faint">
@@ -599,23 +612,23 @@ function InboxSection({ title, subtitle, color, prs, actionHint }: { title: stri
           <Link
             key={`${pr.repo}#${pr.number}`}
             href={`/prs/${pr.repo}/${pr.number}`}
-            className="flex items-center gap-4 px-4 py-3 hover:bg-surface-2/60 transition group"
+            className="group grid gap-2 px-4 py-3 transition hover:bg-surface-2/60 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
           >
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-[11px] text-paper-dim truncate">{pr.repo}</span>
+                <span className="truncate text-[11px] text-paper-dim">{pr.repo}</span>
                 <span className="text-xs text-paper-faint">#{pr.number}</span>
               </div>
-              <div className="text-[12px] text-paper truncate mt-0.5">{pr.title}</div>
+              <div className="mt-0.5 text-[12px] leading-5 text-paper sm:truncate">{pr.title}</div>
             </div>
-            <div className="flex items-center gap-3 shrink-0 text-xs">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:justify-end">
               {(pr.commentCount ?? 0) > 0 && (
                 <span className="text-info tabular-nums">{pr.commentCount} comment{pr.commentCount !== 1 ? "s" : ""}</span>
               )}
               <span className="text-ok tabular-nums">+{pr.additions}</span>
               <span className="text-alert tabular-nums">-{pr.deletions}</span>
-              <span className="text-paper-faint w-16 text-right">{timeAgo(pr.updatedAt)}</span>
-              <span className="text-signal opacity-0 group-hover:opacity-100 transition">review</span>
+              <span className="text-paper-faint sm:w-16 sm:text-right">{timeAgo(pr.updatedAt)}</span>
+              <span className="hidden text-signal opacity-0 transition group-hover:opacity-100 sm:inline">review</span>
             </div>
           </Link>
         ))}

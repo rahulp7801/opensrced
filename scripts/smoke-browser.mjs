@@ -162,6 +162,8 @@ try {
       biggestContributions: [{ prUrl: 'https://github.com/acme/compiler/pull/91', repoFull: 'acme/compiler', stars: 24300, issueNumber: 418, dispatchId: 'd_visual_123456789', startedAt: new Date().toISOString() }],
       recentActivity: [{ kind: 'dispatch', ts: new Date().toISOString(), repo: 'acme/compiler', issueNumber: 418, prUrl: 'https://github.com/acme/compiler/pull/91' }, { kind: 'scan', ts: new Date(Date.now() - 3600000).toISOString(), repo: 'acme/parser' }],
     } });
+    if (url.pathname === '/api/repos/github') return route.fulfill({ json: { repos: [{ nameWithOwner: 'acme/compiler', description: 'A production compiler with a deliberately long repository description.', language: 'TypeScript', stars: 24300, forks: 900, updatedAt: new Date().toISOString(), isPrivate: false, source: 'contributed' }], hasMore: false, nextCursor: null } });
+    if (url.pathname === '/api/prs/github') return route.fulfill({ json: { login: 'test-user', prs: [{ repo: 'acme/compiler', title: 'Handle malformed parser input without hanging the worker', number: 91, url: 'https://github.com/acme/compiler/pull/91', state: 'OPEN', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), branch: 'fix/parser', base: 'main', additions: 18, deletions: 4, reviewDecision: 'CHANGES_REQUESTED', isDraft: false, commentCount: 2 }] } });
     if (url.pathname === '/api/settings/keys') {
       if (route.request().method() === 'GET' && page.url().includes('settings_load_failure=1')) {
         return route.fulfill({ status: 503, json: { error: 'Settings unavailable for test.' } });
@@ -253,6 +255,20 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'authenticated stats must fit mobile');
   await assertNoSeriousAccessibilityViolations(page, 'authenticated mobile stats');
 
+  await page.goto(base + '/repos');
+  await page.getByRole('link', { name: 'Graph', exact: true }).waitFor();
+  assert.equal(await page.getByRole('tab', { name: /Contributed to/ }).getAttribute('aria-selected'), 'true');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'authenticated repositories must fit mobile');
+  await assertUsableControls(page, 'authenticated mobile repositories');
+  await assertNoSeriousAccessibilityViolations(page, 'authenticated mobile repositories');
+
+  await page.goto(base + '/prs');
+  await page.getByText('Handle malformed parser input without hanging the worker', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('tab', { name: /Inbox/ }).getAttribute('aria-selected'), 'true');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'authenticated pull requests must fit mobile');
+  await assertUsableControls(page, 'authenticated mobile pull requests');
+  await assertNoSeriousAccessibilityViolations(page, 'authenticated mobile pull requests');
+
   await context.close();
-  console.log(JSON.stringify({ pagesChecked, viewports: [1440, 390], landingVitals, controlTargets: true, accessibility: 'serious-and-critical', helpDialog: true, previewRetry: true, issueActions: 2, settingsRecovery: true, mobileStats: true, authPrefetch: false }));
+  console.log(JSON.stringify({ pagesChecked, viewports: [1440, 390], landingVitals, controlTargets: true, accessibility: 'serious-and-critical', helpDialog: true, previewRetry: true, issueActions: 2, settingsRecovery: true, authenticatedMobilePages: ['stats', 'repos', 'prs'], authPrefetch: false }));
 } finally { await browser.close(); }

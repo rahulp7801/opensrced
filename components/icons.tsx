@@ -10,6 +10,7 @@ import {
   MagnifyingGlass,
   Pulse,
   ShieldCheck,
+  SignOut,
   SquaresFour,
   Waveform,
   X,
@@ -39,3 +40,4 @@ export const IconFilter = appIcon(Funnel);
 export const IconShield = appIcon(ShieldCheck);
 export const IconCheck = appIcon(Check);
 export const IconClose = appIcon(X);
+export const IconSignOut = appIcon(SignOut);

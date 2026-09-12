@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useUser } from "@auth0/nextjs-auth0";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { IconCheck, IconClose } from "@/components/icons";
+import { IconClose } from "@/components/icons";
 
 type OnboardingState = {
   hasKey: boolean;
@@ -14,7 +14,6 @@ type OnboardingState = {
 const STEPS = [
   {
     key: "key" as const,
-    number: "1",
     title: "Add an Anthropic API key",
     description: "Add the provider key used for agent runs. You can add Gemini later for patch review.",
     href: "/crucible",
@@ -23,8 +22,7 @@ const STEPS = [
   },
   {
     key: "dispatch" as const,
-    number: "2",
-    title: "Fix your first issue",
+    title: "Fix an issue",
     description: "Choose an open issue in Discover, then generate a preview you can review before publishing.",
     href: "/discover",
     cta: "Discover issues",
@@ -72,6 +70,7 @@ export function Onboarding() {
   if (HIDDEN_ON.some((p) => pathname === p || pathname.startsWith(p + "/"))) return null;
 
   const currentStep = STEPS.find((s) => !s.check(state)) ?? STEPS[0];
+  const currentStepNumber = STEPS.findIndex((s) => s.key === currentStep.key) + 1;
 
   function dismiss() {
     setDismissed(true);
@@ -81,25 +80,9 @@ export function Onboarding() {
   return (
     <div className="border-b border-border bg-surface/40">
       <div className="mx-auto flex max-w-[1200px] items-center gap-4 px-5 py-3 sm:px-8">
-        {/* Step indicators */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          {STEPS.map((s, i) => (
-            <div key={s.key} className="flex items-center gap-1.5">
-              {i > 0 && <div className="w-3 h-px bg-border" />}
-              <span
-                className={`inline-flex items-center justify-center w-5 h-5 text-xs border ${
-                  s.check(state)
-                    ? "border-ok/40 text-ok bg-ok/10"
-                    : s.key === currentStep.key
-                      ? "border-signal/40 text-signal bg-signal/10"
-                      : "border-border text-paper-faint"
-                }`}
-              >
-                {s.check(state) ? <IconCheck size={13} /> : s.number}
-              </span>
-            </div>
-          ))}
-        </div>
+        <span className="shrink-0 text-[11px] font-medium uppercase tracking-[0.12em] text-signal">
+          Step {currentStepNumber} of {STEPS.length}
+        </span>
 
         {/* Current step */}
         <div className="flex-1 min-w-0">

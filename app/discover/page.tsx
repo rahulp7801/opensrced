@@ -9,9 +9,8 @@ export default function DiscoverPage() {
         title={<>Browse repos</>}
         description={
           <>
-            Search public GitHub repos by stars and language, then browse their open issues
-            ranked by solvability. No AI cost — this is free. Click any issue to scan it
-            or jump straight to fixing it.
+            Search public GitHub repositories by stars and language, then compare their open
+            issues by scope and complexity. Search uses GitHub only and does not consume AI credits.
           </>
         }
       />

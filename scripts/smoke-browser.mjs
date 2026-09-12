@@ -155,7 +155,7 @@ try {
         ? route.fulfill({ status: 503, json: { error: 'Worker stop failed for test.' } })
         : route.fulfill({ status: 202, json: { ok: true } });
     }
-    if (url.pathname === '/api/issues/suggested') return route.fulfill({ json: { issues: [], filteredOut: 0 } });
+    if (url.pathname === '/api/issues/suggested') return route.fulfill({ json: { issues: [{ repo: 'acme/compiler', title: 'Improve parser diagnostics', number: 72, url: 'https://github.com/acme/compiler/issues/72', labels: ['good first issue'], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), comments: 1, language: 'TypeScript', stars: 24300 }], filteredOut: 0 } });
     if (url.pathname === '/api/issues/scan') return route.fulfill({ json: { repo: 'acme/app', total: 1, solvable: 1, issues: [{ number: 1, title: 'Fix parser error', body: 'Fix the parser.', labels: ['bug'], url: 'https://github.com/acme/app/issues/1', author: 'test', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), comments: 0, category: 'bug', severity: 'low', complexity: 1, est_minutes: 5, solvable: true, reason: 'Small fix', scope: { bucket: 'leaf', confidence: 'high', files: ['parser.ts'], symbols: [], reason: 'Parser file' } }] } });
     if (url.pathname === '/api/activity') return route.fulfill({ json: {
       dispatchWindow: 50, scans: 128, discoverRuns: 9, dispatches: 42, prsCreated: 11,
@@ -252,6 +252,17 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'missing-key banner must fit mobile');
   await assertNoSeriousAccessibilityViolations(page, 'mobile missing-key banner');
 
+  await page.goto(base + '/issues');
+  const activeFindLabel = page.getByRole('link', { name: 'Find', exact: true }).getByText('Find', { exact: true });
+  await activeFindLabel.waitFor();
+  assert.equal(await activeFindLabel.isVisible(), true, 'active task label stays visible on mobile');
+  const suggestedFix = page.getByRole('link', { name: 'fix this', exact: true });
+  await suggestedFix.waitFor();
+  assert.equal(await suggestedFix.evaluate(element => getComputedStyle(element).opacity), '1', 'suggested issue action stays visible on touch layouts');
+  assert.equal(await page.getByText('Scan a repository.', { exact: true }).count(), 0, 'manual scan form does not repeat its empty instructions');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'authenticated issues must fit mobile');
+  await assertNoSeriousAccessibilityViolations(page, 'authenticated mobile issues');
+
   await page.goto(base + '/stats');
   await page.getByRole('heading', { name: 'Biggest contributions', exact: true }).waitFor();
   await page.getByText('acme/parser', { exact: true }).waitFor();
@@ -273,5 +284,5 @@ try {
   await assertNoSeriousAccessibilityViolations(page, 'authenticated mobile pull requests');
 
   await context.close();
-  console.log(JSON.stringify({ pagesChecked, viewports: [1440, 390], landingVitals, controlTargets: true, accessibility: 'serious-and-critical', helpDialog: true, previewRetry: true, issueActions: 2, settingsRecovery: true, authenticatedMobilePages: ['stats', 'repos', 'prs'], authPrefetch: false }));
+  console.log(JSON.stringify({ pagesChecked, viewports: [1440, 390], landingVitals, controlTargets: true, accessibility: 'serious-and-critical', helpDialog: true, previewRetry: true, issueActions: 2, settingsRecovery: true, authenticatedMobilePages: ['issues', 'stats', 'repos', 'prs'], authPrefetch: false }));
 } finally { await browser.close(); }

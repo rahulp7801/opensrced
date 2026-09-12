@@ -23,7 +23,7 @@ export function Nav() {
             aria-label={section.label}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "group relative flex items-center justify-center gap-2 px-3 sm:px-5 transition-colors min-w-0",
+              "group relative flex items-center justify-center gap-2 px-2 sm:px-5 transition-colors min-w-0",
               "hover:bg-surface-2/60",
               active ? "bg-surface-2/80" : "bg-transparent",
             )}
@@ -39,7 +39,8 @@ export function Nav() {
                 leaving a row of near-identical glyphs. */}
             <span
               className={cn(
-                "text-[14px] font-medium tracking-tight hidden sm:inline truncate",
+                "text-[14px] font-medium tracking-tight truncate sm:inline",
+                active ? "inline" : "hidden",
                 active ? "text-paper" : "text-paper-dim group-hover:text-paper",
               )}
             >

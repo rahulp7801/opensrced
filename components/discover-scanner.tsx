@@ -155,14 +155,14 @@ export function DiscoverScanner() {
       {/* Filter form */}
       <div className="rounded-lg border border-border bg-surface p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
         <LabeledInput
-          label="min stars"
+          label="minimum stars"
           value={minStars}
           onChange={setMinStars}
           placeholder="500"
           type="number"
         />
         <LabeledInput
-          label="max stars"
+          label="maximum stars"
           value={maxStars}
           onChange={setMaxStars}
           placeholder="(no ceiling)"
@@ -175,21 +175,21 @@ export function DiscoverScanner() {
           options={LANGUAGES.map((l) => ({ value: l, label: l || "(any)" }))}
         />
         <LabeledInput
-          label="repos"
+          label="repositories"
           value={repoLimit}
           onChange={setRepoLimit}
           placeholder="12"
           type="number"
         />
         <LabeledInput
-          label="issues/repo"
+          label="issues per repo"
           value={issuesPerRepo}
           onChange={setIssuesPerRepo}
           placeholder="20"
           type="number"
         />
         <LabeledInput
-          label="repo active within N days"
+          label="updated within (days)"
           value={repoAgeDays}
           onChange={setRepoAgeDays}
           placeholder="180"

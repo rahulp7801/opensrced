@@ -458,15 +458,6 @@ export function IssueScanner() {
         </>
       )}
 
-      {!scan && !loading && !err && (
-        <div className="mt-8 border border-border bg-surface/40 p-8 text-center">
-          <div className="serif text-[28px] text-paper">Scan a repository.</div>
-          <p className="mt-2 text-[12px] text-paper-muted">
-            Paste any public GitHub repo URL. You&apos;ll see every open issue, classified and
-            scored for complexity so you can pick the ones worth solving.
-          </p>
-        </div>
-      )}
     </div>
   );
 }

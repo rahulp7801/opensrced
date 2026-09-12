@@ -86,10 +86,10 @@ export function SuggestedIssues() {
   return (
     <div className="border border-border bg-surface/40">
       {partial && !loading && <p role="status" className="px-4 py-2 text-xs text-paper-muted">Some GitHub searches did not complete. Showing available results; refresh to try again.</p>}
-      <div className="px-4 py-3 border-b border-border-soft flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-xs uppercase tracking-[0.15em] text-signal">suggested issues</span>
-          <span className="text-xs text-paper-faint">Good first issues matching your interests</span>
+      <div className="flex items-start justify-between gap-4 border-b border-border-soft px-4 py-3">
+        <div className="min-w-0">
+          <span className="block text-xs uppercase tracking-[0.15em] text-signal">suggested issues</span>
+          <span className="mt-1 block text-xs text-paper-faint">Good first issues matching your interests</span>
           {filteredOut > 0 && (
             <span
               className="text-xs text-paper-faint"
@@ -101,9 +101,10 @@ export function SuggestedIssues() {
         </div>
         <button
           onClick={() => setExpanded(!expanded)}
-          className="text-xs text-paper-faint hover:text-paper-muted transition"
+          className="shrink-0 text-xs text-paper-faint hover:text-paper-muted transition"
+          aria-expanded={expanded}
         >
-          {expanded ? "collapse" : "expand"}
+          {expanded ? "Hide filters" : "Show filters"}
         </button>
       </div>
 
@@ -233,7 +234,7 @@ export function SuggestedIssues() {
                       </a>
                       <a
                         href={`/trigger?repo=${issue.repo}&issue=${issue.number}`}
-                        className="text-signal opacity-0 group-hover:opacity-100 transition border border-signal/30 px-2 py-0.5 hover:bg-signal/10"
+                        className="border border-signal/30 px-2 py-0.5 text-signal opacity-100 transition hover:bg-signal/10 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
                       >
                         fix this
                       </a>

@@ -64,10 +64,13 @@ export function SolveButton({
         message?: string;
         dispatch_id?: string;
       };
-      if (!res.ok || !json.dispatch_id) {
+      if (!res.ok) {
         throw new Error(json.message || `HTTP ${res.status}`);
       }
-      router.push(`/dispatches?dispatch=${json.dispatch_id}`);
+      if (typeof json.dispatch_id !== "string" || !json.dispatch_id.trim()) {
+        throw new Error("The server returned an invalid run response. Please try again.");
+      }
+      router.push(`/dispatches?dispatch=${encodeURIComponent(json.dispatch_id)}`);
     } catch (e) {
       setError(e instanceof Error && e.name === "TimeoutError"
         ? "Starting the run timed out. Please try again."

@@ -148,11 +148,16 @@ try {
   const settings = [];
   let keyAvailable = true;
   let cancelAttempts = 0;
+  let invalidStartResponse = false;
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url());
     if (url.pathname === '/api/run/agentic') {
       submissions.push(route.request().postDataJSON());
       await new Promise(resolve => setTimeout(resolve, 250));
+      if (invalidStartResponse) {
+        invalidStartResponse = false;
+        return route.fulfill({ status: 202, json: {} });
+      }
       return route.fulfill({ status: 202, json: { dispatch_id: submissions.length === 1 ? 'test-retry' : 'test-preview' } });
     }
     if (url.pathname === '/api/dispatches') return route.fulfill({ json: { dispatches: [activeRun, run, huntRun] } });
@@ -247,6 +252,13 @@ try {
   assert.equal(await page.getByRole('link', { name: 'View run history', exact: true }).getAttribute('href'), '/dispatches');
   const triggerInput = page.getByLabel('Repository', { exact: true });
   await triggerInput.fill('https://github.com/acme/app/issues/1');
+  invalidStartResponse = true;
+  const invalidResponse = page.waitForResponse(response => response.url().endsWith('/api/run/agentic'));
+  await page.getByRole('button', { name: 'Generate preview', exact: true }).click();
+  await invalidResponse;
+  const invalidStartMessage = 'The server returned an invalid run response. Please try again.';
+  await page.waitForFunction(message => [...document.querySelectorAll('[role="alert"]')].some(element => element.textContent?.includes(message)), invalidStartMessage);
+  assert.ok(page.url().endsWith('/trigger'), 'an invalid start response must stay on the form');
   const triggerRequests = submissions.length;
   const triggerResponse = page.waitForResponse(response => response.url().endsWith('/api/run/agentic'));
   await page.getByRole('button', { name: 'Generate preview', exact: true }).click();

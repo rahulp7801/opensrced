@@ -468,10 +468,11 @@ function RetryButton({ dispatch }: { dispatch: DispatchWithLog }) {
         signal: AbortSignal.timeout(90_000),
       });
       const json = (await res.json().catch(() => ({}))) as { dispatch_id?: string; message?: string; error?: string };
-      if (!res.ok || !json.dispatch_id) throw new Error(json.message ?? json.error ?? "Could not restart this run.");
-      if (json.dispatch_id) {
-        window.location.href = `/dispatches?dispatch=${encodeURIComponent(json.dispatch_id)}`;
+      if (!res.ok) throw new Error(json.message ?? json.error ?? "Could not restart this run.");
+      if (typeof json.dispatch_id !== "string" || !json.dispatch_id.trim()) {
+        throw new Error("The server returned an invalid run response. Please try again.");
       }
+      window.location.href = `/dispatches?dispatch=${encodeURIComponent(json.dispatch_id)}`;
     } catch (e) {
       setError(e instanceof Error && e.name === "TimeoutError"
         ? "Restarting the run timed out. Please try again."

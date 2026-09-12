@@ -11,7 +11,7 @@ import { IconArrow } from "@/components/icons";
 type SubmitState =
   | { kind: "idle" }
   | { kind: "pending" }
-  | { kind: "ok"; message: string; queued_at: string; mode: string; dispatch_id?: string }
+  | { kind: "ok"; message: string; queued_at: string; mode: string; dispatch_id: string }
   | { kind: "err"; message: string };
 
 function friendlyError(msg: string): string {
@@ -73,7 +73,9 @@ export function TriggerForm() {
         mode?: string;
       } | null;
       if (!res.ok) throw new Error(data?.message ?? data?.error ?? `The server could not start this run (${res.status}).`);
-      if (!data) throw new Error("The server returned an invalid response. Please try again.");
+      if (!data || typeof data.dispatch_id !== "string" || !data.dispatch_id.trim()) {
+        throw new Error("The server returned an invalid run response. Please try again.");
+      }
       const dispatchId = data.dispatch_id;
       setState({
         kind: "ok",
@@ -86,9 +88,7 @@ export function TriggerForm() {
       setRepoUrl("");
       setNotes("");
 
-      if (dispatchId) {
-        router.push(`/dispatches?dispatch=${encodeURIComponent(dispatchId)}`);
-      }
+      router.push(`/dispatches?dispatch=${encodeURIComponent(dispatchId)}`);
     } catch (err) {
       const msg = err instanceof Error && err.name === "TimeoutError"
         ? "Starting the run timed out. Please try again."

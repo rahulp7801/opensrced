@@ -74,8 +74,11 @@ export function DraftPreview({
         }),
         signal: AbortSignal.timeout(90_000),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => null) as { dispatch_id?: unknown; message?: string; error?: string } | null;
       if (!res.ok) throw new Error(data?.message ?? data?.error ?? `HTTP ${res.status}`);
+      if (typeof data?.dispatch_id !== "string" || !data.dispatch_id.trim()) {
+        throw new Error("The server returned an invalid run response. Please try again.");
+      }
       setResult({ tone: "ok", msg: `Live run queued. Opening the live view…` });
       router.push(`/dispatches?dispatch=${encodeURIComponent(data.dispatch_id)}`);
     } catch (e) {

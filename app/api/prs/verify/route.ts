@@ -1,6 +1,7 @@
 // POST /api/prs/verify
 // Runs verification checks on a generated diff before pushing.
-// All checks are deterministic — zero LLM cost, instant.
+// All checks are deterministic and make no model calls. Cached graph data can
+// add repository impact context.
 //
 // Checks:
 // 1. Scope — how many lines/files changed? Flag if excessive
@@ -11,7 +12,8 @@
 
 import { NextRequest } from "next/server";
 import { existsSync } from "node:fs";
-import { graphJsonPath, loadGraph, type GraphData } from "@/lib/graph";
+import { graphJsonPath, loadGraph } from "@/lib/graph";
+import { analyzeImpactFromDiff } from "@/lib/graph-impact";
 import { ensureGraph, hasCrg, graphCacheDir, crgPythonPath } from "@/lib/graph-build";
 import { execFile } from "node:child_process";
 import { join } from "node:path";
@@ -29,6 +31,7 @@ import { getStoredGraph } from "@/lib/graph-store";
 import { githubApi } from "@/lib/github-api";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 type Check = {
   name: string;
@@ -406,110 +409,4 @@ async function runCrgImpact(
   );
 
   return JSON.parse(stdout) as CrgResult;
-}
-
-// ── Graphify impact helpers ──────────────────────────────────────────
-
-type ImpactResult = {
-  totalAffected: number;
-  affectedModules: number;
-  affectedLabels: string[];
-  topNode: string;
-};
-
-function analyzeImpactFromDiff(graph: GraphData, diff: string): ImpactResult {
-  // Extract changed file paths from the diff
-  const changedFiles = [...diff.matchAll(/^\+\+\+ (?:b\/)?(\S+)/gm)]
-    .map((m) => m[1].toLowerCase().replace(/\\/g, "/"));
-
-  // Extract function/symbol names from changed lines
-  // Look for definitions in removed lines (these are being modified)
-  const changedSymbols: string[] = [];
-  const defPatterns = [
-    /^\-\s*(?:def|function|fn|func|class|struct|pub\s+fn|async\s+def|const|let|var)\s+(\w+)/,
-    /^\+\s*(?:def|function|fn|func|class|struct|pub\s+fn|async\s+def|const|let|var)\s+(\w+)/,
-  ];
-  for (const line of diff.split("\n")) {
-    for (const pat of defPatterns) {
-      const m = pat.exec(line);
-      if (m) changedSymbols.push(m[1].toLowerCase());
-    }
-  }
-
-  // Find matching nodes in the graph — by file path or symbol name
-  const matchedNodeIds = new Set<string>();
-  for (const node of graph.nodes) {
-    const sf = (node.source_file || "").toLowerCase().replace(/\\/g, "/");
-    const label = node.label.toLowerCase().replace(/\(\)$/, "");
-
-    // Match by file
-    if (changedFiles.some((f) => sf.includes(f) || f.includes(sf))) {
-      matchedNodeIds.add(node.id);
-    }
-    // Match by symbol name
-    if (changedSymbols.includes(label)) {
-      matchedNodeIds.add(node.id);
-    }
-  }
-
-  if (matchedNodeIds.size === 0) {
-    return { totalAffected: 0, affectedModules: 0, affectedLabels: [], topNode: "" };
-  }
-
-  // BFS backward from all matched nodes to find all dependents
-  const CALL_RELATIONS = new Set([
-    "calls", "imports", "imports_from", "instantiates",
-    "references", "uses_component",
-  ]);
-
-  const incoming = new Map<string, Array<{ source: string; relation: string }>>();
-  for (const e of graph.links) {
-    if (CALL_RELATIONS.has(e.relation)) {
-      const list = incoming.get(e.target) ?? [];
-      list.push({ source: e.source, relation: e.relation });
-      incoming.set(e.target, list);
-    }
-  }
-
-  const visited = new Set<string>(matchedNodeIds);
-  const queue = [...matchedNodeIds];
-  const affectedCommunities = new Set<number>();
-
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    const node = graph.nodes.find((n) => n.id === current);
-    if (node) affectedCommunities.add(node.community);
-
-    const callers = incoming.get(current) ?? [];
-    for (const { source } of callers) {
-      if (!visited.has(source)) {
-        visited.add(source);
-        queue.push(source);
-      }
-    }
-  }
-
-  // Remove the originally matched nodes from the count
-  const dependentIds = [...visited].filter((id) => !matchedNodeIds.has(id));
-  const dependentLabels = dependentIds
-    .map((id) => graph.nodes.find((n) => n.id === id)?.label ?? id)
-    .slice(0, 10);
-
-  // Find the most connected matched node
-  let topNode = "";
-  let topDegree = 0;
-  for (const id of matchedNodeIds) {
-    const degree = (incoming.get(id) ?? []).length;
-    if (degree > topDegree) {
-      topDegree = degree;
-      topNode = graph.nodes.find((n) => n.id === id)?.label ?? id;
-    }
-  }
-
-  return {
-    totalAffected: dependentIds.length,
-    affectedModules: affectedCommunities.size,
-    affectedLabels: dependentLabels,
-    topNode,
-  };
 }

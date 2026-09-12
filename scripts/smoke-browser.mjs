@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
+import AxeBuilder from '@axe-core/playwright';
 const base = process.env.SMOKE_BASE_URL || 'http://localhost:3100';
 const browser = await chromium.launch({
   headless: true,
@@ -21,6 +22,14 @@ async function assertUsableControls(page, label) {
     }),
   );
   assert.deepEqual(problems, [], `unusable controls ${label}`);
+}
+
+async function assertNoSeriousAccessibilityViolations(page, label) {
+  const results = await new AxeBuilder({ page }).analyze();
+  const serious = results.violations
+    .filter(violation => ['serious', 'critical'].includes(violation.impact ?? ''))
+    .map(violation => ({ id: violation.id, impact: violation.impact, targets: violation.nodes.map(node => node.target.join(' ')) }));
+  assert.deepEqual(serious, [], `accessibility violations ${label}`);
 }
 
 try {
@@ -63,6 +72,7 @@ try {
         assert.equal(await page.getByRole('tablist').evaluate(element => element.scrollWidth > element.clientWidth), false, 'demo tabs must all fit without horizontal scrolling');
       }
       await assertUsableControls(page, `${width} ${path}`);
+      await assertNoSeriousAccessibilityViolations(page, `${width} ${path}`);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, `overflow ${width} ${path}`);
       assert.deepEqual(errors, [], `client errors ${path}`);
       pagesChecked++;
@@ -134,6 +144,7 @@ try {
   await page.goto(base + '/dispatches?dispatch=test-preview');
   await page.getByRole('link', { name: 'Find', exact: true }).waitFor();
   await assertUsableControls(page, 'authenticated dispatches');
+  await assertNoSeriousAccessibilityViolations(page, 'authenticated dispatches');
   for (const label of ['Find', 'Fix', 'Ship', 'Explore']) {
     assert.equal(await page.getByRole('link', { name: label, exact: true }).count(), 1, `${label} navigation needs an accessible name`);
   }
@@ -181,6 +192,7 @@ try {
   const keyInput = page.getByLabel('Anthropic API key', { exact: true });
   await page.getByLabel('Gemini API key', { exact: true }).waitFor();
   await assertUsableControls(page, 'authenticated settings');
+  await assertNoSeriousAccessibilityViolations(page, 'authenticated settings');
   await keyInput.fill('test-replacement-value');
   await page.getByRole('button', { name: '$0.10', exact: true }).click();
   assert.equal(await page.getByRole('button', { name: '$0.10', exact: true }).getAttribute('aria-pressed'), 'true');

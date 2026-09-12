@@ -28,7 +28,7 @@ export function RevokeAllButton() {
       <button
         type="button"
         onClick={() => setState("confirm1")}
-        className="text-[12px] text-red-400/70 hover:text-red-300 transition"
+        className="text-[12px] text-alert hover:text-red-200 transition"
       >
         Delete all connections &amp; sign out
       </button>

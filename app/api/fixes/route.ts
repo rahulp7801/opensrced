@@ -10,7 +10,7 @@ import { readJsonBody } from "@/lib/request-body";
 
 import { NextRequest } from "next/server";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, writeFileSync, readdirSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readdirSync, renameSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { requireSession } from "@/lib/require-session";
 
@@ -86,7 +86,14 @@ export async function POST(req: NextRequest) {
   if (cloudExecution()) {
     await put(`shares/${id}.json`, JSON.stringify(fix), { ...privateJsonOptions, abortSignal: AbortSignal.timeout(15_000) });
   } else {
-    writeFileSync(join(FIXES_DIR, `${id}.json`), JSON.stringify(fix, null, 2));
+    const target = join(FIXES_DIR, `${id}.json`);
+    const temporary = `${target}.${randomUUID()}.tmp`;
+    try {
+      writeFileSync(temporary, JSON.stringify(fix, null, 2), { flag: "wx", mode: 0o600 });
+      renameSync(temporary, target);
+    } finally {
+      rmSync(temporary, { force: true });
+    }
     evictOldest();
   }
 

@@ -57,6 +57,7 @@ export default function GraphPage() {
   const buildSequence = useRef(0);
   const buildRequest = useRef<AbortController | null>(null);
   const queryRequest = useRef<AbortController | null>(null);
+  const suggestionRequest = useRef<AbortController | null>(null);
   // Auto-scroll follows the stream only while the reader is already at the
   // bottom; scrolling up to re-read an earlier answer used to be undone by the
   // next token.
@@ -149,48 +150,55 @@ export default function GraphPage() {
 
   // Fetch connected org repos for autocomplete
   const suggestionsLoaded = useRef(false);
-  function loadSuggestions() {
+  async function loadSuggestions() {
     if (suggestionsLoaded.current) return;
     suggestionsLoaded.current = true;
     const cached = sessionStorage.getItem("opensrcer-explore-repos");
     if (cached) {
       try {
-        setSuggestions(JSON.parse(cached));
-        return;
+        const parsed: unknown = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.every((item) => typeof item === "string")) {
+          setSuggestions(parsed);
+          return;
+        }
       } catch {
-        /* ignore */
+        sessionStorage.removeItem("opensrcer-explore-repos");
       }
     }
-    fetch("/api/crucible/orgs")
-      .then((r) => (r.ok ? r.json() : null))
-      .then(
-        (
-          data: { orgs?: Array<{ github_org: string }> } | null,
-        ) => {
-          const orgs = data?.orgs ?? [];
-          if (!orgs.length) return;
-          Promise.all(
-            orgs.map((o) =>
-              fetch(`/api/crucible/orgs/${o.github_org}/repos`)
-                .then((r) => (r.ok ? r.json() : { repos: [] }))
-                .then(
-                  (d: { repos?: Array<{ fullName: string }> }) =>
-                    (d.repos ?? []).map((r) => r.fullName),
-                )
-                .catch(() => [] as string[]),
-            ),
-          ).then((lists) => {
-            const all = lists.flat();
-            setSuggestions(all);
-            sessionStorage.setItem(
-              "opensrcer-explore-repos",
-              JSON.stringify(all),
-            );
-          });
-        },
-      )
-      .catch(() => {});
+    const controller = new AbortController();
+    suggestionRequest.current?.abort();
+    suggestionRequest.current = controller;
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]);
+    try {
+      const response = await fetch("/api/crucible/orgs", { signal });
+      if (!response.ok) throw new Error("Could not load connected organizations.");
+      const data = (await response.json()) as { orgs?: Array<{ github_org: string }> };
+      const orgs = data.orgs ?? [];
+      const all: string[] = [];
+      for (let index = 0; index < orgs.length; index += 4) {
+        const batch = await Promise.all(orgs.slice(index, index + 4).map(async ({ github_org }) => {
+          const reposResponse = await fetch(`/api/crucible/orgs/${encodeURIComponent(github_org)}/repos`, { signal });
+          if (!reposResponse.ok) return [];
+          const reposData = (await reposResponse.json()) as { repos?: Array<{ fullName: string }> };
+          return (reposData.repos ?? []).map((repo) => repo.fullName);
+        }));
+        all.push(...batch.flat());
+      }
+      if (controller.signal.aborted) return;
+      setSuggestions(all);
+      try {
+        sessionStorage.setItem("opensrcer-explore-repos", JSON.stringify(all));
+      } catch {
+        /* autocomplete still works when storage is unavailable or full */
+      }
+    } catch {
+      if (!controller.signal.aborted) suggestionsLoaded.current = false;
+    } finally {
+      if (suggestionRequest.current === controller) suggestionRequest.current = null;
+    }
   }
+
+  useEffect(() => () => suggestionRequest.current?.abort(), []);
 
   // ── Build graph ─────────────────────────────────────────────────────
 

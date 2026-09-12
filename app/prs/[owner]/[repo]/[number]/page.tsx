@@ -1387,6 +1387,7 @@ export default function PrDetailPage() {
                           ? comments.find((c) => c.id === fixState.commentId) : null;
                         const res = await fetch("/api/fixes", {
                           method: "POST",
+                          signal: AbortSignal.timeout(30_000),
                           headers: { "content-type": "application/json" },
                           body: JSON.stringify({
                             repo: repoFull,
@@ -1397,7 +1398,8 @@ export default function PrDetailPage() {
                             explainer: autoExplainer || null,
                           }),
                         });
-                        const data = await res.json();
+                        const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+                        if (!res.ok || typeof data.url !== "string") throw new Error(data.error ?? "Could not create share link.");
                         if (data.url) {
                           navigator.clipboard.writeText(window.location.origin + data.url);
                           toast("Share link copied to clipboard", "ok");

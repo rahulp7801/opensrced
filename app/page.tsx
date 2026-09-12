@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 export default function LandingPage() {
+  const localMode = process.env.AUTH_DISABLED === "1" && process.env.NODE_ENV !== "production";
   return (
     <div className="mx-auto w-full max-w-[1200px] px-5 sm:px-8">
       <section className="grid gap-12 py-16 lg:grid-cols-[1fr_1.05fr] lg:items-center lg:gap-16 lg:py-24">
@@ -9,10 +10,10 @@ export default function LandingPage() {
           <h1 className="max-w-xl text-[44px] font-semibold leading-[1.08] tracking-[-0.045em] sm:text-[58px]">Make your next<br className="hidden sm:block" /> contribution count.</h1>
           <p className="mt-6 max-w-md text-base leading-7 text-paper-dim">Find an issue worth fixing. Explore the code with AI, generate a patch, and review the changes before you publish.</p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
-            <Link href="/demo" className="inline-flex min-h-12 items-center gap-3 rounded-md bg-signal px-5 font-medium text-ink transition hover:bg-signal-soft">Explore the demo <span aria-hidden="true">&rarr;</span></Link>
-            <Link href="/login" className="inline-flex min-h-12 items-center px-2 text-paper-dim hover:text-paper">Connect GitHub <span aria-hidden="true" className="ml-2">&#8599;</span></Link>
+            <Link href={localMode ? "/discover" : "/demo"} className="inline-flex min-h-12 items-center gap-3 rounded-md bg-signal px-5 font-medium text-ink transition hover:bg-signal-soft">{localMode ? "Browse repositories" : "Explore the demo"} <span aria-hidden="true">&rarr;</span></Link>
+            <Link href={localMode ? "/demo" : "/login"} className="inline-flex min-h-12 items-center px-2 text-paper-dim hover:text-paper">{localMode ? "Explore the demo" : "Connect GitHub"} <span aria-hidden="true" className="ml-2">{localMode ? "\u2192" : "\u2197"}</span></Link>
           </div>
-          <p className="mt-4 text-xs text-paper-muted">The interactive demo needs no account or API key.</p>
+          <p className="mt-4 text-xs text-paper-muted">{localMode ? "Local mode is active. Add a GitHub token when you want to publish changes." : "The interactive demo needs no account or API key."}</p>
         </div>
         <div className="min-w-0 overflow-hidden rounded-lg border border-border bg-surface">
           <div className="flex items-center justify-between gap-4 border-b border-border px-5 py-4 text-xs text-paper-muted"><span>Patch review</span><span>Illustrative preview</span></div>
@@ -41,7 +42,7 @@ export default function LandingPage() {
       </section>
 
       <section className="mb-4 grid gap-6 rounded-lg border border-border bg-surface px-6 py-8 sm:px-8 md:grid-cols-2 md:gap-12" aria-labelledby="before-heading">
-        <div><h2 id="before-heading" className="text-lg font-medium tracking-tight">Before your first live run</h2><p className="mt-3 text-sm leading-6 text-paper-dim">Connect GitHub and add your own provider API key in Settings. AI usage is billed by your provider; run budgets apply to the Claude agent.</p></div>
+        <div><h2 id="before-heading" className="text-lg font-medium tracking-tight">Before your first live run</h2><p className="mt-3 text-sm leading-6 text-paper-dim">{localMode ? "Add your provider API key in Settings and a GitHub token to your local environment before publishing." : "Connect GitHub and add your own provider API key in Settings."} AI usage is billed by your provider; run budgets apply to the Claude agent.</p></div>
         <div><h3 className="text-lg font-medium tracking-tight">A patch is a starting point</h3><p className="mt-3 text-sm leading-6 text-paper-dim">AI-generated changes need review. Target-repository tests do not run in hosted jobs, so validate the patch in your own environment before merging.</p></div>
       </section>
     </div>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 function safeReturnTo(value: string | undefined): string {
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.length > 2048) return "/";
@@ -7,7 +8,11 @@ function safeReturnTo(value: string | undefined): string {
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ returnTo?: string }> }) {
   const params = await searchParams;
-  const loginHref = `/auth/login?returnTo=${encodeURIComponent(safeReturnTo(params.returnTo))}`;
+  const returnTo = safeReturnTo(params.returnTo);
+  if (process.env.AUTH_DISABLED === "1" && process.env.NODE_ENV !== "production") {
+    redirect(returnTo === "/" || returnTo.startsWith("/login") ? "/discover" : returnTo);
+  }
+  const loginHref = `/auth/login?returnTo=${encodeURIComponent(returnTo)}`;
 
   return (
     <div className="mx-auto grid w-full max-w-[1000px] flex-1 gap-12 px-5 py-16 sm:px-8 lg:grid-cols-[1fr_420px] lg:items-center lg:gap-20 lg:py-24">

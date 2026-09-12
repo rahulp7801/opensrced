@@ -467,7 +467,10 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
 
     if (shouldRun) {
       const { runTests, formatLogBlock } = await import("./crucible/test-runner");
-      const result = await runTests(worktreeDir, { env });
+      // The target repository controls install/test scripts. runTests builds
+      // its own credential-free environment instead of receiving this PR
+      // workflow's GitHub or provider tokens.
+      const result = await runTests(worktreeDir);
       await appendFile(args.logPath, formatLogBlock(result)).catch(() => {});
       if (result.status === "failed" || result.status === "error") {
         await cleanupWorktree();

@@ -39,6 +39,11 @@ export type TestResult = {
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_OUTPUT_BYTES = 256 * 1024; // 256 KB stdout / stderr cap
 
+/** Credentials are intentionally absent from target-controlled test scripts. */
+export function targetTestEnv(): NodeJS.ProcessEnv {
+  return childEnv();
+}
+
 type Ecosystem = {
   name: string;
   detect: (dir: string) => boolean;
@@ -131,7 +136,7 @@ function detectEcosystem(dir: string): Ecosystem | null {
 async function runCommand(
   cmd: string,
   args: string[],
-  opts: { cwd: string; timeoutMs: number; env?: NodeJS.ProcessEnv },
+  opts: { cwd: string; timeoutMs: number },
 ): Promise<{
   exitCode: number | null;
   stdout: string;
@@ -146,13 +151,15 @@ async function runCommand(
 
     const child = spawn(cmd, args, {
       cwd: opts.cwd,
-      env: opts.env ?? childEnv(),
+      // Target repositories control install and test scripts. Give them only
+      // the tool-discovery allowlist, never the GitHub/provider tokens used
+      // by the surrounding PR workflow.
+      env: targetTestEnv(),
       windowsHide: true,
-      // shell: true needed for PATH resolution of npm/pip/go/cargo on
-      // Windows (npm is npm.cmd, not npm.exe) and is harmless here —
-      // every cmd + args tuple is a whitelisted constant (see
-      // ECOSYSTEMS). No user-controlled input reaches the shell.
-      shell: true,
+      // The Windows shell resolves npm.cmd and similar launchers. Every
+      // command tuple is a constant from ECOSYSTEMS; target-controlled
+      // values never become shell arguments.
+      shell: process.platform === "win32",
     });
 
     const appendBounded = (buf: string, chunk: string): string => {
@@ -197,7 +204,7 @@ async function runCommand(
 
 export async function runTests(
   worktreeDir: string,
-  opts: { timeoutMs?: number; env?: NodeJS.ProcessEnv } = {},
+  opts: { timeoutMs?: number } = {},
 ): Promise<TestResult> {
   const started = Date.now();
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -245,7 +252,6 @@ export async function runTests(
     const res = await runCommand(step.cmd, step.args, {
       cwd: worktreeDir,
       timeoutMs: remaining,
-      env: opts.env,
     });
 
     stdoutAll += res.stdout;

@@ -4,7 +4,7 @@ import { DiscoverScanner } from "@/components/discover-scanner";
 
 export default function DiscoverPage() {
   return (
-    <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 py-6">
+    <div className="mx-auto w-full max-w-[1200px] px-5 py-10 sm:px-8">
       <PageHeading
         eyebrow="find something to fix"
         title={<>Browse repos</>}

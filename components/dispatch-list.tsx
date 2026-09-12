@@ -39,6 +39,7 @@ export function DispatchList() {
   const [items, setItems] = useState<Dispatch[] | null>(null);
   const [selected, setSelected] = useState<string | null>(initialDispatch);
   const [detail, setDetail] = useState<DispatchWithLog | null>(null);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">("unsupported");
   const logRef = useRef<HTMLPreElement>(null);
   // Dispatches we have already raised a desktop notification for.
   const notifiedRef = useRef(new Set<string>());
@@ -57,12 +58,16 @@ export function DispatchList() {
     setSelected(id);
   }, []);
 
-  // Request notification permission on mount
+  // Read the current permission without prompting. Browser permission dialogs
+  // should follow an explicit user action, not appear when the page opens.
   useEffect(() => {
-    if (typeof Notification !== "undefined" && Notification.permission === "default") {
-      Notification.requestPermission();
-    }
+    if (typeof Notification !== "undefined") setNotificationPermission(Notification.permission);
   }, []);
+
+  async function enableNotifications() {
+    if (typeof Notification === "undefined") return;
+    setNotificationPermission(await Notification.requestPermission());
+  }
 
   // Poll dispatch list.
   //
@@ -222,11 +227,18 @@ export function DispatchList() {
       {/* List */}
       <aside className="col-span-12 md:col-span-5 lg:col-span-4">
         <div className="border border-border bg-surface/40">
-          <div className="border-b border-border px-4 py-2.5 flex items-center justify-between">
+          <div className="border-b border-border px-4 py-3 flex items-center justify-between gap-3">
             <span className="text-[13px] text-paper">Pipelines</span>
-            <span className="mono-label text-paper-muted tabular-nums">
-              {items.length}
-            </span>
+            <div className="flex items-center gap-3">
+              {notificationPermission === "default" && (
+                <button type="button" onClick={enableNotifications} className="text-xs text-paper-muted hover:text-paper">
+                  Enable notifications
+                </button>
+              )}
+              <span className="font-mono text-xs text-paper-muted tabular-nums" aria-label={`${items.length} runs`}>
+                {items.length}
+              </span>
+            </div>
           </div>
           <ul className="max-h-[70vh] overflow-y-auto">
             {items.map((d) => (

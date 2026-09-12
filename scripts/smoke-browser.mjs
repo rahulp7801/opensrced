@@ -38,9 +38,22 @@ try {
   // Client interaction test only: fake session/data, intercept every mutation.
   // Real Auth0 and provider workflows remain a separate deployment release gate.
   const context = await browser.newContext();
+  await context.addInitScript(() => {
+    window.__notificationPromptCount = 0;
+    if (typeof Notification !== "undefined") {
+      Notification.requestPermission = async () => {
+        window.__notificationPromptCount += 1;
+        return "default";
+      };
+    }
+  });
   context.setDefaultTimeout(15000);
     context.setDefaultNavigationTimeout(30000);
-    const page = await context.newPage();
+  const page = await context.newPage();
+  const onboardingOrgRequests = [];
+  page.on('request', request => {
+    if (new URL(request.url()).pathname === '/api/crucible/orgs') onboardingOrgRequests.push(request.url());
+  });
   await page.route('**/auth/profile', route => route.fulfill({ json: { sub: 'test-user', name: 'Test User' } }));
   const run = { id: 'test-preview', repo_url: 'https://github.com/acme/app', mode: 'agentic', dry_run: true, issue_number: 1, started_at: new Date().toISOString(), status: 'failed', log: '', log_size: 0 };
   const submissions = [];
@@ -65,6 +78,9 @@ try {
     return route.fulfill({ json: {} });
   });
   await page.goto(base + '/dispatches?dispatch=test-preview');
+  assert.equal(await page.evaluate(() => window.__notificationPromptCount), 0, 'runs page must not prompt for notifications on load');
+  assert.equal(await page.getByText('Add an Anthropic API key', { exact: true }).count(), 0, 'completed onboarding stays hidden');
+  assert.equal(onboardingOrgRequests.length, 0, 'onboarding must not fetch optional organization state');
   await Promise.all([
     page.waitForResponse(response => response.url().endsWith('/api/run/agentic')),
     page.getByRole('button', { name: 'retry', exact: true }).click(),

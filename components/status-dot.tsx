@@ -38,7 +38,7 @@ export function StatusChip({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 border px-1.5 py-[1px] text-[10px] uppercase tracking-[0.15em]",
+        "inline-flex items-center gap-1.5 rounded-sm border px-2 py-0.5 text-xs font-medium",
         borders[tone],
         className,
       )}

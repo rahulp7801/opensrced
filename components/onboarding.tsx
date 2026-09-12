@@ -7,7 +7,6 @@ import Link from "next/link";
 
 type OnboardingState = {
   hasKey: boolean;
-  hasOrg: boolean;
   hasDispatch: boolean;
 };
 
@@ -15,24 +14,15 @@ const STEPS = [
   {
     key: "key" as const,
     number: "1",
-    title: "Add your API keys",
-    description: "Add Anthropic + Gemini keys in Settings. They're encrypted in your browser — never stored on our servers.",
+    title: "Add an Anthropic API key",
+    description: "Add the provider key used for agent runs. You can add Gemini later for patch review.",
     href: "/crucible",
     cta: "Go to Settings",
     check: (s: OnboardingState) => s.hasKey,
   },
   {
-    key: "org" as const,
-    number: "2",
-    title: "Connect a GitHub org (optional)",
-    description: "Install the GitHub App to scan private repos. Skip this if you only want to fix public repo issues.",
-    href: "/crucible",
-    cta: "Connect org",
-    check: (s: OnboardingState) => s.hasOrg,
-  },
-  {
     key: "dispatch" as const,
-    number: "3",
+    number: "2",
     title: "Fix your first issue",
     description: "Go to Discover, pick a repo with open issues, then click 'Fix this issue' to watch the AI agent work.",
     href: "/discover",
@@ -58,13 +48,13 @@ export function Onboarding() {
       return;
     }
 
-    // Check all three conditions in parallel
+    // Only required first-run tasks belong here. Organization access is
+    // optional for people working with public repositories.
     Promise.all([
       fetch("/api/settings/keys").then((r) => r.json()).then((d: { anthropic?: boolean }) => Boolean(d.anthropic)).catch(() => false),
-      fetch("/api/crucible/orgs").then((r) => r.json()).then((d: { orgs?: unknown[] }) => (d.orgs?.length ?? 0) > 0).catch(() => false),
       fetch("/api/dispatches").then((r) => r.json()).then((d: { dispatches?: unknown[] }) => (d.dispatches?.length ?? 0) > 0).catch(() => false),
-    ]).then(([hasKey, hasOrg, hasDispatch]) => {
-      setState({ hasKey, hasOrg, hasDispatch });
+    ]).then(([hasKey, hasDispatch]) => {
+      setState({ hasKey, hasDispatch });
     });
   }, [user]);
 
@@ -86,7 +76,7 @@ export function Onboarding() {
 
   return (
     <div className="border-b border-border bg-surface/40">
-      <div className="mx-auto max-w-[1400px] px-4 sm:px-6 py-3 flex items-center gap-4">
+      <div className="mx-auto flex max-w-[1200px] items-center gap-4 px-5 py-3 sm:px-8">
         {/* Step indicators */}
         <div className="flex items-center gap-1.5 shrink-0">
           {STEPS.map((s, i) => (
@@ -118,7 +108,7 @@ export function Onboarding() {
         {/* CTA */}
         <Link
           href={currentStep.href}
-          className="shrink-0 border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-3 py-1 text-[11px] transition"
+          className="shrink-0 rounded-md border border-signal/50 bg-signal/10 px-3 py-2 text-xs font-medium text-signal transition hover:bg-signal/20"
         >
           {currentStep.cta}
         </Link>
@@ -126,7 +116,8 @@ export function Onboarding() {
         {/* Dismiss */}
         <button
           onClick={dismiss}
-          className="shrink-0 text-[11px] text-paper-faint hover:text-paper-muted"
+          className="shrink-0 px-1 text-sm text-paper-muted hover:text-paper"
+          aria-label="Dismiss onboarding"
           title="Dismiss onboarding"
         >
           ×

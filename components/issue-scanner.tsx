@@ -187,21 +187,23 @@ export function IssueScanner() {
           // from ?repo= (the useEffect below) uses the cache.
           if (repoUrl.trim()) void runScan(repoUrl.trim(), true);
         }}
-        className="flex items-center gap-3 border border-border bg-surface/40 p-3"
+        className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4 sm:flex-row sm:items-center"
       >
-        <IconSearch className="text-paper-muted ml-1" />
+        <label htmlFor="issue-repository" className="sr-only">GitHub repository</label>
+        <IconSearch className="hidden text-paper-muted sm:block" />
         <input
+          id="issue-repository"
           value={repoUrl}
           onChange={(e) => setRepoUrl(e.target.value)}
           placeholder="https://github.com/owner/repo or owner/repo"
           spellCheck={false}
           autoComplete="off"
-          className="flex-1 bg-transparent text-[14px] text-paper placeholder:text-paper-faint focus:outline-none"
+          className="min-h-11 w-full flex-1 rounded-md border border-border bg-ink px-3 text-base text-paper placeholder:text-paper-faint focus:border-signal sm:border-0 sm:bg-transparent"
         />
         <button
           type="submit"
           disabled={loading || !repoUrl.trim()}
-          className="inline-flex items-center gap-2 border border-signal bg-signal/10 text-paper px-4 py-2 text-[12px] hover:bg-signal/20 disabled:opacity-50"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-signal px-5 py-2 text-sm font-medium text-ink hover:bg-signal-soft disabled:opacity-50"
         >
           {loading ? "Scanning…" : "Scan issues"} <IconArrow />
         </button>
@@ -239,8 +241,9 @@ export function IssueScanner() {
                 <button
                   key={opt.k}
                   onClick={() => setFilter(opt.k)}
+                  aria-pressed={filter === opt.k}
                   className={cn(
-                    "px-3 py-1.5 text-[11px] uppercase tracking-[0.12em] border transition-colors",
+                    "min-h-9 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
                     filter === opt.k
                       ? "border-signal/60 bg-signal/10 text-signal"
                       : "border-border text-paper-muted hover:text-paper",
@@ -257,8 +260,9 @@ export function IssueScanner() {
                 <button
                   key={opt.k}
                   onClick={() => setAge(opt.k)}
+                  aria-pressed={age === opt.k}
                   className={cn(
-                    "px-3 py-1.5 text-[11px] uppercase tracking-[0.12em] border transition-colors",
+                    "min-h-9 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
                     age === opt.k
                       ? "border-signal/60 bg-signal/10 text-signal"
                       : "border-border text-paper-muted hover:text-paper",
@@ -280,8 +284,9 @@ export function IssueScanner() {
                 <button
                   key={opt.k}
                   onClick={() => setBeginner(opt.k)}
+                  aria-pressed={beginner === opt.k}
                   className={cn(
-                    "px-3 py-1.5 text-[11px] uppercase tracking-[0.12em] border transition-colors",
+                    "min-h-9 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
                     beginner === opt.k
                       ? "border-ok/60 bg-ok/10 text-ok"
                       : "border-border text-paper-muted hover:text-paper",

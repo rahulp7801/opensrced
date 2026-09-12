@@ -153,7 +153,7 @@ export function DiscoverScanner() {
   return (
     <div>
       {/* Filter form */}
-      <div className="border border-border bg-surface/40 p-4 grid grid-cols-1 sm:grid-cols-6 gap-3">
+      <div className="rounded-lg border border-border bg-surface p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
         <LabeledInput
           label="min stars"
           value={minStars}
@@ -195,11 +195,11 @@ export function DiscoverScanner() {
           placeholder="180"
           type="number"
         />
-        <div className="sm:col-span-6 flex justify-end">
+        <div className="sm:col-span-2 lg:col-span-6 flex justify-end">
           <button
             onClick={runDiscover}
             disabled={loading || !minStars}
-            className="inline-flex items-center gap-2 border border-signal bg-signal/10 text-paper px-4 py-2 text-[12px] hover:bg-signal/20 disabled:opacity-50"
+            className="inline-flex min-h-11 items-center gap-2 rounded-md bg-signal px-5 py-2 text-sm font-medium text-ink hover:bg-signal-soft disabled:opacity-50"
           >
             <IconSearch />
             {loading ? "Searching GitHub…" : "Discover"}
@@ -282,8 +282,9 @@ export function DiscoverScanner() {
               <span className="mx-1 self-center text-paper-faint">·</span>
               <button
                 onClick={() => setSolvableOnly((v) => !v)}
+                aria-pressed={solvableOnly}
                 className={cn(
-                  "px-3 py-1.5 text-[11px] uppercase tracking-[0.12em] border transition-colors",
+                  "min-h-9 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
                   solvableOnly
                     ? "border-signal/60 bg-signal/10 text-signal"
                     : "border-border text-paper-muted hover:text-paper",
@@ -334,8 +335,9 @@ export function DiscoverScanner() {
                           onClick={(e) => { e.stopPropagation(); toggleBookmark(i.repo.fullName); }}
                           className={cn(
                             "inline-block w-4 text-center mr-1 text-[12px] transition",
-                            isBookmarked(i.repo.fullName) ? "text-signal" : "text-paper-faint hover:text-signal opacity-0 group-hover:opacity-100",
+                            isBookmarked(i.repo.fullName) ? "text-signal" : "text-paper-faint hover:text-signal opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100",
                           )}
+                          aria-label={isBookmarked(i.repo.fullName) ? `Remove ${i.repo.fullName} bookmark` : `Bookmark ${i.repo.fullName}`}
                           title={isBookmarked(i.repo.fullName) ? "Remove bookmark" : "Bookmark this repo"}
                         >
                           {isBookmarked(i.repo.fullName) ? "*" : "+"}
@@ -483,14 +485,14 @@ function LabeledInput({
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="mono-label text-paper-muted">{label}</span>
+      <span className="text-xs font-medium text-paper-dim">{label}</span>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         spellCheck={false}
-        className="bg-surface border border-border px-3 py-2 text-[13px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-border-strong"
+        className="min-h-11 rounded-md border border-border bg-ink px-3 py-2 text-base text-paper placeholder:text-paper-faint focus:border-signal"
       />
     </label>
   );
@@ -509,11 +511,11 @@ function LabeledSelect({
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="mono-label text-paper-muted">{label}</span>
+      <span className="text-xs font-medium text-paper-dim">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="bg-surface border border-border px-3 py-2 text-[13px] text-paper focus:outline-none focus:border-border-strong"
+        className="min-h-11 rounded-md border border-border bg-ink px-3 py-2 text-base text-paper focus:border-signal"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -542,8 +544,9 @@ function PillRow({
         <button
           key={opt.k}
           onClick={() => onChange(opt.k)}
+          aria-pressed={value === opt.k}
           className={cn(
-            "px-3 py-1.5 text-[11px] uppercase tracking-[0.12em] border transition-colors",
+            "min-h-9 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
             value === opt.k
               ? "border-signal/60 bg-signal/10 text-signal"
               : "border-border text-paper-muted hover:text-paper",

@@ -93,6 +93,38 @@ Next.js stays on the patched 15.x line. Its pinned PostCSS dependency is
 overridden to 8.5.28 for security fixes; remove the override when the framework
 ships a safe dependency. Both package lockfiles must remain committed.
 
+## Acceptance evidence (September 11, 2026)
+
+Application commit `62887db` passed the full GitHub CI workflow and a local
+production acceptance pass:
+
+- 120 application tests, MCP tests, app/worker type checks, and production build.
+- Browser checks at desktop/mobile widths: login prompts, settings recovery,
+  repository pagination/retry, issue previews, PR review, and graph interactions.
+- PR checks include the actual head repository as the push target, no automatic
+  write retries, recoverable diff errors, single comment submission, and fresh
+  follow-up state for each generated fix. Browser mutations use mocked APIs.
+- Local encrypted-session tests verify private profile fields, settings round
+  trips, and isolation between accounts. These use an isolated fake Auth0
+  configuration; they do not exercise an OAuth callback against a real tenant.
+- Read-only GitHub integration through the production app returned 200 for owned
+  and contributed repositories, cursor pagination, PR lists, issue scans, PR
+  comments, and diffs. The PR head repository matched GitHub's source metadata.
+  This used the existing local GitHub credential in memory and a local session
+  fixture, with no GitHub writes or paid provider requests.
+- 200 health requests at concurrency 20 completed with local p95 217 ms. This is
+  a smoke result, not an authenticated workload or production capacity estimate.
+- Full-history secret scanning passed; GitHub reported zero secret-scanning
+  alerts. The real pinned Claude CLI exposed nine read-only MCP tools and no
+  built-in tools in its restricted worker configuration.
+
+CI runs `smoke-session.mjs`, `smoke-browser.mjs`, `smoke-review.mjs`,
+`smoke-lists.mjs`, `smoke-graph-ui.mjs`, and the HTTP/graph/runtime checks.
+Use the isolated environment defined in `.github/workflows/ci.yml` for the
+session fixtures; never use its fake credentials for a deployment.
+
+Hosting setup is paused at the user's request. The gates below remain open.
+
 ## Outstanding release gates
 
 - Connect the selected Vercel account and configure Auth0, private Blob, and worker snapshots.

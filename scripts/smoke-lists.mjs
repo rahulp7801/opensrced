@@ -59,7 +59,7 @@ try {
   assert.equal(prs, 2, 'refresh issues exactly one request');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'PR controls fit mobile screens');
   await page.goto(base + '/discover');
-  await page.getByRole('button', { name: 'Discover', exact: true }).click();
+  await page.getByRole('button', { name: 'Search GitHub', exact: true }).click();
   await page.getByRole('status').filter({ hasText: 'Partial results:' }).waitFor();
   assert.deepEqual(errors, []);
   console.log(JSON.stringify({ repositoryRetry: true, cursorPagination: true, mobileRepos: true, singlePrRefresh: true, partialDiscovery: true }));

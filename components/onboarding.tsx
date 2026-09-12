@@ -44,9 +44,13 @@ export function Onboarding({ localMode = false }: { localMode?: boolean }) {
 
   useEffect(() => {
     if (!user && !localMode) return;
-    if (sessionStorage.getItem("opensrcer-onboarding-dismissed") === "1") {
-      setDismissed(true);
-      return;
+    try {
+      if (sessionStorage.getItem("opensrcer-onboarding-dismissed") === "1") {
+        setDismissed(true);
+        return;
+      }
+    } catch {
+      // The checklist remains usable when privacy settings block storage.
     }
 
     // Only required first-run tasks belong here. Organization access is
@@ -76,7 +80,7 @@ export function Onboarding({ localMode = false }: { localMode?: boolean }) {
 
   function dismiss() {
     setDismissed(true);
-    sessionStorage.setItem("opensrcer-onboarding-dismissed", "1");
+    try { sessionStorage.setItem("opensrcer-onboarding-dismissed", "1"); } catch { /* storage unavailable */ }
   }
 
   return (

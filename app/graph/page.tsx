@@ -70,14 +70,22 @@ export default function GraphPage() {
     if (fromUrl) {
       setRepoUrl(fromUrl);
     } else {
-      const saved = localStorage.getItem("opensrcer-graph-repo");
-      if (saved) setRepoUrl(saved);
+      try {
+        const saved = localStorage.getItem("opensrcer-graph-repo");
+        if (saved) setRepoUrl(saved);
+      } catch {
+        // The graph still works when privacy settings disable browser storage.
+      }
     }
   }, [searchParams]);
 
   useEffect(() => {
-    if (repoUrl.trim())
+    if (!repoUrl.trim()) return;
+    try {
       localStorage.setItem("opensrcer-graph-repo", repoUrl.trim());
+    } catch {
+      // Persistence is optional; keep the current graph session usable.
+    }
   }, [repoUrl]);
 
   // Check whether a graph already exists whenever the repo changes.
@@ -153,7 +161,12 @@ export default function GraphPage() {
   async function loadSuggestions() {
     if (suggestionsLoaded.current) return;
     suggestionsLoaded.current = true;
-    const cached = sessionStorage.getItem("opensrcer-explore-repos");
+    let cached: string | null = null;
+    try {
+      cached = sessionStorage.getItem("opensrcer-explore-repos");
+    } catch {
+      // Fetch suggestions normally when session storage is unavailable.
+    }
     if (cached) {
       try {
         const parsed: unknown = JSON.parse(cached);
@@ -162,7 +175,7 @@ export default function GraphPage() {
           return;
         }
       } catch {
-        sessionStorage.removeItem("opensrcer-explore-repos");
+        try { sessionStorage.removeItem("opensrcer-explore-repos"); } catch { /* storage unavailable */ }
       }
     }
     const controller = new AbortController();

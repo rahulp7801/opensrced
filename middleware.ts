@@ -42,6 +42,7 @@ const PUBLIC_PATHS = new Set([
   "/issues",
   "/stats",
   "/explore",
+  "/graph",
   "/trigger",
   "/prs",
   "/repos",

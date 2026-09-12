@@ -62,11 +62,11 @@ try {
     const authNavigations = [];
     page.on('pageerror', error => errors.push(error.message));
     page.on('request', request => { if (/\/auth\/(login|logout)/.test(request.url())) authNavigations.push(request.url()); });
-    for (const path of ['/', '/demo', '/login', '/issues', '/dispatches', '/trigger', '/stats']) {
+    for (const path of ['/', '/demo', '/login', '/issues', '/dispatches', '/trigger', '/stats', '/graph']) {
       await page.goto(base + path, { waitUntil: 'domcontentloaded' });
       const main = page.locator('main');
       await main.locator('h1').first().waitFor({ state: 'visible' });
-      if (['/issues', '/dispatches', '/trigger', '/stats'].includes(path)) {
+      if (['/issues', '/dispatches', '/trigger', '/stats', '/graph'].includes(path)) {
         await main.getByRole('heading', { name: 'Sign in to continue', exact: true }).waitFor();
         assert.equal(await main.getByText(/HTTP 401|Retrying/).count(), 0);
       }
@@ -126,6 +126,33 @@ try {
   assert.equal(await slowAuthPage.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'auth recovery must fit mobile');
   await assertNoSeriousAccessibilityViolations(slowAuthPage, 'auth timeout recovery');
   await slowAuthContext.close();
+
+  const privateStorageContext = await browser.newContext({ viewport: { width: 390, height: 900 } });
+  privateStorageContext.setDefaultTimeout(15_000);
+  await privateStorageContext.addInitScript(() => {
+    for (const method of ['getItem', 'setItem', 'removeItem']) {
+      const original = Storage.prototype[method];
+      Object.defineProperty(Storage.prototype, method, {
+        configurable: true,
+        value(key, ...args) {
+          if (String(key).startsWith('opensrcer-')) throw new DOMException('Storage disabled for test.', 'SecurityError');
+          return original.call(this, key, ...args);
+        },
+      });
+    }
+  });
+  await privateStorageContext.route('**/auth/profile', route => route.fulfill({ json: { sub: 'private-storage-test', name: 'Private Browser' } }));
+  await privateStorageContext.route('**/api/settings/keys', route => route.fulfill({ json: { anthropic: true, gemini: false } }));
+  await privateStorageContext.route('**/api/dispatches', route => route.fulfill({ json: { dispatches: [] } }));
+  const privateStoragePage = await privateStorageContext.newPage();
+  const privateStorageErrors = [];
+  privateStoragePage.on('pageerror', error => privateStorageErrors.push(error.message));
+  await privateStoragePage.goto(base + '/graph', { waitUntil: 'domcontentloaded' });
+  await privateStoragePage.getByRole('heading', { name: 'Codebase map', exact: true }).waitFor();
+  assert.deepEqual(privateStorageErrors, [], 'blocked browser storage must not crash graph or onboarding');
+  assert.equal(await privateStoragePage.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'storage recovery must fit mobile');
+  await assertNoSeriousAccessibilityViolations(privateStoragePage, 'private browser storage');
+  await privateStorageContext.close();
 
   // Client interaction test only: fake session/data, intercept every mutation.
   // Real Auth0 and provider workflows remain a separate deployment release gate.

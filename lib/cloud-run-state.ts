@@ -79,6 +79,19 @@ export function runSummaryPath(owner: string, id: string): string {
   return `${runSummaryPrefix(owner)}${9999999999999 - Number(id.split("_")[1])}-${id}.json`;
 }
 
+/** Select only canonical records owned by this user. Paths sort newest first
+ * because their timestamps are reversed, matching the Blob listing scheme. */
+export function staleCloudRunIds(owner: string, paths: string[], keep = 100, limit = 50): string[] {
+  const prefix = ownerPrefix(owner);
+  return paths
+    .filter((path) => path.startsWith(prefix))
+    .map((path) => ({ path, match: /^(\d{13})-(c_(\d{13})_[a-f0-9]{12})\.json$/.exec(path.slice(prefix.length)) }))
+    .filter(({ match }) => match && Number(match[1]) === 9999999999999 - Number(match[3]))
+    .sort((a, b) => a.path.localeCompare(b.path))
+    .slice(Math.max(0, keep), Math.max(0, keep) + Math.max(0, limit))
+    .map(({ match }) => match![2]);
+}
+
 export function runIsActive(run: CloudRun): boolean {
   return run.expires_at > Date.now() && (run.status === "running" || run.pr_status === "pending");
 }

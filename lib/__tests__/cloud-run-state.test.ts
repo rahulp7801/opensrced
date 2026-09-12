@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cloudRunSummary, newCloudRunId, ownerPrefix, runPath, runSummaryPath, runLogChunk, runIsActive, validCloudRun, validCloudRunSummary, type CloudRun } from "../cloud-run-state";
+import { cloudRunSummary, newCloudRunId, ownerPrefix, runPath, runSummaryPath, runLogChunk, runIsActive, staleCloudRunIds, validCloudRun, validCloudRunSummary, type CloudRun } from "../cloud-run-state";
 
 test("run storage paths are scoped to authenticated owners and reject traversal", () => {
   const id = newCloudRunId();
@@ -17,6 +17,17 @@ test("expired and completed jobs free capacity; PR work keeps it occupied", () =
   assert.equal(runIsActive({ ...run, expires_at: 0 }), false);
   assert.equal(runIsActive({ ...run, status: "succeeded" }), false);
   assert.equal(runIsActive({ ...run, status: "succeeded", pr_status: "pending" }), true);
+});
+
+test("cloud history retention selects only the owner's oldest canonical records", () => {
+  const ids = Array.from({ length: 103 }, (_, index) => `c_${1767225600000 + index}_${index.toString(16).padStart(12, "0")}`);
+  const alicePaths = ids.map((id) => runPath("alice", id));
+  const stale = staleCloudRunIds("alice", [
+    ...alicePaths.reverse(),
+    runPath("bob", ids[0]),
+    `${ownerPrefix("alice")}not-a-run.json`,
+  ]);
+  assert.deepEqual(stale, ids.slice(0, 3).reverse());
 });
 
 test("incremental cloud logs use byte offsets and reset after truncation", () => {

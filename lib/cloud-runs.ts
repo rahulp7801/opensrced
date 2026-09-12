@@ -1,4 +1,4 @@
-import { list, put, BlobPreconditionFailedError } from "@vercel/blob";
+import { del, list, put, BlobPreconditionFailedError } from "@vercel/blob";
 import { generateClientTokenFromReadWriteToken } from "@vercel/blob/client";
 import { Sandbox } from "@vercel/sandbox";
 import type { FindingInput, StartAgenticOpts } from "./agentic-dispatcher";
@@ -13,6 +13,7 @@ import {
   runPath,
   runSummaryPath,
   runSummaryPrefix,
+  staleCloudRunIds,
   validCloudRun,
   validCloudRunSummary,
 } from "./cloud-run-state";
@@ -34,6 +35,17 @@ async function writeSummary(path: string, run: CloudRun) {
 
 function summariesReadyPath(owner: string): string {
   return `${ownerPrefix(owner).slice(0, -"runs/".length)}run-summaries-ready.json`;
+}
+
+async function pruneCloudRunHistory(owner: string): Promise<void> {
+  const page = await list({ prefix: ownerPrefix(owner), limit: 151, abortSignal: AbortSignal.timeout(8_000) });
+  const staleIds = staleCloudRunIds(owner, page.blobs.map((blob) => blob.pathname));
+  if (staleIds.length === 0) return;
+  await del(staleIds.flatMap((id) => [
+    runPath(owner, id),
+    runSummaryPath(owner, id),
+    `cancelled/${id}.json`,
+  ]), { abortSignal: AbortSignal.timeout(8_000) });
 }
 
 /** Blob ETags make these three leases shared across function instances. */
@@ -108,6 +120,10 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
         OPENSRCER_RUN_TESTS: "off",
         OPENSRCER_AGENTIC_TIMEOUT_MS: String(30 * 60_000),
       } });
+    // Retention never controls whether the already-started worker succeeds.
+    // Delete a bounded batch after launch so storage converges toward the
+    // newest 100 runs without adding a maintenance service.
+    await pruneCloudRunHistory(opts.auth0UserId).catch(() => {});
     return run;
   } catch (error) {
     await sandbox?.stop().catch(() => {});

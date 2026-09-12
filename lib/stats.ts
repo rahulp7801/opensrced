@@ -45,6 +45,22 @@ type StatsFile = {
   scanHistory: Array<{ ts: string; repo?: string; kind: "scan" | "discover" }>;
 };
 
+export function normalizeStatsFile(value: unknown): StatsFile {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return { scans: 0, discoverRuns: 0, scanHistory: [] };
+  const input = value as Partial<StatsFile>;
+  const scanHistory = Array.isArray(input.scanHistory) ? input.scanHistory.filter(event =>
+    event && typeof event === "object" &&
+    (event.kind === "scan" || event.kind === "discover") &&
+    typeof event.ts === "string" && Number.isFinite(Date.parse(event.ts)) &&
+    (event.repo === undefined || (typeof event.repo === "string" && event.repo.length <= 200 && !/[\x00-\x1F\x7F]/.test(event.repo))),
+  ).slice(-200) : [];
+  return {
+    scans: Number.isSafeInteger(input.scans) && input.scans! >= 0 ? input.scans! : 0,
+    discoverRuns: Number.isSafeInteger(input.discoverRuns) && input.discoverRuns! >= 0 ? input.discoverRuns! : 0,
+    scanHistory,
+  };
+}
+
 type StarsFile = Record<string, { stars: number; checkedAt: number }>;
 
 function ghBin(): string {
@@ -57,15 +73,9 @@ async function ensureDir() {
 }
 
 async function loadStatsFile(owner: string): Promise<StatsFile> {
-  if (cloudExecution()) return (await readJson<StatsFile>(statsPath(owner)))?.value ?? { scans: 0, discoverRuns: 0, scanHistory: [] };
+  if (cloudExecution()) return normalizeStatsFile((await readJson<unknown>(statsPath(owner)))?.value);
   try {
-    const raw = await readFile(join(DISPATCH_DIR, statsPath(owner)), "utf8");
-    const parsed = JSON.parse(raw) as Partial<StatsFile>;
-    return {
-      scans: parsed.scans ?? 0,
-      discoverRuns: parsed.discoverRuns ?? 0,
-      scanHistory: Array.isArray(parsed.scanHistory) ? parsed.scanHistory : [],
-    };
+    return normalizeStatsFile(JSON.parse(await readFile(join(DISPATCH_DIR, statsPath(owner)), "utf8")));
   } catch {
     return { scans: 0, discoverRuns: 0, scanHistory: [] };
   }
@@ -124,7 +134,7 @@ async function flushActivities(owner: string) {
 
 async function recordActivity(owner: string, kind: "scan" | "discover", repo?: string) {
   const update = (s: StatsFile): StatsFile => ({ scans: s.scans + 1, discoverRuns: s.discoverRuns + Number(kind === "discover"), scanHistory: [...s.scanHistory, { ts: new Date().toISOString(), repo, kind }].slice(-200) });
-  if (cloudExecution()) return updateJson(statsPath(owner), { scans: 0, discoverRuns: 0, scanHistory: [] } as StatsFile, update);
+  if (cloudExecution()) return updateJson<unknown>(statsPath(owner), { scans: 0, discoverRuns: 0, scanHistory: [] }, value => update(normalizeStatsFile(value)));
   return new Promise<void>((resolve, reject) => {
     const queue = pendingStats.get(owner) ?? [];
     queue.push({ kind, repo, resolve, reject });

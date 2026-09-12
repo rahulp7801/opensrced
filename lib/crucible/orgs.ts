@@ -18,7 +18,8 @@ export type OrgMapping = {
 };
 
 async function readAll(): Promise<OrgMapping[]> {
-  const rows = cloudExecution() ? (await readJson<unknown[]>(BLOB_PATH))?.value ?? [] : readLocal();
+  const stored = cloudExecution() ? (await readJson<unknown>(BLOB_PATH))?.value : readLocal();
+  const rows = Array.isArray(stored) ? stored : [];
   return rows.map(validMapping).filter((row): row is OrgMapping => Boolean(row));
 }
 
@@ -33,9 +34,10 @@ function readLocal(): unknown[] {
 }
 
 async function mutate(update: (rows: OrgMapping[]) => OrgMapping[]) {
-  if (cloudExecution()) return updateJson<unknown[]>(BLOB_PATH, [], (rows) =>
-    update(rows.map(validMapping).filter((row): row is OrgMapping => Boolean(row))),
-  );
+  if (cloudExecution()) return updateJson<unknown>(BLOB_PATH, [], (value) => {
+    const rows = Array.isArray(value) ? value : [];
+    return update(rows.map(validMapping).filter((row): row is OrgMapping => Boolean(row)));
+  });
   const rows = update(readLocal().map(validMapping).filter((row): row is OrgMapping => Boolean(row)));
   fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true });
   const temporary = `${STORE_PATH}.${randomUUID()}.tmp`;

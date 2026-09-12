@@ -26,6 +26,15 @@ for (const headers of [{}, {'next-router-prefetch': '1'}, {'x-middleware-subrequ
   assert.equal(response.status, 401, 'anonymous mutation must be blocked');
   await response.text();
 }
+const missingFixId = '00000000-0000-4000-8000-000000000000';
+const missingFix = await fetch(`${base}/api/fixes/${missingFixId}`, { signal: AbortSignal.timeout(15000) });
+assert.equal(missingFix.status, 404);
+assert.equal(missingFix.headers.get('cache-control'), 'private, no-store');
+assert.equal(missingFix.headers.get('x-robots-tag'), 'noindex, nofollow');
+await missingFix.text();
+const sharedFixPage = await fetch(`${base}/fix/${missingFixId}`, { signal: AbortSignal.timeout(15000) });
+assert.equal(sharedFixPage.status, 200);
+assert.match(await sharedFixPage.text(), /<meta name="robots" content="noindex, nofollow"/);
 const latencies = [];
 let count = 0;
 await Promise.all(Array.from({length: 20}, async () => {

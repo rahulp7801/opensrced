@@ -256,7 +256,7 @@ try {
   const helpButton = page.getByRole('button', { name: 'Open help', exact: true });
   await helpButton.click();
   await page.getByRole('dialog', { name: 'Quick help', exact: true }).waitFor();
-  assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), 'close', 'help moves focus into the dialog');
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Close help', 'help moves focus into the dialog');
   await page.keyboard.press('Escape');
   assert.equal(await page.getByRole('dialog').count(), 0, 'Escape closes help');
   await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Open help');

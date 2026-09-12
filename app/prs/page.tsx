@@ -29,6 +29,25 @@ type StatusFilter = "all" | "changes_requested" | "approved" | "review_needed" |
 
 const PAGE_SIZE = 10;
 
+function isGitHubPr(value: unknown): value is GitHubPr {
+  if (!value || typeof value !== "object") return false;
+  const pr = value as Partial<GitHubPr>;
+  return typeof pr.repo === "string"
+    && typeof pr.title === "string"
+    && Number.isInteger(pr.number)
+    && typeof pr.url === "string"
+    && typeof pr.state === "string"
+    && typeof pr.createdAt === "string"
+    && typeof pr.updatedAt === "string"
+    && typeof pr.branch === "string"
+    && typeof pr.base === "string"
+    && typeof pr.additions === "number" && Number.isFinite(pr.additions)
+    && typeof pr.deletions === "number" && Number.isFinite(pr.deletions)
+    && typeof pr.reviewDecision === "string"
+    && typeof pr.isDraft === "boolean"
+    && (pr.commentCount === undefined || Number.isInteger(pr.commentCount));
+}
+
 export default function PRsPage() {
   const [refresh, setRefresh] = useState(0);
   const [tab, setTab] = useState<Tab>("inbox");
@@ -44,11 +63,21 @@ export default function PRsPage() {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    return pollJson<{ login: string; prs: GitHubPr[] }>("/api/prs/github", result => {
+    return pollJson<unknown>("/api/prs/github", result => {
       setLoading(false);
       if (result.error !== null) { setError(result.error); return; }
-      setGithubLogin(result.data.login);
-      setGithubPrs(result.data.prs);
+      const data = result.data as { login?: unknown; prs?: unknown } | null;
+      if (!data || typeof data.login !== "string" || !Array.isArray(data.prs)) {
+        setError("GitHub returned an invalid pull request list. Please refresh.");
+        return;
+      }
+      const prs = data.prs.filter(isGitHubPr);
+      if (data.prs.length > 0 && prs.length === 0) {
+        setError("GitHub returned an invalid pull request list. Please refresh.");
+        return;
+      }
+      setGithubLogin(data.login);
+      setGithubPrs(prs);
       if (refresh > 0) toast("PRs refreshed", "ok");
     });
   }, [refresh, toast]);

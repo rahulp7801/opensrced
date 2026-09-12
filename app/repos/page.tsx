@@ -37,6 +37,19 @@ const LANG_COLORS: Record<string, string> = {
 
 const EMPTY_STATE: TabState = { repos: [], page: 0, hasMore: true, nextCursor: null, loading: false, error: null };
 
+function isGitHubRepo(value: unknown): value is GitHubRepo {
+  if (!value || typeof value !== "object") return false;
+  const repo = value as Partial<GitHubRepo>;
+  return typeof repo.nameWithOwner === "string"
+    && typeof repo.description === "string"
+    && typeof repo.language === "string"
+    && typeof repo.stars === "number" && Number.isFinite(repo.stars)
+    && typeof repo.forks === "number" && Number.isFinite(repo.forks)
+    && typeof repo.updatedAt === "string"
+    && typeof repo.isPrivate === "boolean"
+    && ["contributed", "starred", "owned"].includes(repo.source ?? "");
+}
+
 export default function ReposPage() {
   const [tab, setTab] = useState<Tab>("contributed");
   const [states, setStates] = useState<Record<Tab, TabState>>({
@@ -67,11 +80,13 @@ export default function ReposPage() {
       }
       const data = (await res.json()) as { repos?: unknown; hasMore?: unknown; nextCursor?: unknown };
       if (!Array.isArray(data.repos)) throw new Error("GitHub returned an invalid repository list. Please try again.");
+      const repos = data.repos.filter(isGitHubRepo);
+      if (data.repos.length > 0 && repos.length === 0) throw new Error("GitHub returned an invalid repository list. Please try again.");
       if (controller.signal.aborted) return;
       setStates((prev) => ({
         ...prev,
         [t]: {
-          repos: page === 1 ? data.repos as GitHubRepo[] : [...prev[t].repos, ...data.repos as GitHubRepo[]],
+          repos: page === 1 ? repos : [...prev[t].repos, ...repos],
           page,
           hasMore: data.hasMore === true,
           nextCursor: typeof data.nextCursor === "string" ? data.nextCursor : null,

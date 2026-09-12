@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 const base = process.env.SMOKE_BASE_URL || 'http://localhost:3100';
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  headless: true,
+  ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
+});
 let pagesChecked = 0;
 try {
   for (const width of [1440, 390]) {
@@ -22,12 +25,14 @@ try {
         assert.equal(await main.getByText(/HTTP 401|Retrying/).count(), 0);
       }
       if (path === '/demo') {
-        for (const name of ['Codebase explorer', 'Security scan', 'Private repo flow', 'Bug fix pipeline']) {
+        await page.waitForLoadState('load');
+        for (const [name, key] of [['Codebase explorer', 'explore'], ['Security scan', 'security'], ['Private repo flow', 'crucible'], ['Bug fix pipeline', 'dispatch']]) {
           const tab = page.getByRole('tab', { name, exact: true });
           await tab.click();
-          assert.equal(await tab.getAttribute('aria-selected'), 'true');
+          await page.waitForFunction(tabKey => document.getElementById(`demo-tab-${tabKey}`)?.getAttribute('aria-selected') === 'true', key);
           const action = main.getByRole('button', { name: name === 'Security scan' ? /Start scan/ : name === 'Private repo flow' ? /Connect GitHub Org/ : /Start walkthrough/ });
           await action.waitFor();
+          assert.equal(await tab.getAttribute('aria-selected'), 'true');
           if (name === 'Private repo flow') {
             await action.click();
             await main.getByRole('button', { name: /Install & Authorize/ }).click();
@@ -36,6 +41,7 @@ try {
         }
         await page.getByRole('tab', { name: 'Bug fix pipeline', exact: true }).focus();
         await page.keyboard.press('ArrowRight');
+        await page.locator('#demo-explore').getByRole('button', { name: /Start walkthrough/ }).waitFor();
         assert.equal(await page.getByRole('tab', { name: 'Codebase explorer', exact: true }).getAttribute('aria-selected'), 'true');
         assert.equal(await page.getByRole('tablist').evaluate(element => element.scrollWidth > element.clientWidth), false, 'demo tabs must all fit without horizontal scrolling');
       }

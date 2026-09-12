@@ -3,15 +3,17 @@ import { listIssues } from "@/lib/issues";
 import { recordScan } from "@/lib/stats";
 import { sessionUserId } from "@/lib/require-session";
 import { resolveGitHubToken } from "@/lib/github-token";
+import { parseRunTarget } from "@/lib/run-target";
 
 export const maxDuration = 60;
 
 function parseRepo(url: string): { owner: string; repo: string } | null {
-  const m = /github\.com[:/]+([^/]+)\/([^/?#\s]+?)(?:\.git)?$/.exec(url.trim());
-  if (m) return { owner: m[1], repo: m[2] };
-  const m2 = /^([^/\s]+)\/([^/\s]+)$/.exec(url.trim());
-  if (m2) return { owner: m2[1], repo: m2[2] };
-  return null;
+  try {
+    const target = parseRunTarget(url);
+    if (target.issue) return null;
+    const [owner, repo] = target.repo.split("/");
+    return { owner, repo };
+  } catch { return null; }
 }
 
 export async function GET(req: NextRequest) {

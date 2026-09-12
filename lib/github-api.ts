@@ -9,7 +9,11 @@ export async function githubResponse(
   if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\")) {
     throw new Error("Invalid GitHub API path");
   }
-  const response = await fetch(`https://api.github.com${path}`, {
+  const url = new URL(path, "https://api.github.com");
+  if (url.protocol !== "https:" || url.hostname !== "api.github.com" || url.username || url.password || url.port) {
+    throw new Error("Invalid GitHub API destination");
+  }
+  const response = await fetch(url.href, {
     method: body === undefined ? "GET" : "POST",
     headers: {
       Accept: accept,

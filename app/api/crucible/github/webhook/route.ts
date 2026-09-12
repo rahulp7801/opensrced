@@ -30,8 +30,9 @@ function clearTokenCache(installationId: number) {
   try {
     const raw = fs.readFileSync(p, "utf8");
     const cache = JSON.parse(raw) as Record<string, unknown>;
-    delete cache[String(installationId)];
-    fs.writeFileSync(p, JSON.stringify(cache, null, 2));
+    const installationKey = String(installationId);
+    const filtered = Object.fromEntries(Object.entries(cache).filter(([key]) => key !== installationKey));
+    fs.writeFileSync(p, JSON.stringify(filtered, null, 2));
   } catch {
     // no cache file yet, nothing to clear
   }
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
   };
 
   const installationId = payload.installation?.id;
-  if (!installationId) return NextResponse.json({ ok: true });
+  if (typeof installationId !== "number" || !Number.isSafeInteger(installationId) || installationId < 1) return NextResponse.json({ ok: true });
 
   if (payload.action === "deleted") {
     await deleteByInstallationId(installationId);

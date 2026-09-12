@@ -756,7 +756,7 @@ function ExportButton({ dispatch }: { dispatch: DispatchWithLog }) {
 
 function PipelineTimeline({ log, status }: { log: string; status: string }) {
   const phases = [
-    { label: "clone", done: /\[agentic-dispatcher\].*repo:/.test(log), active: status === "running" && !/grep|read_file|find_definition/.test(log), failed: false },
+    { label: "clone", done: log.includes("[agentic-dispatcher] repo:"), active: status === "running" && !/grep|read_file|find_definition/.test(log), failed: false },
     { label: "explore", done: /find_definition|read_file|grep|list_files|repo_info/.test(log), active: status === "running" && /find_definition|read_file|grep/.test(log) && !/```diff/.test(log), failed: false },
     { label: "patch", done: /```(?:diff|patch)/.test(log), active: status === "running" && /## Diagnosis/.test(log) && !/```diff/.test(log), failed: status !== "running" && !/```(?:diff|patch)/.test(log) && /exited at/.test(log) },
     { label: "test", done: /\[crucible-tests\]/.test(log), active: /\[agentic-pr\] starting/.test(log) && !/\[crucible-tests\]/.test(log), failed: /\[crucible-tests\] status=(?:failed|error)/.test(log) },

@@ -6,7 +6,7 @@
 // process restarts, but the log files do.
 
 import { spawn, execFileSync, type ChildProcess } from "node:child_process";
-import { createWriteStream, mkdirSync, readFileSync, readdirSync, existsSync, writeFileSync } from "node:fs";
+import { createWriteStream, mkdirSync, readFileSync, readdirSync, existsSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { listAll as listSidecars, persist, read as readSidecar } from "./dispatch-store";
@@ -131,13 +131,17 @@ function loadTitleCache(): TitleCache {
   return titleCacheMem;
 }
 function saveTitleCache(c: TitleCache) {
+  const temporary = `${TITLE_CACHE_FILE}.${randomUUID()}.tmp`;
   try {
     ensureDir();
     // Sync write — the file is tiny (hundreds of short entries). Async
     // would need plumbing through the otherwise-sync lookup path.
-    writeFileSync(TITLE_CACHE_FILE, JSON.stringify(c));
+    writeFileSync(temporary, JSON.stringify(c), { flag: "wx", mode: 0o600 });
+    renameSync(temporary, TITLE_CACHE_FILE);
   } catch {
     /* best effort */
+  } finally {
+    try { rmSync(temporary, { force: true }); } catch { /* best effort */ }
   }
 }
 
@@ -342,7 +346,7 @@ export function startDispatch(
     env.CONTRIBAI_DRAFT_PR = "1";
   }
 
-  const out = createWriteStream(logPath);
+  const out = createWriteStream(logPath, { mode: 0o600 });
   out.write(
     `[dispatcher] ${new Date().toISOString()}\n` +
     `[dispatcher] bin: ${bin}\n` +

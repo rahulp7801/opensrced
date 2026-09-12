@@ -433,7 +433,7 @@ async function spawnDispatch(
   ensureDir();
   const id = `d_${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}_${randomUUID().slice(0, 6)}`;
   const logPath = join(DISPATCH_DIR, `${id}.log`);
-  const out = createWriteStream(logPath);
+  const out = createWriteStream(logPath, { mode: 0o600 });
 
   // Token must be passed explicitly by the caller (resolved from the user's
   // Auth0 session or a GitHub App installation). There is deliberately no

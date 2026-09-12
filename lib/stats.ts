@@ -17,7 +17,7 @@
 //   Stars are fetched via `gh api repos/:owner/:name` on first sight and
 //   cached in .dispatches/repo-stars.json with a 7-day TTL.
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { cloudExecution } from "./cloud-run-state";
 import { listCloudRuns } from "./cloud-runs";
 import { readJson, updateJson } from "./blob-store";
@@ -25,7 +25,7 @@ import { listAll as listDispatches, patch as patchDispatch, type DispatchRecord 
 import { execFile } from "node:child_process";
 import { ghEnv } from "./child-env";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -78,7 +78,14 @@ async function saveStatsFile(s: StatsFile, owner: string) {
     s.scanHistory = s.scanHistory.slice(-200);
   }
   await mkdir(join(DISPATCH_DIR, "stats"), { recursive: true });
-  await writeFile(join(DISPATCH_DIR, statsPath(owner)), JSON.stringify(s));
+  const target = join(DISPATCH_DIR, statsPath(owner));
+  const temporary = `${target}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temporary, JSON.stringify(s), { flag: "wx", mode: 0o600 });
+    await rename(temporary, target);
+  } finally {
+    await rm(temporary, { force: true });
+  }
 }
 
 type PendingActivity = {
@@ -220,7 +227,13 @@ async function loadStars(): Promise<StarsFile> {
 
 async function saveStars(s: StarsFile) {
   await ensureDir();
-  await writeFile(STARS_FILE, JSON.stringify(s));
+  const temporary = `${STARS_FILE}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temporary, JSON.stringify(s), { flag: "wx", mode: 0o600 });
+    await rename(temporary, STARS_FILE);
+  } finally {
+    await rm(temporary, { force: true });
+  }
 }
 
 async function starsForRepos(

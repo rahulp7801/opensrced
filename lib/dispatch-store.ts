@@ -16,7 +16,7 @@
 // render, because lib/dispatcher.ts keeps the log-scraping path as a
 // fallback for any id with no .json.
 
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Dispatch } from "./dispatcher";
 
@@ -35,9 +35,13 @@ function sidecarPath(id: string): string {
 /** Write (or overwrite) a dispatch's sidecar. Never throws — losing a
  *  status update must not take down the run it describes. */
 export function persist(d: DispatchRecord): void {
+  const target = sidecarPath(d.id);
+  const temporary = `${target}.${process.pid}.tmp`;
   try {
-    writeFileSync(sidecarPath(d.id), JSON.stringify(d));
+    writeFileSync(temporary, JSON.stringify(d), { mode: 0o600 });
+    renameSync(temporary, target);
   } catch {
+    try { rmSync(temporary, { force: true }); } catch { /* best effort */ }
     /* best effort: the log is still the source of truth for humans */
   }
 }

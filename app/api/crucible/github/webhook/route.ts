@@ -9,8 +9,6 @@
 import crypto from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { deleteByInstallationId } from "@/lib/crucible/orgs";
-import fs from "node:fs";
-import path from "node:path";
 
 export const dynamic = "force-dynamic";
 
@@ -23,19 +21,6 @@ function verifySignature(body: string, signature: string | null): boolean {
   // timingSafeEqual requires equal lengths; guard first.
   if (digest.length !== signature.length) return false;
   return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(signature));
-}
-
-function clearTokenCache(installationId: number) {
-  const p = path.join(process.cwd(), ".dispatches", "crucible-tokens-cache.json");
-  try {
-    const raw = fs.readFileSync(p, "utf8");
-    const cache = JSON.parse(raw) as Record<string, unknown>;
-    const installationKey = String(installationId);
-    const filtered = Object.fromEntries(Object.entries(cache).filter(([key]) => key !== installationKey));
-    fs.writeFileSync(p, JSON.stringify(filtered, null, 2));
-  } catch {
-    // no cache file yet, nothing to clear
-  }
 }
 
 export async function POST(req: NextRequest) {
@@ -65,7 +50,6 @@ export async function POST(req: NextRequest) {
 
   if (payload.action === "deleted") {
     await deleteByInstallationId(installationId);
-    clearTokenCache(installationId);
     return NextResponse.json({ ok: true, action: "deleted" });
   }
 

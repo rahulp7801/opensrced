@@ -6,8 +6,9 @@ import { useUser } from "@auth0/nextjs-auth0";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 
-// Pages that work WITHOUT API keys (public repo browsing, PRs, repos)
-const KEY_FREE_PAGES = ["/prs", "/repos", "/discover", "/issues", "/stats", "/graph"];
+// Only these pages require a key to perform their primary action. Viewing run
+// history, PRs, issues, graphs, and settings remains useful without one.
+const KEY_REQUIRED_PAGES = ["/trigger", "/explore"];
 
 export function ApiKeyGate({ localMode = false }: { localMode?: boolean }) {
   const { user } = useUser();
@@ -27,9 +28,10 @@ export function ApiKeyGate({ localMode = false }: { localMode?: boolean }) {
     return () => { stop?.(); window.removeEventListener("opensrcer-keys-updated", check); };
   }, [user, localMode]);
 
-  // Don't show if: not logged in, still loading, key is set, or on a key-free page
+  // Don't show if: not logged in, still loading, key is set, or this page's
+  // primary action works without a provider key.
   if ((!user && !localMode) || hasKey === null || hasKey) return null;
-  if (KEY_FREE_PAGES.some((p) => pathname === p || pathname.startsWith(p + "/"))) return null;
+  if (!KEY_REQUIRED_PAGES.some((p) => pathname === p || pathname.startsWith(p + "/"))) return null;
 
   return (
     <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-b border-signal/40 bg-signal/5 px-4 py-2.5 text-[12px]">

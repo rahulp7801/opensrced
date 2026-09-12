@@ -32,7 +32,9 @@ const STEPS = [
 
 // Don't show onboarding on these pages — they're where the user
 // completes the steps, so showing the prompt would be redundant.
-const HIDDEN_ON = ["/crucible", "/login", "/"];
+// Key-required pages already show the persistent ApiKeyGate. Keeping onboarding
+// off them avoids two banners with two buttons for the same settings page.
+const HIDDEN_ON = ["/crucible", "/login", "/", "/trigger", "/explore"];
 
 export function Onboarding({ localMode = false }: { localMode?: boolean }) {
   const { user } = useUser();

@@ -257,6 +257,7 @@ try {
   await page.evaluate(() => window.dispatchEvent(new Event('opensrcer-keys-updated')));
   await page.goto(base + '/trigger');
   await page.getByText('Anthropic key required', { exact: true }).waitFor();
+  assert.equal(await page.getByText('Go to Settings', { exact: true }).count(), 0, 'missing-key guidance must not render twice');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'missing-key banner must fit mobile');
   await assertNoSeriousAccessibilityViolations(page, 'mobile missing-key banner');
 

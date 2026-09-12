@@ -31,6 +31,7 @@ type PrInfo = {
   state: string;
   url: string;
   branch: string;
+  headRepo: string | null;
   base: string;
   author: string;
 };
@@ -572,7 +573,7 @@ export default function PrDetailPage() {
 
   // ── Push fix with retry ────────────────────────────────────────────
 
-  async function handlePush(retryCount = 0) {
+  async function handlePush() {
     if (!fixState?.response || !pr) return;
     const diff = extractDiff(fixState.response);
     if (!diff) {
@@ -585,14 +586,19 @@ export default function PrDetailPage() {
     setPushState("pushing");
     setPushMessage("");
 
-    const forkRepo = `${pr.author}/${params.repo}`;
+    if (!pr.headRepo) {
+      setPushState("error");
+      setPushMessage("The PR source repository is unavailable. Refresh the PR before pushing.");
+      return;
+    }
 
     try {
       const res = await fetch("/api/prs/push", {
         method: "POST",
+        signal: AbortSignal.timeout(310_000),
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          repo: forkRepo,
+          repo: pr.headRepo,
           upstream: repoFull,
           branch: pr.branch,
           diff,
@@ -600,7 +606,7 @@ export default function PrDetailPage() {
         }),
       });
       const data = (await res.json()) as { ok?: boolean; commit?: string; message?: string; error?: string; debug?: { diffPreview?: string; strategyErrors?: string[] } };
-      if (data.ok) {
+      if (res.ok && data.ok) {
         setPushState("pushed");
         setPushMessage(data.message ?? `Pushed commit ${data.commit}`);
         toast(`Pushed commit ${data.commit} to ${pr.branch}`, "ok");
@@ -617,14 +623,6 @@ export default function PrDetailPage() {
           setCommentStatuses((prev) => new Map(prev).set(fixState.commentId as number, "fixed"));
         }
       } else {
-        // Retry on transient errors
-        const isTransient = data.error?.includes("network") || data.error?.includes("timeout") || data.error?.includes("ECONNRESET");
-        if (isTransient && retryCount < 2) {
-          toast(`Push failed, retrying... (${retryCount + 1}/2)`, "signal");
-          await new Promise((r) => setTimeout(r, 1000 * (retryCount + 1)));
-          return handlePush(retryCount + 1);
-        }
-
         setPushState("error");
         let msg = data.error ?? "Push failed";
         // Friendly error messages
@@ -637,14 +635,8 @@ export default function PrDetailPage() {
         toast("Push failed — see details below", "alert");
       }
     } catch (err) {
-      // Network retry
-      if (retryCount < 2) {
-        toast(`Network error, retrying... (${retryCount + 1}/2)`, "signal");
-        await new Promise((r) => setTimeout(r, 1000 * (retryCount + 1)));
-        return handlePush(retryCount + 1);
-      }
       setPushState("error");
-      setPushMessage("Network error — check your connection and try again.");
+      setPushMessage("The push result could not be confirmed. Check the branch on GitHub before retrying.");
       toast("Push failed — network error", "alert");
     }
   }

@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
       throw new Error("This PR has too many comments to load here. Open the conversation on GitHub.");
     }
     const [pull, rawComments, rawIssueComments, viewer] = await Promise.all([
-      githubApi<{ title: string; state: string; merged: boolean; html_url: string; head: { ref: string }; base: { ref: string }; user: { login: string } }>(`/repos/${repo}/pulls/${pr}`, token),
+      githubApi<{ title: string; state: string; merged: boolean; html_url: string; head: { ref: string; repo: { full_name: string } | null }; base: { ref: string }; user: { login: string } }>(`/repos/${repo}/pulls/${pr}`, token),
       comments(`/repos/${repo}/pulls/${pr}/comments`),
       comments(`/repos/${repo}/issues/${pr}/comments`),
       token ? githubApi<{ login: string }>("/user", token) : Promise.resolve(null),
@@ -104,6 +104,7 @@ export async function GET(req: NextRequest) {
         state: prData.state,
         url: prData.url,
         branch: prData.headRefName,
+        headRepo: pull.head.repo?.full_name ?? null,
         base: prData.baseRefName,
         author: prData.author.login,
       },

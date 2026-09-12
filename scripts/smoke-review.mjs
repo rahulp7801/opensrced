@@ -13,14 +13,14 @@ try {
   await page.route('**/auth/profile', route => route.fulfill({ json: { sub: 'review-test', name: 'Reviewer' } }));
   const patch = '## Fix\n\n```diff\n--- a/parser.ts\n+++ b/parser.ts\n@@ -1 +1 @@\n-return items[0];\n+return items[0] ?? null;\n```\n';
   const sse = events => events.map(event => `data: ${JSON.stringify(event)}\n\n`).join('');
-  let fixes = 0, explanations = 0, verifications = 0, drafts = 0;
+  let fixes = 0, explanations = 0, verifications = 0, drafts = 0, pushes = 0;
   let thirdStarted;
   const thirdRequest = new Promise(resolve => { thirdStarted = resolve; });
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/settings/keys') return route.fulfill({ json: { anthropic: true, gemini: false } });
     if (path === '/api/prs/review') return route.fulfill({ json: {
-      pr: { title: 'Parser fix', state: 'OPEN', url: 'https://github.com/acme/app/pull/1', branch: 'fix-parser', base: 'main', author: 'contributor' },
+      pr: { title: 'Parser fix', state: 'OPEN', url: 'https://github.com/acme/app/pull/1', branch: 'fix-parser', headRepo: 'team/renamed-fork', base: 'main', author: 'contributor' },
       comments: [{ id: 1, author: 'reviewer', body: 'Handle the empty array.', path: 'parser.ts', line: 1, diffHunk: null, createdAt: new Date().toISOString(), type: 'review', inReplyTo: null, isOwnComment: false }],
     } });
     if (path === '/api/prs/fix') {
@@ -29,6 +29,11 @@ try {
         await new Promise(resolve => { releaseFix = resolve; thirdStarted(); });
       }
       return route.fulfill({ contentType: 'text/event-stream', body: sse(fixes === 2 ? [{ text: patch }] : fixes === 4 ? [{ text: patch }, { error: 'Provider rejected this fix.' }, { done: true }] : [{ text: patch }, { done: true }]) }).catch(() => {});
+    }
+    if (path === '/api/prs/push') {
+      pushes++;
+      assert.equal(route.request().postDataJSON().repo, 'team/renamed-fork');
+      return route.fulfill({ status: 503, json: { error: 'network failure: push outcome unknown' } });
     }
     if (path === '/api/prs/verify') { verifications++; return route.fulfill({ status: 503, json: { error: 'Verification service unavailable.' } }); }
     if (path === '/api/prs/draft-reply' && route.request().postDataJSON().comment_body === 'Handle the empty array.') {
@@ -51,6 +56,10 @@ try {
   }
   assert.equal(explanations, 1, 'comment refresh must not repeat paid explanations');
   assert.equal(verifications, 1, 'unchanged comments must not repeat verification');
+  await page.getByRole('button', { name: 'push fix', exact: true }).click();
+  await page.getByText('network failure: push outcome unknown', { exact: true }).waitFor();
+  await page.waitForTimeout(2200); // Exceeds the old automatic retry delay.
+  assert.equal(pushes, 1, 'uncertain writes must not be automatically repeated');
   await page.getByRole('button', { name: 'quick fix', exact: true }).click();
   await page.getByText(/The fix stream ended before completion/).first().waitFor();
   assert.equal(explanations, 1, 'partial output must not trigger follow-up work');
@@ -76,6 +85,6 @@ try {
   assert.ok((await page.locator('textarea').evaluateAll(nodes => nodes.map(node => node.value))).includes('I added the empty-array guard.'));
   assert.equal(drafts, 3);
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ commentRefreshes: 3, explanations, verificationFailureHandled: true, truncatedFixRejected: true, cancellation: true, draftRecovery: true, terminalFailure: true }));
+  console.log(JSON.stringify({ commentRefreshes: 3, explanations, verificationFailureHandled: true, truncatedFixRejected: true, cancellation: true, draftRecovery: true, terminalFailure: true, correctPushTarget: true, noWriteRetry: true }));
   await context.close();
 } finally { releaseFix?.(); await browser.close(); }

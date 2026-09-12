@@ -1,11 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { newCloudRunId, ownerPrefix, runPath, runLogChunk, runIsActive, validCloudRun, type CloudRun } from "../cloud-run-state";
+import { cloudRunSummary, newCloudRunId, ownerPrefix, runPath, runSummaryPath, runLogChunk, runIsActive, validCloudRun, validCloudRunSummary, type CloudRun } from "../cloud-run-state";
 
 test("run storage paths are scoped to authenticated owners and reject traversal", () => {
   const id = newCloudRunId();
   assert.notEqual(runPath("alice", id), runPath("bob", id));
   assert.ok(runPath("alice", id).startsWith(ownerPrefix("alice")));
+  assert.notEqual(runSummaryPath("alice", id), runSummaryPath("bob", id));
   for (const value of ["../alice", "c_1_x", "/etc/passwd"]) assert.throws(() => runPath("bob", value));
   assert.throws(() => ownerPrefix(""));
 });
@@ -40,8 +41,13 @@ test("hosted run records are bound to their owner, id, sandbox, and bounded log 
     expires_at: Date.now() + 60_000,
     log: "working\n",
     log_size: 8,
-  };
+  } satisfies CloudRun;
   assert.equal(validCloudRun(run, "alice", id), true);
+  const summary = cloudRunSummary(run);
+  assert.equal(validCloudRunSummary(summary, "alice", id), true);
+  assert.equal("log" in summary, false);
+  assert.equal("log_size" in summary, false);
+  assert.equal(validCloudRunSummary({ ...summary, log: "private output" }, "alice", id), false);
   for (const changed of [
     { auth0_user_id: "bob" },
     { sandbox_name: "another-worker" },

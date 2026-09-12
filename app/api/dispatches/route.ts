@@ -8,7 +8,7 @@ import { NextResponse } from "next/server";
 import { listDispatches } from "@/lib/dispatcher";
 import { sessionUserId } from "@/lib/require-session";
 import { cloudExecution } from "@/lib/cloud-run-state";
-import { listCloudRuns } from "@/lib/cloud-runs";
+import { listCloudRunSummaries } from "@/lib/cloud-runs";
 
 export const maxDuration = 60;
 
@@ -19,12 +19,7 @@ export async function GET() {
   }
   if (cloudExecution()) {
     try {
-      const runs = await listCloudRuns(viewerId, 20);
-      const dispatches = runs.map((run) => {
-        const summary = { ...run } as Partial<typeof run>;
-        delete summary.log;
-        return summary;
-      });
+      const dispatches = await listCloudRunSummaries(viewerId, 20);
       return NextResponse.json({ dispatches });
     } catch {
       return NextResponse.json({ error: "Run history is temporarily unavailable. Please retry." }, { status: 503 });

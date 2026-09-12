@@ -1,4 +1,4 @@
-export const WORKER_PROTOCOL_VERSION = "1";
+export const WORKER_PROTOCOL_VERSION = "2";
 export const WORKER_PROTOCOL_PATH = "/vercel/sandbox/.opensrcer-worker-protocol";
 
 type WorkerSandbox = {

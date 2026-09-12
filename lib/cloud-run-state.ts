@@ -9,6 +9,8 @@ export type CloudRun = DispatchRecord & {
   log_size: number;
 };
 
+export type CloudRunSummary = Omit<CloudRun, "log" | "log_size">;
+
 const RUN_STATUSES = new Set(["running", "succeeded", "failed", "killed"]);
 const PR_STATUSES = new Set(["opened", "failed", "pending", "tests_passed", "tests_failed", "none"]);
 const TEST_STATUSES = new Set(["passed", "failed", "skipped", "not_run"]);
@@ -40,6 +42,15 @@ export function validCloudRun(value: unknown, owner: string, id: string): value 
     Buffer.byteLength(run.log) <= MAX_STORED_LOG_BYTES && run.log_size >= Buffer.byteLength(run.log);
 }
 
+export function cloudRunSummary(run: CloudRun): CloudRunSummary {
+  return Object.fromEntries(Object.entries(run).filter(([key]) => key !== "log" && key !== "log_size")) as CloudRunSummary;
+}
+
+export function validCloudRunSummary(value: unknown, owner: string, id: string): value is CloudRunSummary {
+  if (!value || typeof value !== "object" || Array.isArray(value) || "log" in value || "log_size" in value) return false;
+  return validCloudRun({ ...value, log: "", log_size: 0 }, owner, id);
+}
+
 export function cloudExecution(): boolean {
   return process.env.VERCEL === "1" || process.env.OPENSRCER_EXECUTION === "sandbox";
 }
@@ -53,10 +64,19 @@ export function ownerPrefix(owner: string): string {
   return `users/${createHash("sha256").update(owner).digest("hex")}/runs/`;
 }
 
+export function runSummaryPrefix(owner: string): string {
+  return `${ownerPrefix(owner).slice(0, -"runs/".length)}run-summaries/`;
+}
+
 export function runPath(owner: string, id: string): string {
   if (!/^c_\d{13}_[a-f0-9]{12}$/.test(id)) throw new Error("Invalid run id");
   // Reverse timestamps make Blob's lexical listing return newest runs first.
   return `${ownerPrefix(owner)}${9999999999999 - Number(id.split("_")[1])}-${id}.json`;
+}
+
+export function runSummaryPath(owner: string, id: string): string {
+  if (!/^c_\d{13}_[a-f0-9]{12}$/.test(id)) throw new Error("Invalid run id");
+  return `${runSummaryPrefix(owner)}${9999999999999 - Number(id.split("_")[1])}-${id}.json`;
 }
 
 export function runIsActive(run: CloudRun): boolean {

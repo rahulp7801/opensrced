@@ -3,7 +3,19 @@ import { generateClientTokenFromReadWriteToken } from "@vercel/blob/client";
 import { Sandbox } from "@vercel/sandbox";
 import type { FindingInput, StartAgenticOpts } from "./agentic-dispatcher";
 import { CapacityError } from "./concurrency";
-import { CloudRun, newCloudRunId, ownerPrefix, runIsActive, runPath, validCloudRun } from "./cloud-run-state";
+import {
+  CloudRun,
+  CloudRunSummary,
+  cloudRunSummary,
+  newCloudRunId,
+  ownerPrefix,
+  runIsActive,
+  runPath,
+  runSummaryPath,
+  runSummaryPrefix,
+  validCloudRun,
+  validCloudRunSummary,
+} from "./cloud-run-state";
 import { cloudRunLease, cloudRunLeaseIsStarting } from "./cloud-leases";
 import { cloudWorkerJobJson } from "./cloud-worker-job";
 import { assertWorkerProtocol } from "./worker-protocol";
@@ -14,6 +26,14 @@ import { readJson, updateJson, privateJsonOptions as writeOptions } from "./blob
 
 async function writeRun(path: string, run: CloudRun) {
   await put(path, JSON.stringify(run), { ...writeOptions, allowOverwrite: true, abortSignal: AbortSignal.timeout(15_000) });
+}
+
+async function writeSummary(path: string, run: CloudRun) {
+  await put(path, JSON.stringify(cloudRunSummary(run)), { ...writeOptions, allowOverwrite: true, abortSignal: AbortSignal.timeout(15_000) });
+}
+
+function summariesReadyPath(owner: string): string {
+  return `${ownerPrefix(owner).slice(0, -"runs/".length)}run-summaries-ready.json`;
 }
 
 /** Blob ETags make these three leases shared across function instances. */
@@ -56,6 +76,7 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
   if (!snapshotId || !process.env.BLOB_READ_WRITE_TOKEN) throw new Error("Agent hosting is not configured. A worker snapshot and private Blob store are required.");
   const id = newCloudRunId();
   const path = runPath(opts.auth0UserId, id);
+  const summaryPath = runSummaryPath(opts.auth0UserId, id);
   const run: CloudRun = {
     id, auth0_user_id: opts.auth0UserId, repo_url: repo, issue_number: issue,
     mode: "agentic", dry_run: opts.dryRun === true, started_at: new Date().toISOString(), status: "running",
@@ -67,19 +88,23 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
   let sandbox: Sandbox | undefined;
   try {
     await writeRun(path, run);
+    await writeSummary(summaryPath, run);
     sandbox = await Sandbox.create({ name: run.sandbox_name, source: { type: "snapshot", snapshotId },
       persistent: false, timeout: 40 * 60_000, signal: AbortSignal.timeout(60_000) });
     await assertWorkerProtocol(sandbox);
-    const uploadToken = await generateClientTokenFromReadWriteToken({
-      pathname: path, allowedContentTypes: ["application/json"], maximumSizeInBytes: 600_000,
-      validUntil: run.expires_at, allowOverwrite: true, addRandomSuffix: false, cacheControlMaxAge: 60,
-    });
+    const tokenOptions = { allowedContentTypes: ["application/json"],
+      validUntil: run.expires_at, allowOverwrite: true, addRandomSuffix: false, cacheControlMaxAge: 60 };
+    const [uploadToken, summaryUploadToken] = await Promise.all([
+      generateClientTokenFromReadWriteToken({ ...tokenOptions, pathname: path, maximumSizeInBytes: 600_000 }),
+      generateClientTokenFromReadWriteToken({ ...tokenOptions, pathname: summaryPath, maximumSizeInBytes: 20_000 }),
+    ]);
     // Only this run's upload capability and user-supplied provider credentials
     // enter the VM. Never pass AUTH0_SECRET, the Blob store token, or OIDC.
     await sandbox.runCommand({ cmd: "node", args: ["scripts/sandbox-worker.cjs"], cwd: "/vercel/sandbox",
       detached: true, signal: AbortSignal.timeout(15_000), env: {
-        OPENSRCER_JOB: cloudWorkerJobJson(run, path, opts, finding),
+        OPENSRCER_JOB: cloudWorkerJobJson(run, path, summaryPath, opts, finding),
         OPENSRCER_UPLOAD_TOKEN: uploadToken,
+        OPENSRCER_SUMMARY_UPLOAD_TOKEN: summaryUploadToken,
         OPENSRCER_RUN_TESTS: "off",
         OPENSRCER_AGENTIC_TIMEOUT_MS: String(30 * 60_000),
       } });
@@ -87,7 +112,8 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
   } catch (error) {
     await sandbox?.stop().catch(() => {});
     const log = "Could not start the isolated worker. Please retry.\n";
-    await writeRun(path, { ...run, status: "failed", ended_at: new Date().toISOString(), log, log_size: Buffer.byteLength(log) }).catch(() => {});
+    const failedRun = { ...run, status: "failed" as const, ended_at: new Date().toISOString(), log, log_size: Buffer.byteLength(log) };
+    await Promise.allSettled([writeRun(path, failedRun), writeSummary(summaryPath, failedRun)]);
     await updateJson<unknown>(leaseKey, { path, expires: 0 }, value => {
       const lease = cloudRunLease(value);
       return lease?.path === path ? { path, expires: 0 } : value;
@@ -137,6 +163,35 @@ export async function listCloudRuns(owner: string, limit = 50): Promise<CloudRun
   return runs.slice(0, cappedLimit);
 }
 
+/** Compact history for frequent dashboard polling. The first request for an
+ * existing account backfills summaries from legacy full records once. */
+export async function listCloudRunSummaries(owner: string, limit = 20): Promise<CloudRunSummary[]> {
+  const cappedLimit = Math.max(1, Math.min(50, Math.trunc(limit)));
+  const page = await list({ prefix: runSummaryPrefix(owner), limit: cappedLimit, abortSignal: AbortSignal.timeout(15_000) });
+  const summaries = (await Promise.all(page.blobs.map(async (blob) => {
+    const id = /c_\d{13}_[a-f0-9]{12}/.exec(blob.pathname)?.[0];
+    if (!id) return null;
+    const stored = await readJson<CloudRunSummary>(blob.pathname);
+    return stored && validCloudRunSummary(stored.value, owner, id) ? stored.value : null;
+  }))).filter((summary): summary is CloudRunSummary => summary !== null);
+  summaries.sort((a, b) => b.started_at.localeCompare(a.started_at));
+
+  if (await readJson(summariesReadyPath(owner))) return summaries.slice(0, cappedLimit);
+
+  const legacy = await listCloudRuns(owner, cappedLimit);
+  const known = new Set(summaries.map((summary) => summary.id));
+  const missing = legacy.filter((run) => !known.has(run.id));
+  const writes = await Promise.allSettled(missing.map((run) => writeSummary(runSummaryPath(owner, run.id), run)));
+  if (writes.every((result) => result.status === "fulfilled")) {
+    await put(summariesReadyPath(owner), JSON.stringify({ version: 1 }), {
+      ...writeOptions, allowOverwrite: true, abortSignal: AbortSignal.timeout(15_000),
+    }).catch(() => {});
+  }
+  return [...summaries, ...missing.map(cloudRunSummary)]
+    .sort((a, b) => b.started_at.localeCompare(a.started_at))
+    .slice(0, cappedLimit);
+}
+
 export async function cancelCloudRun(owner: string, id: string): Promise<boolean> {
   const run = await getCloudRun(owner, id);
   if (!run || !runIsActive(run)) return false;
@@ -145,7 +200,10 @@ export async function cancelCloudRun(owner: string, id: string): Promise<boolean
   // the VM so an expired or unreachable sandbox cannot leave the run active.
   await put(`cancelled/${id}.json`, "{}", { ...writeOptions, allowOverwrite: true, abortSignal: AbortSignal.timeout(15_000) });
   const cancelled = { ...run, status: "killed" as const, pr_status: "none" as const, ended_at: new Date().toISOString() };
-  await writeRun(runPath(owner, id), cancelled).catch(() => {});
+  await Promise.allSettled([
+    writeRun(runPath(owner, id), cancelled),
+    writeSummary(runSummaryPath(owner, id), cancelled),
+  ]);
   try {
     const sandbox = await Sandbox.get({ name: run.sandbox_name, signal: AbortSignal.timeout(15_000) });
     await sandbox.stop();

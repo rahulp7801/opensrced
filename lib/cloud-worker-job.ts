@@ -5,12 +5,14 @@ import type { CloudRun } from "./cloud-run-state";
 export function cloudWorkerJobJson(
   run: CloudRun,
   path: string,
+  summaryPath: string,
   opts: StartAgenticOpts,
   finding?: FindingInput,
 ): string {
   return JSON.stringify({
     run,
     path,
+    summaryPath,
     finding,
     opts: {
       dryRun: opts.dryRun,

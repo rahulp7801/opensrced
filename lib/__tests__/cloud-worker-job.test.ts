@@ -33,7 +33,7 @@ test("hosted worker jobs use an explicit input allowlist", () => {
     serverOnlyFutureField: "must-not-enter-the-worker",
   } as StartAgenticOpts & { serverOnlyFutureField: string };
 
-  const job = JSON.parse(cloudWorkerJobJson(run, "runs/alice/run.json", opts));
+  const job = JSON.parse(cloudWorkerJobJson(run, "runs/alice/run.json", "summaries/alice/run.json", opts));
 
   assert.deepEqual(job.opts, {
     dryRun: false,
@@ -47,4 +47,5 @@ test("hosted worker jobs use an explicit input allowlist", () => {
   });
   assert.equal("orgCtx" in job.opts, false);
   assert.equal("serverOnlyFutureField" in job.opts, false);
+  assert.equal(job.summaryPath, "summaries/alice/run.json");
 });

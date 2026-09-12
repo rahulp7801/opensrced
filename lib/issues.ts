@@ -191,11 +191,25 @@ export async function listIssues(
   // Label-filtered batches: ensures beginner-friendly issues show up even
   // on active repos where they're old (maintainers keep them open for
   // newcomers, so they're rarely in the recent N).
-  const calls: Array<Promise<GhIssue[]>> = [
-    runListIssues(owner, repo, limit, [], token, signal),
-    ...extraLabels.map((l) => runListIssues(owner, repo, limit, [l], token, signal)),
+  const calls: Array<() => Promise<GhIssue[]>> = [
+    () => runListIssues(owner, repo, limit, [], token, signal),
+    ...extraLabels.map((label) => () => runListIssues(owner, repo, Math.min(limit, 20), [label], token, signal)),
   ];
-  const batches = await Promise.all(calls);
+  const batches: GhIssue[][] = new Array(calls.length);
+  let next = 0;
+  let failure: unknown;
+  async function worker() {
+    while (next < calls.length && failure === undefined) {
+      const index = next++;
+      try {
+        batches[index] = await calls[index]();
+      } catch (error) {
+        failure = error;
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(3, calls.length) }, worker));
+  if (failure !== undefined) throw failure;
 
   // Dedupe by issue number — first occurrence wins
   const seen = new Set<number>();
@@ -234,7 +248,7 @@ async function runListIssues(
               number title body state url createdAt updatedAt author { login }
               labels(first: 100) { nodes { name } }
               assignees(first: 100) { nodes { login } }
-              comments(last: 100) { totalCount nodes { body author { login } authorAssociation createdAt } }
+              comments(last: 20) { totalCount nodes { body author { login } authorAssociation createdAt } }
             }
           }
         }

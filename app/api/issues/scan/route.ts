@@ -4,6 +4,8 @@ import { recordScan } from "@/lib/stats";
 import { sessionUserId } from "@/lib/require-session";
 import { resolveGitHubToken } from "@/lib/github-token";
 
+export const maxDuration = 60;
+
 function parseRepo(url: string): { owner: string; repo: string } | null {
   const m = /github\.com[:/]+([^/]+)\/([^/?#\s]+?)(?:\.git)?$/.exec(url.trim());
   if (m) return { owner: m[1], repo: m[2] };

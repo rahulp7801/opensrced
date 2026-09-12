@@ -55,6 +55,27 @@ test("anonymous issue scans filter PRs and retain comment counts", async (t) => 
   assert.equal(issues[0].comments, 12);
 });
 
+test("issue scans bound GitHub concurrency and label payloads", async (t) => {
+  let active = 0;
+  let peak = 0;
+  const urls: string[] = [];
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
+    urls.push(String(input));
+    active++;
+    peak = Math.max(peak, active);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    active--;
+    return Response.json([]);
+  });
+
+  await listIssues("acme", "app", 50, ["good first issue", "beginner", "starter", "easy", "first-timers-only"]);
+
+  assert.equal(urls.length, 6);
+  assert.equal(peak, 3);
+  assert.equal(urls.filter(url => url.includes("per_page=20")).length, 5);
+  assert.equal(urls.filter(url => url.includes("per_page=50")).length, 1);
+});
+
 test("discovery carries the caller token through search and issue queries", async (t) => {
   const urls: string[] = [];
   t.mock.method(globalThis, "fetch", async (url: string, options: RequestInit) => {

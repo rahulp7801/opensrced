@@ -356,6 +356,18 @@ export type StartAgenticOpts = {
   auth0UserId?: string;
 };
 
+/** Give the model process only the credentials it needs to inspect one repo. */
+export function agenticChildEnv(
+  repoFull: string,
+  opts: StartAgenticOpts,
+): NodeJS.ProcessEnv {
+  return childEnv({
+    OPENSRCER_ALLOWED_REPO: repoFull,
+    GITHUB_TOKEN: opts.token,
+    ANTHROPIC_API_KEY: opts.anthropicKey,
+  });
+}
+
 /** What this dispatch is trying to fix. The only real difference between
  *  the two entry points. */
 type DispatchTarget =
@@ -489,12 +501,7 @@ async function spawnDispatch(
   // three keys) still handed the child AUTH0_SECRET — which decrypts every
   // user's stored API keys — plus GITHUB_APP_PRIVATE_KEY and the webhook
   // secret. See lib/child-env.ts.
-  const env: NodeJS.ProcessEnv = childEnv({
-    OPENSRCER_ALLOWED_REPO: repoFull,
-    GITHUB_TOKEN: token,
-    ANTHROPIC_API_KEY: opts.anthropicKey,
-    GEMINI_API_KEY: opts.geminiKey,
-  });
+  const env = agenticChildEnv(repoFull, opts);
 
   out.write(
     `[agentic-dispatcher] ${new Date().toISOString()}\n` +

@@ -1,8 +1,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fetchIssue, pipeStreamJson } from "../agentic-dispatcher";
+import { agenticChildEnv, fetchIssue, pipeStreamJson } from "../agentic-dispatcher";
 import { PassThrough } from "node:stream";
 import { once } from "node:events";
+
+test("agentic subprocess receives only its own provider credential", () => {
+  const env = agenticChildEnv("acme/app", {
+    token: "github-token",
+    anthropicKey: "anthropic-key",
+    geminiKey: "gemini-review-key",
+  });
+
+  assert.equal(env.OPENSRCER_ALLOWED_REPO, "acme/app");
+  assert.equal(env.GITHUB_TOKEN, "github-token");
+  assert.equal(env.ANTHROPIC_API_KEY, "anthropic-key");
+  assert.equal(env.GEMINI_API_KEY, undefined);
+});
 
 test("dispatches authorize the issue before reading cached source or starting a model", async (t) => {
   let status = 404;

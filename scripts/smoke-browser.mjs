@@ -102,6 +102,9 @@ try {
     if (url.pathname === '/api/issues/suggested') return route.fulfill({ json: { issues: [], filteredOut: 0 } });
     if (url.pathname === '/api/issues/scan') return route.fulfill({ json: { repo: 'acme/app', total: 1, solvable: 1, issues: [{ number: 1, title: 'Fix parser error', body: 'Fix the parser.', labels: ['bug'], url: 'https://github.com/acme/app/issues/1', author: 'test', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), comments: 0, category: 'bug', severity: 'low', complexity: 1, est_minutes: 5, solvable: true, reason: 'Small fix', scope: { bucket: 'leaf', confidence: 'high', files: ['parser.ts'], symbols: [], reason: 'Parser file' } }] } });
     if (url.pathname === '/api/settings/keys') {
+      if (route.request().method() === 'GET' && page.url().includes('settings_load_failure=1')) {
+        return route.fulfill({ status: 503, json: { error: 'Settings unavailable for test.' } });
+      }
       if (route.request().method() === 'POST') {
         settings.push(route.request().postDataJSON());
         if (settings.length === 1) return route.fulfill({ status: 400, json: { error: 'Settings rejected for test.' } });
@@ -141,6 +144,9 @@ try {
   }
   assert.equal(submissions.length, 3);
   console.log('Checking settings recovery');
+  await page.goto(base + '/crucible?settings_load_failure=1');
+  await page.getByText('Could not load settings.', { exact: true }).waitFor();
+  assert.equal(await page.getByText('unavailable', { exact: true }).count(), 2, 'failed settings reads must leave the loading state');
   await page.goto(base + '/crucible');
   const keyInput = page.getByLabel('Anthropic API key', { exact: true });
   await page.getByLabel('Gemini API key', { exact: true }).waitFor();

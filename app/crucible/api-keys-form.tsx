@@ -18,6 +18,7 @@ const SPEND_OPTIONS = [
 
 export function ApiKeysForm() {
   const [status, setStatus] = useState<KeyStatus | null>(null);
+  const [loading, setLoading] = useState(true);
   const [anthropicInput, setAnthropicInput] = useState("");
   const [geminiInput, setGeminiInput] = useState("");
   const [maxSpend, setMaxSpend] = useState(2);
@@ -26,13 +27,21 @@ export function ApiKeysForm() {
   const { toast } = useToast();
 
   useEffect(() => {
-    fetch("/api/settings/keys")
-      .then((r) => r.json())
+    const controller = new AbortController();
+    fetch("/api/settings/keys", { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) })
+      .then((r) => {
+        if (!r.ok) throw new Error("Could not load settings.");
+        return r.json();
+      })
       .then((d: KeyStatus) => {
         setStatus(d);
         if (d.maxSpendUsd) setMaxSpend(d.maxSpendUsd);
       })
-      .catch(() => {});
+      .catch((error) => {
+        if (!controller.signal.aborted) setMessage({ text: error instanceof Error && error.name !== "TimeoutError" ? error.message : "Settings took too long to load. Refresh and try again.", ok: false });
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
   }, []);
 
   async function save() {
@@ -47,6 +56,7 @@ export function ApiKeysForm() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15_000),
       });
       const data = (await res.json()) as KeyStatus & { error?: string };
       if (!res.ok) throw new Error(data.error ?? "Could not save settings.");
@@ -57,7 +67,7 @@ export function ApiKeysForm() {
       toast("Settings saved", "ok");
       window.dispatchEvent(new Event("opensrcer-keys-updated"));
     } catch (error) {
-      setMessage({ text: error instanceof Error ? error.message : "Failed to save.", ok: false });
+      setMessage({ text: error instanceof Error && error.name !== "TimeoutError" ? error.message : "Saving settings timed out. Try again.", ok: false });
     } finally {
       setSaving(false);
     }
@@ -73,6 +83,7 @@ export function ApiKeysForm() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ [key]: "" }),
+        signal: AbortSignal.timeout(15_000),
       });
       const data = (await res.json()) as KeyStatus & { error?: string };
       if (!res.ok) throw new Error(data.error ?? "Could not save settings.");
@@ -81,7 +92,7 @@ export function ApiKeysForm() {
       toast(`${key} key cleared`, "signal");
       window.dispatchEvent(new Event("opensrcer-keys-updated"));
     } catch (error) {
-      setMessage({ text: error instanceof Error ? error.message : "Failed to clear.", ok: false });
+      setMessage({ text: error instanceof Error && error.name !== "TimeoutError" ? error.message : "Clearing the key timed out. Try again.", ok: false });
     } finally {
       setSaving(false);
     }
@@ -93,12 +104,14 @@ export function ApiKeysForm() {
       <div className="space-y-2">
         <div className="flex items-center gap-2 text-sm">
           <label htmlFor="anthropic-key" className="font-medium text-paper">Anthropic API key</label>
-          {status === null ? (
+          {loading ? (
             <span className="text-paper-faint text-[11px]">loading…</span>
-          ) : status.anthropic ? (
+          ) : status?.anthropic ? (
             <span className="text-xs text-ok border border-ok/30 px-1.5 py-0.5">configured</span>
-          ) : (
+          ) : status ? (
             <span className="text-xs text-alert border border-alert/30 px-1.5 py-0.5">required</span>
+          ) : (
+            <span className="text-xs text-alert border border-alert/30 px-1.5 py-0.5">unavailable</span>
           )}
         </div>
         <div className="flex gap-2">
@@ -156,12 +169,14 @@ export function ApiKeysForm() {
       <div className="space-y-2">
         <div className="flex items-center gap-2 text-sm">
           <label htmlFor="gemini-key" className="font-medium text-paper">Gemini API key</label>
-          {status === null ? (
+          {loading ? (
             <span className="text-paper-faint text-[11px]">loading…</span>
-          ) : status.gemini ? (
+          ) : status?.gemini ? (
             <span className="text-xs text-ok border border-ok/30 px-1.5 py-0.5">configured</span>
-          ) : (
+          ) : status ? (
             <span className="text-xs text-paper-muted px-1.5 py-0.5">not configured</span>
+          ) : (
+            <span className="text-xs text-alert px-1.5 py-0.5">unavailable</span>
           )}
         </div>
         <div className="flex gap-2">

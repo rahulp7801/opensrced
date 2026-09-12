@@ -91,7 +91,7 @@ export function SolveButton({
         {state === "pending" ? "Starting…" : "Fix issue"}
       </button>
       {state === "error" && error && (
-        <span className="text-[10.5px] text-red-300 max-w-[220px] text-right">
+        <span role="alert" className="max-w-[220px] text-right text-[12px] text-alert">
           {error}
         </span>
       )}

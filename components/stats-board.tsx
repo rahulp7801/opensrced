@@ -69,13 +69,14 @@ export function StatsBoard() {
       </div>
     );
   }
-  if (err) {
-    return <div className="border border-alert/40 bg-alert/5 p-3 text-[12px] text-alert">{err}</div>;
+  if (err && !data) {
+    return <div role="alert" className="border border-alert/40 bg-alert/5 p-3 text-[12px] text-alert">{err}</div>;
   }
   if (!data) return null;
 
   return (
     <div className="space-y-10">
+      {err && <p role="status" className="border border-alert/30 bg-alert/5 px-3 py-2 text-[12px] text-alert">Could not refresh activity. Showing the last loaded data.</p>}
       {data.dispatchWindow && <p className="text-[12px] text-paper-muted">Run, patch, PR, and spend figures cover your latest {data.dispatchWindow} runs. Scan counts cover your recorded history.</p>}
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-border bg-border lg:grid-cols-5">
         <Counter label="runs" value={data.dispatches} tone="info" sub={data.dispatchWindow ? "recent runs" : "your history"} />

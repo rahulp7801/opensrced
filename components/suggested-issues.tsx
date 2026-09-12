@@ -179,7 +179,7 @@ export function SuggestedIssues() {
           {/* Results */}
           <div className="max-h-[500px] overflow-y-auto">
             {error && (
-              <div className="px-4 py-3 text-[11px] text-alert">{error}</div>
+              <div role="alert" className="px-4 py-3 text-[12px] text-alert">{error}</div>
             )}
 
             {loading && issues.length === 0 && (

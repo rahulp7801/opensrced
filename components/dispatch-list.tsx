@@ -491,7 +491,7 @@ function RetryButton({ dispatch }: { dispatch: DispatchWithLog }) {
       >
         {pending ? "retrying…" : "retry"}
       </button>
-      {error && <span className="text-xs text-alert">{error}</span>}
+      {error && <span role="alert" className="text-xs text-alert">{error}</span>}
     </div>
   );
 }

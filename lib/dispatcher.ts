@@ -5,7 +5,7 @@
 // Intended for single-node local use. Dispatches do not survive Next.js
 // process restarts, but the log files do.
 
-import { spawn, execFileSync, type ChildProcess } from "node:child_process";
+import { spawn, execFile, execFileSync, type ChildProcess } from "node:child_process";
 import { closeSync, createWriteStream, fstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, existsSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -198,31 +198,27 @@ function fetchIssueTitleAsync(repoFull: string, issueNumber: number): void {
   inflight.add(key);
 
   const gh = process.env.GH_CLI && existsSync(process.env.GH_CLI) ? process.env.GH_CLI : "gh";
-  const child = spawn(
+  execFile(
     gh,
     ["issue", "view", String(issueNumber), "--repo", repoFull, "--json", "title"],
     // Title lookup for the dashboard: a public read, with no inherited
     // environment for gh to find the host credential in.
-    { windowsHide: true, env: ghEnv(null) },
-  );
-  let out = "";
-  child.stdout.on("data", (d: Buffer) => { out += d.toString(); });
-  child.on("close", () => {
-    inflight.delete(key);
-    try {
-      const parsed = JSON.parse(out) as { title?: string };
-      if (parsed.title) {
-        const c = loadTitleCache();
-        c[key] = { title: parsed.title, fetchedAt: Date.now() };
-        saveTitleCache(c);
+    { windowsHide: true, env: ghEnv(null), timeout: 15_000, maxBuffer: 32_000 },
+    (error, stdout) => {
+      inflight.delete(key);
+      if (error) return;
+      try {
+        const parsed = JSON.parse(stdout) as { title?: string };
+        if (parsed.title) {
+          const c = loadTitleCache();
+          c[key] = { title: parsed.title, fetchedAt: Date.now() };
+          saveTitleCache(c);
+        }
+      } catch {
+        /* failed gh call: leave cache alone; retry on next poll */
       }
-    } catch {
-      /* failed gh call: leave cache alone; retry on next poll */
-    }
-  });
-  child.on("error", () => {
-    inflight.delete(key);
-  });
+    },
+  );
 }
 
 /** Pull title from cache (never blocks); trigger a background fetch if

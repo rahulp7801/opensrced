@@ -18,7 +18,7 @@
 // permits surfacing "no tests — no verification" rather than faking a
 // green check.
 
-import { spawn } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { childEnv } from "../child-env";
@@ -38,6 +38,22 @@ export type TestResult = {
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_OUTPUT_BYTES = 256 * 1024; // 256 KB stdout / stderr cap
+
+function stopProcessTree(child: ChildProcess): void {
+  if (!child.pid || child.exitCode !== null) return;
+  if (process.platform === "win32") {
+    try {
+      execFileSync("taskkill", ["/F", "/T", "/PID", String(child.pid)], { stdio: "pipe" });
+      return;
+    } catch { /* fall back to the direct child */ }
+  } else {
+    try {
+      process.kill(-child.pid, "SIGKILL");
+      return;
+    } catch { /* fall back to the direct child */ }
+  }
+  try { child.kill("SIGKILL"); } catch { /* process already exited */ }
+}
 
 /** Credentials are intentionally absent from target-controlled test scripts. */
 export function targetTestEnv(): NodeJS.ProcessEnv {
@@ -156,6 +172,7 @@ async function runCommand(
       // by the surrounding PR workflow.
       env: targetTestEnv(),
       windowsHide: true,
+      detached: process.platform !== "win32",
       // The Windows shell resolves npm.cmd and similar launchers. Every
       // command tuple is a constant from ECOSYSTEMS; target-controlled
       // values never become shell arguments.
@@ -177,11 +194,7 @@ async function runCommand(
 
     const killTimer = setTimeout(() => {
       timedOut = true;
-      try {
-        child.kill("SIGKILL");
-      } catch {
-        // ignore
-      }
+      stopProcessTree(child);
     }, opts.timeoutMs);
 
     child.on("error", (err) => {

@@ -58,7 +58,8 @@ export async function resolveRepositoryToken(
       await githubApi(`/repos/${canonical}`, installation.token, undefined, signal);
       return installation;
     }
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw error;
     // A GitHub App may be installed for only selected repositories. Fall
     // through to this user's OAuth access for public or separately granted
     // repositories under the same owner.

@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 import { parseRunTarget } from "@/lib/run-target";
+import { IconArrow } from "@/components/icons";
 
 type SubmitState =
   | { kind: "idle" }
@@ -13,11 +14,12 @@ type SubmitState =
   | { kind: "err"; message: string };
 
 function friendlyError(msg: string): string {
-  if (msg.includes("ECONNREFUSED") || msg.includes("fetch failed")) return "Could not reach the server. Check your connection and try again.";
-  if (msg.includes("401") || msg.includes("unauthenticated")) return "Your session expired. Please log in again.";
-  if (msg.includes("API key") || msg.includes("api key")) return "Missing API keys. Add them in Settings before running.";
-  if (msg.includes("rate limit")) return "Rate limit hit. Wait a minute and try again.";
-  if (msg.includes("repo_url")) return "Please enter a valid GitHub repository URL.";
+  const lower = msg.toLowerCase();
+  if (lower.includes("econnrefused") || lower.includes("fetch failed")) return "Could not reach the server. Check your connection and try again.";
+  if (lower.includes("401") || lower.includes("unauthenticated") || lower.includes("not authenticated")) return "Your session expired. Please log in again.";
+  if (lower.includes("api key")) return "Add your Anthropic API key in Settings before starting a run.";
+  if (lower.includes("rate limit")) return "Rate limit hit. Wait a minute and try again.";
+  if (lower.includes("repo_url")) return "Please enter a valid GitHub repository URL.";
   return msg;
 }
 
@@ -64,8 +66,15 @@ export function TriggerForm() {
         body: JSON.stringify({ repo_url: target.repo, issue_number: target.issue, dry_run: dryRun, notes }),
         signal: AbortSignal.timeout(90_000),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message ?? data?.error ?? `HTTP ${res.status}`);
+      const data = await res.json().catch(() => null) as {
+        message?: string;
+        error?: string;
+        dispatch_id?: string;
+        queued_at?: string;
+        mode?: string;
+      } | null;
+      if (!res.ok) throw new Error(data?.message ?? data?.error ?? `The server could not start this run (${res.status}).`);
+      if (!data) throw new Error("The server returned an invalid response. Please try again.");
       const dispatchId = data.dispatch_id;
       setState({
         kind: "ok",
@@ -85,15 +94,12 @@ export function TriggerForm() {
           ...prev,
         ].slice(0, 12),
       );
-      toast("Run started — redirecting to live view...", "ok");
+      toast("Run started — opening the live view...", "ok");
       setRepoUrl("");
       setNotes("");
 
-      // Auto-redirect to the live run view after 1.5s
       if (dispatchId) {
-        setTimeout(() => {
-          router.push(`/dispatches?dispatch=${encodeURIComponent(dispatchId)}`);
-        }, 1500);
+        router.push(`/dispatches?dispatch=${encodeURIComponent(dispatchId)}`);
       }
     } catch (err) {
       const msg = err instanceof Error && err.name === "TimeoutError"
@@ -119,13 +125,15 @@ export function TriggerForm() {
     <div className="grid grid-cols-12 gap-6">
       <form
         onSubmit={submit}
-        className="col-span-12 lg:col-span-8 border border-border bg-surface/40 p-6"
+        className="col-span-12 rounded-md border border-border bg-surface p-5 sm:p-6 lg:col-span-8"
       >
         <Row
+          htmlFor="run-repository"
           label="Repository"
           hint="Paste a GitHub repo URL or issue URL"
         >
           <input
+            id="run-repository"
             value={repoUrl}
             onChange={(e) => setRepoUrl(e.target.value)}
             placeholder="https://github.com/owner/repo or https://github.com/owner/repo/issues/123"
@@ -135,11 +143,12 @@ export function TriggerForm() {
           />
         </Row>
 
-        <Row label="Mode" hint="Preview runs analysis only. Live opens a PR when done.">
-          <div className="flex gap-0 border border-border bg-ink w-fit">
+        <Row label="Mode" hint="Preview generates a patch for review. Live can open a draft PR.">
+          <div className="flex w-fit gap-0 rounded-sm border border-border bg-ink" role="group" aria-label="Run mode">
             <button
               type="button"
               onClick={() => setDryRun(true)}
+              aria-pressed={dryRun}
               className={cn(
                 "px-4 py-2 text-[12px] uppercase tracking-[0.15em]",
                 dryRun ? "bg-info/10 text-info" : "text-paper-muted hover:text-paper",
@@ -150,6 +159,7 @@ export function TriggerForm() {
             <button
               type="button"
               onClick={() => setDryRun(false)}
+              aria-pressed={!dryRun}
               className={cn(
                 "px-4 py-2 text-[12px] uppercase tracking-[0.15em] border-l border-border",
                 !dryRun ? "bg-signal/10 text-signal" : "text-paper-muted hover:text-paper",
@@ -160,8 +170,9 @@ export function TriggerForm() {
           </div>
         </Row>
 
-        <Row label="Notes" hint="Optional guidance for the AI agent.">
+        <Row htmlFor="run-notes" label="Notes" hint="Optional guidance for the AI agent.">
           <textarea
+            id="run-notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
@@ -185,14 +196,14 @@ export function TriggerForm() {
               "Starting run..."
             ) : (
               <>
-                <span className="text-signal">Fix this issue</span>
-                <Arrow />
+                <span className="text-signal">{dryRun ? "Generate preview" : "Start live run"}</span>
+                <IconArrow size={14} className="text-signal transition-transform group-hover:translate-x-0.5" />
               </>
             )}
           </button>
 
           {state.kind === "ok" && (
-            <div className="flex items-center gap-3 text-[12px]">
+            <div className="flex items-center gap-3 text-[12px]" aria-live="polite">
               <span className="text-ok flex items-center gap-1">
                 <span aria-hidden>+</span> Run started
               </span>
@@ -207,14 +218,14 @@ export function TriggerForm() {
             </div>
           )}
           {state.kind === "err" && (
-            <div className="text-[12px] text-alert flex items-center gap-1">
+            <div className="text-[12px] text-alert flex items-center gap-1" role="alert">
               <span aria-hidden>x</span> {state.message}
             </div>
           )}
         </div>
       </form>
 
-      <aside className="col-span-12 lg:col-span-4 border border-border bg-surface/40 p-0">
+      <aside className="col-span-12 overflow-hidden rounded-md border border-border bg-surface p-0 lg:col-span-4">
         <div className="flex items-center justify-between border-b border-border px-4 py-2">
           <span className="mono-label text-paper-muted">Run history</span>
           <span className="mono-label text-paper-muted tabular-nums">
@@ -255,10 +266,12 @@ export function TriggerForm() {
 }
 
 function Row({
+  htmlFor,
   label,
   hint,
   children,
 }: {
+  htmlFor?: string;
   label: string;
   hint?: string;
   children: React.ReactNode;
@@ -266,7 +279,11 @@ function Row({
   return (
     <div className="mb-6 grid grid-cols-12 gap-4 items-start">
       <div className="col-span-12 md:col-span-3">
-        <div className="text-[12px] text-paper font-medium">{label}</div>
+        {htmlFor ? (
+          <label htmlFor={htmlFor} className="text-[12px] font-medium text-paper">{label}</label>
+        ) : (
+          <div className="text-[12px] font-medium text-paper">{label}</div>
+        )}
         {hint && (
           <div className="mt-1 text-[11px] leading-relaxed text-paper-muted">
             {hint}
@@ -275,13 +292,5 @@ function Row({
       </div>
       <div className="col-span-12 md:col-span-9">{children}</div>
     </div>
-  );
-}
-
-function Arrow() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" className="text-signal group-hover:translate-x-0.5 transition-transform" aria-hidden>
-      <path d="M2 6h8m-3-3 3 3-3 3" stroke="currentColor" strokeWidth="1.2" fill="none" />
-    </svg>
   );
 }

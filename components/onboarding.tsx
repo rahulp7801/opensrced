@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useUser } from "@auth0/nextjs-auth0";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import { IconCheck, IconClose } from "@/components/icons";
 
 type OnboardingState = {
   hasKey: boolean;
@@ -24,7 +25,7 @@ const STEPS = [
     key: "dispatch" as const,
     number: "2",
     title: "Fix your first issue",
-    description: "Go to Discover, pick a repo with open issues, then click 'Fix this issue' to watch the AI agent work.",
+    description: "Choose an open issue in Discover, then generate a preview you can review before publishing.",
     href: "/discover",
     cta: "Discover issues",
     check: (s: OnboardingState) => s.hasDispatch,
@@ -94,7 +95,7 @@ export function Onboarding() {
                       : "border-border text-paper-faint"
                 }`}
               >
-                {s.check(state) ? "✓" : s.number}
+                {s.check(state) ? <IconCheck size={13} /> : s.number}
               </span>
             </div>
           ))}
@@ -123,7 +124,7 @@ export function Onboarding() {
           aria-label="Dismiss onboarding"
           title="Dismiss onboarding"
         >
-          ×
+          <IconClose size={15} />
         </button>
       </div>
     </div>

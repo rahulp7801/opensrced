@@ -22,38 +22,35 @@ export default function TriggerPage() {
         </Suspense>
       </div>
 
-      <section className="mt-16">
-        <div className="mb-5 flex items-center gap-3">
-          <span className="text-xs uppercase tracking-[0.15em] text-paper-muted">How it works</span>
-          <div className="h-px flex-1 bg-border" />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <section className="mt-12 border-t border-border py-8" aria-labelledby="run-workflow-heading">
+        <h2 id="run-workflow-heading" className="text-base font-medium text-paper">What happens next</h2>
+        <ol className="mt-5 grid gap-5 md:grid-cols-3 md:gap-8">
           {[
             {
               code: "01",
-              title: "Explore",
-              body: "The agent clones the repo, builds an AST index, and reads the relevant files using tree-sitter + grep.",
+              title: "Inspect the issue",
+              body: "The agent reads the issue and the relevant parts of the repository.",
             },
             {
               code: "02",
-              title: "Fix",
-              body: "Diagnoses the issue and generates a patch for you to review.",
+              title: "Generate a patch",
+              body: "You get a proposed change and the agent's check results to review.",
             },
             {
               code: "03",
-              title: "Ship",
-              body: "In live mode, commits the fix and opens a draft PR after checks. Hosted runs do not execute repository tests; run them before merging.",
+              title: "Choose what to publish",
+              body: "Live mode opens a draft PR. Run the repository's own tests before merging.",
             },
           ].map((step) => (
-            <div key={step.code} className="border border-border bg-surface/40 p-5">
-              <span className="text-xs text-signal uppercase tracking-[0.15em]">{step.code}</span>
-              <div className="mt-3 serif text-[28px] text-paper leading-none">
-                {step.title}
+            <li key={step.code} className="grid grid-cols-[2rem_1fr] gap-2">
+              <span className="pt-0.5 font-mono text-xs text-paper-muted">{step.code}</span>
+              <div>
+                <h3 className="text-sm font-medium text-paper">{step.title}</h3>
+                <p className="mt-1.5 text-sm leading-6 text-paper-dim">{step.body}</p>
               </div>
-              <p className="mt-3 text-[12px] leading-relaxed text-paper-dim">{step.body}</p>
-            </div>
+            </li>
           ))}
-        </div>
+        </ol>
       </section>
     </div>
   );

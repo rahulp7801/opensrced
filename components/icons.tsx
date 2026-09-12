@@ -2,6 +2,7 @@ import {
   ArrowRight,
   ArrowSquareOut,
   BookOpen,
+  Check,
   Command,
   Copy,
   Funnel,
@@ -12,6 +13,7 @@ import {
   ShieldCheck,
   SquaresFour,
   Waveform,
+  X,
   type Icon,
   type IconProps,
 } from "@phosphor-icons/react";
@@ -37,3 +39,5 @@ export const IconCommand = appIcon(Command);
 export const IconPulse = appIcon(Pulse);
 export const IconFilter = appIcon(Funnel);
 export const IconShield = appIcon(ShieldCheck);
+export const IconCheck = appIcon(Check);
+export const IconClose = appIcon(X);

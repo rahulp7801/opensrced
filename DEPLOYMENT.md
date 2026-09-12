@@ -4,8 +4,9 @@
 
 Vercel serves Next.js; isolated Vercel Sandboxes execute agent jobs. Private Blob
 stores run results, cancellation markers, organization connections, and shared
-fixes. Jobs receive only user provider credentials and a write token scoped to
-one result file. Three Blob leases bound agent concurrency across web instances.
+fixes. Shared fixes stop resolving after 30 days and expired objects are removed
+opportunistically. Jobs receive only user provider credentials and a write token
+scoped to one result file. Three Blob leases bound agent concurrency across web instances.
 Workers stop after 40 minutes; abandoned records expire after 45 minutes.
 
 1. Link the repository to the intended Vercel project. The committed
@@ -96,15 +97,15 @@ ships a safe dependency. Both package lockfiles must remain committed.
 
 ## Acceptance evidence (September 12, 2026)
 
-Application commit `a01d6e5` passed the full GitHub CI and CodeQL workflows.
+Application commit `55cdf88` passed the full GitHub CI and CodeQL workflows.
 The production acceptance evidence now includes:
 
-- 140 application tests, MCP tests, app/worker type checks, dependency audits,
+- 144 application tests, MCP tests, app/worker type checks, dependency audits,
   the real restricted Claude CLI, and the optimized production build.
 - The production Docker image built on a Linux runner, booted as its non-root
   user, reported every required runtime dependency healthy, and passed the HTTP
   production smoke suite from inside the container.
-- Browser checks across 14 public and authenticated page states at desktop and
+- Browser checks across 16 public and authenticated page states at desktop and
   mobile widths: login prompts, settings recovery, repository pagination/retry,
   issue previews, PR review, graph interactions, demo transitions, and
   cancellation error recovery. Serious and critical Axe findings are gated.
@@ -118,13 +119,17 @@ The production acceptance evidence now includes:
   round trips, and desktop/mobile browser rendering. The development CSP allows
   Next.js evaluation only outside production; the production smoke test rejects
   any deployed policy containing `unsafe-eval`.
+- A separate production server with Auth0 deliberately unconfigured kept the
+  landing, demo, and login pages available, reported degraded health, and returned
+  cache-disabled 503 responses from protected APIs instead of throwing in middleware.
 - Read-only GitHub integration through the production app returned 200 for owned
   and contributed repositories, cursor pagination, PR lists, issue scans, PR
   comments, and diffs. The PR head repository matched GitHub's source metadata.
   This used the existing local GitHub credential in memory and a local session
   fixture, with no GitHub writes or paid provider requests.
-- 200 health requests at concurrency 20 completed with local p95 142 ms. This is
-  a smoke result, not an authenticated workload or production capacity estimate.
+- 200 health requests at concurrency 20 completed with p95 61 ms on the CI app
+  server and 76 ms in the production container. This is a smoke result, not an
+  authenticated workload or production capacity estimate.
 - Full-history secret scanning passed; GitHub reported zero secret-scanning
   alerts. The real pinned Claude CLI exposed nine read-only MCP tools and no
   built-in tools in its restricted worker configuration.

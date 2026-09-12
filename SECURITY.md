@@ -13,5 +13,6 @@ Use [GitHub private vulnerability reporting](https://github.com/rahulp7801/opens
 - Draft pull request content is sent to GitHub with the requesting user or installation credential.
 - Run logs may contain repository content and should be treated as private application data. Credential values are excluded from logs.
 - Shared fix links are unlisted review artifacts, not a storage mechanism for secrets.
+  They expire 30 days after creation, and expired records are deleted opportunistically.
 
 If a credential is exposed, revoke it at the provider first, then remove it from the current tree and Git history as needed.

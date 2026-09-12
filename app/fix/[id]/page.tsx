@@ -23,11 +23,21 @@ export default function SharedFixPage() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/fixes/${id}`)
+    const controller = new AbortController();
+    fetch(`/api/fixes/${id}`, {
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]),
+    })
       .then((r) => (r.ok ? r.json() : r.json().then((e) => Promise.reject(e.error))))
       .then(setFix)
-      .catch((err) => setError(typeof err === "string" ? err : "Fix not found"))
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (!controller.signal.aborted) {
+          setError(err instanceof Error && err.name === "TimeoutError"
+            ? "Loading this fix timed out."
+            : typeof err === "string" ? err : "Fix not found");
+        }
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
   }, [id]);
 
   if (loading) {
@@ -45,8 +55,11 @@ export default function SharedFixPage() {
   if (error || !fix) {
     return (
       <div className="mx-auto max-w-[800px] px-4 py-12 text-center">
-        <h1 className="serif text-[28px] text-paper">Fix not found</h1>
-        <p className="mt-2 text-[13px] text-paper-dim">This shared fix link may have expired or been deleted.</p>
+        <h1 className="serif text-[28px] text-paper">Could not load fix</h1>
+        <p className="mt-2 text-[13px] text-paper-dim">{error ?? "This shared fix link may have expired or been deleted."}</p>
+        <button onClick={() => window.location.reload()} className="mt-4 border border-border px-3 py-2 text-[12px] text-paper-muted hover:border-signal hover:text-signal">
+          Try again
+        </button>
       </div>
     );
   }

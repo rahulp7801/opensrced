@@ -50,12 +50,15 @@ export function Onboarding() {
 
     // Only required first-run tasks belong here. Organization access is
     // optional for people working with public repositories.
+    const controller = new AbortController();
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]);
     Promise.all([
-      fetch("/api/settings/keys").then((r) => r.json()).then((d: { anthropic?: boolean }) => Boolean(d.anthropic)).catch(() => false),
-      fetch("/api/dispatches").then((r) => r.json()).then((d: { dispatches?: unknown[] }) => (d.dispatches?.length ?? 0) > 0).catch(() => false),
+      fetch("/api/settings/keys", { signal }).then((r) => r.json()).then((d: { anthropic?: boolean }) => Boolean(d.anthropic)).catch(() => false),
+      fetch("/api/dispatches", { signal }).then((r) => r.json()).then((d: { dispatches?: unknown[] }) => (d.dispatches?.length ?? 0) > 0).catch(() => false),
     ]).then(([hasKey, hasDispatch]) => {
-      setState({ hasKey, hasDispatch });
+      if (!controller.signal.aborted) setState({ hasKey, hasDispatch });
     });
+    return () => controller.abort();
   }, [user]);
 
   if (!user || !state || dismissed) return null;

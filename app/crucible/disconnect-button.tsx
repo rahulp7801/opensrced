@@ -12,6 +12,7 @@ export function DisconnectButton({ org }: { org: string }) {
     try {
       const res = await fetch(`/api/crucible/orgs/${org}/disconnect`, {
         method: "POST",
+        signal: AbortSignal.timeout(15_000),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -20,8 +21,8 @@ export function DisconnectButton({ org }: { org: string }) {
         return;
       }
       router.refresh();
-    } catch {
-      alert("Network error");
+    } catch (error) {
+      alert(error instanceof Error && error.name === "TimeoutError" ? "Disconnect timed out. Try again." : "Network error. Try again.");
       setState("idle");
     }
   }

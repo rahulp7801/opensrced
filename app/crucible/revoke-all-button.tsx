@@ -8,13 +8,17 @@ export function RevokeAllButton() {
   async function revoke() {
     setState("pending");
     try {
-      const res = await fetch("/api/auth/revoke-all", { method: "POST" });
+      const res = await fetch("/api/auth/revoke-all", {
+        method: "POST",
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as { redirect?: string };
       if (data.redirect) {
         window.location.href = data.redirect;
       }
-    } catch {
-      alert("Failed to revoke. Try again.");
+    } catch (error) {
+      alert(error instanceof Error && error.name === "TimeoutError" ? "Revoke timed out. Try again." : "Failed to revoke. Try again.");
       setState("idle");
     }
   }

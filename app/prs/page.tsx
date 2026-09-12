@@ -525,19 +525,26 @@ function PrBadge({ pr }: { pr: GitHubPr }) {
 function DashboardPrs() {
   const [prs, setPrs] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch("/api/prs")
-      .then((r) => r.json())
-      .then(setPrs)
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+  useEffect(() => pollJson<unknown[]>("/api/prs", ({ data, error }) => {
+    setLoading(false);
+    setError(error);
+    if (data) setPrs(data);
+  }), []);
 
   if (loading) {
     return (
       <div className="mt-4 text-[12px] text-paper-muted animate-pulse-signal py-8 text-center">
         Fetching PRs created through the dashboard...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div role="alert" className="mt-4 border border-alert/30 bg-alert/5 p-8 text-center text-[12px] text-alert">
+        Could not load dashboard PRs. {error}
       </div>
     );
   }

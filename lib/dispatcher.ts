@@ -6,7 +6,7 @@
 // process restarts, but the log files do.
 
 import { spawn, execFileSync, type ChildProcess } from "node:child_process";
-import { createWriteStream, mkdirSync, readFileSync, readdirSync, existsSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, createWriteStream, fstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, existsSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { listAll as listSidecars, persist, read as readSidecar } from "./dispatch-store";
@@ -648,35 +648,30 @@ export function readLogSince(
 ): { chunk: string; size: number; reset: boolean } {
   if (!isValidDispatchId(id)) return { chunk: "", size: 0, reset: false };
   const logPath = join(DISPATCH_DIR, `${id}.log`);
-  if (!existsSync(logPath)) return { chunk: "", size: 0, reset: false };
-  const buf = readFileSync(logPath);
-  const size = buf.length;
-
-  if (since > 0 && since <= size) {
-    const slice = buf.subarray(since);
-    if (slice.length <= maxBytes) {
-      return { chunk: slice.toString("utf8"), size, reset: false };
-    }
-    // Fell far behind (client was backgrounded); send the tail and tell
-    // the client to replace rather than append.
-    return {
-      chunk:
-        `…(skipped ${slice.length - maxBytes} bytes)…\n` +
-        slice.subarray(slice.length - maxBytes).toString("utf8"),
-      size,
-      reset: true,
-    };
+  let handle: number | undefined;
+  try {
+    handle = openSync(logPath, "r");
+    const size = fstatSync(handle).size;
+    const incremental = since > 0 && since <= size;
+    const available = incremental ? size - since : size;
+    const length = Math.min(available, maxBytes);
+    const start = incremental && available <= maxBytes ? since : size - length;
+    const buffer = Buffer.allocUnsafe(length);
+    const bytesRead = length > 0 ? readSync(handle, buffer, 0, length, start) : 0;
+    const text = buffer.subarray(0, bytesRead).toString("utf8");
+    if (incremental && available <= maxBytes) return { chunk: text, size, reset: false };
+    const skipped = available - length;
+    const prefix = skipped > 0
+      ? incremental ? `…(skipped ${skipped} bytes)…\n` : `…(truncated — showing last ${maxBytes} bytes)…\n`
+      : "";
+    return { chunk: prefix + text, size, reset: true };
+  } catch {
+    return { chunk: "", size: 0, reset: false };
+  } finally {
+    if (handle !== undefined) closeSync(handle);
   }
-
-  return { chunk: readLog(id, maxBytes), size, reset: true };
 }
 
 export function readLog(id: string, maxBytes = 200_000): string {
-  if (!isValidDispatchId(id)) return "";
-  const logPath = join(DISPATCH_DIR, `${id}.log`);
-  if (!existsSync(logPath)) return "";
-  const buf = readFileSync(logPath);
-  if (buf.length <= maxBytes) return buf.toString("utf8");
-  // tail
-  return "…(truncated — showing last " + maxBytes + " bytes)…\n" + buf.slice(-maxBytes).toString("utf8");
+  return readLogSince(id, 0, maxBytes).chunk;
 }

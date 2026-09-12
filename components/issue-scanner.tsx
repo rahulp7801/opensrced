@@ -214,6 +214,16 @@ export function IssueScanner() {
         </button>
       </form>
 
+      {loading && (
+        <div role="status" aria-live="polite" className="mt-4 flex items-start gap-3 rounded-md border border-border bg-surface/60 px-4 py-3">
+          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-signal animate-pulse" aria-hidden />
+          <div>
+            <p className="text-sm font-medium text-paper">Scanning repository issues</p>
+            <p className="mt-0.5 text-xs text-paper-muted">Fetching recent and beginner-labeled issues. Large repositories can take up to a minute.</p>
+          </div>
+        </div>
+      )}
+
       {err && (
         <div className="mt-3 border border-alert/40 bg-alert/5 p-3 text-[12px] text-alert">
           {err}

@@ -96,14 +96,14 @@ export function Onboarding({ localMode = false }: { localMode?: boolean }) {
 
   return (
     <div className="border-b border-border bg-surface/40">
-      <div className="mx-auto flex max-w-[1200px] items-center gap-4 px-5 py-3 sm:px-8">
-        <span className="shrink-0 text-[11px] font-medium uppercase tracking-[0.12em] text-signal">
+      <div className="mx-auto grid max-w-[1200px] grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 px-5 py-3 sm:grid-cols-[auto_1fr_auto_auto] sm:gap-4 sm:px-8">
+        <span className="col-start-1 row-start-1 shrink-0 text-[11px] font-medium uppercase tracking-[0.12em] text-signal sm:col-start-auto sm:row-start-auto">
           Step {currentStepNumber} of {STEPS.length}
         </span>
 
         {/* Current step */}
-        <div className="flex-1 min-w-0">
-          <span className="text-[12px] text-paper">{currentStep.title}</span>
+        <div className="col-start-1 row-start-2 min-w-0 sm:col-start-auto sm:row-start-auto">
+          <span className="text-[12px] font-medium text-paper">{currentStep.title}</span>
           <span className="text-[11px] text-paper-muted ml-2 hidden sm:inline">
             — {currentStep.description}
           </span>
@@ -112,7 +112,7 @@ export function Onboarding({ localMode = false }: { localMode?: boolean }) {
         {/* CTA */}
         <Link
           href={currentStep.href}
-          className="shrink-0 rounded-md border border-signal/50 bg-signal/10 px-3 py-2 text-xs font-medium text-signal transition hover:bg-signal/20"
+          className="col-start-2 row-start-2 inline-flex min-h-10 shrink-0 items-center rounded-md border border-signal/50 bg-signal/10 px-3 py-2 text-xs font-medium text-signal transition hover:bg-signal/20 sm:col-start-auto sm:row-start-auto"
         >
           {currentStep.cta}
         </Link>
@@ -120,7 +120,7 @@ export function Onboarding({ localMode = false }: { localMode?: boolean }) {
         {/* Dismiss */}
         <button
           onClick={dismiss}
-          className="shrink-0 px-1 text-sm text-paper-muted hover:text-paper"
+          className="col-start-2 row-start-1 shrink-0 justify-self-end px-1 text-sm text-paper-muted hover:text-paper sm:col-start-auto sm:row-start-auto"
           aria-label="Dismiss onboarding"
           title="Dismiss onboarding"
         >

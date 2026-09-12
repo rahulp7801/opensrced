@@ -387,6 +387,7 @@ try {
   await page.getByText('No repos matched.', { exact: false }).waitFor();
   assert.deepEqual(interactionErrors, [], 'malformed saved bookmarks must not crash discovery');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'authenticated discovery must fit mobile');
+  await assertUsableControls(page, 'authenticated mobile discovery');
 
   await page.goto(base + '/stats');
   await page.getByRole('heading', { name: 'Biggest contributions', exact: true }).waitFor();

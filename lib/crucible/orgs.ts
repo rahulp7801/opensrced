@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { cloudExecution } from "../cloud-run-state";
 import { readJson, updateJson } from "../blob-store";
+import { sanitizeGitHubName } from "../sanitize";
+import { randomUUID } from "node:crypto";
 
 const BLOB_PATH = "crucible/orgs.json";
 
@@ -16,24 +18,46 @@ export type OrgMapping = {
 };
 
 async function readAll(): Promise<OrgMapping[]> {
-  return cloudExecution() ? (await readJson<OrgMapping[]>(BLOB_PATH))?.value ?? [] : readLocal();
+  const rows = cloudExecution() ? (await readJson<unknown[]>(BLOB_PATH))?.value ?? [] : readLocal();
+  return rows.map(validMapping).filter((row): row is OrgMapping => Boolean(row));
 }
 
-function readLocal(): OrgMapping[] {
+function readLocal(): unknown[] {
   try {
     const raw = fs.readFileSync(STORE_PATH, "utf8");
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as OrgMapping[]) : [];
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 }
 
 async function mutate(update: (rows: OrgMapping[]) => OrgMapping[]) {
-  if (cloudExecution()) return updateJson<OrgMapping[]>(BLOB_PATH, [], update);
-  const rows = update(readLocal());
+  if (cloudExecution()) return updateJson<unknown[]>(BLOB_PATH, [], (rows) =>
+    update(rows.map(validMapping).filter((row): row is OrgMapping => Boolean(row))),
+  );
+  const rows = update(readLocal().map(validMapping).filter((row): row is OrgMapping => Boolean(row)));
   fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true });
-  fs.writeFileSync(STORE_PATH, JSON.stringify(rows, null, 2));
+  const temporary = `${STORE_PATH}.${randomUUID()}.tmp`;
+  try {
+    fs.writeFileSync(temporary, JSON.stringify(rows, null, 2), { flag: "wx", mode: 0o600 });
+    fs.renameSync(temporary, STORE_PATH);
+  } finally {
+    fs.rmSync(temporary, { force: true });
+  }
+}
+
+function validMapping(value: unknown): OrgMapping | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Partial<OrgMapping>;
+  const auth0UserId = typeof row.auth0_user_id === "string" && row.auth0_user_id.length <= 255 && !/[\x00-\x1F\x7F]/.test(row.auth0_user_id) ? row.auth0_user_id : null;
+  const githubOrg = typeof row.github_org === "string" ? sanitizeGitHubName(row.github_org) : null;
+  const installer = typeof row.installer === "string" ? sanitizeGitHubName(row.installer) : null;
+  const installationId = typeof row.installation_id === "number" && Number.isSafeInteger(row.installation_id) && row.installation_id > 0 ? row.installation_id : null;
+  const verifiedAt = typeof row.verified_at === "string" && row.verified_at.length <= 40 && Number.isFinite(Date.parse(row.verified_at)) ? row.verified_at : null;
+  return auth0UserId && githubOrg && installer && installationId && verifiedAt
+    ? { auth0_user_id: auth0UserId, github_org: githubOrg, installation_id: installationId, installer, verified_at: verifiedAt }
+    : null;
 }
 
 export async function listOrgsFor(auth0UserId: string): Promise<OrgMapping[]> {
@@ -41,9 +65,11 @@ export async function listOrgsFor(auth0UserId: string): Promise<OrgMapping[]> {
 }
 
 export async function mappingForOrg(auth0UserId: string, githubOrg: string): Promise<OrgMapping | null> {
+  const safeOrg = sanitizeGitHubName(githubOrg);
+  if (!safeOrg) return null;
   return (
     (await readAll()).find(
-      (r) => r.auth0_user_id === auth0UserId && r.github_org.toLowerCase() === githubOrg.toLowerCase()
+      (r) => r.auth0_user_id === auth0UserId && r.github_org.toLowerCase() === safeOrg.toLowerCase()
     ) || null
   );
 }
@@ -53,15 +79,17 @@ export async function mappingByInstallationId(installationId: number): Promise<O
 }
 
 export async function saveMapping(mapping: OrgMapping) {
+  const safeMapping = validMapping(mapping);
+  if (!safeMapping) throw new Error("Invalid organization mapping");
   return mutate((rows) => {
     // Upsert on (auth0_user_id, github_org).
     const idx = rows.findIndex(
       (r) =>
-        r.auth0_user_id === mapping.auth0_user_id &&
-        r.github_org.toLowerCase() === mapping.github_org.toLowerCase()
+        r.auth0_user_id === safeMapping.auth0_user_id &&
+        r.github_org.toLowerCase() === safeMapping.github_org.toLowerCase()
     );
-    if (idx >= 0) rows[idx] = mapping;
-    else rows.push(mapping);
+    if (idx >= 0) rows[idx] = safeMapping;
+    else rows.push(safeMapping);
     return rows;
   });
 }

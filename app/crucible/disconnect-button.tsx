@@ -10,7 +10,7 @@ export function DisconnectButton({ org }: { org: string }) {
   async function disconnect() {
     setState("pending");
     try {
-      const res = await fetch(`/api/crucible/orgs/${org}/disconnect`, {
+      const res = await fetch(`/api/crucible/orgs/${encodeURIComponent(org)}/disconnect`, {
         method: "POST",
         signal: AbortSignal.timeout(15_000),
       });

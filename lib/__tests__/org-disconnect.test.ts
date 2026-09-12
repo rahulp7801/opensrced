@@ -23,6 +23,7 @@ test("disconnect affects only the caller while uninstall removes all installatio
     assert.equal((await store.listOrgsFor("alice")).length, 0);
     assert.equal((await store.listOrgsFor("bob")).length, 2);
     await assert.rejects(store.deleteMappingsForUser(""), /identity/);
+    await assert.rejects(store.saveMapping({ auth0_user_id: "mallory\nadmin", github_org: "../other", installation_id: -1, installer: "bad/name", verified_at: "never" }), /Invalid organization mapping/);
     await store.deleteByInstallationId(10);
     assert.equal(await store.mappingForOrg("bob", "shared"), null);
     assert.ok(await store.mappingForOrg("bob", "other"));

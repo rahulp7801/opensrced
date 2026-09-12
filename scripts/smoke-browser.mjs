@@ -320,9 +320,11 @@ try {
   await page.goto(base + '/crucible');
   const keyInput = page.getByLabel('Anthropic API key', { exact: true });
   await page.getByLabel('Gemini API key', { exact: true }).waitFor();
+  await page.setViewportSize({ width: 390, height: 900 });
   assert.equal(connectRequests.length, 0, 'organization connection starts only after an explicit click');
-  await assertUsableControls(page, 'authenticated settings');
-  await assertNoSeriousAccessibilityViolations(page, 'authenticated settings');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'authenticated settings must fit mobile');
+  await assertUsableControls(page, 'authenticated mobile settings');
+  await assertNoSeriousAccessibilityViolations(page, 'authenticated mobile settings');
   await keyInput.fill('test-replacement-value');
   await page.getByRole('button', { name: '$0.10', exact: true }).click();
   assert.equal(await page.getByRole('button', { name: '$0.10', exact: true }).getAttribute('aria-pressed'), 'true');

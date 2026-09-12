@@ -5,6 +5,7 @@ import { readJsonBody } from "../request-body";
 test("JSON request bodies are parsed within a hard byte limit", async () => {
   const valid = new Request("http://localhost", { method: "POST", body: JSON.stringify({ ok: true }) });
   assert.deepEqual(await readJsonBody(valid, 100), { ok: true });
+  assert.equal(await readJsonBody(new Request("http://localhost", { method: "POST", body: "null" })), null);
 
   const declaredLarge = new Request("http://localhost", { method: "POST", headers: { "content-length": "101" }, body: "{}" });
   assert.equal(await readJsonBody(declaredLarge, 100), null);

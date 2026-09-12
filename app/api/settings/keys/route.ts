@@ -26,11 +26,11 @@ export async function POST(req: NextRequest) {
   const session = await auth0.getSession();
   if (!session?.user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
-  const body = ((await readJsonBody(req)) ?? {}) as {
+  const body = await readJsonBody<{
     anthropic?: string;
     gemini?: string;
     maxSpendUsd?: number;
-  };
+  }>(req);
   if (!validStoredKeys(body)) {
     return NextResponse.json({ error: "Keys must be at most 512 printable characters; the task budget must be between $0.10 and $10." }, { status: 400 });
   }

@@ -94,8 +94,12 @@ export default async function CruciblePage({
       )}
 
       {localMode ? (
-        <section className="mt-6 rounded-lg border border-border bg-surface p-5 text-sm leading-6 text-paper-dim">
-          Sign-in is disabled in local mode. Public repository workflows remain available; private organization connections require hosted sign-in.
+        <section className="mt-6 rounded-lg border border-border bg-surface p-5" aria-labelledby="local-github-heading">
+          <h2 id="local-github-heading" className="text-base font-medium text-paper">Local GitHub access</h2>
+          <p className="mt-2 text-sm leading-6 text-paper-dim">
+            Public discovery and preview runs work without sign-in. To open pull requests, add <code className="rounded-sm bg-ink px-1.5 py-0.5 font-mono text-xs text-signal">GITHUB_TOKEN</code> to <code className="rounded-sm bg-ink px-1.5 py-0.5 font-mono text-xs text-paper">.env.local</code>, then restart the development server.
+          </p>
+          <p className="mt-2 text-xs leading-5 text-paper-muted">Private organization connections require hosted sign-in.</p>
         </section>
       ) : <section className="mt-6">
         <h2 className="text-lg font-medium">GitHub organizations</h2>

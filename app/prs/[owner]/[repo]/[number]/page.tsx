@@ -178,6 +178,15 @@ export default function PrDetailPage() {
   const [prDiff, setPrDiff] = useState<string | null>(null);
   const [showDiff, setShowDiff] = useState(false);
   const [diffLoading, setDiffLoading] = useState(false);
+  const [diffError, setDiffError] = useState("");
+  const diffRequest = useRef<AbortController | null>(null);
+  useEffect(() => {
+    setPrDiff(null);
+    setDiffError("");
+    setDiffLoading(false);
+    setShowDiff(false);
+    return () => { diffRequest.current?.abort(); diffRequest.current = null; };
+  }, [repoFull, prNumber]);
   const [diffViewMode, setDiffViewMode] = useState<"unified" | "split">("unified");
   const [diffPopout, setDiffPopout] = useState(false);
 
@@ -389,15 +398,26 @@ export default function PrDetailPage() {
 
   // ── Lazy-load diff ─────────────────────────────────────────────────
 
-  const loadDiff = useCallback(() => {
-    if (prDiff !== null || diffLoading) return;
+  const loadDiff = useCallback(async () => {
+    if (prDiff !== null || diffRequest.current) return;
+    const controller = new AbortController();
+    diffRequest.current = controller;
     setDiffLoading(true);
-    fetch(`/api/prs/diff?repo=${encodeURIComponent(repoFull)}&pr=${prNumber}`)
-      .then((r) => r.json())
-      .then((data: { diff?: string; error?: string }) => setPrDiff(data.diff ?? data.error ?? ""))
-      .catch(() => setPrDiff("Failed to load diff"))
-      .finally(() => setDiffLoading(false));
-  }, [repoFull, prNumber, prDiff, diffLoading]);
+    setDiffError("");
+    try {
+      const response = await fetch(`/api/prs/diff?repo=${encodeURIComponent(repoFull)}&pr=${prNumber}`, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]) });
+      const data = await response.json();
+      if (!response.ok || data.error || typeof data.diff !== "string") throw new Error(data.error || "Failed to load diff");
+      if (diffRequest.current === controller) setPrDiff(data.diff);
+    } catch (error) {
+      if (diffRequest.current === controller) setDiffError(error instanceof Error ? error.message : "Failed to load diff");
+    } finally {
+      if (diffRequest.current === controller) {
+        diffRequest.current = null;
+        setDiffLoading(false);
+      }
+    }
+  }, [repoFull, prNumber, prDiff]);
 
   // ── Fix ────────────────────────────────────────────────────────────
 
@@ -932,6 +952,11 @@ export default function PrDetailPage() {
             <div className="border border-border border-t-0 bg-ink/30 max-h-[500px] overflow-auto">
               {diffLoading ? (
                 <div className="px-4 py-3 text-[11px] text-paper-muted animate-pulse-signal">Loading diff...</div>
+              ) : diffError ? (
+                <div role="alert" className="px-4 py-3 text-[11px] text-alert">
+                  {diffError}
+                  <button onClick={() => void loadDiff()} className="ml-3 underline">Retry diff</button>
+                </div>
               ) : prDiff ? (
                 diffViewMode === "split" ? (
                   <SplitDiffView diff={prDiff} />

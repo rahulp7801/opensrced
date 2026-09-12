@@ -108,7 +108,7 @@ const DISPATCH_LOG = [
   { t: "[agentic-dispatcher] exited · status=succeeded · exit=0", d: 7000 },
   { t: "", d: 7100 },
   { t: "[gemini-review] Patch looks correct. Parameterized query prevents injection.", d: 7300 },
-  { t: "[crucible-tests] 47 tests passed, 0 failed", d: 7700 },
+  { t: "[verification] target-repository tests not run in hosted jobs", d: 7700 },
   { t: "[agentic-pr] opened draft PR: https://github.com/acme-corp/web-app/pull/48", d: 8100 },
   { t: "[agentic-pr] head: opensrcer/issue-47  →  base: main", d: 8300 },
 ];
@@ -190,7 +190,7 @@ function DispatchDemo() {
           </div>
           {step === "done" && (
             <div className="border-b border-ok/40 bg-ok/5 px-4 py-2.5 flex items-center gap-3">
-              <span className="text-[13px] text-ok">PR #48 opened — verified</span>
+              <span className="text-[13px] text-ok">Draft PR #48 opened — review required</span>
               <span className="ml-auto flex items-center gap-3">
                 <span className="text-[12px] text-paper-muted tabular-nums">$0.0847 · 3m 42s</span>
                 <button onClick={reset} className="flex items-center gap-1 border border-border hover:border-signal/50 hover:text-signal px-2 py-0.5 text-[10px] text-paper-muted transition">replay</button>
@@ -207,7 +207,7 @@ function DispatchDemo() {
               <div className="flex gap-2"><span className="text-ok">✓</span> Diagnosed SQL injection at src/routes/users.ts:25</div>
               <div className="flex gap-2"><span className="text-ok">✓</span> Generated a 4-line parameterized-query fix</div>
               <div className="flex gap-2"><span className="text-ok">✓</span> Gemini reviewed — no new vulnerabilities</div>
-              <div className="flex gap-2"><span className="text-ok">✓</span> 47 tests passed, 0 failed</div>
+              <div className="flex gap-2"><span className="text-paper-muted">○</span> Repository tests not run — validate in target CI</div>
               <div className="flex gap-2"><span className="text-ok">✓</span> Draft PR #48 opened via GitHub API</div>
             </div>
           )}
@@ -364,7 +364,7 @@ const SOLVE_LOG = [
   { t: "```", d: 3100 },
   { t: "", d: 3200 },
   { t: "[gemini-review] Override is correct. braces ^3.0.3 fixes CVE-2024-4068.", d: 3400 },
-  { t: "[crucible-tests] 156 tests passed, 0 failed", d: 3800 },
+  { t: "[verification] target-repository tests not run in hosted jobs", d: 3800 },
   { t: "[agentic-pr] opened draft PR: https://github.com/acme-corp/web-app/pull/49", d: 4200 },
 ];
 
@@ -405,7 +405,7 @@ function SecurityDemo() {
         <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
           <div className="max-w-2xl space-y-2 text-left">
             <div className="text-[14px] text-paper">Security scan</div>
-            <p className="text-[12px] leading-relaxed text-paper-dim">Scan a repo for CVEs and Dependabot alerts, then watch the agent automatically remediate the critical finding with a verified patch.</p>
+            <p className="text-[12px] leading-relaxed text-paper-dim">Scan a repo for CVEs and Dependabot alerts, then watch the agent prepare a reviewable patch for the critical finding.</p>
           </div>
           <button onClick={scan} className="shrink-0 self-start border border-signal/50 bg-signal/10 px-4 py-2 text-[12px] text-signal transition hover:bg-signal/20 sm:self-auto">Start scan →</button>
         </div>
@@ -466,8 +466,8 @@ function SecurityDemo() {
               <div className="text-[13px] text-paper font-medium">Summary</div>
               <div className="flex gap-2"><span className="text-ok">✓</span> Scanned 6 security advisories (1 critical, 2 high, 2 medium, 1 low)</div>
               <div className="flex gap-2"><span className="text-ok">✓</span> Traced CVE-2024-4068 to braces@2.3.2 via micromatch dependency</div>
-              <div className="flex gap-2"><span className="text-ok">✓</span> Generated 3-line fix (npm overrides), Gemini verified</div>
-              <div className="flex gap-2"><span className="text-ok">✓</span> 156 tests passed, draft PR #49 opened</div>
+              <div className="flex gap-2"><span className="text-ok">✓</span> Generated 3-line fix (npm overrides), Gemini reviewed</div>
+              <div className="flex gap-2"><span className="text-paper-muted">○</span> Repository tests not run; draft PR #49 opened for review</div>
             </div>
           )}
         </>
@@ -525,7 +525,7 @@ const CRUCIBLE_LOG = [
   { t: "```", d: 5400 },
   { t: "", d: 5500 },
   { t: "[gemini-review] Fix correctly revokes old key on rotation.", d: 5700 },
-  { t: "[crucible-tests] 83 tests passed, 0 failed", d: 6100 },
+  { t: "[verification] target-repository tests not run in hosted jobs", d: 6100 },
   { t: "[agentic-pr] authenticated with a demo organization installation", d: 6500 },
   { t: "[agentic-pr] opened draft PR: https://github.com/acme-corp/api-gateway/pull/15", d: 6900 },
 ];
@@ -648,7 +648,7 @@ function CrucibleDemo() {
           </div>
           {step === "done" && (
             <div className="border-b border-ok/40 bg-ok/5 px-4 py-2.5 flex items-center gap-3">
-              <span className="text-[13px] text-ok">PR #15 opened — security fix verified</span>
+              <span className="text-[13px] text-ok">Draft PR #15 opened — review required</span>
               <span className="ml-auto flex items-center gap-3">
                 <span className="text-[12px] text-paper-muted tabular-nums">$0.0923 · 2m 18s</span>
                 <button onClick={reset} className="flex items-center gap-1 border border-border hover:border-signal/50 hover:text-signal px-2 py-0.5 text-[10px] text-paper-muted transition">replay</button>
@@ -665,7 +665,7 @@ function CrucibleDemo() {
               <div className="flex gap-2"><span className="text-ok">✓</span> Browsed 4 private repos, selected api-gateway</div>
               <div className="flex gap-2"><span className="text-ok">✓</span> Agent explored Go codebase via MCP tools</div>
               <div className="flex gap-2"><span className="text-ok">✓</span> Diagnosed missing key revocation on rotation</div>
-              <div className="flex gap-2"><span className="text-ok">✓</span> 3-line fix, Gemini reviewed, 83 tests passed</div>
+              <div className="flex gap-2"><span className="text-paper-muted">○</span> 3-line fix and Gemini review; repository tests not run</div>
               <div className="flex gap-2"><span className="text-ok">✓</span> Draft PR #15 opened with installation token (not personal PAT)</div>
               <div className="mt-2 text-[11px] text-paper-faint">Total: $0.09 · No long-lived credentials · Token expired after 60 min</div>
             </div>

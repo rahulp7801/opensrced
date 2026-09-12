@@ -227,9 +227,6 @@ export function DispatchList() {
             Browse issues
           </Link>
         </div>
-        <p className="mt-4 text-xs text-paper-faint">
-          Shortcut: press {isMac() ? "⌘K" : "Ctrl K"} and paste a repository URL.
-        </p>
       </div>
     );
   }
@@ -1202,9 +1199,4 @@ type PrInfo = { url: string; repoFull: string; prNumber: number };
 function extractPrInfo(log: string): PrInfo | null {
   if (!log) return null;
   return findGitHubPullUrl(log);
-}
-
-function isMac() {
-  if (typeof navigator === "undefined") return false;
-  return /Mac|iPhone|iPad/.test(navigator.platform);
 }

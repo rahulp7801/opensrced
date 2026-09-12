@@ -31,6 +31,12 @@ try {
       assert.deepEqual(errors, [], `client errors ${path}`);
       pagesChecked++;
     }
+    await page.goto(base + '/login?returnTo=https%3A%2F%2Fevil.example');
+    assert.equal(
+      await page.getByRole('link', { name: 'Continue with GitHub', exact: true }).getAttribute('href'),
+      '/auth/login?returnTo=%2F',
+      'login return target must stay on this application',
+    );
     assert.deepEqual(authNavigations, [], 'login/logout must not be prefetched');
     await context.close();
   }

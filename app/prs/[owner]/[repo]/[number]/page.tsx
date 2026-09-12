@@ -1415,8 +1415,13 @@ export default function PrDetailPage() {
                           await copyText(shareLink);
                           toast("Share link copied to clipboard", "ok");
                         }
-                      } catch {
-                        toast(shareLink ? "Share link created, but clipboard access failed." : "Failed to create share link", "alert");
+                      } catch (error) {
+                        toast(
+                          shareLink
+                            ? "Share link created, but clipboard access failed."
+                            : error instanceof Error ? error.message : "Failed to create share link",
+                          "alert",
+                        );
                       }
                     }}
                     className="text-xs text-signal border border-signal/30 hover:bg-signal/10 px-2 py-0.5 transition"

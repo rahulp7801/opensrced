@@ -22,7 +22,7 @@ test("dispatches authorize the issue before reading cached source or starting a 
   const issue = await fetchIssue("acme/app", 1, "test-user-token");
   assert.equal(issue.title, "Fix typo");
   assert.match(issue.formatted, /untrusted="true"/);
-  assert.ok(issue.formatted.includes("https://github.com/acme/app/issues/1"));
+  assert.equal(issue.formatted.split("\n")[9], "URL: https://github.com/acme/app/issues/1");
 });
 
 test("dispatch completion requires a successful result and preserves split UTF-8 text", async () => {

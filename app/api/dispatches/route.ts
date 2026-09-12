@@ -10,6 +10,8 @@ import { sessionUserId } from "@/lib/require-session";
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { listCloudRuns } from "@/lib/cloud-runs";
 
+export const maxDuration = 60;
+
 export async function GET() {
   const viewerId = await sessionUserId();
   if (!viewerId) {

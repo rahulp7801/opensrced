@@ -5,6 +5,7 @@ import { getStatsSummary } from "@/lib/stats";
 // /api/activity — account-scoped opensrcer activity derived from recorded
 // scans, dispatches, provider spend, and opened pull requests.
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function GET() {
   const owner = await sessionUserId();

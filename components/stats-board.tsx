@@ -39,7 +39,7 @@ type StatsData = {
 export function StatsBoard() {
   const { data, error: err, isLoading: loading } = useSwrFetch<StatsData>(
     "/api/activity",
-    { refreshInterval: 15_000 },
+    { refreshInterval: 60_000 },
   );
 
   if (loading && !data) {

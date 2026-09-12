@@ -42,10 +42,10 @@ try {
   });
   await page.goto(base + '/graph?repo=https://github.com/acme/project.name');
   const repoInput = page.getByLabel('GitHub repository', { exact: true });
-  await page.getByRole('button', { name: 'build graph', exact: true }).click();
+  await repoInput.press('Enter');
   await page.getByText('Error: Build fixture failed', { exact: true }).waitFor();
   assert.equal(await page.locator('iframe').count(), 0);
-  await page.getByRole('button', { name: 'build graph', exact: true }).click();
+  await page.getByRole('button', { name: 'Build graph', exact: true }).click();
   await page.locator('iframe').waitFor();
   await page.getByRole('button', { name: 'stats', exact: true }).click();
   await page.getByText('The answer stream ended before completion. Please retry.', { exact: true }).waitFor();
@@ -57,14 +57,14 @@ try {
   releaseQuery?.();
   await page.getByRole('button', { name: 'stats', exact: true }).click();
   await page.getByText('Complete answer', { exact: true }).waitFor();
-  await page.getByRole('button', { name: 'rebuild', exact: true }).click();
+  await page.getByRole('button', { name: 'Rebuild graph', exact: true }).click();
   await page.getByRole('button', { name: 'Cancel', exact: true }).waitFor();
   await repoInput.fill('acme/other');
   releaseBuild?.();
-  await page.getByRole('button', { name: 'build graph', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Build graph', exact: true }).waitFor();
   await page.evaluate(async () => { for (let i = 0; i < 10; i++) await new Promise(resolve => requestAnimationFrame(resolve)); });
   assert.equal(await page.locator('iframe').count(), 0, 'old build cannot mark the next repository ready');
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ dottedRepository: true, terminalFailures: true, truncatedAnswer: true, cancelAndRetry: true, repositorySwitch: true }));
+  console.log(JSON.stringify({ dottedRepository: true, enterSubmits: true, terminalFailures: true, truncatedAnswer: true, cancelAndRetry: true, repositorySwitch: true }));
   await context.close();
 } finally { releaseBuild?.(); releaseQuery?.(); await browser.close(); }

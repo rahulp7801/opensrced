@@ -430,7 +430,12 @@ export default function GraphPage() {
   return (
     <div
       ref={shellRef}
-      className="mx-auto flex w-full max-w-[1800px] flex-col px-4 py-6 sm:px-6 xl:h-[var(--graph-shell-height)] xl:min-h-[560px]"
+      className={cn(
+        "mx-auto flex w-full flex-col",
+        buildStatus === "ready"
+          ? "max-w-[1800px] px-4 py-6 sm:px-6 xl:h-[var(--graph-shell-height)] xl:min-h-[560px]"
+          : "max-w-[1200px] px-5 py-10 sm:px-8",
+      )}
       style={{ "--graph-shell-height": shellHeight ? `${shellHeight}px` : "calc(100dvh - 56px)" } as React.CSSProperties}
     >
       <PageHeading
@@ -439,7 +444,13 @@ export default function GraphPage() {
       />
 
       {/* Repo input + build */}
-      <div className="flex flex-wrap items-end gap-3">
+      <form
+        className="flex flex-wrap items-end gap-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void handleBuild(buildStatus === "ready");
+        }}
+      >
         <div className="relative w-full max-w-xl flex-1 sm:min-w-[280px]">
           <label htmlFor="graph-repository" className="mb-1.5 block text-[12px] font-medium text-paper-dim">
             GitHub repository
@@ -489,15 +500,15 @@ export default function GraphPage() {
           )}
         </div>
         <button
-          onClick={() => handleBuild(buildStatus === "ready")}
+          type="submit"
           disabled={!parseRepo(repoUrl) || buildStatus === "building"}
-          className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-2 text-[12px] uppercase tracking-[0.12em] disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+          className="min-h-10 shrink-0 rounded-md bg-paper px-4 py-2 text-[12px] font-medium text-ink transition hover:-translate-y-px hover:bg-paper-2 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
         >
           {buildStatus === "building"
             ? "building..."
             : buildStatus === "ready"
-              ? "rebuild"
-              : "build graph"}
+              ? "Rebuild graph"
+              : "Build graph"}
         </button>
         {(buildStatus === "building" || isQuerying) && (
           <button type="button" onClick={() => {
@@ -511,7 +522,7 @@ export default function GraphPage() {
             ready
           </span>
         )}
-      </div>
+      </form>
 
       {/* Build progress — kept on screen for a failed build too. Hiding it on
           error meant the log flashed past and the page fell back to the empty
@@ -768,18 +779,26 @@ export default function GraphPage() {
       ) : (
         buildStatus !== "building" && (
           /* Empty state */
-          <div className="mt-8 flex-1 flex items-start justify-center">
-            <div className="w-full max-w-xl border border-border bg-surface/40 p-6 sm:p-8">
-              <h2 className="text-[18px] font-medium text-paper">Start with a repository</h2>
-              <p className="mt-2 max-w-lg text-[13px] text-paper-muted">
-                Enter a public repository or one your connected GitHub account can access. Building the map reads source structure and relationships; it does not call an AI model.
+          <div className="mt-10 grid flex-1 gap-8 border-y border-border py-7 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
+            <div>
+              <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-paper-muted">What you can inspect</p>
+              <h2 className="mt-3 text-2xl font-medium tracking-[-0.03em] text-paper">Start with a repository</h2>
+              <p className="mt-3 max-w-lg text-[13px] leading-6 text-paper-muted">
+                Enter a public repository or one your connected GitHub account can access. Building the map reads source structure and relationships without calling an AI model.
               </p>
-              <div className="mt-6 grid gap-x-8 gap-y-4 border-t border-border-soft pt-5 text-[12px] sm:grid-cols-2">
-                <div><code className="text-signal">trace Symbol</code><p className="mt-1 text-paper-muted">Follow calls and dependencies.</p></div>
-                <div><code className="text-signal">impact Symbol</code><p className="mt-1 text-paper-muted">Find affected callers and modules.</p></div>
-                <div><code className="text-signal">explain src/api</code><p className="mt-1 text-paper-muted">Summarize one area of the repository.</p></div>
-                <div><code className="text-signal">path A to B</code><p className="mt-1 text-paper-muted">Show how two symbols connect.</p></div>
-              </div>
+            </div>
+            <div className="grid text-[12px] sm:grid-cols-2">
+              {[
+                ["trace Symbol", "Follow calls and dependencies."],
+                ["impact Symbol", "Find affected callers and modules."],
+                ["explain src/api", "Summarize one area of the repository."],
+                ["path A to B", "Show how two symbols connect."],
+              ].map(([command, description], index) => (
+                <div key={command} className={cn("border-t border-border-soft py-4 sm:px-5", index % 2 === 0 ? "sm:pl-0" : "sm:border-l sm:pr-0")}>
+                  <code className="text-signal">{command}</code>
+                  <p className="mt-1 text-paper-muted">{description}</p>
+                </div>
+              ))}
             </div>
           </div>
         )

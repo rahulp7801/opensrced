@@ -18,13 +18,17 @@ export async function GET() {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
   if (cloudExecution()) {
-    const runs = await listCloudRuns(viewerId, 20);
-    const dispatches = runs.map((run) => {
-      const summary = { ...run } as Partial<typeof run>;
-      delete summary.log;
-      return summary;
-    });
-    return NextResponse.json({ dispatches });
+    try {
+      const runs = await listCloudRuns(viewerId, 20);
+      const dispatches = runs.map((run) => {
+        const summary = { ...run } as Partial<typeof run>;
+        delete summary.log;
+        return summary;
+      });
+      return NextResponse.json({ dispatches });
+    } catch {
+      return NextResponse.json({ error: "Run history is temporarily unavailable. Please retry." }, { status: 503 });
+    }
   }
   return NextResponse.json({ dispatches: listDispatches(viewerId, 20) });
 }

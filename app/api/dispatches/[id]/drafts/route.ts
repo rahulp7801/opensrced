@@ -20,9 +20,13 @@ export async function GET(
 
   const { id } = await ctx.params;
   if (cloudExecution()) {
-    const run = await getCloudRun(viewerId, id);
-    if (!run) return NextResponse.json({ error: "not found" }, { status: 404 });
-    return NextResponse.json({ drafts: [] });
+    try {
+      const run = await getCloudRun(viewerId, id);
+      if (!run) return NextResponse.json({ error: "not found" }, { status: 404 });
+      return NextResponse.json({ drafts: [] });
+    } catch {
+      return NextResponse.json({ error: "Run drafts are temporarily unavailable. Please retry." }, { status: 503 });
+    }
   }
   if (!getDispatch(id, viewerId)) {
     return NextResponse.json({ error: "not found" }, { status: 404 });

@@ -98,9 +98,9 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
 
 export async function getCloudRun(owner: string, id: string): Promise<CloudRun | null> {
   if (!/^c_\d{13}_[a-f0-9]{12}$/.test(id)) return null;
-  let found: Awaited<ReturnType<typeof readJson<CloudRun>>>;
-  try { found = await readJson<CloudRun>(runPath(owner, id)); }
-  catch { return null; }
+  // A missing record is a normal 404. Blob timeouts and invalid JSON are
+  // service failures and must reach the route so polling can retry them.
+  const found = await readJson<CloudRun>(runPath(owner, id));
   if (!found || !validCloudRun(found.value, owner, id)) return null;
   const run = found.value;
   if (await readJson(`cancelled/${id}.json`)) return { ...run, status: "killed", pr_status: "none" };

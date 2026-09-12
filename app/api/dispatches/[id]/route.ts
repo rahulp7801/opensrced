@@ -26,9 +26,13 @@ export async function GET(
 
   const { id } = await ctx.params;
   if (cloudExecution()) {
-    const run = await getCloudRun(viewerId, id);
-    if (!run) return NextResponse.json({ error: "not found" }, { status: 404 });
-    return NextResponse.json(runLogChunk(run, Number(req.nextUrl.searchParams.get("since") ?? 0)));
+    try {
+      const run = await getCloudRun(viewerId, id);
+      if (!run) return NextResponse.json({ error: "not found" }, { status: 404 });
+      return NextResponse.json(runLogChunk(run, Number(req.nextUrl.searchParams.get("since") ?? 0)));
+    } catch {
+      return NextResponse.json({ error: "This run is temporarily unavailable. Please retry." }, { status: 503 });
+    }
   }
   // getDispatch returns undefined for "no such id" and "not yours" alike,
   // so the 404 below doesn't confirm that someone else's dispatch exists.

@@ -72,7 +72,7 @@ export function DispatchList() {
   // Poll dispatch list.
   //
   // Deps are empty on purpose. This used to depend on `selected`, so every
-  // click tore the 2.5s interval down and built a new one — the poll cadence
+  // click tore the interval down and built a new one — the poll cadence
   // restarted from zero on each selection, and the effect re-ran only to read
   // one value. `selectedRef` gives the loop the current selection without
   // making the subscription depend on it.
@@ -132,7 +132,7 @@ export function DispatchList() {
       selectedRef.current = dispatches[0].id;
       setSelected(dispatches[0].id);
     }
-  }, 2500), []);
+  }, 10_000), []);
 
   // Poll selected dispatch's log incrementally: ask only for bytes written
   // since the last poll and append them. The server used to resend the

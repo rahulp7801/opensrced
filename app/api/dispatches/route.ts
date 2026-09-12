@@ -16,7 +16,7 @@ export async function GET() {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
   if (cloudExecution()) {
-    const runs = await listCloudRuns(viewerId);
+    const runs = await listCloudRuns(viewerId, 20);
     return NextResponse.json({ dispatches: runs.map(({ log, ...run }) => run) });
   }
   return NextResponse.json({ dispatches: listDispatches(viewerId) });

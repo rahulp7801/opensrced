@@ -90,12 +90,13 @@ export async function getCloudRun(owner: string, id: string): Promise<CloudRun |
   return run;
 }
 
-export async function listCloudRuns(owner: string): Promise<CloudRun[]> {
-  const page = await list({ prefix: ownerPrefix(owner), limit: 50, abortSignal: AbortSignal.timeout(15_000) });
+export async function listCloudRuns(owner: string, limit = 50): Promise<CloudRun[]> {
+  const cappedLimit = Math.max(1, Math.min(50, Math.trunc(limit)));
+  const page = await list({ prefix: ownerPrefix(owner), limit: cappedLimit, abortSignal: AbortSignal.timeout(15_000) });
   const runs: CloudRun[] = [];
-  // Bound storage concurrency; never turn polling into fifty simultaneous reads.
-  for (let i = 0; i < page.blobs.length; i += 5) {
-    const batch = await Promise.all(page.blobs.slice(i, i + 5).map(async (blob) => {
+  // Bound storage concurrency while avoiding one serial round trip per run.
+  for (let i = 0; i < page.blobs.length; i += 10) {
+    const batch = await Promise.all(page.blobs.slice(i, i + 10).map(async (blob) => {
       const id = /c_\d{13}_[a-f0-9]{12}/.exec(blob.pathname)?.[0];
       return id ? getCloudRun(owner, id) : null;
     }));

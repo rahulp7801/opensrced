@@ -202,7 +202,7 @@ still evolving.
 
 - Vercel provisioning and live OAuth acceptance have not been completed.
 - Hosted target-repository tests are off, so hosted patches are unverified.
-- Cloud run history is limited to the latest 50 records per account.
+- The Runs page lists the latest 20 records; impact metrics cover the latest 50.
 - The Docker mode has no durable job queue or restart recovery.
 - Issue scoring and scope classification are heuristics.
 - Generated diffs can still require manual repair or target-repository CI.

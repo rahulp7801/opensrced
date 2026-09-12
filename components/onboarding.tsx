@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useUser } from "@auth0/nextjs-auth0";
+import { useCurrentUser } from "@/lib/use-current-user";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { IconClose } from "@/components/icons";
@@ -37,7 +37,7 @@ const STEPS = [
 const HIDDEN_ON = ["/crucible", "/login", "/", "/trigger", "/explore"];
 
 export function Onboarding({ localMode = false }: { localMode?: boolean }) {
-  const { user } = useUser();
+  const { user } = useCurrentUser(localMode);
   const pathname = usePathname();
   const [state, setState] = useState<OnboardingState | null>(null);
   const [dismissed, setDismissed] = useState(false);

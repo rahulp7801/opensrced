@@ -10,13 +10,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useUser } from "@auth0/nextjs-auth0";
+import { useCurrentUser } from "@/lib/use-current-user";
 import { cn } from "@/lib/utils";
 import { isLinkActive, sectionFor } from "./nav-config";
 
 export function SectionNav({ localMode = false }: { localMode?: boolean }) {
   const path = usePathname();
-  const { user } = useUser();
+  const { user } = useCurrentUser(localMode);
   const section = sectionFor(path);
   // Gated on the session to match the primary nav in components/header.tsx —
   // a signed-out visitor should not get section chrome for pages whose data

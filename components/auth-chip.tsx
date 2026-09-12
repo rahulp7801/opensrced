@@ -3,12 +3,12 @@
 /* eslint-disable @next/next/no-img-element -- OAuth avatar hosts are user-controlled. */
 
 import Link from "next/link";
-import { useUser } from "@auth0/nextjs-auth0";
+import { useCurrentUser } from "@/lib/use-current-user";
 import { safeAvatarUrl } from "@/lib/avatar-url";
 import { IconSignOut } from "./icons";
 
 export function AuthChip({ localMode = false }: { localMode?: boolean }) {
-  const { user, isLoading } = useUser();
+  const { user, isLoading } = useCurrentUser(localMode);
 
   if (localMode) {
     return (

@@ -2,7 +2,7 @@
 
 import { pollJson } from "@/lib/poll-json";
 import { useEffect, useState } from "react";
-import { useUser } from "@auth0/nextjs-auth0";
+import { useCurrentUser } from "@/lib/use-current-user";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 
@@ -11,7 +11,7 @@ import Link from "next/link";
 const KEY_REQUIRED_PAGES = ["/trigger", "/explore"];
 
 export function ApiKeyGate({ localMode = false }: { localMode?: boolean }) {
-  const { user } = useUser();
+  const { user } = useCurrentUser(localMode);
   const pathname = usePathname();
   const [hasKey, setHasKey] = useState<boolean | null>(null);
 

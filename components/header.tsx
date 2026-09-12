@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useUser } from "@auth0/nextjs-auth0";
+import { useCurrentUser } from "@/lib/use-current-user";
 import { Nav } from "./nav";
 import { AuthChip } from "./auth-chip";
 
 export function SiteHeader({ localMode = false }: { localMode?: boolean }) {
-  const { user } = useUser();
+  const { user } = useCurrentUser(localMode);
   const signedIn = Boolean(user) || localMode;
   const [helpOpen, setHelpOpen] = useState(false);
   const helpButtonRef = useRef<HTMLButtonElement>(null);

@@ -19,6 +19,7 @@ import { privateJsonOptions } from "@/lib/blob-store";
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { parseRunTarget } from "@/lib/run-target";
 import { SHARED_FIX_RETENTION_MS } from "@/lib/shared-fix";
+import { sensitiveTextKind } from "@/lib/sensitive-text";
 
 export const dynamic = "force-dynamic";
 
@@ -106,6 +107,10 @@ export async function POST(req: NextRequest) {
     explainer: body.explainer?.slice(0, 2_000) ?? null,
     created_at: new Date().toISOString(),
   };
+  const sensitive = sensitiveTextKind([fix.comment_body, fix.fix_response, fix.diff, fix.explainer]);
+  if (sensitive) {
+    return Response.json({ error: `Public share blocked: the content appears to contain a ${sensitive}. Remove it and try again.` }, { status: 400 });
+  }
 
   try {
     if (cloudExecution()) {

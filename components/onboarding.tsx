@@ -34,14 +34,14 @@ const STEPS = [
 // completes the steps, so showing the prompt would be redundant.
 const HIDDEN_ON = ["/crucible", "/login", "/"];
 
-export function Onboarding() {
+export function Onboarding({ localMode = false }: { localMode?: boolean }) {
   const { user } = useUser();
   const pathname = usePathname();
   const [state, setState] = useState<OnboardingState | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user && !localMode) return;
     if (sessionStorage.getItem("opensrcer-onboarding-dismissed") === "1") {
       setDismissed(true);
       return;
@@ -58,9 +58,9 @@ export function Onboarding() {
       if (!controller.signal.aborted) setState({ hasKey, hasDispatch });
     });
     return () => controller.abort();
-  }, [user]);
+  }, [user, localMode]);
 
-  if (!user || !state || dismissed) return null;
+  if ((!user && !localMode) || !state || dismissed) return null;
 
   // All done — don't show
   const allDone = STEPS.every((s) => s.check(state));

@@ -4,15 +4,15 @@ import { readJsonBody } from "@/lib/request-body";
 // DELETE /api/settings/keys — clear all stored keys
 
 import { NextRequest, NextResponse } from "next/server";
-import { auth0 } from "@/lib/auth0";
 import { getStoredKeys, setStoredKeys, clearStoredKeys } from "@/lib/api-keys";
 import { validStoredKeys } from "@/lib/key-cookie";
+import { requireSession } from "@/lib/require-session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const session = await auth0.getSession();
-  if (!session?.user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+  const unauth = await requireSession();
+  if (unauth) return unauth;
 
   const keys = await getStoredKeys();
   return NextResponse.json({
@@ -23,8 +23,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth0.getSession();
-  if (!session?.user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+  const unauth = await requireSession();
+  if (unauth) return unauth;
 
   const body = await readJsonBody<{
     anthropic?: string;
@@ -59,8 +59,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE() {
-  const session = await auth0.getSession();
-  if (!session?.user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+  const unauth = await requireSession();
+  if (unauth) return unauth;
 
   await clearStoredKeys();
   return NextResponse.json({ ok: true });

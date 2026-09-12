@@ -14,14 +14,14 @@ import { useUser } from "@auth0/nextjs-auth0";
 import { cn } from "@/lib/utils";
 import { isLinkActive, sectionFor } from "./nav-config";
 
-export function SectionNav() {
+export function SectionNav({ localMode = false }: { localMode?: boolean }) {
   const path = usePathname();
   const { user } = useUser();
   const section = sectionFor(path);
   // Gated on the session to match the primary nav in components/header.tsx —
   // a signed-out visitor should not get section chrome for pages whose data
   // they cannot load.
-  if (!user || !section || section.links.length < 2) return null;
+  if ((!user && !localMode) || !section || section.links.length < 2) return null;
 
   return (
     // Not sticky on its own — app/layout.tsx sticks the header and this bar

@@ -6,8 +6,9 @@ import { useUser } from "@auth0/nextjs-auth0";
 import { Nav } from "./nav";
 import { AuthChip } from "./auth-chip";
 
-export function SiteHeader() {
+export function SiteHeader({ localMode = false }: { localMode?: boolean }) {
   const { user } = useUser();
+  const signedIn = Boolean(user) || localMode;
   const [helpOpen, setHelpOpen] = useState(false);
   const helpButtonRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -53,19 +54,19 @@ export function SiteHeader() {
       <header className="border-b border-border bg-ink/85 backdrop-blur-md">
         <div className="flex items-stretch w-full min-h-16 max-w-[1440px] mx-auto">
           <Link
-            href={user ? "/discover" : "/"}
+            href={signedIn ? "/discover" : "/"}
             aria-label="opensrcer home"
             className="group flex items-center gap-2.5 px-3 sm:px-6 py-3 shrink-0"
           >
             <Mark />
-            <span className={`${user ? "hidden md:inline" : ""} text-[20px] font-semibold text-paper tracking-[-0.04em] whitespace-nowrap`}>
+            <span className={`${signedIn ? "hidden md:inline" : ""} text-[20px] font-semibold text-paper tracking-[-0.04em] whitespace-nowrap`}>
               opensrcer
             </span>
           </Link>
 
-          {user ? <Nav /> : <nav aria-label="Main navigation" className="ml-auto flex items-center gap-5 px-4 text-sm"><Link href="/demo" className="text-paper-dim hover:text-paper">Demo</Link></nav>}
+          {signedIn ? <Nav /> : <nav aria-label="Main navigation" className="ml-auto flex items-center gap-5 px-4 text-sm"><Link href="/demo" className="text-paper-dim hover:text-paper">Demo</Link></nav>}
 
-          {user && (
+          {signedIn && (
             <button
               ref={helpButtonRef}
               onClick={() => setHelpOpen(!helpOpen)}
@@ -79,7 +80,7 @@ export function SiteHeader() {
             </button>
           )}
 
-          <AuthChip />
+          <AuthChip localMode={localMode} />
         </div>
       </header>
 

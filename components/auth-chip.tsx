@@ -7,8 +7,22 @@ import { useUser } from "@auth0/nextjs-auth0";
 import { safeAvatarUrl } from "@/lib/avatar-url";
 import { IconSignOut } from "./icons";
 
-export function AuthChip() {
+export function AuthChip({ localMode = false }: { localMode?: boolean }) {
   const { user, isLoading } = useUser();
+
+  if (localMode) {
+    return (
+      <Link
+        href="/crucible"
+        aria-label="Local settings"
+        className="ml-auto flex shrink-0 items-center gap-2 border-l border-border px-3 text-[11.5px] text-paper-muted transition hover:bg-surface-2/60 hover:text-paper"
+        title="Local development mode — open settings"
+      >
+        <span className="h-2 w-2 rounded-full bg-ok" aria-hidden />
+        <span className="hidden sm:inline">Local</span>
+      </Link>
+    );
+  }
 
   if (isLoading) {
     return (

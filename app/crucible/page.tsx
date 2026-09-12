@@ -9,6 +9,7 @@ import { listOrgsFor } from "@/lib/crucible/orgs";
 import { DisconnectButton } from "./disconnect-button";
 import { RevokeAllButton } from "./revoke-all-button";
 import { ApiKeysForm } from "./api-keys-form";
+import { authDisabled } from "@/lib/require-session";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,8 @@ export default async function CruciblePage({
 }: {
   searchParams: Promise<{ connect_error?: string }>;
 }) {
-  const session = await auth0.getSession();
+  const localMode = authDisabled();
+  const session = localMode ? null : await auth0.getSession();
   const user = session?.user;
   const params = await searchParams;
   const connectErrorKey = params?.connect_error;
@@ -73,14 +75,16 @@ export default async function CruciblePage({
       <div className="mt-6 flex items-center justify-between gap-3 text-sm text-paper-muted">
         <div>
           Account:{" "}
-          <span className="text-paper">{user?.name || user?.email || "GitHub account"}</span>
+          <span className="text-paper">{localMode ? "Local workspace" : user?.name || user?.email || "GitHub account"}</span>
         </div>
-        <Link
-          href="/api/crucible/connect"
-          className="border border-border bg-surface/60 px-3 py-1.5 text-sm text-paper hover:bg-surface"
-        >
-          Connect GitHub Org
-        </Link>
+        {!localMode && (
+          <Link
+            href="/api/crucible/connect"
+            className="border border-border bg-surface/60 px-3 py-1.5 text-sm text-paper hover:bg-surface"
+          >
+            Connect GitHub Org
+          </Link>
+        )}
       </div>
 
       {connectError && (
@@ -89,7 +93,11 @@ export default async function CruciblePage({
         </div>
       )}
 
-      <section className="mt-6">
+      {localMode ? (
+        <section className="mt-6 rounded-lg border border-border bg-surface p-5 text-sm leading-6 text-paper-dim">
+          Sign-in is disabled in local mode. Public repository workflows remain available; private organization connections require hosted sign-in.
+        </section>
+      ) : <section className="mt-6">
         <h2 className="text-lg font-medium">GitHub organizations</h2>
         {orgs.length === 0 ? (
           <div className="mt-3 rounded-lg border border-border bg-surface p-6 text-sm text-paper-dim leading-relaxed">
@@ -119,9 +127,9 @@ export default async function CruciblePage({
             ))}
           </ul>
         )}
-      </section>
+      </section>}
 
-      <section className="mt-12 pt-6 border-t border-border-soft">
+      {!localMode && <section className="mt-12 pt-6 border-t border-border-soft">
         <h2 className="text-lg font-medium">Disconnect account</h2>
         <div className="mt-2 text-sm text-paper-dim leading-relaxed max-w-xl">
           Permanently disconnect all organizations, revoke all cached tokens,
@@ -139,7 +147,7 @@ export default async function CruciblePage({
         <div className="mt-3">
           <RevokeAllButton />
         </div>
-      </section>
+      </section>}
     </div>
   );
 }

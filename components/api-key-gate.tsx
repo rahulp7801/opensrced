@@ -9,14 +9,14 @@ import Link from "next/link";
 // Pages that work WITHOUT API keys (public repo browsing, PRs, repos)
 const KEY_FREE_PAGES = ["/prs", "/repos", "/discover", "/issues", "/stats", "/graph"];
 
-export function ApiKeyGate() {
+export function ApiKeyGate({ localMode = false }: { localMode?: boolean }) {
   const { user } = useUser();
   const pathname = usePathname();
   const [hasKey, setHasKey] = useState<boolean | null>(null);
 
   useEffect(() => {
     setHasKey(null);
-    if (!user) return;
+    if (!user && !localMode) return;
     let stop: (() => void) | undefined;
     function check() {
       stop?.();
@@ -25,10 +25,10 @@ export function ApiKeyGate() {
     check();
     window.addEventListener("opensrcer-keys-updated", check);
     return () => { stop?.(); window.removeEventListener("opensrcer-keys-updated", check); };
-  }, [user]);
+  }, [user, localMode]);
 
   // Don't show if: not logged in, still loading, key is set, or on a key-free page
-  if (!user || hasKey === null || hasKey) return null;
+  if ((!user && !localMode) || hasKey === null || hasKey) return null;
   if (KEY_FREE_PAGES.some((p) => pathname === p || pathname.startsWith(p + "/"))) return null;
 
   return (

@@ -42,6 +42,7 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const localMode = process.env.AUTH_DISABLED === "1" && process.env.NODE_ENV !== "production";
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       <body
@@ -61,14 +62,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               {/* Header + section tabs pin together, so neither has to hardcode
                   the other's height. */}
               <div className="sticky top-0 z-30">
-                <SiteHeader />
-                <SectionNav />
+                <SiteHeader localMode={localMode} />
+                <SectionNav localMode={localMode} />
               </div>
-              <ApiKeyGate />
-              <Onboarding />
+              <ApiKeyGate localMode={localMode} />
+              <Onboarding localMode={localMode} />
               {/* A flex column, so a page that wants to fill the window can say flex-1
                   instead of guessing how tall the chrome above it is. */}
-              <main id="main-content" className="flex flex-1 flex-col"><SessionGate allowAnonymous={process.env.AUTH_DISABLED === "1" && process.env.NODE_ENV !== "production"}>{children}</SessionGate></main>
+              <main id="main-content" className="flex flex-1 flex-col"><SessionGate allowAnonymous={localMode}>{children}</SessionGate></main>
               <SiteFooter />
             </div>
           </ToastProvider>

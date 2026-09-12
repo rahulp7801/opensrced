@@ -129,7 +129,9 @@ export function DiscoverScanner() {
       if (!controller.signal.aborted) setData(json);
     } catch (e) {
       if (controller.signal.aborted) return;
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(e instanceof Error && e.name === "TimeoutError"
+        ? "GitHub search took too long. Narrow the search or try again."
+        : e instanceof Error ? e.message : String(e));
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }

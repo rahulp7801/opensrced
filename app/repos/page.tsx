@@ -98,7 +98,9 @@ export default function ReposPage() {
       if (controller.signal.aborted) return;
       setStates((prev) => ({
         ...prev,
-        [t]: { ...prev[t], loading: false, error: err instanceof Error ? err.message : String(err) },
+        [t]: { ...prev[t], loading: false, error: err instanceof Error && err.name === "TimeoutError"
+          ? "GitHub took too long to return repositories. Try again."
+          : err instanceof Error ? err.message : String(err) },
       }));
     } finally {
       if (requests.current.get(t) === controller) requests.current.delete(t);

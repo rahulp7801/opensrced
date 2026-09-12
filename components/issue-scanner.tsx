@@ -119,7 +119,9 @@ export function IssueScanner() {
       setScan(data);
       cacheSet("issue-scan", key, data);
     } catch (e) {
-      if (!request.signal.aborted) setErr(e instanceof Error ? e.message : String(e));
+      if (!request.signal.aborted) setErr(e instanceof Error && e.name === "TimeoutError"
+        ? "Repository scan took too long. Try again in a moment."
+        : e instanceof Error ? e.message : String(e));
     } finally {
       if (!request.signal.aborted) setLoading(false);
     }

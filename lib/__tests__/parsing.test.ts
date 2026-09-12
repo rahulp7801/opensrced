@@ -288,6 +288,12 @@ describe("enrichWithPrStatus", () => {
     assert.equal(d.pr_status, "pending");
   });
 
+  test("finds terminal markers without loading a large model transcript", () => {
+    const d = enrichWithPrStatus(withLog(`header\n${"model output\n".repeat(100_000)}[crucible-tests] status=passed\nopened draft PR: https://github.com/o/n/pull/12\n`));
+    assert.equal(d.pr_status, "opened");
+    assert.equal(d.tests, "passed");
+  });
+
   test("never touches a running dispatch", () => {
     const d = { ...withLog("[agentic-pr] skipped: nope\n"), status: "running" as const };
     assert.equal(enrichWithPrStatus(d).pr_status, undefined);

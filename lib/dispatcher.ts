@@ -83,9 +83,33 @@ const children = new Map<string, ChildProcess>();
 // path; validating the shape once means none of them can be handed `../..`
 // from a route parameter.
 const DISPATCH_ID_RE = /^d_[A-Za-z0-9_-]{1,64}$/;
+const MACHINE_LOG_BYTES = 512_000;
+const MACHINE_LOG_HEAD_BYTES = 8_000;
 
 export function isValidDispatchId(id: string): boolean {
   return DISPATCH_ID_RE.test(id);
+}
+
+/** Read only the sections that contain machine-written lifecycle markers.
+ * Model output can make a dispatch log many megabytes; list polling must not
+ * reload that entire payload for every legacy record. */
+function readMachineLog(path: string): string {
+  const handle = openSync(path, "r");
+  try {
+    const size = fstatSync(handle).size;
+    const wanted = Math.min(size, MACHINE_LOG_BYTES);
+    const buffer = Buffer.alloc(wanted);
+    if (size <= MACHINE_LOG_BYTES) {
+      const read = readSync(handle, buffer, 0, wanted, 0);
+      return buffer.subarray(0, read).toString("utf8");
+    }
+    const tailBytes = MACHINE_LOG_BYTES - MACHINE_LOG_HEAD_BYTES;
+    const headRead = readSync(handle, buffer, 0, MACHINE_LOG_HEAD_BYTES, 0);
+    const tailRead = readSync(handle, buffer, MACHINE_LOG_HEAD_BYTES, tailBytes, size - tailBytes);
+    return `${buffer.subarray(0, headRead).toString("utf8")}\n[log output omitted]\n${buffer.subarray(MACHINE_LOG_HEAD_BYTES, MACHINE_LOG_HEAD_BYTES + tailRead).toString("utf8")}`;
+  } finally {
+    closeSync(handle);
+  }
 }
 
 /** Can `viewerId` see this dispatch? Records with no owner (written before
@@ -217,7 +241,7 @@ export function enrichWithPrStatus(input: Dispatch): Dispatch {
   let d = input;
   if (d.status === "running") return d;
   try {
-    const text = readFileSync(d.log_path, "utf8");
+    const text = readMachineLog(d.log_path);
     // Order matters: a crucible run that passes tests AND opens a PR
     // shows both markers in the log. Surface the opened PR as the
     // terminal state, annotated with `tests_passed` only when the
@@ -514,7 +538,7 @@ export function listDispatches(viewerId: string | null): Dispatch[] {
       if (covered.has(id)) continue;
       // Reconstruct a minimal record from header
       try {
-        const full = readFileSync(join(DISPATCH_DIR, f), "utf8");
+        const full = readMachineLog(join(DISPATCH_DIR, f));
         const head = full.slice(0, 800);
         // Three log formats to handle:
         //   [dispatcher] — deterministic contribai path (lib/dispatcher.ts)

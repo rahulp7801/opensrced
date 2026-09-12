@@ -1,6 +1,7 @@
 // Exercise real session decryption and settings routes using local-only fake credentials.
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { rmSync } from 'node:fs';
 import { encrypt } from '../node_modules/@auth0/nextjs-auth0/dist/server/cookies.js';
 const require = createRequire(import.meta.url);
 const { prepareSession, GITHUB_TOKEN_CLAIM } = require('../.test-build/lib/auth-session.js');
@@ -52,6 +53,16 @@ assert.equal((await activity.json()).dispatches, 0);
 const generatedPrs = await request('/api/prs', alice);
 assert.equal(generatedPrs.status, 200);
 assert.deepEqual(await generatedPrs.json(), []);
+const createdShare = await request('/api/fixes', alice, {
+  method: 'POST', body: JSON.stringify({ repo: 'acme/app', fix_response: 'Use a bounded parser.', diff: '--- a/parser.ts\n+++ b/parser.ts\n' }),
+});
+assert.equal(createdShare.status, 200);
+const share = await createdShare.json();
+assert.match(share.id, /^s_\d{13}_[a-f0-9]{32}_[a-f0-9]{32}$/);
+const publicShare = await request(`/api/fixes/${share.id}`, '');
+assert.equal(publicShare.status, 200);
+assert.equal((await publicShare.json()).fix_response, 'Use a bounded parser.');
+rmSync(`.fixes/${share.id}.json`, { force: true });
 for (const path of ['/api/settings/keys', '/api/explore', '/api/fixes', '/api/prs/fix', '/api/prs/reply', '/api/prs/draft-reply', '/api/prs/verify', '/api/prs/push', '/api/crucible/run/agentic', '/api/run/agentic', '/api/graph/query', '/api/graph/generate']) {
   const invalid = await request(path, alice, { method: 'POST', body: 'null' });
   assert.equal(invalid.status, 400, path + ' must reject invalid JSON values without crashing');
@@ -66,4 +77,4 @@ const live = await request('/api/run/agentic', withoutGithub, {
 });
 assert.equal(live.status, 401);
 assert.match((await live.json()).message, /Sign in with GitHub/);
-console.log(JSON.stringify({ realSessionDecryption: true, privateProfile: true, settingsRoundTrip: true, accountIsolation: true, activityAndPrHistory: true }));
+console.log(JSON.stringify({ realSessionDecryption: true, privateProfile: true, settingsRoundTrip: true, accountIsolation: true, activityAndPrHistory: true, publicShareRoundTrip: true }));

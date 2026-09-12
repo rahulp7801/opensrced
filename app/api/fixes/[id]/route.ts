@@ -7,7 +7,7 @@ import { del } from "@vercel/blob";
 
 import { readJson } from "@/lib/blob-store";
 import { cloudExecution } from "@/lib/cloud-run-state";
-import { sharedFixExpired, validSharedFix } from "@/lib/shared-fix";
+import { sharedFixExpired, sharedFixPath, validSharedFix } from "@/lib/shared-fix";
 
 export const dynamic = "force-dynamic";
 
@@ -23,13 +23,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  if (!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(id)) return json({ error: "Fix not found" }, 404);
+  const storagePath = sharedFixPath(id);
+  if (!storagePath) return json({ error: "Fix not found" }, 404);
   if (cloudExecution()) {
     try {
-      const fix = await readJson<unknown>(`shares/${id}.json`);
+      const fix = await readJson<unknown>(storagePath);
       if (!fix || !validSharedFix(fix.value, id)) return json({ error: "Fix not found" }, 404);
       if (sharedFixExpired(fix.value)) {
-        try { await del(`shares/${id}.json`, { ifMatch: fix.etag, abortSignal: AbortSignal.timeout(15_000) }); } catch { /* best effort */ }
+        try { await del(storagePath, { ifMatch: fix.etag, abortSignal: AbortSignal.timeout(15_000) }); } catch { /* best effort */ }
         return json({ error: "Fix not found" }, 404);
       }
       return json(fix.value);

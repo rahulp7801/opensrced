@@ -12,23 +12,21 @@ import { NextRequest } from "next/server";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync, readdirSync, renameSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { requireSession } from "@/lib/require-session";
+import { sessionUserId } from "@/lib/require-session";
 
 import { del, list, put } from "@vercel/blob";
 import { privateJsonOptions } from "@/lib/blob-store";
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { parseRunTarget } from "@/lib/run-target";
-import { SHARED_FIX_RETENTION_MS } from "@/lib/shared-fix";
+import { newSharedFixId, sharedFixOwnerPrefix, sharedFixPath, SHARED_FIX_RETENTION_MS, staleSharedFixPaths } from "@/lib/shared-fix";
 import { sensitiveTextKind } from "@/lib/sensitive-text";
 
 export const dynamic = "force-dynamic";
 
 const FIXES_DIR = join(process.cwd(), ".fixes");
 
-// Hard ceiling on stored fixes. Without it an authenticated client can grow
-// .fixes/ without bound — one small JSON per call, no natural expiry.
-// Eviction is oldest-first by mtime: ids are random UUIDs now, so a filename
-// sort would evict an arbitrary fix rather than the stalest one.
+// Hard ceiling on local stored fixes. Eviction is oldest-first by mtime so
+// legacy UUIDs and current scoped IDs share one predictable rule.
 const MAX_FIXES = 1000;
 const CLEANUP_BATCH_SIZE = 100;
 
@@ -54,15 +52,11 @@ function evictOldest() {
   }
 }
 
-async function cleanupExpiredCloudShares() {
+async function cleanupCloudShares(owner: string) {
   try {
-    const expiredBefore = Date.now() - SHARED_FIX_RETENTION_MS;
-    const { blobs } = await list({ prefix: "shares/", limit: 1000, abortSignal: AbortSignal.timeout(15_000) });
-    const expired = blobs
-      .filter(({ uploadedAt }) => uploadedAt.getTime() <= expiredBefore)
-      .slice(0, CLEANUP_BATCH_SIZE)
-      .map(({ pathname }) => pathname);
-    if (expired.length) await del(expired, { abortSignal: AbortSignal.timeout(15_000) });
+    const { blobs } = await list({ prefix: sharedFixOwnerPrefix(owner), limit: 1000, abortSignal: AbortSignal.timeout(15_000) });
+    const stale = staleSharedFixPaths(owner, blobs.map(({ pathname }) => pathname), Date.now(), 900, CLEANUP_BATCH_SIZE);
+    if (stale.length) await del(stale, { abortSignal: AbortSignal.timeout(15_000) });
   } catch {
     /* best effort — never block a write on cleanup */
   }
@@ -71,8 +65,8 @@ async function cleanupExpiredCloudShares() {
 export async function POST(req: NextRequest) {
   // Writes are authenticated; reads of a specific id stay public so shared
   // /fix/<id> links work for anyone the user sends them to.
-  const unauth = await requireSession();
-  if (unauth) return unauth;
+  const owner = await sessionUserId();
+  if (!owner) return Response.json({ error: "Not authenticated" }, { status: 401 });
 
   const body = ((await readJsonBody(req)) ?? {}) as {
     repo?: string;
@@ -91,12 +85,11 @@ export async function POST(req: NextRequest) {
   catch { return Response.json({ error: "Invalid GitHub repository" }, { status: 400 }); }
 
   if (!cloudExecution()) ensureDir();
-  // Full UUID, not an 8-char slice. The id IS the access control for a
-  // public share link: 8 hex chars is 32 bits, brute-forceable in minutes
-  // against an endpoint that answers 404 vs 200. Eviction still sorts
-  // oldest-first by name, which no longer tracks creation order, so sort by
-  // mtime there instead — see evictOldest's ponytail note.
-  const id = randomUUID();
+  // The random suffix is the link's access control. The timestamp and hashed
+  // owner allow per-account cloud retention without exposing the Auth0 subject
+  // or adding an enumerable public index.
+  const createdAt = new Date();
+  const id = newSharedFixId(owner, createdAt.getTime());
   const fix = {
     id,
     repo,
@@ -105,7 +98,7 @@ export async function POST(req: NextRequest) {
     fix_response: body.fix_response.slice(0, 10_000),
     diff: body.diff?.slice(0, 10_000) ?? null,
     explainer: body.explainer?.slice(0, 2_000) ?? null,
-    created_at: new Date().toISOString(),
+    created_at: createdAt.toISOString(),
   };
   const sensitive = sensitiveTextKind([fix.comment_body, fix.fix_response, fix.diff, fix.explainer]);
   if (sensitive) {
@@ -114,8 +107,8 @@ export async function POST(req: NextRequest) {
 
   try {
     if (cloudExecution()) {
-      await cleanupExpiredCloudShares();
-      await put(`shares/${id}.json`, JSON.stringify(fix), { ...privateJsonOptions, abortSignal: AbortSignal.timeout(15_000) });
+      await put(sharedFixPath(id)!, JSON.stringify(fix), { ...privateJsonOptions, abortSignal: AbortSignal.timeout(15_000) });
+      await cleanupCloudShares(owner);
     } else {
       const target = join(FIXES_DIR, `${id}.json`);
       const temporary = `${target}.${randomUUID()}.tmp`;

@@ -70,8 +70,8 @@ UI uses `/api/run/agentic`.
   as untrusted input.
 - Gitleaks is a fail-closed gate before generated code can be pushed.
 - Run, organization, graph, activity, and shared-fix records are scoped to their
-  owners. Public shared fixes require an unguessable ID, cannot be listed, and
-  expire 30 days after creation.
+  owners. Public shared fixes require an unguessable ID, cannot be listed, expire
+  30 days after creation, and retain at most 900 records per account.
 - Full Git history is scanned with Gitleaks in CI. GitHub currently reports no
   open secret-scanning or Dependabot alerts.
 

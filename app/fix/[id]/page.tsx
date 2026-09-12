@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { copyText } from "@/lib/clipboard";
-import { SHARED_FIX_RETENTION_MS, type SharedFix } from "@/lib/shared-fix";
+import { SHARED_FIX_RETENTION_MS, type SharedFix } from "@/lib/shared-fix-data";
 
 export default function SharedFixPage() {
   const { id } = useParams<{ id: string }>();

@@ -135,6 +135,7 @@ try {
   await page.route('**/auth/profile', route => route.fulfill({ json: { sub: 'test-user', name: 'Test User' } }));
   const run = { id: 'test-preview', repo_url: 'https://github.com/acme/app', mode: 'agentic', dry_run: true, issue_number: 1, started_at: new Date().toISOString(), status: 'failed', log: '', log_size: 0 };
   const activeRun = { ...run, id: 'test-active', status: 'running' };
+  const huntRun = { ...run, id: 'test-hunt', repo_url: '', mode: 'hunt', issue_number: undefined };
   const submissions = [];
   const settings = [];
   let keyAvailable = true;
@@ -145,7 +146,7 @@ try {
       submissions.push(route.request().postDataJSON());
       return route.fulfill({ status: 202, json: { dispatch_id: submissions.length === 1 ? 'test-retry' : 'test-preview' } });
     }
-    if (url.pathname === '/api/dispatches') return route.fulfill({ json: { dispatches: [activeRun, run] } });
+    if (url.pathname === '/api/dispatches') return route.fulfill({ json: { dispatches: [activeRun, run, huntRun] } });
     if (url.pathname === '/api/dispatches/test-active') return route.fulfill({ json: activeRun });
     if (url.pathname === '/api/dispatches/test-preview' || url.pathname === '/api/dispatches/test-retry') return route.fulfill({ json: { ...run, id: url.pathname.split('/').at(-1) } });
     if (url.pathname === '/api/dispatches/test-active/cancel') {
@@ -178,6 +179,8 @@ try {
   });
   await page.goto(base + '/dispatches?dispatch=test-preview');
   await page.getByRole('link', { name: 'Find', exact: true }).waitFor();
+  await page.getByText('Repository discovery', { exact: true }).waitFor();
+  await page.getByText('Issue #1', { exact: true }).first().waitFor();
   await assertUsableControls(page, 'authenticated dispatches');
   await assertNoSeriousAccessibilityViolations(page, 'authenticated dispatches');
   for (const label of ['Find', 'Fix', 'Ship', 'Explore']) {

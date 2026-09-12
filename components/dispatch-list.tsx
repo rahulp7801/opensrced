@@ -111,7 +111,7 @@ export function DispatchList() {
             : d.status === "succeeded"
               ? "Completed"
               : "Failed";
-        new Notification(`opensrcer · ${shortRepo(d.repo_url)}`, {
+        new Notification(`opensrcer · ${dispatchTarget(d)}`, {
           body,
           icon: "/favicon.ico",
         });
@@ -255,7 +255,7 @@ export function DispatchList() {
                   <div className="flex items-center gap-2">
                     <StatusDot tone={toneFor(d.status)} />
                     <span className="text-[12px] text-paper truncate">
-                      {shortRepo(d.repo_url)}
+                      {dispatchTarget(d)}
                       {d.issue_number !== undefined && (
                         <span className="text-paper-faint"> #{d.issue_number}</span>
                       )}
@@ -271,13 +271,11 @@ export function DispatchList() {
                       </span>
                     )}
                   </div>
-                  {/* Issue title shows underneath the repo once the cache
-                      fills in — renders 'loading title…' until then so the
-                      user doesn't see a blank row. Empty title = no issue
-                      number on this dispatch (target/hunt modes). */}
+                  {/* Cloud runs do not fetch titles, so keep the issue number
+                      visible until the local title cache fills it in. */}
                   {d.issue_number !== undefined && (
                     <div className="mt-1 text-[12px] text-paper-dim truncate">
-                      {d.issue_title ?? <span className="italic text-paper-faint">loading title…</span>}
+                      {d.issue_title ?? `Issue #${d.issue_number}`}
                     </div>
                   )}
                   <div className="mt-1 flex items-center gap-2 text-xs text-paper-muted">
@@ -354,10 +352,12 @@ export function DispatchList() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <IconTrigger className="text-signal" />
-                    <a href={repoHref(detail.repo_url)} target="_blank" rel="noreferrer" className="text-[13px] text-paper-muted hover:text-signal truncate">
-                      {shortRepo(detail.repo_url)}
-                    </a>
-                    {detail.issue_number !== undefined && (
+                    {detail.repo_url ? (
+                      <a href={repoHref(detail.repo_url)} target="_blank" rel="noreferrer" className="text-[13px] text-paper-muted hover:text-signal truncate">
+                        {dispatchTarget(detail)}
+                      </a>
+                    ) : <span className="text-[13px] text-paper-muted">{dispatchTarget(detail)}</span>}
+                    {detail.repo_url && detail.issue_number !== undefined && (
                       <a href={`${repoHref(detail.repo_url)}/issues/${detail.issue_number}`} target="_blank" rel="noreferrer" className="text-[12px] text-info hover:text-signal border border-info/40 px-1.5 py-0.5 leading-none">
                         #{detail.issue_number}
                       </a>
@@ -366,7 +366,7 @@ export function DispatchList() {
                   <div className="mt-1.5 text-[17px] text-paper leading-snug truncate">
                     {detail.issue_title ??
                       (detail.issue_number !== undefined
-                        ? <span className="italic text-paper-faint">loading title…</span>
+                        ? `Issue #${detail.issue_number}`
                         : <span className="text-paper-muted">Dispatch {detail.id.slice(-8)}</span>)}
                   </div>
                   <div className="mt-1 flex items-center gap-2 text-[11px] text-paper-muted">
@@ -709,7 +709,7 @@ function AnsiLog({ text }: { text: string }) {
 
 function ExportButton({ dispatch }: { dispatch: DispatchWithLog }) {
   function download() {
-    const repo = shortRepo(dispatch.repo_url);
+    const repo = dispatchTarget(dispatch);
     const prInfo = extractPrInfo(dispatch.log);
     const diff = extractFirstDiff(dispatch.log);
     const costMatch = /total_cost_usd=([\d.]+)/.exec(dispatch.log);
@@ -797,6 +797,10 @@ function toneFor(s: Dispatch["status"]): "ok" | "signal" | "alert" | "muted" {
 function shortRepo(url: string) {
   const m = /github\.com\/([^/]+\/[^/?#]+)/.exec(url);
   return m ? m[1] : url;
+}
+
+function dispatchTarget(dispatch: Pick<Dispatch, "repo_url" | "mode">) {
+  return dispatch.repo_url ? shortRepo(dispatch.repo_url) : dispatch.mode === "hunt" ? "Repository discovery" : "Unknown repository";
 }
 
 function repoHref(url: string) {

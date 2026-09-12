@@ -55,3 +55,19 @@ test("graph parsing removes tracked links and writes only to fresh generated out
     await rm(outside, { recursive: true, force: true });
   }
 });
+
+test("stored graph validation rejects malformed worker and storage records", async () => {
+  const { parseStoredGraph } = await import("../graph-worker");
+  const valid = {
+    graph: {
+      nodes: [{ id: "entry", label: "entry", community: 0, file_type: "ts", source_file: "src/entry.ts" }],
+      links: [{ source: "entry", target: "entry", relation: "calls", confidence: "high", confidence_score: 1, source_file: "src/entry.ts" }],
+    },
+    html: "<p>Graph</p>", revision: "a".repeat(40), created_at: new Date().toISOString(),
+  };
+  assert.deepEqual(parseStoredGraph(valid), valid);
+  assert.throws(() => parseStoredGraph({ ...valid, graph: { ...valid.graph, nodes: [{ ...valid.graph.nodes[0], id: 1 }] } }), /Invalid graph output/);
+  assert.throws(() => parseStoredGraph({ ...valid, graph: { ...valid.graph, links: [{ ...valid.graph.links[0], confidence_score: Number.NaN }] } }), /Invalid graph output/);
+  assert.throws(() => parseStoredGraph({ ...valid, revision: "main" }), /Invalid graph output/);
+  assert.doesNotThrow(() => parseStoredGraph({ ...valid, revision: "", created_at: "" }, true));
+});

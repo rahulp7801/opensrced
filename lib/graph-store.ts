@@ -6,7 +6,7 @@ import { cloudExecution } from "./cloud-run-state";
 import { readJson, privateJsonOptions } from "./blob-store";
 import { parseRunTarget } from "./run-target";
 import { graphJsonPath, graphHtmlPath } from "./graph";
-import { GRAPH_MAX_BYTES, type StoredGraph } from "./graph-worker";
+import { GRAPH_MAX_BYTES, parseStoredGraph, type StoredGraph } from "./graph-worker";
 
 function graphPath(userId: string, repo: string): string {
   if (!userId) throw new Error("Graph owner is required");
@@ -14,13 +14,17 @@ function graphPath(userId: string, repo: string): string {
 }
 
 export async function getStoredGraph(userId: string, repo: string): Promise<StoredGraph | null> {
-  if (cloudExecution()) return (await readJson<StoredGraph>(graphPath(userId, repo), GRAPH_MAX_BYTES))?.value ?? null;
+  if (cloudExecution()) {
+    const stored = await readJson<unknown>(graphPath(userId, repo), GRAPH_MAX_BYTES);
+    return stored ? parseStoredGraph(stored.value) : null;
+  }
   const [owner, name] = parseRunTarget(repo).repo.split("/");
-  try { return { graph: JSON.parse(await readFile(graphJsonPath(owner, name), "utf8")), html: await readFile(graphHtmlPath(owner, name), "utf8"), revision: "", created_at: "" }; }
+  try { return parseStoredGraph({ graph: JSON.parse(await readFile(graphJsonPath(owner, name), "utf8")), html: await readFile(graphHtmlPath(owner, name), "utf8"), revision: "", created_at: "" }, true); }
   catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return null; throw error; }
 }
 
 export async function saveStoredGraph(userId: string, repo: string, graph: StoredGraph): Promise<void> {
+  graph = parseStoredGraph(graph);
   const data = JSON.stringify(graph);
   if (Buffer.byteLength(data) > GRAPH_MAX_BYTES) throw new Error("Graph exceeds the current size limit");
   if (cloudExecution()) {

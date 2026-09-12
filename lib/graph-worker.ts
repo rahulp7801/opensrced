@@ -5,11 +5,59 @@ import { join, resolve, relative, isAbsolute } from "node:path";
 import { promisify } from "node:util";
 import { childEnv } from "./child-env";
 import { gitAuthArgs } from "./git-auth";
-import type { GraphData } from "./graph";
+import type { GraphData, GraphEdge, GraphNode } from "./graph";
 
 const exec = promisify(execFile);
 export type StoredGraph = { graph: GraphData; html: string; revision: string; created_at: string };
 export const GRAPH_MAX_BYTES = 8_000_000;
+
+function record(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function optionalString(value: unknown): boolean {
+  return value === undefined || typeof value === "string";
+}
+
+function validNode(value: unknown): value is GraphNode {
+  return record(value)
+    && typeof value.id === "string"
+    && typeof value.label === "string"
+    && Number.isSafeInteger(value.community)
+    && typeof value.file_type === "string"
+    && typeof value.source_file === "string"
+    && optionalString(value.source_location)
+    && optionalString(value.norm_label);
+}
+
+function validEdge(value: unknown): value is GraphEdge {
+  return record(value)
+    && typeof value.source === "string"
+    && typeof value.target === "string"
+    && typeof value.relation === "string"
+    && typeof value.confidence === "string"
+    && typeof value.confidence_score === "number"
+    && Number.isFinite(value.confidence_score)
+    && typeof value.source_file === "string"
+    && optionalString(value.source_location)
+    && (value.weight === undefined || (typeof value.weight === "number" && Number.isFinite(value.weight)));
+}
+
+export function parseStoredGraph(value: unknown, allowEmptyMetadata = false): StoredGraph {
+  if (!record(value) || !record(value.graph)
+    || !Array.isArray(value.graph.nodes) || !value.graph.nodes.every(validNode)
+    || !Array.isArray(value.graph.links) || !value.graph.links.every(validEdge)
+    || (value.graph.hyperedges !== undefined && !Array.isArray(value.graph.hyperedges))
+    || typeof value.html !== "string" || Buffer.byteLength(value.html) > 2_000_000
+    || typeof value.revision !== "string" || (!/^[0-9a-f]{40}$/i.test(value.revision) && !(allowEmptyMetadata && value.revision === ""))
+    || typeof value.created_at !== "string" || (!Number.isFinite(Date.parse(value.created_at)) && !(allowEmptyMetadata && value.created_at === ""))) {
+    throw new Error("Invalid graph output.");
+  }
+  if (Buffer.byteLength(JSON.stringify(value.graph)) > 4_000_000 || Buffer.byteLength(JSON.stringify(value)) > GRAPH_MAX_BYTES) {
+    throw new Error("Graph exceeds the current size limit.");
+  }
+  return value as StoredGraph;
+}
 
 async function readLimited(path: string, maxBytes: number): Promise<string> {
   const file = await open(path, "r");
@@ -46,9 +94,7 @@ export async function buildGraphWorker(repo: string, token: string | null, signa
     const jsonPath = join(output, "graph.json");
     const htmlPath = join(output, "graph.html");
     const graph = JSON.parse(await readLimited(jsonPath, 4_000_000)) as GraphData;
-    if (!Array.isArray(graph.nodes) || !Array.isArray(graph.links)) throw new Error("Invalid graph output.");
     const result = { graph, html: await readLimited(htmlPath, 2_000_000), revision: stdout.trim(), created_at: new Date().toISOString() };
-    if (Buffer.byteLength(JSON.stringify(result)) > GRAPH_MAX_BYTES) throw new Error("Graph exceeds the current size limit.");
-    return result;
+    return parseStoredGraph(result);
   } finally { await rm(root, { recursive: true, force: true }); }
 }

@@ -86,21 +86,26 @@ middleware-bypass headers, and 200 health requests with 20 concurrent clients.
 It does not call an AI provider, open a PR, or prove authenticated workflows.
 The browser smoke test covers public pages at desktop/mobile widths, demo tabs,
 login prompts, and authentication-link prefetching. Mocked API interactions check
-preview retries and both issue actions without starting real jobs.
+preview retries, both issue actions, and failed cancellation recovery without
+starting real jobs.
 Set `SMOKE_BASE_URL` to test a staging deployment. CI runs the same checks.
 
 Next.js stays on the patched 15.x line. Its pinned PostCSS dependency is
 overridden to 8.5.28 for security fixes; remove the override when the framework
 ships a safe dependency. Both package lockfiles must remain committed.
 
-## Acceptance evidence (September 11, 2026)
+## Acceptance evidence (September 12, 2026)
 
-Application commit `62887db` passed the full GitHub CI workflow and a local
-production acceptance pass:
+Application commit `0cde033` passed the full GitHub CI workflow. The earlier
+`62887db` baseline also completed a local production acceptance pass:
 
 - 120 application tests, MCP tests, app/worker type checks, and production build.
+- The production Docker image built on a Linux runner, booted as its non-root
+  user, reported every required runtime dependency healthy, and passed the HTTP
+  production smoke suite from inside the container.
 - Browser checks at desktop/mobile widths: login prompts, settings recovery,
-  repository pagination/retry, issue previews, PR review, and graph interactions.
+  repository pagination/retry, issue previews, PR review, graph interactions,
+  demo transitions, and cancellation error recovery.
 - PR checks include the actual head repository as the push target, no automatic
   write retries, recoverable diff errors, single comment submission, and fresh
   follow-up state for each generated fix. Browser mutations use mocked APIs.
@@ -128,8 +133,8 @@ Hosting setup is paused at the user's request. The gates below remain open.
 ## Outstanding release gates
 
 - Connect the selected Vercel account and configure Auth0, private Blob, and worker snapshots.
-- Build and boot the Linux container on the target host; only Compose syntax and
-  the local Node production build have been verified in this environment.
+- If the local alternative is used, exercise the CI-verified Linux image on its
+  target host with the real reverse proxy and persistent volumes.
 - Verify Auth0 login/logout, GitHub token scopes, saved keys, preview, live PR,
   cancellation, and private-org access against controlled test repositories.
 - Isolate repository code execution before enabling it for untrusted users.

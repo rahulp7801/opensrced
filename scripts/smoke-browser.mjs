@@ -34,6 +34,9 @@ try {
             await main.getByText('acme-corp connected', { exact: true }).waitFor();
           }
         }
+        await page.getByRole('tab', { name: 'Bug fix pipeline', exact: true }).focus();
+        await page.keyboard.press('ArrowRight');
+        assert.equal(await page.getByRole('tab', { name: 'Codebase explorer', exact: true }).getAttribute('aria-selected'), 'true');
       }
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, `overflow ${width} ${path}`);
       assert.deepEqual(errors, [], `client errors ${path}`);

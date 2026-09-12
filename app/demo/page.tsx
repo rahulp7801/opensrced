@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
@@ -14,6 +14,19 @@ type DemoKey = (typeof DEMOS)[number]["key"];
 
 export default function DemoPage() {
   const [activeDemo, setActiveDemo] = useState<DemoKey>("dispatch");
+
+  function moveTab(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    let next = index;
+    if (event.key === "ArrowRight") next = (index + 1) % DEMOS.length;
+    else if (event.key === "ArrowLeft") next = (index - 1 + DEMOS.length) % DEMOS.length;
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = DEMOS.length - 1;
+    else return;
+    event.preventDefault();
+    setActiveDemo(DEMOS[next].key);
+    document.getElementById(`demo-tab-${DEMOS[next].key}`)?.focus();
+  }
+
   return (
     <div className="mx-auto w-full max-w-[1100px] px-4 sm:px-6 py-10">
       <div className="text-left mb-10">
@@ -27,8 +40,8 @@ export default function DemoPage() {
         </p>
       </div>
       <div className="flex overflow-x-auto border-b border-border mb-0" role="tablist" aria-label="Demo workflows">
-        {DEMOS.map((d) => (
-          <button key={d.key} id={`demo-tab-${d.key}`} role="tab" aria-selected={activeDemo === d.key} aria-controls={`demo-${d.key}`} onClick={() => setActiveDemo(d.key)} className={cn("shrink-0 px-4 py-3 text-[13px] font-medium transition relative", activeDemo === d.key ? "text-paper" : "text-paper-muted hover:text-paper-dim")}>
+        {DEMOS.map((d, index) => (
+          <button key={d.key} id={`demo-tab-${d.key}`} role="tab" aria-selected={activeDemo === d.key} aria-controls={`demo-${d.key}`} tabIndex={activeDemo === d.key ? 0 : -1} onClick={() => setActiveDemo(d.key)} onKeyDown={(event) => moveTab(event, index)} className={cn("shrink-0 px-4 py-3 text-[13px] font-medium transition relative", activeDemo === d.key ? "text-paper" : "text-paper-muted hover:text-paper-dim")}>
             {d.label}
             {activeDemo === d.key && <span className="absolute inset-x-0 -bottom-px h-px bg-signal" />}
           </button>
@@ -125,10 +138,12 @@ function DispatchDemo() {
   return (
     <div className="border border-border border-t-0 bg-surface/40">
       {step === "intro" && (
-        <div className="p-6 text-center space-y-4">
-          <div className="text-[14px] text-paper">Bug fix pipeline</div>
-          <p className="text-[12px] text-paper-dim max-w-md mx-auto">Walk through an example diagnosis, patch, and draft pull request. Check results shown here are simulated; hosted runs do not execute repository tests.</p>
-          <button onClick={() => setStep("issue")} className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-2 text-[12px] transition">Start walkthrough →</button>
+        <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+          <div className="max-w-2xl space-y-2 text-left">
+            <div className="text-[14px] text-paper">Bug fix pipeline</div>
+            <p className="text-[12px] leading-relaxed text-paper-dim">Walk through an example diagnosis, patch, and draft pull request. Check results shown here are simulated; hosted runs do not execute repository tests.</p>
+          </div>
+          <button onClick={() => setStep("issue")} className="shrink-0 self-start border border-signal/50 bg-signal/10 px-4 py-2 text-[12px] text-signal transition hover:bg-signal/20 sm:self-auto">Start walkthrough →</button>
         </div>
       )}
 
@@ -249,10 +264,12 @@ function ExploreDemo() {
   return (
     <div className="border border-border border-t-0 bg-surface/40">
       {step === "intro" && (
-        <div className="p-6 text-center space-y-4">
-          <div className="text-[14px] text-paper">Codebase explorer</div>
-          <p className="text-[12px] text-paper-dim max-w-md mx-auto">Ask plain-English questions about any codebase. The agent uses tree-sitter AST indexing, grep, and file reading to find answers with real code snippets.</p>
-          <button onClick={() => setStep("repo")} className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-2 text-[12px] transition">Start walkthrough →</button>
+        <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+          <div className="max-w-2xl space-y-2 text-left">
+            <div className="text-[14px] text-paper">Codebase explorer</div>
+            <p className="text-[12px] leading-relaxed text-paper-dim">Ask plain-English questions about any codebase. The agent uses tree-sitter AST indexing, grep, and file reading to find answers with real code snippets.</p>
+          </div>
+          <button onClick={() => setStep("repo")} className="shrink-0 self-start border border-signal/50 bg-signal/10 px-4 py-2 text-[12px] text-signal transition hover:bg-signal/20 sm:self-auto">Start walkthrough →</button>
         </div>
       )}
 
@@ -385,10 +402,12 @@ function SecurityDemo() {
   return (
     <div className="border border-border border-t-0 bg-surface/40">
       {step === "intro" && (
-        <div className="p-6 text-center space-y-4">
-          <div className="text-[14px] text-paper">Security scan</div>
-          <p className="text-[12px] text-paper-dim max-w-md mx-auto">Scan a repo for CVEs and Dependabot alerts, then watch the agent automatically remediate the critical finding with a verified patch.</p>
-          <button onClick={scan} className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-2 text-[12px] transition">Start scan →</button>
+        <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+          <div className="max-w-2xl space-y-2 text-left">
+            <div className="text-[14px] text-paper">Security scan</div>
+            <p className="text-[12px] leading-relaxed text-paper-dim">Scan a repo for CVEs and Dependabot alerts, then watch the agent automatically remediate the critical finding with a verified patch.</p>
+          </div>
+          <button onClick={scan} className="shrink-0 self-start border border-signal/50 bg-signal/10 px-4 py-2 text-[12px] text-signal transition hover:bg-signal/20 sm:self-auto">Start scan →</button>
         </div>
       )}
 
@@ -536,10 +555,12 @@ function CrucibleDemo() {
   return (
     <div className="border border-border border-t-0 bg-surface/40">
       {step === "start" && (
-        <div className="p-6 text-center space-y-4">
-          <div className="text-[14px] text-paper">Private repo flow</div>
-          <p className="text-[12px] text-paper-dim max-w-md mx-auto">Walk through connecting a GitHub Organization, browsing private repos, and dispatching a security fix — all using short-lived installation tokens.</p>
-          <button onClick={() => setStep("connect")} className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-2 text-[12px] transition">Connect GitHub Org →</button>
+        <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+          <div className="max-w-2xl space-y-2 text-left">
+            <div className="text-[14px] text-paper">Private repo flow</div>
+            <p className="text-[12px] leading-relaxed text-paper-dim">Walk through connecting a GitHub Organization, browsing private repos, and dispatching a security fix — all using short-lived installation tokens.</p>
+          </div>
+          <button onClick={() => setStep("connect")} className="shrink-0 self-start border border-signal/50 bg-signal/10 px-4 py-2 text-[12px] text-signal transition hover:bg-signal/20 sm:self-auto">Connect GitHub Org →</button>
         </div>
       )}
 

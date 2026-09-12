@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 const base = process.env.SMOKE_BASE_URL || 'http://localhost:3100';
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  headless: true,
+  ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
+});
 try {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   context.setDefaultTimeout(15000);
@@ -44,7 +47,7 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'repository controls fit mobile screens');
   await page.goto(base + '/prs');
   await page.getByText('Fix an issue', { exact: true }).waitFor();
-  await page.getByRole('button', { name: /All PRs/ }).click();
+  await page.getByRole('tab', { name: /All PRs/ }).click();
   await settle();
   assert.equal(prs, 1, 'switching PR tabs reuses the loaded list');
   const refreshButton = page.getByRole('button', { name: 'refresh', exact: true });

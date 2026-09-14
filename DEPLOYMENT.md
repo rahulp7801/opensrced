@@ -1,6 +1,24 @@
 # Deployment and release checks
 
-## Vercel deployment (migration in progress)
+## Vercel deployment
+
+The public production deployment is https://opensrced.vercel.app and tracks
+`main`. The stable non-production deployment is
+https://opensrced-staging.vercel.app; that domain is assigned to the `staging`
+Git branch and is protected by Vercel authentication. Both projects are linked
+to `rahulp7801/opensrced`.
+
+Promote an exact commit through staging before production:
+
+```sh
+git push origin <40-character-commit-sha>:staging
+# Verify the stable staging URL, then merge or push that commit to main.
+```
+
+The projects already contain separate generated `AUTH0_SECRET` values and the
+correct `APP_BASE_URL` for their stable origins. Do not copy the secret between
+environments. Auth0 tenant credentials, Blob storage, and worker snapshot IDs
+remain intentionally unconfigured until their real values are available.
 
 Vercel serves Next.js; isolated Vercel Sandboxes execute agent jobs. Private Blob
 stores run results, cancellation markers, organization connections, and shared
@@ -154,11 +172,13 @@ CI runs `smoke-session.mjs`, `smoke-browser.mjs`, `smoke-review.mjs`,
 Use the isolated environment defined in `.github/workflows/ci.yml` for the
 session fixtures; never use its fake credentials for a deployment.
 
-Hosting setup is paused at the user's request. The gates below remain open.
+The Vercel projects, Git connections, stable domains, and environment separation
+are provisioned. The gates below remain open before authenticated agent work can
+be released.
 
 ## Outstanding release gates
 
-- Connect the selected Vercel account and configure Auth0, private Blob, and worker snapshots.
+- Configure Auth0, private Blob, and worker snapshots in both Vercel projects.
 - If the local alternative is used, exercise the CI-verified Linux image on its
   target host with the real reverse proxy and persistent volumes.
 - Verify Auth0 login/logout, GitHub token scopes, saved keys, preview, live PR,

@@ -150,6 +150,15 @@ HTTP 200 alone is only a liveness signal.
 
 ## Vercel configuration
 
+Current endpoints:
+
+- Production (`main`): https://opensrced.vercel.app
+- Staging (`staging`, Vercel-auth protected): https://opensrced-staging.vercel.app
+
+The two Vercel projects keep credentials and storage isolated. Their canonical
+origins and separate `AUTH0_SECRET` values are already configured; the remaining
+variables below must use environment-specific credentials.
+
 The hosted path requires:
 
 | Variable | Purpose |

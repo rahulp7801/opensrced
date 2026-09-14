@@ -1,14 +1,19 @@
 # opensrcer
 
+[![CI](https://github.com/rahulp7801/opensrced/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/rahulp7801/opensrced/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/rahulp7801/opensrced/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/rahulp7801/opensrced/actions/workflows/codeql.yml)
+[![Production](https://img.shields.io/website?url=https%3A%2F%2Fopensrced.vercel.app&label=production)](https://opensrced.vercel.app)
+
 opensrcer helps a signed-in GitHub user find an issue, understand the affected
 code, generate a bounded patch, review it, and open a draft pull request.
 
 The application is under active production hardening. The application test,
 browser smoke, dependency audit, secret scan, graph runtime, and Linux container
-checks run in CI. The Vercel project, Auth0 tenant, private Blob store, and worker
-snapshot still need to be provisioned and tested together before the hosted app
-is considered released. See [DEPLOYMENT.md](DEPLOYMENT.md) for the current
-acceptance evidence and open release gates.
+checks run in CI. Production and staging are deployed on Vercel. Auth0, the
+private Blob store, and the worker snapshot still need to be provisioned and
+tested together before the hosted app is considered released. See
+[DEPLOYMENT.md](DEPLOYMENT.md) for the current acceptance evidence and open
+release gates.
 
 ## Product workflow
 

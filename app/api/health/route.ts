@@ -24,13 +24,17 @@ async function countDispatchLogs(): Promise<number> {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   if (cloudExecution()) {
     const deps = {
       auth0_config: authConfigured(),
       worker_snapshot: Boolean(process.env.OPENSRCER_WORKER_SNAPSHOT_ID),
       private_storage: Boolean(process.env.BLOB_READ_WRITE_TOKEN),
-      sandbox_identity: Boolean(process.env.VERCEL_OIDC_TOKEN),
+      // Vercel exposes OIDC through the request context at runtime. Keep the
+      // environment fallback for builds and local `vercel env pull` sessions.
+      sandbox_identity: Boolean(
+        request.headers.get("x-vercel-oidc-token") || process.env.VERCEL_OIDC_TOKEN,
+      ),
     };
     const missing = Object.entries(deps).filter(([, ready]) => !ready).map(([name]) => name);
     return Response.json({ status: missing.length ? "degraded" : "ok", execution: "vercel-sandbox", deps, missing,

@@ -171,8 +171,9 @@ The hosted path requires:
 | `BLOB_READ_WRITE_TOKEN` | Private Vercel Blob access |
 | `OPENSRCER_WORKER_SNAPSHOT_ID` | Prebuilt agent worker snapshot |
 
-Vercel supplies `VERCEL_OIDC_TOKEN` to authorize Sandbox operations. Create a
-worker snapshot from an exact committed SHA:
+Vercel supplies Sandbox OIDC through the Function request context (and through
+`VERCEL_OIDC_TOKEN` during builds and local `vercel env pull`). Create a worker
+snapshot from an exact committed SHA:
 
 ```sh
 node scripts/create-worker-snapshot.mjs <40-character-commit-sha>

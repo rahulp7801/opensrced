@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 export function RevokeAllButton() {
-  const [state, setState] = useState<"idle" | "confirm1" | "confirm2" | "pending">("idle");
+  const [state, setState] = useState<"idle" | "confirm" | "pending">("idle");
   const [error, setError] = useState<string | null>(null);
 
   async function revoke() {
@@ -33,21 +33,21 @@ export function RevokeAllButton() {
       <div className="space-y-2">
         <button
           type="button"
-          onClick={() => { setError(null); setState("confirm1"); }}
+          onClick={() => { setError(null); setState("confirm"); }}
           className="text-[12px] text-alert hover:text-red-200 transition"
         >
-          Delete all connections &amp; sign out
+          Disconnect all &amp; sign out
         </button>
         {error && <p role="alert" className="text-xs text-alert">{error}</p>}
       </div>
     );
   }
 
-  if (state === "confirm1") {
+  if (state === "confirm") {
     return (
       <div className="border border-red-900/60 bg-red-950/20 p-4 space-y-3">
         <div className="text-[13px] text-red-300 font-medium">
-          Are you sure?
+          Disconnect this account?
         </div>
         <div className="text-[12px] text-paper-dim leading-relaxed">
           This will:
@@ -72,39 +72,10 @@ export function RevokeAllButton() {
         <div className="flex gap-3 pt-1">
           <button
             type="button"
-            onClick={() => setState("confirm2")}
+            onClick={revoke}
             className="text-[12px] text-red-300 border border-red-800 bg-red-950/40 px-3 py-1.5 hover:bg-red-900/40 transition"
           >
-            Yes, revoke everything
-          </button>
-          <button
-            type="button"
-            onClick={() => setState("idle")}
-            className="text-[12px] text-paper-muted hover:text-paper px-3 py-1.5 transition"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (state === "confirm2") {
-    return (
-      <div className="border border-red-900/60 bg-red-950/30 p-4 space-y-3">
-        <div className="text-[13px] text-red-200 font-medium">
-          Final confirmation
-        </div>
-        <div className="text-[12px] text-paper-dim">
-          This action cannot be undone. You will be signed out immediately.
-        </div>
-        <div className="flex gap-3 pt-1">
-          <button
-            type="button"
-            onClick={revoke}
-            className="text-[12px] text-white border border-red-700 bg-red-800/80 px-3 py-1.5 hover:bg-red-700 transition font-medium"
-          >
-            Confirm — delete everything
+            Stop runs, disconnect, and sign out
           </button>
           <button
             type="button"

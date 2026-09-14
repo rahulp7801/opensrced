@@ -358,14 +358,12 @@ try {
   assert.equal(await keyInput.inputValue(), '');
   assert.equal(settings.at(-1).maxSpendUsd, 0.1);
   assert.equal(await page.getByText('Anthropic key required', { exact: true }).count(), 0, 'Gemini is optional');
-  await page.getByRole('button', { name: 'Delete all connections & sign out', exact: true }).click();
+  await page.getByRole('button', { name: 'Disconnect all & sign out', exact: true }).click();
   await page.getByText('Stop your active hosted runs before access is cleared', { exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Yes, revoke everything', exact: true }).click();
-  await page.getByRole('button', { name: 'Confirm — delete everything', exact: true }).click();
+  await page.getByRole('button', { name: 'Stop runs, disconnect, and sign out', exact: true }).click();
   await page.getByRole('alert').getByText('Could not stop active work. Your connections remain available; please retry.', { exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Delete all connections & sign out', exact: true }).click();
-  await page.getByRole('button', { name: 'Yes, revoke everything', exact: true }).click();
-  await page.getByRole('button', { name: 'Confirm — delete everything', exact: true }).click();
+  await page.getByRole('button', { name: 'Disconnect all & sign out', exact: true }).click();
+  await page.getByRole('button', { name: 'Stop runs, disconnect, and sign out', exact: true }).click();
   await page.getByRole('alert').getByText('The server returned an invalid logout response.', { exact: true }).waitFor();
   assert.ok(page.url().includes('/crucible'), 'an untrusted logout redirect must stay on settings');
 

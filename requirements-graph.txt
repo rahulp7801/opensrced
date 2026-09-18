@@ -1,4 +1,4 @@
-graphifyy==0.9.58
+graphifyy==0.9.62
 networkx==3.6.1
 # Keep the graph runtime compatible with Debian Bookworm's Python 3.11.
 numpy==2.4.6

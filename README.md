@@ -166,6 +166,12 @@ a 30-day maximum age. Workers receive an allowlisted environment and read-only
 repository tools. Secret scanning gates generated changes before optional
 external review or publication. Private records are scoped to their owners.
 
+Publication scanning includes the raw patch's deleted and context lines as well
+as the resulting source. Target scan configuration, ignore files, and inline
+allow comments cannot weaken that gate. Direct Anthropic text requests also
+reject recognized credential patterns in source or prompt content before
+contacting the provider; this heuristic does not identify every possible secret.
+
 Hosted target-repository install and test commands remain disabled because
 repository-controlled code must be isolated from worker credentials. Patches
 remain visibly unverified until checked in the target repository's CI or a

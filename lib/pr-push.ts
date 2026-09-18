@@ -28,7 +28,8 @@ export async function pushPrPatch(input: PushPatch, token: string) {
     const applied = await applyDiff(repo, input.diff, join(root, "fix.patch"), { env });
     if (!applied.ok) throw new Error("The patch could not be applied. Regenerate it against the current PR head.");
     if (!await git(["-C", repo, "diff", "--cached", "--name-only"])) throw new Error("No changes to push; this patch may already be applied.");
-    const scan = await scanSecrets(repo);
+    // root is application-owned and includes fix.patch, not only final files.
+    const scan = await scanSecrets(root);
     if (scan.status !== "clean") throw new Error(`Secret scan did not pass (${scan.status}). Push blocked.`);
     await git(["-C", repo, "-c", `user.name=${user.login}`, "-c", `user.email=${user.id}+${user.login}@users.noreply.github.com`, "commit", "-m", input.commit_message]);
     // A normal push rejects concurrent changes instead of overwriting them.

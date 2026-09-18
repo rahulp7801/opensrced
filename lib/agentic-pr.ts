@@ -28,6 +28,7 @@ import { childEnv } from "./child-env";
 import { parseGitHubPullUrl } from "./github-pull-url";
 import { sanitizeLogValue } from "./sanitize";
 import { sensitiveTextKind } from "./sensitive-text";
+import { readJsonBody } from "./request-body";
 
 const execFileAsync = promisify(execFile);
 
@@ -403,7 +404,9 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
   //      cannot leave this worker until the scan completes cleanly.
   {
     const { scanSecrets, formatLogBlock: fmtGitleaks } = await import("./gitleaks-scanner");
-    const scanResult = await scanSecrets(worktreeDir);
+    // Include raw deletion/context lines and keep target ignore files below
+    // the application-owned root so they cannot weaken the publication gate.
+    const scanResult = await scanSecrets(path.dirname(worktreeDir));
     await appendFile(args.logPath, fmtGitleaks(scanResult)).catch(() => {});
     if (scanResult.status !== "clean") {
       await cleanupWorktree();
@@ -438,6 +441,8 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
           reason: `gemini review returned a critical verdict — PR blocked. See [gemini-review] in the dispatch log.`,
         };
       }
+    } else {
+      await appendFile(args.logPath, "[gemini-review] status=unavailable; no completed review obtained; human review required\n").catch(() => {});
     }
   }
 
@@ -735,11 +740,11 @@ export type GeminiReview = { verdict: GeminiVerdict; text: string };
  *  Defaults to "concerns" when the line is missing or unparseable —
  *  neither silently clean nor a PR-blocking critical. */
 export function parseGeminiVerdict(text: string): GeminiVerdict {
-  const m = /^\s*VERDICT:\s*(clean|concerns|critical)\s*$/im.exec(text);
+  const m = /^VERDICT:\s*(clean|concerns|critical)\s*$/i.exec(text.trim().split(/\r?\n/).at(-1)?.trim() ?? "");
   return (m?.[1].toLowerCase() as GeminiVerdict) ?? "concerns";
 }
 
-async function geminiReviewDiff(diff: string, apiKey: string): Promise<GeminiReview | null> {
+export async function geminiReviewDiff(diff: string, apiKey: string): Promise<GeminiReview | null> {
   // Truncate very large diffs to stay within Gemini's context window.
   const truncated = diff.length > 30_000 ? diff.slice(0, 30_000) + "\n\n... (truncated)" : diff;
 
@@ -786,10 +791,14 @@ async function geminiReviewDiff(diff: string, apiKey: string): Promise<GeminiRev
       // Rate limit or quota — skip silently, don't block the PR flow.
       return null;
     }
-    const json = (await res.json()) as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-    };
-    const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+    const json = await readJsonBody<{
+      candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>;
+    }>(res, 100_000);
+    const candidate = json?.candidates?.[0];
+    if (candidate?.finishReason !== "STOP" || !Array.isArray(candidate.content?.parts)) return null;
+    const text = candidate.content.parts
+      .filter(part => !part.thought && typeof part.text === "string")
+      .map(part => part.text).join("").trim();
     if (!text) return null;
     return { verdict: parseGeminiVerdict(text), text };
   } catch {

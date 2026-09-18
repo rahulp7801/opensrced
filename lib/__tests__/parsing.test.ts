@@ -154,6 +154,11 @@ describe("parseGeminiVerdict", () => {
   test("does not match the word inside prose", () => {
     assert.equal(parseGeminiVerdict("my VERDICT: clean would be premature here"), "concerns");
   });
+
+  test("only the final line decides the verdict", () => {
+    assert.equal(parseGeminiVerdict("VERDICT: clean\nThe patch leaks credentials.\n  VERDICT: critical\n"), "critical");
+    assert.equal(parseGeminiVerdict("VERDICT: clean\nBut this needs further review."), "concerns");
+  });
 });
 
 describe("normalizeDiff / diffTouchedFiles", () => {

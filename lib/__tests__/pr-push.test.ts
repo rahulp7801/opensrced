@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import childProcess from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
@@ -38,7 +38,11 @@ test("PR pushes use the user's identity, preserve unrelated files, and block a f
     t.mock.method(globalThis, "fetch", async () => Response.json({ login: "alice", id: 42 }));
     const scanner = await import("../gitleaks-scanner");
     let scanClean = true;
-    t.mock.method(scanner, "scanSecrets", async () => ({ status: scanClean ? "clean" : "error", findings: [], findingCount: 0, durationMs: 0 }));
+    t.mock.method(scanner, "scanSecrets", async (scanRoot: string) => {
+      assert.ok(existsSync(join(scanRoot, "fix.patch")), "scan must include the raw patch");
+      assert.ok(existsSync(join(scanRoot, "repo", "file.txt")), "scan must also include final source");
+      return { status: scanClean ? "clean" : "error", findings: [], findingCount: 0, durationMs: 0 };
+    });
     const { pushPrPatch } = await import("../pr-push");
     const input = { repo: "acme/app", branch: "main", diff: "--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new\n", commit_message: "fix feedback" };
     const result = await pushPrPatch(input, "test-user-token");

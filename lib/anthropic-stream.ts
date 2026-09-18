@@ -1,8 +1,14 @@
 import { CLAUDE_FAST_MODEL } from "./models";
 import { sseEvents } from "./sse";
+import { sensitiveTextKind } from "./sensitive-text";
 
 /** Small text-only requests share cancellation, deadlines and error handling. */
 export function anthropicStream(apiKey: string, system: string, user: string, maxTokens: number, requestSignal: AbortSignal, release = () => {}): Response {
+  const sensitive = sensitiveTextKind([system, user]);
+  if (sensitive) {
+    release();
+    return Response.json({ error: `Request content appears to contain a ${sensitive}. Remove sensitive values before retrying.` }, { status: 422, headers: { "Cache-Control": "no-store" } });
+  }
   const cancellation = new AbortController();
   const signal = AbortSignal.any([requestSignal, cancellation.signal, AbortSignal.timeout(90_000)]);
   let cancelled = false;
@@ -12,7 +18,7 @@ export function anthropicStream(apiKey: string, system: string, user: string, ma
       const send = (event: Record<string, unknown>) => { if (!cancelled && !requestSignal.aborted) controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`)); };
       try {
         const response = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST", signal,
+          method: "POST", signal, redirect: "error",
           headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
           body: JSON.stringify({ model: CLAUDE_FAST_MODEL, max_tokens: maxTokens, system, stream: true, messages: [{ role: "user", content: user }] }),
         });

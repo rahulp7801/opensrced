@@ -24,6 +24,7 @@ try {
   for (const cmd of ['node', 'git', 'gh', 'claude', 'gitleaks']) await run(cmd, ['--version']);
   await run('node', ['node_modules/typescript/bin/tsc', '-p', 'tsconfig.test.json']);
   await run('node', ['scripts/smoke-worker-tools.mjs']);
+  await run('node', ['scripts/smoke-secret-gate.mjs']);
   await run('env', ['OPENSRCER_GRAPH_PYTHON=/opt/graph/bin/python', 'node', 'scripts/smoke-graph.mjs']);
   const snapshot = await sandbox.snapshot();
   console.log(`OPENSRCER_WORKER_SNAPSHOT_ID=${snapshot.snapshotId}`);

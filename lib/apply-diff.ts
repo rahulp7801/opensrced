@@ -117,7 +117,7 @@ export async function applyDiff(
 ): Promise<ApplyResult> {
   const env = opts.env;
   const normalized = normalizeDiff(diff);
-  await writeFile(patchPath, normalized);
+  await writeFile(patchPath, normalized, { mode: 0o600 });
 
   const files = diffTouchedFiles(normalized);
   if (files.some(file => !containedPath(dir, file)) || /^(?:(?:new|deleted) file mode|(?:old|new) mode) 120000$/m.test(normalized)) {

@@ -8,6 +8,7 @@ test("text streaming reports usage and releases capacity exactly once", async (t
   let releases = 0;
   t.mock.method(globalThis, "fetch", async (_url: string, options: RequestInit) => {
     assert.ok(options.signal);
+    assert.equal(options.redirect, "error", "provider keys must not follow redirects");
     return providerStream([
       { type: "message_start", message: { usage: { input_tokens: 100 } } },
       { type: "content_block_delta", delta: { text: "A reply" } },
@@ -21,6 +22,23 @@ test("text streaming reports usage and releases capacity exactly once", async (t
   assert.ok(body.includes('"cost":0.00015'));
   assert.ok(body.includes('"done":true'));
   assert.equal(releases, 1);
+});
+
+test("credentials in source or request content never leave for the provider and release capacity", async t => {
+  const credential = "gh" + "p_" + "a".repeat(36);
+  let requests = 0;
+  t.mock.method(globalThis, "fetch", async () => { requests++; return providerStream([]); });
+  for (const [system, user] of [[`source: ${credential}`, "Fix this"], ["Reply", credential]]) {
+    let releases = 0;
+    const response = anthropicStream("test-provider-key", system, user, 300, new AbortController().signal, () => releases++);
+    assert.equal(response.status, 422);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    const body = await response.text();
+    assert.match(body, /GitHub token/);
+    assert.ok(!body.includes(credential), "errors must never echo a credential");
+    assert.equal(releases, 1);
+  }
+  assert.equal(requests, 0);
 });
 
 test("provider errors and truncated output never report successful completion", async (t) => {

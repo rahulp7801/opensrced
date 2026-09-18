@@ -3,8 +3,10 @@
 // Returns structured results so the caller can gate PR creation:
 // if secrets are found, block the PR.
 //
-// Uses `gitleaks dir <path>` (no git history scan — we only care about
-// the current working tree state after the patch is applied).
+// Scan the application-owned scratch root, containing both the checkout and
+// the raw patch. Removed/context lines can contain credentials absent from
+// the final tree. Never use a target checkout as the root: Gitleaks loads a
+// root .gitleaksignore automatically, even with an explicit ignore-path flag.
 
 import { execFile, execFileSync } from "node:child_process";
 import { childEnv } from "./child-env";
@@ -46,6 +48,8 @@ function resolveGitleaksBin(): string | null {
       execFileSync(name, ["version"], {
         stdio: "pipe",
         timeout: 5000,
+        windowsHide: true,
+        env: childEnv(),
       });
       return name;
     } catch {
@@ -102,6 +106,7 @@ export async function scanSecrets(
         "--no-banner",
         "--redact=100",
         "--no-color",
+        "--ignore-gitleaks-allow",
         "--exit-code",
         "1",
       ],
@@ -109,9 +114,11 @@ export async function scanSecrets(
         timeout,
         maxBuffer: 10 * 1024 * 1024,
         windowsHide: true,
+        cwd: dir,
         // The scanner reads a directory; it needs no credentials, so it
         // gets none. See lib/child-env.ts.
-        env: childEnv(),
+        // The target repository must not control this publication gate.
+        env: childEnv({ GITLEAKS_CONFIG_TOML: "[extend]\nuseDefault = true\n" }),
       },
     );
 

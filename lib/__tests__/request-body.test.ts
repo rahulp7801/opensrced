@@ -20,3 +20,21 @@ test("JSON request bodies are parsed within a hard byte limit", async () => {
   assert.equal(await readTextBody(new Request("http://localhost", { method: "POST", body: "signed payload" }), 20), "signed payload");
   assert.equal(await readTextBody(new Request("http://localhost", { method: "POST", body: "too large" }), 4), null);
 });
+
+test("bounded provider JSON reading releases its response stream on success and overflow", async () => {
+  const valid = Response.json({ ok: true });
+  assert.deepEqual(await readJsonBody(valid, 100), { ok: true });
+  assert.equal(valid.body!.locked, false);
+  let cancelled = false;
+  const oversized = new Response(new ReadableStream({
+    start(controller) { controller.enqueue(new TextEncoder().encode("x".repeat(101))); },
+    cancel() { cancelled = true; },
+  }));
+  assert.equal(await readJsonBody(oversized, 100), null);
+  assert.equal(cancelled, true);
+  assert.equal(oversized.body!.locked, false);
+  cancelled = false;
+  const declaredOversized = new Response(new ReadableStream({ cancel() { cancelled = true; } }), { headers: { "content-length": "101" } });
+  assert.equal(await readJsonBody(declaredOversized, 100), null);
+  assert.equal(cancelled, true, "declared overflow must cancel rather than leave an unread provider body");
+});

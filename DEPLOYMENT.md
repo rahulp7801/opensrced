@@ -197,6 +197,15 @@ credentials. Staging retains Vercel authentication.
 
 ## Outstanding release gates
 
+The provider-disclosure checkpoint adds a real Gitleaks regression gate to
+container CI and worker snapshot creation. It checks deleted patch credentials,
+inline allow comments, and target scan configuration/ignore files using synthetic
+fixtures. Worker protocol **4** requires rebuilding snapshots from a commit with
+these controls before hosted jobs can start. Direct Anthropic text requests block
+recognized prompt credentials; incomplete Gemini reviews are recorded as
+unavailable rather than clean. The open CodeQL flows are documented in
+[SECURITY.md](SECURITY.md#reviewed-external-data-flows) and remain visible.
+
 - Configure Auth0, private Blob, and worker snapshots in both Vercel projects.
 - If the local alternative is used, exercise the CI-verified Linux image on its
   target host with the real reverse proxy and persistent volumes.

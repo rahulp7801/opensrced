@@ -1,6 +1,7 @@
 # Security policy
 
-Security fixes are maintained on `main`. This project is still pre-1.0, so older commits and deployments are not supported.
+Security fixes are maintained on `main`. Production acceptance is still pending;
+older releases, commits, and deployments are not maintained security branches.
 
 ## Report a vulnerability
 

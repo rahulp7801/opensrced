@@ -2,201 +2,139 @@
 
 [![CI](https://github.com/rahulp7801/opensrced/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/rahulp7801/opensrced/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/rahulp7801/opensrced/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/rahulp7801/opensrced/actions/workflows/codeql.yml)
-[![Production](https://img.shields.io/website?url=https%3A%2F%2Fopensrced.vercel.app&label=production)](https://opensrced.vercel.app)
+[![Release](https://img.shields.io/github/v/release/rahulp7801/opensrced?include_prereleases)](https://github.com/rahulp7801/opensrced/releases)
 
-opensrcer helps a signed-in GitHub user find an issue, understand the affected
-code, generate a bounded patch, review it, and open a draft pull request.
+A workspace for turning GitHub issues into reviewed draft pull requests.
+Discover issues, explore the affected code, generate a patch with a bounded AI
+agent, and review the result before publishing it.
 
-The application is under active production hardening. The application test,
-browser smoke, dependency audit, secret scan, graph runtime, and Linux container
-checks run in CI. Production and staging are deployed on Vercel. Auth0, the
-private Blob store, and the worker snapshot still need to be provisioned and
-tested together before the hosted app is considered released. See
-[DEPLOYMENT.md](DEPLOYMENT.md) for the current acceptance evidence and open
-release gates.
+[Try the demo](https://opensrced.vercel.app/demo) ·
+[Deployment guide](DEPLOYMENT.md) ·
+[Report a bug](https://github.com/rahulp7801/opensrced/issues) ·
+[Releases](https://github.com/rahulp7801/opensrced/releases)
 
-## Product workflow
+## Project status
 
-1. **Find** searches public GitHub repositories and scores open issues.
-2. **Explore** answers questions about a repository with read-only code tools.
-3. **Fix** starts an isolated Claude agent with a user-controlled spend limit.
-4. **Review** shows the run log, generated patch, check results, and PR state.
-5. **Ship** opens a draft pull request only after the configured gates pass.
+**Beta — authenticated production acceptance is still pending.** The web app
+is deployed on Vercel and its public demo is available. Auth0, private Blob
+storage, and worker snapshots must be configured and tested before hosted agent
+workflows can be used. Protected operations fail closed while that configuration
+is missing.
 
-The public `/demo` page exercises the interface without an account or API key.
-Authenticated workflows use the signed-in user's GitHub identity and the
-provider keys they save in Settings.
+| Environment | Branch | Endpoint | Access |
+| --- | --- | --- | --- |
+| Production | `main` | [opensrced.vercel.app](https://opensrced.vercel.app) | Public preview and demo |
+| Staging | `staging` | [opensrced-staging.vercel.app](https://opensrced-staging.vercel.app) | Vercel authentication required |
 
-## Runtime architecture
+`GET /api/health` reports readiness and missing dependencies. HTTP 200 confirms
+liveness; `status: degraded` means the application is not ready for its complete
+workflow. Release acceptance and outstanding gates are tracked in
+[DEPLOYMENT.md](DEPLOYMENT.md#outstanding-release-gates).
 
-The production design separates the web application from long-running work:
+## What it does
+
+| Workflow | Capabilities |
+| --- | --- |
+| Discover | Search public repositories, score issues, and narrow work by scope. |
+| Explore | Inspect repository code with read-only tools and codebase graphs. |
+| Fix | Generate a patch in an isolated worker with a spend limit and timeout. |
+| Review | Inspect logs, diffs, review feedback, and verification status. |
+| Publish | Open a draft PR using the requesting user's GitHub identity after configured gates pass. |
+
+Private organization workflows use an optional GitHub App connection. The demo
+illustrates the interface without an account, provider key, or live agent run.
+AI-generated patches require human review and validation in the target repository.
+
+## Architecture
+
+The Next.js application handles sessions, UI, and bounded API requests. Long
+agent jobs run separately in Vercel Sandbox; private Vercel Blob storage retains
+account-scoped results and coordinates concurrency across web instances.
 
 ```text
-Browser
-  -> Next.js application on Vercel
-       -> Auth0 session and GitHub OAuth token
-       -> private Vercel Blob records
-          -> compact run summaries for runs, activity, and PR history
-       -> bounded GitHub and provider requests
-       -> isolated Vercel Sandbox worker
-            -> Claude CLI with read-only repository MCP tools
-            -> shallow repository clone
-            -> patch, Gitleaks check, optional Gemini review
-            -> draft pull request
+Browser → Next.js on Vercel → Auth0 / GitHub OAuth
+                         ├─ Private Blob: runs, history, graphs, cancellation
+                         └─ Vercel Sandbox worker
+                              → Claude CLI + read-only repository MCP tools
+                              → Patch + secret scan + optional Gemini review
+                              → Draft GitHub pull request
 ```
 
-Vercel Blob stores account-scoped runs, cancellation markers, graphs,
-organization connections, activity, and shared fixes. Blob leases cap concurrent
-agent jobs across web instances. Sandbox workers have a 40-minute limit and run
-records expire after 45 minutes. A bounded account cancellation index keeps run
-details and compact history terminal even when a worker upload races a stop request.
+Workers have a 40-minute limit. Blob leases cap concurrent agent jobs, compact
+summaries support history views, and cancellation markers prevent late worker
+uploads from reviving stopped runs. A versioned worker protocol rejects
+incompatible snapshots. Deployment details are in [DEPLOYMENT.md](DEPLOYMENT.md).
 
-The Docker image is a supported single-instance staging alternative. It contains
-the Node application, Claude CLI, Gitleaks, GitHub CLI, Python graph runtime, and
-MCP server. Persisted history survives through the mounted volumes, but active
-subprocesses do not resume after a process restart, so this mode does not provide
-rolling deployment or durable queue semantics.
-
-Three legacy deterministic endpoints can use an external `CONTRIBAI_BIN` during
-local development. They are not part of the Vercel execution path. The product
-UI uses `/api/run/agentic`.
-
-## Safety and data handling
-
-- Auth0 gates authenticated pages and API routes. Mutating routes also perform
-  their own session checks.
-- GitHub operations use the current user's OAuth token. There is no deployer
-  credential fallback in authenticated operation.
-- Anthropic and Gemini keys live in an encrypted, account-bound, `httpOnly`
-  cookie with a 30-day maximum age. `AUTH0_SECRET` is the encryption root.
-- Agent subprocesses receive an allowlisted environment containing only the
-  credentials required for that run.
-- Claude runs with built-in tools disabled and only the repository's read-only
-  MCP tools allowed. Issue bodies, review comments, and user prompts are treated
-  as untrusted input.
-- Gitleaks is a fail-closed gate before generated code can be sent for optional
-  external review or pushed. Generated PR titles and descriptions receive a
-  separate credential-pattern check before publication.
-- Run, organization, graph, activity, and shared-fix records are scoped to their
-  owners. Public shared fixes require an unguessable ID, cannot be listed, expire
-  30 days after creation, and retain at most 900 records per account.
-- Full Git history is scanned with Gitleaks in CI. GitHub currently reports no
-  open secret-scanning or Dependabot alerts.
-
-Target-repository tests remain disabled in hosted workers. Running arbitrary
-repository install or test commands beside user credentials would weaken worker
-isolation. A hosted patch therefore remains visibly unverified until it is
-checked in the target repository's own CI or another credential-free sandbox.
+The Docker image provides a single-instance alternative with the required CLI
+and graph tools. It uses persistent volumes for history but does not resume
+active jobs after a process restart.
 
 ## Local development
 
-Requirements:
-
-- Node.js 24
-- Python 3.11 or later for graph features
-- Git and GitHub CLI
-- Auth0 credentials for authenticated workflows
-
-Install and run:
+Use **Node.js 24**, Git, and GitHub CLI. Graph features additionally require
+Python 3.11 or later. Local agent execution requires Claude CLI and Gitleaks;
+the Docker image packages those runtimes.
 
 ```sh
 npm ci --legacy-peer-deps
 npm --prefix mcp-server ci
 npm --prefix mcp-server run build
 cp .env.example .env.local
-npm run dev
 ```
 
-Set these five Auth0 values in `.env.local`:
+On PowerShell, use `Copy-Item .env.example .env.local` for the last command.
+`--legacy-peer-deps` is required because the diff viewer has not declared React
+19 support. Keep `.env.local` out of source control.
 
-```dotenv
-AUTH0_SECRET=
-APP_BASE_URL=http://localhost:3000
-AUTH0_DOMAIN=
-AUTH0_CLIENT_ID=
-AUTH0_CLIENT_SECRET=
-```
+### Without Auth0
 
-Use a bare Auth0 domain such as `example.us.auth0.com`. Add
-`http://localhost:3000/auth/callback` to allowed callback URLs and
-`http://localhost:3000` to allowed logout URLs. Enable the GitHub social
-connection. The session must receive the provider token in the custom claim
-`https://opensrcer.dev/github_token`; the session hook removes that credential
-from `/auth/profile` before it reaches browser code.
-
-For local development without an Auth0 tenant, leave the domain and client
-values unset and use:
+Leave the Auth0 domain and client values unset, then set these in `.env.local`:
 
 ```dotenv
 AUTH_DISABLED=1
 AUTH0_SECRET=<unique-local-encryption-secret>
-# GITHUB_TOKEN=<optional-token-for-github-operations>
+APP_BASE_URL=http://localhost:3000
+# GITHUB_TOKEN=<optional-token-for-local-github-operations>
 ```
 
-The secret encrypts locally saved provider keys; it is not an Auth0 tenant
-credential. This mode is refused when `NODE_ENV=production`.
+Generate the secret with:
 
-Graph features also need a Python environment with
-`requirements-graph.txt` installed and `OPENSRCER_GRAPH_PYTHON` set to that
-environment's Python executable.
+```sh
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+npm run dev
+```
 
-## Docker staging
+Open [localhost:3000](http://localhost:3000). Provider keys are entered in
+Settings and stored in an encrypted cookie. This local mode is refused in
+production. It does not validate the real OAuth login flow.
+
+### With Auth0
+
+Disable local bypass and configure `AUTH0_SECRET`, `APP_BASE_URL`,
+`AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, and `AUTH0_CLIENT_SECRET`. Use a bare domain
+such as `example.us.auth0.com` and enable the GitHub social connection.
+
+- Allowed callback URL: `http://localhost:3000/auth/callback`
+- Allowed logout URL: `http://localhost:3000`
+- Session token claim: `https://opensrcer.dev/github_token`
+
+The Auth0 Action must place the user's GitHub provider token in that claim.
+The application strips it from the browser-facing profile. See
+[lib/auth0.ts](lib/auth0.ts) and [lib/auth-session.ts](lib/auth-session.ts).
+
+For graphs, install `requirements-graph.txt` in a Python virtual environment
+and set `OPENSRCER_GRAPH_PYTHON` to that environment's Python executable.
+For the packaged local runtime:
 
 ```sh
 docker compose --env-file .env.local up --build -d
-curl http://localhost:3000/api/health
 ```
 
-Persist the four volumes defined in `compose.yaml` and keep
-`AUTH0_SECRET` stable. Put an HTTPS reverse proxy in front of the service and
-preserve streaming responses. `/api/health` reports `degraded` when Auth0,
-hosted storage, a worker snapshot, or a required local runtime tool is absent;
-HTTP 200 alone is only a liveness signal.
+Docker runs in production mode and requires real Auth0 configuration. See the
+[single-instance setup](DEPLOYMENT.md#start-a-single-instance) for volumes,
+streaming, and reverse-proxy requirements.
 
-## Vercel configuration
-
-Current endpoints:
-
-- Production (`main`): https://opensrced.vercel.app
-- Staging (`staging`, Vercel-auth protected): https://opensrced-staging.vercel.app
-
-The two Vercel projects keep credentials and storage isolated. Their canonical
-origins and separate `AUTH0_SECRET` values are already configured; the remaining
-variables below must use environment-specific credentials.
-
-The hosted path requires:
-
-| Variable | Purpose |
-|---|---|
-| `AUTH0_SECRET` | Auth0 session secret and provider-key encryption root |
-| `APP_BASE_URL` | Public HTTPS origin |
-| `AUTH0_DOMAIN` | Auth0 tenant host without a URL scheme |
-| `AUTH0_CLIENT_ID` | Auth0 application client ID |
-| `AUTH0_CLIENT_SECRET` | Auth0 application client secret |
-| `BLOB_READ_WRITE_TOKEN` | Private Vercel Blob access |
-| `OPENSRCER_WORKER_SNAPSHOT_ID` | Prebuilt agent worker snapshot |
-
-Vercel supplies Sandbox OIDC through the Function request context (and through
-`VERCEL_OIDC_TOKEN` during builds and local `vercel env pull`). Create a worker
-snapshot from an exact committed SHA:
-
-```sh
-node scripts/create-worker-snapshot.mjs <40-character-commit-sha>
-```
-
-Rebuild the snapshot whenever the agent, MCP server, graph runtime, or worker
-bootstrap changes. Snapshot creation verifies every worker entry script, the
-real Claude CLI's restricted MCP tool surface, and a real graph build before it
-publishes an image. Increment `.opensrcer-worker-protocol` when a web change is
-incompatible with existing snapshots; every cloud entry point checks that
-marker before starting work. Follow the full sequence and hosted acceptance checklist in
-[DEPLOYMENT.md](DEPLOYMENT.md).
-
-Optional GitHub App support for private organizations uses
-`GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_APP_PRIVATE_KEY`, and
-`GITHUB_APP_WEBHOOK_SECRET`. Public repository workflows do not need this app.
-
-## Quality checks
+## Verification
 
 ```sh
 npm test
@@ -204,46 +142,45 @@ npm run typecheck
 npm run lint
 npm audit --audit-level=high
 npm run build:worker
-npm --prefix mcp-server run build
+npm --prefix mcp-server test
 npm --prefix mcp-server audit --audit-level=high
 npm run build
-node scripts/smoke-graph.mjs
-node scripts/smoke-production.mjs
-node scripts/smoke-browser.mjs
 ```
 
-CI additionally performs a full-history Gitleaks scan, builds and boots the
-Linux production image as its non-root user, verifies required runtime health,
-and runs browser checks at desktop and mobile widths.
+CI also scans the complete Git history with Gitleaks, checks the real Claude
+CLI's restricted tool configuration, builds a graph, boots the production
+Docker image, and runs HTTP, desktop/mobile browser, accessibility, and
+concurrency smoke tests. Browser coverage includes unavailable authentication
+and mocked authenticated interactions; it does not prove live OAuth or paid
+provider behavior. Repeatable smoke commands are in
+[DEPLOYMENT.md](DEPLOYMENT.md#repeatable-checks).
 
-## Main API surface
+New commits cancel superseded CI runs on the same branch. A cancelled historical
+run is expected; use the checks attached to the exact commit being promoted.
 
-| Area | Routes |
-|---|---|
-| Health | `GET /api/health` |
-| Discovery | `GET /api/discover`, `GET /api/issues/scan`, `GET /api/issues/suggested` |
-| Runs | `POST /api/run/agentic`, `GET /api/dispatches`, `GET /api/dispatches/[id]`, `POST /api/dispatches/[id]/cancel` |
-| Explore and graph | `POST /api/explore`, `POST /api/graph/generate`, `POST /api/graph/query`, `GET /api/graph/[owner]/[repo]/viz` |
-| Pull requests | `/api/prs`, `/api/prs/github`, `/api/prs/review`, `/api/prs/diff`, `/api/prs/fix`, `/api/prs/push`, `/api/prs/reply` |
-| Settings and activity | `/api/settings/keys`, `GET /api/activity` |
-| Private organizations | `/api/crucible/*` |
-| Shared fixes | `POST /api/fixes`, `GET /api/fixes/[id]` |
+## Security and limitations
 
-All routes except health, Auth0 callbacks, the signed GitHub webhook, and a
-single public shared-fix read require an authenticated session. Request bodies
-and response details are best read from the route handlers while the API is
-still evolving.
+GitHub operations use the requesting user's credentials. Provider keys are
+encrypted, bound to the signed-in account, and held in an `httpOnly` cookie with
+a 30-day maximum age. Workers receive an allowlisted environment and read-only
+repository tools. Secret scanning gates generated changes before optional
+external review or publication. Private records are scoped to their owners.
 
-## Current limits
+Hosted target-repository install and test commands remain disabled because
+repository-controlled code must be isolated from worker credentials. Patches
+remain visibly unverified until checked in the target repository's CI or a
+separate credential-free sandbox. Other limits include heuristic issue scoring,
+8 MB graph artifacts, four-minute graph builds, and no restart recovery in the
+Docker runtime. See [SECURITY.md](SECURITY.md) for private vulnerability reporting
+and data-handling expectations.
 
-- Vercel provisioning and live OAuth acceptance have not been completed.
-- Hosted target-repository tests are off, so hosted patches are unverified.
-- The Runs page lists the latest 20 records; impact metrics cover the latest 50.
-- The Docker mode has no durable job queue or restart recovery.
-- Issue scoring and scope classification are heuristics.
-- Generated diffs can still require manual repair or target-repository CI.
-- Graphs are capped at 8 MB and builds at four minutes.
+## Contributing
+
+Open an issue describing the problem or intended behavior before a substantial
+change. Keep PRs focused, include relevant validation, and update deployment
+documentation when runtime requirements change. Never include credentials,
+private repository content, or deployment environment files in an issue or PR.
 
 ## License
 
-MIT
+[MIT](LICENSE).

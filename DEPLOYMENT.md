@@ -41,8 +41,10 @@ Workers stop after 40 minutes; abandoned records expire after 45 minutes.
 4. Deploy, configure Auth0 callback/logout origins, and verify health, login,
    key storage, preview, cancellation, and controlled live PR creation.
 
-The cloud path has passed local compilation and unit tests; it has not yet been
-provisioned or exercised against Vercel. Agent runs, exploration, deep fixes, graph generation, and patch pushes use
+The web application is deployed on Vercel, and its public pages, unavailable-auth
+behavior, and Sandbox OIDC readiness have been exercised there. The cloud worker
+path has passed compilation and automated checks but has not been provisioned
+or exercised with live user credentials. Agent runs, exploration, deep fixes, graph generation, and patch pushes use
 isolated workers. Quick fixes, replies, and graph questions use bounded API
 requests. Activity, PR history, and graph storage are scoped to their owners. Do not treat deployment alone as release
 acceptance. Repository test execution remains off inside workers because tests
@@ -101,6 +103,9 @@ npm start -- --port 3100
 node scripts/smoke-production.mjs
 npx playwright install chromium
 node scripts/smoke-browser.mjs
+# Against a deployment without Auth0 configuration:
+SMOKE_BASE_URL=https://opensrced.vercel.app node scripts/smoke-unconfigured.mjs
+SMOKE_BASE_URL=https://opensrced.vercel.app node scripts/smoke-unconfigured-browser.mjs
 ```
 
 The HTTP smoke script checks six pages, anonymous authorization including
@@ -110,13 +115,18 @@ The browser smoke test covers public pages at desktop/mobile widths, demo tabs,
 login prompts, and authentication-link prefetching. Mocked API interactions check
 preview retries, both issue actions, and failed cancellation recovery without
 starting real jobs.
+The unconfigured browser smoke covers public pages and protected-page redirects
+at both widths, unavailable sign-in messaging, usable demo navigation, client
+errors, overflow, and serious/critical accessibility findings.
 Set `SMOKE_BASE_URL` to test a staging deployment. CI runs the same checks.
 
 Next.js stays on the patched 15.x line. Its pinned PostCSS dependency is
 overridden to 8.5.28 for security fixes; remove the override when the framework
 ships a safe dependency. Both package lockfiles must remain committed.
 
-## Acceptance evidence (September 12, 2026)
+## Acceptance evidence
+
+### Automated and local checks (September 12, 2026)
 
 The production acceptance evidence on the current main branch includes:
 
@@ -175,6 +185,15 @@ session fixtures; never use its fake credentials for a deployment.
 The Vercel projects, Git connections, stable domains, and environment separation
 are provisioned. The gates below remain open before authenticated agent work can
 be released.
+
+### Hosted beta checkpoint (September 17, 2026)
+
+The beta release records the deployed web application and production-hardening
+work since `v1`. It does not close the outstanding authenticated release gates.
+The release is published only after CI, CodeQL, and both Vercel deployment
+checks pass for its exact commit. CI includes the unconfigured browser smoke;
+the same script can be run against the public production endpoint without
+credentials. Staging retains Vercel authentication.
 
 ## Outstanding release gates
 

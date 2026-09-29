@@ -49,6 +49,9 @@ export const auth0 = new Auth0Client({
   clientSecret: process.env.AUTH0_CLIENT_SECRET ?? (inactiveConfig ? "inactive-client-secret" : undefined),
   secret: process.env.AUTH0_SECRET ?? (inactiveConfig ? "0".repeat(64) : undefined),
   beforeSessionSaved: prepareSession,
+  // Signed-out visitors get 204 rather than 401, so public pages don't log a
+  // failed request (and SWR doesn't retry it). useUser() maps 204 to null.
+  noContentProfileResponseWhenUnauthenticated: true,
   appBaseUrl: process.env.APP_BASE_URL ?? process.env.AUTH0_BASE_URL,
   authorizationParameters: {
     // `connection_scope` asks Auth0 to request these extra scopes from the

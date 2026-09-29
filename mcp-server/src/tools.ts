@@ -91,7 +91,9 @@ export async function grepTool(args: {
   const max = Math.min(Math.max(args.max_matches ?? 200, 1), 1000);
   // git grep gives us .gitignore-aware search without a ripgrep dep. -n for
   // line numbers, -I to skip binaries, --no-color to keep output clean.
-  const gitArgs = ["-C", dir, "grep", "-n", "-I", "--no-color"];
+  // -E: the tool is advertised as extended regex; git grep defaults to basic,
+  // where `a|b` and `(x)` silently match nothing.
+  const gitArgs = ["-C", dir, "grep", "-n", "-I", "--no-color", "-E"];
   if (args.case_insensitive) gitArgs.push("-i");
   gitArgs.push("-e", args.pattern);
   if (args.glob) gitArgs.push("--", args.glob);

@@ -2,7 +2,7 @@
 // Reads graphify's graph.json and performs pure JS traversal.
 
 import { parseRepo, authorizeRepo } from "./repo-cache.js";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { safeRepoPath } from "./safe-path.js";
@@ -45,10 +45,8 @@ function findGraphJson(repo: string): string | null {
   const cacheDir = join(homedir(), ".opensrcer", "graph-cache", `${owner}__${name}`, "graphify-out", "graph.json");
   if (existsSync(cacheDir)) return cacheDir;
 
-  // Check contribai repo cache
-  const contribDir = join(homedir(), ".contribai", "repos", `${owner}__${name}`, "graphify-out", "graph.json");
-  if (existsSync(contribDir)) return contribDir;
-
+  // Never fall back to graphify-out/ inside the clone: that file is committed
+  // by the untrusted repo, not built by opensrcer.
   return null;
 }
 
@@ -58,6 +56,8 @@ async function loadGraph(repo: string): Promise<GraphData> {
   if (!path) throw new Error("Graph not found. Build it first via the Graph page in the opensrcer UI.");
   const root = dirname(dirname(path));
   const safePath = await safeRepoPath(root, "graphify-out/graph.json");
+  // Same 8 MB ceiling the app enforces when it builds graphs.
+  if ((await stat(safePath)).size > 8_000_000) throw new Error("Graph is too large to load.");
   const raw = await readFile(safePath, "utf8");
   return JSON.parse(raw) as GraphData;
 }

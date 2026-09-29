@@ -15,7 +15,9 @@
 export function gitAuthArgs(token?: string | null): string[] {
   if (!token) return [];
   const basic = Buffer.from(`x-access-token:${token}`).toString("base64");
-  return ["-c", `http.extraheader=AUTHORIZATION: basic ${basic}`];
+  // Scoped to github.com: an unscoped header also goes to any host the repo
+  // names, e.g. an attacker's LFS server in a committed .lfsconfig.
+  return ["-c", `http.https://github.com/.extraheader=AUTHORIZATION: basic ${basic}`];
 }
 
 /** execFile errors echo argv, including one-shot git authentication headers. */

@@ -171,6 +171,9 @@ export type Index = {
 };
 
 const MAX_FILE_BYTES = 2_000_000; // skip monster files — they're usually generated
+// ponytail: total cap so one untrusted repo (a big file committed at many
+// paths) cannot exhaust memory; files past it fall back to grep.
+const MAX_SYMBOLS = 500_000;
 
 // Parser.init() is one-time. Cache it across calls.
 let parserInitPromise: Promise<void> | undefined;
@@ -334,7 +337,12 @@ export async function getIndex(repoDir: string): Promise<Index> {
       for (const f of files) {
         try {
           const fileSyms = await parseFile(loaded, repoDir, f);
-          symbols.push(...fileSyms);
+          // No spread: push(...x) throws RangeError past ~120k items, which
+          // the catch below swallowed, silently dropping the whole file.
+          for (const sym of fileSyms) {
+            if (symbols.length >= MAX_SYMBOLS) break;
+            symbols.push(sym);
+          }
         } catch (e) {
           process.stderr.write(
             `indexer: parse failure on ${f}: ${e instanceof Error ? e.message : String(e)}\n`,

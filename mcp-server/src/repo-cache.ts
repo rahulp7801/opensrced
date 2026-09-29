@@ -38,7 +38,8 @@ const TTL_MS = 24 * 60 * 60 * 1000; // 24h before re-clone
 function gitAuthArgs(token?: string): string[] {
   if (!token) return [];
   const basic = Buffer.from(`x-access-token:${token}`).toString("base64");
-  return ["-c", `http.extraheader=AUTHORIZATION: basic ${basic}`];
+  // Scoped to github.com; see lib/git-auth.ts.
+  return ["-c", `http.https://github.com/.extraheader=AUTHORIZATION: basic ${basic}`];
 }
 
 function cacheRoot(): string {

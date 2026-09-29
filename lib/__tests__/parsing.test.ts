@@ -190,7 +190,8 @@ describe("gitAuthArgs", () => {
   test("builds a one-shot basic auth header and never a URL", () => {
     const args = gitAuthArgs("ghs_secret");
     assert.equal(args[0], "-c");
-    assert.match(args[1], /^http\.extraheader=AUTHORIZATION: basic /);
+    // Scoped to github.com so repo-named hosts (LFS servers) never get it.
+    assert.match(args[1], /^http\.https:\/\/github\.com\/\.extraheader=AUTHORIZATION: basic /);
     const b64 = args[1].split("basic ")[1];
     assert.equal(Buffer.from(b64, "base64").toString(), "x-access-token:ghs_secret");
     // The token must never appear verbatim — that is the whole point.

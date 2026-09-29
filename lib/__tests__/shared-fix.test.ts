@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+process.env.AUTH0_SECRET ??= "shared-fix-test-secret";
 import { newSharedFixId, SHARED_FIX_RETENTION_MS, sharedFixExpired, sharedFixOwnerPrefix, sharedFixPath, staleSharedFixPaths, validSharedFix } from "../shared-fix";
 
 test("public shared fixes accept only their bounded canonical record", () => {
@@ -47,6 +49,9 @@ test("current share IDs are unguessable, owner-scoped, and resolve without a ses
   assert.equal(sharedFixPath(id), `${sharedFixOwnerPrefix("auth0|alice")}8210828799999-${id}.json`);
   assert.notEqual(sharedFixOwnerPrefix("auth0|alice"), sharedFixOwnerPrefix("auth0|bob"));
   assert.equal(sharedFixPath("../../secret"), null);
+  // The owner segment is keyed: hashing guessed subjects cannot reproduce it.
+  const plain = createHash("sha256").update("auth0|alice").digest("hex").slice(0, 32);
+  assert.ok(!id.includes(plain));
 });
 
 test("cloud share retention selects only expired and excess records for one owner", () => {

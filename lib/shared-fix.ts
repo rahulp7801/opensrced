@@ -1,13 +1,19 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import { parseRunTarget } from "./run-target";
 import { SHARED_FIX_RETENTION_MS, type SharedFix } from "./shared-fix-data";
 export { SHARED_FIX_RETENTION_MS, type SharedFix } from "./shared-fix-data";
 const LEGACY_SHARED_FIX_ID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const SCOPED_SHARED_FIX_ID = /^s_(\d{13})_([a-f0-9]{32})_([a-f0-9]{32})$/;
 
+// Keyed so the public link cannot be reversed to its owner: GitHub subjects
+// are "github|<numeric id>", and a plain hash of that is brute-forced in
+// minutes. Links made before this still resolve (their path comes from the
+// id); only their per-account pruning stops matching, and they expire anyway.
 function ownerKey(owner: string): string {
   if (!owner) throw new Error("Share owner is required");
-  return createHash("sha256").update(owner).digest("hex").slice(0, 32);
+  const secret = process.env.AUTH0_SECRET;
+  if (!secret) throw new Error("AUTH0_SECRET is required to share fixes");
+  return createHmac("sha256", secret).update(`shared-fix-owner\n${owner}`).digest("hex").slice(0, 32);
 }
 
 export function newSharedFixId(owner: string, now = Date.now(), entropy = randomBytes(16)): string {

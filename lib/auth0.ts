@@ -47,7 +47,12 @@ export const auth0 = new Auth0Client({
   domain: domain() ?? (inactiveConfig ? "local.invalid" : undefined),
   clientId: process.env.AUTH0_CLIENT_ID ?? (inactiveConfig ? "inactive-client" : undefined),
   clientSecret: process.env.AUTH0_CLIENT_SECRET ?? (inactiveConfig ? "inactive-client-secret" : undefined),
-  secret: process.env.AUTH0_SECRET ?? (inactiveConfig ? "0".repeat(64) : undefined),
+  // A per-boot random placeholder, never a constant: getSession() still runs
+  // in routes, and a public secret would let anyone forge a session cookie.
+  // Web Crypto, since middleware (Edge runtime) imports this module too.
+  secret: process.env.AUTH0_SECRET ?? (inactiveConfig
+    ? Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, "0")).join("")
+    : undefined),
   beforeSessionSaved: prepareSession,
   // Signed-out visitors get 204 rather than 401, so public pages don't log a
   // failed request (and SWR doesn't retry it). useUser() maps 204 to null.

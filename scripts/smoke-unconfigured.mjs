@@ -32,7 +32,8 @@ assert.equal(healthJson.status, 'degraded');
 assert.equal(healthJson.deps.auth0_config, false);
 assert.ok(healthJson.missing.includes('auth0_config'));
 
-for (const path of ['/api/activity', '/auth/login']) {
+// A static-looking suffix must not route around the middleware gate.
+for (const path of ['/api/activity', '/auth/login', '/api/dispatches/x.js', '/api/dispatches/x.css']) {
   const response = await request(path);
   assert.equal(response.status, 503, `${path} should fail predictably`);
   assert.match(response.headers.get('cache-control') ?? '', /no-store/);

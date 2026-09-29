@@ -193,5 +193,7 @@ export const config = {
   // Skip middleware for static files, images, and Next.js internals.
   // Everything else must pass through — including /auth/*, which only
   // exists because auth0.middleware() serves it above.
-  matcher: ["/((?!_next/static|_next/image|_next/data|favicon.ico|.*\\.(?:svg|png|jpg|ico|css|js)$).*)"],
+  // Static-file exemption is top-level only (e.g. /icon.svg). Matching any
+  // path ending in .js let /api/dispatches/x.js skip the gate entirely.
+  matcher: ["/((?!_next/static|_next/image|_next/data|favicon.ico|[^/]+\\.(?:svg|png|jpg|ico|css|js)$).*)"],
 };

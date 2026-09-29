@@ -28,7 +28,9 @@ Jobs receive only user provider credentials and two write tokens,
    each scoped to its full run record or compact history summary. Runs, Activity, and
    Pull Requests use summaries without repeatedly downloading full logs. Each account retains its newest
 100 run records; bounded cleanup removes older full records, summaries, and cancellation markers after a worker starts. Account-scoped tombstones and a bounded cancellation index prevent a late worker upload from reviving a stopped run in compact history. Three Blob leases bound agent concurrency across web instances.
-Workers stop after 40 minutes; abandoned records expire after 45 minutes.
+Workers stop after 40 minutes; abandoned records expire after 45 minutes. A
+finished worker's VM is stopped the first time the app reads its run, so a run
+nobody opens afterwards still idles until the 40-minute limit.
 
 1. Link the repository to the intended Vercel project. The committed
    `vercel.json` supplies the required install command.
@@ -37,7 +39,9 @@ Workers stop after 40 minutes; abandoned records expire after 45 minutes.
 3. From an authenticated environment, run
    `node scripts/create-worker-snapshot.mjs <full-committed-sha>`.
    Save its output as `OPENSRCER_WORKER_SNAPSHOT_ID` in the project.
-   Rebuild this snapshot whenever agent or MCP code changes.
+   Rebuild this snapshot whenever agent or MCP code changes. Snapshots are
+   created without an expiry, so the saved ID stays valid until replaced; the
+   first one must come from `a2b1de2` or later.
 4. Deploy, configure Auth0 callback/logout origins, and verify health, login,
    key storage, preview, cancellation, and controlled live PR creation.
 
@@ -195,6 +199,19 @@ checks pass for its exact commit. CI includes the unconfigured browser smoke;
 the same script can be run against the public production endpoint without
 credentials. Staging retains Vercel authentication.
 
+### Pre-release review (September 28, 2026)
+
+The hosted run path, authentication, anonymous surfaces, and the repository
+tool boundary were reviewed before any live credential exists. Fixes include:
+OIDC logout no longer carries the ID token (which holds the GitHub token
+claim); org admin status is re-checked on use; VMs are stopped after a run
+finishes, after a timed-out create, and on cancel (an unconfirmed stop is
+stated in the run log); public PR pushes carry the user's token in the
+Sandbox; git credentials are scoped to github.com; paths with static-file
+suffixes no longer skip middleware; and unconfigured deployments use a random
+session secret. Unit, MCP, browser, HTTP, secret-gate, graph, and restricted
+CLI checks passed locally on Node 22; the container image was not rebuilt.
+
 ## Outstanding release gates
 
 The provider-disclosure checkpoint adds a real Gitleaks regression gate to
@@ -207,6 +224,9 @@ unavailable rather than clean. The open CodeQL flows are documented in
 [SECURITY.md](SECURITY.md#reviewed-external-data-flows) and remain visible.
 
 - Configure Auth0, private Blob, and worker snapshots in both Vercel projects.
+  Private-org connections also need `GITHUB_APP_SLUG`; there is no default app.
+- Add a Vercel Firewall rate limit for `/api/fixes/*`: each anonymous lookup is
+  an uncached Blob read.
 - If the local alternative is used, exercise the CI-verified Linux image on its
   target host with the real reverse proxy and persistent volumes.
 - Verify Auth0 login/logout, GitHub token scopes, saved keys, preview, live PR,

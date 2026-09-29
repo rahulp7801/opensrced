@@ -38,6 +38,11 @@ intentional data flows, not a claim that repository content is non-sensitive.
   clean verdict or proof that a patch is safe.
 - Provider responses and PR results are written to owner-scoped run logs;
   returned PR URLs and structured log values are validated before storage.
+- Git credentials are sent only to github.com, so a repository's own LFS or
+  remote configuration cannot receive them. The repository tool server does
+  not hold the provider key, and ignores graph files committed by the target.
+- Logout omits the ID token, which carries the GitHub token claim, from the
+  redirect URL. Shared fix links identify their owner only by a keyed hash.
 
 Five medium CodeQL data-flow findings remain open for visibility and continued
 review as of September 17, 2026. Analysis success is not a finding-free audit.

@@ -1,16 +1,16 @@
-// Local dispatcher. Spawns `contribai.exe target <url> [--dry-run]` as a
-// subprocess, streams stdout/stderr to .dispatches/<id>.log, and exposes
-// progress via an in-memory map surfaced through /api/dispatches.
+// Local dispatch registry. lib/agentic-dispatcher.ts spawns the run and
+// streams it to .dispatches/<id>.log; this file tracks ownership, status,
+// cancellation and log reads, surfaced through /api/dispatches.
 //
 // Intended for single-node local use. Dispatches do not survive Next.js
 // process restarts, but the log files do.
 
-import { spawn, execFile, execFileSync, type ChildProcess } from "node:child_process";
-import { closeSync, createWriteStream, fstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, existsSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { execFile, execFileSync, type ChildProcess } from "node:child_process";
+import { closeSync, fstatSync, mkdirSync, openSync, readFileSync, readSync, existsSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { listAll as listSidecars, persist, read as readSidecar } from "./dispatch-store";
-import { childEnv, ghEnv } from "./child-env";
+import { ghEnv } from "./child-env";
 import { findGitHubPullUrl } from "./github-pull-url";
 
 const DISPATCH_DIR = join(process.cwd(), ".dispatches");
@@ -308,141 +308,13 @@ function ensureDir() {
   if (!existsSync(DISPATCH_DIR)) mkdirSync(DISPATCH_DIR, { recursive: true });
 }
 
-export function canDispatchLocally(): boolean {
-  return Boolean(process.env.CONTRIBAI_BIN);
-}
-
-export type StartDispatchOpts = {
-  // Pre-resolved token. Crucible (private-org) flows resolve the
-  // installation token via lib/crucible/tokens.ts::resolveGithubToken
-  // before calling. There is deliberately no env/CLI fallback: a
-  // background dispatch must never silently run as the deployer.
-  token?: string;
-  // User-provided Anthropic API key (from encrypted cookie).
-  anthropicKey?: string;
-  // Auth0 `sub` of the requesting user — recorded on the dispatch so only
-  // they can read its log or cancel it.
-  auth0UserId?: string;
-};
-
-export function startDispatch(
-  repoUrl: string,
-  dryRun: boolean,
-  mode: DispatchMode = "target",
-  extraArgs: string[] = [],
-  opts: StartDispatchOpts = {},
-): Dispatch {
-  const bin = process.env.CONTRIBAI_BIN;
-  if (!bin) throw new Error("CONTRIBAI_BIN is not set");
-  if (!existsSync(bin)) throw new Error(`contribai binary not found at ${bin}`);
-
-  ensureDir();
-  const id = `d_${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}_${randomUUID().slice(0, 6)}`;
-  const logPath = join(DISPATCH_DIR, `${id}.log`);
-  // `hunt` takes no positional arg; target/solve take a repo URL.
-  const args: string[] = mode === "hunt" ? ["hunt", "-v"] : [mode, repoUrl, "-v"];
-  if (dryRun) args.push("--dry-run");
-  args.push(...extraArgs);
-  const config = process.env.CONTRIBAI_CONFIG;
-  if (config) args.push("--config", config);
-
-  // Allowlisted environment: the child gets PATH, HOME and friends plus the
-  // credentials this one user supplied — never AUTH0_SECRET, the GitHub App
-  // private key, or the webhook secret. See lib/child-env.ts.
-  const token = opts.token;
-  const env: NodeJS.ProcessEnv = childEnv({
-    GITHUB_TOKEN: token,
-    ANTHROPIC_API_KEY: opts.anthropicKey,
-    CONTRIBAI_CONFIG: process.env.CONTRIBAI_CONFIG,
-  });
-
-  // On dry-run solves, tell contribai to dump each generated contribution as JSON
-  // to .dispatches/<id>/draft-*.json so the UI can preview it before going live.
-  const draftDir = join(DISPATCH_DIR, id);
-  if (dryRun && mode === "solve") {
-    env.CONTRIBAI_DRAFT_DIR = draftDir;
-  }
-
-  // Skip the LLM self-review gate by default — when running with a small
-  // local model it rejects its own output too aggressively and discards
-  // otherwise-good drafts. The dashboard's DraftPreview UI is the real
-  // human review gate. Override with CONTRIBAI_DISABLE_SELF_REVIEW=0.
-  if (env.CONTRIBAI_DISABLE_SELF_REVIEW === undefined) {
-    env.CONTRIBAI_DISABLE_SELF_REVIEW = "1";
-  }
-
-  // Always create draft PRs (not ready-for-review). The user wants every
-  // automatically-opened PR to be a draft so they can review/refine before
-  // marking ready. Override with CONTRIBAI_DRAFT_PR=0 to ship live PRs.
-  if (env.CONTRIBAI_DRAFT_PR === undefined) {
-    env.CONTRIBAI_DRAFT_PR = "1";
-  }
-
-  const out = createWriteStream(logPath, { mode: 0o600 });
-  out.write(
-    `[dispatcher] ${new Date().toISOString()}\n` +
-    `[dispatcher] bin: ${bin}\n` +
-    `[dispatcher] args: ${args.join(" ")}\n` +
-    `[dispatcher] env: GITHUB_TOKEN=${token ? "(present, " + token.length + " chars)" : "(missing)"} · GEMINI_API_KEY=${env.GEMINI_API_KEY ? "(present)" : "(missing)"} · ANTHROPIC_API_KEY=${env.ANTHROPIC_API_KEY ? "(present)" : "(missing)"}\n` +
-    `[dispatcher] ─────────────────────────────\n`,
-  );
-
-  const child = spawn(bin, args, { env, windowsHide: true });
-  // Extract --issue N from extraArgs so the UI can build a direct link
-  // back to the GitHub issue.
-  let issueNumber: number | undefined;
-  for (let i = 0; i < extraArgs.length - 1; i++) {
-    if (extraArgs[i] === "--issue") {
-      const n = Number(extraArgs[i + 1]);
-      if (Number.isFinite(n)) issueNumber = n;
-      break;
-    }
-  }
-  const dispatch: Dispatch = {
-    id,
-    auth0_user_id: opts.auth0UserId,
-    repo_url: repoUrl,
-    mode,
-    dry_run: dryRun,
-    issue_number: issueNumber,
-    started_at: new Date().toISOString(),
-    status: "running",
-    pid: child.pid,
-    log_path: logPath,
-  };
-  registerDispatch(dispatch, child);
-
-  child.stdout.pipe(out, { end: false });
-  child.stderr.pipe(out, { end: false });
-  child.on("close", (code, signal) => {
-    dispatch.ended_at = new Date().toISOString();
-    dispatch.exit_code = code ?? undefined;
-    // On Windows, taskkill produces exit code 1 and no signal; we track the
-    // intent via `cancelRequested`.
-    const wasKilled =
-      signal === "SIGKILL" || signal === "SIGTERM" || cancelRequested.has(id);
-    dispatch.status = wasKilled ? "killed" : code === 0 ? "succeeded" : "failed";
-    cancelRequested.delete(id);
-    children.delete(id);
-    out.write(
-      `\n[dispatcher] ─────────────────────────────\n` +
-      `[dispatcher] exited at ${dispatch.ended_at} · status=${dispatch.status} · exit=${code ?? "n/a"}${wasKilled ? " (cancelled by user)" : ""}\n`,
-    );
-    out.end();
-    persist(dispatch);
-  });
-  child.on("error", (err) => {
-    dispatch.ended_at = new Date().toISOString();
-    dispatch.status = "failed";
-    out.write(`\n[dispatcher] spawn error: ${err.message}\n`);
-    out.end();
-    persist(dispatch);
-  });
-
-  return dispatch;
-}
-
 const cancelRequested = new Set<string>();
+
+/** True once if the user cancelled this dispatch. The spawner's close handler
+ *  calls it to report "killed" rather than "failed". */
+export function consumeCancelRequest(id: string): boolean {
+  return cancelRequested.delete(id);
+}
 
 /** Cancel a running dispatch. Kills the child process tree on Windows.
  *
@@ -495,37 +367,6 @@ export function cancelDispatch(
   }
 
   return { ok: false, message: `No running process found for dispatch ${id}` };
-}
-
-export function listDrafts(id: string): Array<{ issue_number: number; title: string; path: string }> {
-  if (!isValidDispatchId(id)) return [];
-  const draftDir = join(DISPATCH_DIR, id);
-  if (!existsSync(draftDir)) return [];
-  const out: Array<{ issue_number: number; title: string; path: string }> = [];
-  for (const f of readdirSync(draftDir)) {
-    const m = /^issue-(\d+)\.json$/.exec(f);
-    if (!m) continue;
-    const path = join(draftDir, f);
-    try {
-      const parsed = JSON.parse(readFileSync(path, "utf8")) as { title?: string };
-      out.push({ issue_number: Number(m[1]), title: parsed.title ?? "", path });
-    } catch {
-      /* skip */
-    }
-  }
-  out.sort((a, b) => a.issue_number - b.issue_number);
-  return out;
-}
-
-export function readDraft(id: string, issueNumber: number) {
-  if (!isValidDispatchId(id) || !Number.isInteger(issueNumber) || issueNumber < 0) return null;
-  const path = join(DISPATCH_DIR, id, `issue-${issueNumber}.json`);
-  if (!existsSync(path)) return null;
-  try {
-    return JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    return null;
-  }
 }
 
 export function listDispatches(viewerId: string | null, limit = Number.POSITIVE_INFINITY): Dispatch[] {

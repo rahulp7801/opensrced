@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { StatusChip, StatusDot } from "./status-dot";
 import { IconExternal, IconTrigger } from "./icons";
-import { DraftPreview } from "./draft-preview";
 import { pollJson } from "@/lib/poll-json";
 import { cn, formatRelative } from "@/lib/utils";
 import { parseSplitHunks, type DiffRow } from "@/lib/diff-view";
@@ -431,7 +430,6 @@ export function DispatchList() {
 
             {/* Log */}
             <LogViewer log={detail.log} isRunning={detail.status === "running"} logRef={logRef} onScroll={onLogScroll} />
-            {detail.mode !== "agentic" && <DraftPreview key={detail.id} dispatchId={detail.id} repoUrl={detail.repo_url} />}
           </div>
         ) : (
           <div className="border border-border bg-surface/40 p-10 text-center text-[12px] text-paper-muted">

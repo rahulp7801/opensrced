@@ -1,13 +1,10 @@
 // Agentic solve path — spawns `claude -p` headless with the opensrcer MCP
-// server configured. Instead of calling contribai.exe (deterministic
-// pre-attach + Sonnet one-shot), Claude drives exploration itself by
-// calling list_files/read_file/grep/find_definition/find_references against
-// the cached shallow clone until it has enough context to propose a fix.
+// server configured. Claude drives exploration itself by calling
+// list_files/read_file/grep/find_definition/find_references against the
+// cached shallow clone until it has enough context to propose a fix.
 //
-// Why split this out from `lib/dispatcher.ts`: that file is hard-wired to
-// CONTRIBAI_BIN and the target/solve/hunt argument shape. Rather than
-// sprinkle if-agentic branches through it, the agentic flow reuses the
-// dispatch log format + registry (via registerDispatch) but owns its spawn.
+// Reuses the dispatch log format + registry in `lib/dispatcher.ts` (via
+// registerDispatch) but owns its spawn.
 //
 // Two entry points — issues and security findings — share one spawn core.
 // They previously existed as two ~150-line near-identical functions; the
@@ -22,7 +19,7 @@ import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { randomUUID } from "node:crypto";
 import { parseRunTarget } from "./run-target";
-import { registerDispatch, type Dispatch } from "./dispatcher";
+import { consumeCancelRequest, registerDispatch, type Dispatch } from "./dispatcher";
 import { patch, persist } from "./dispatch-store";
 import { createDraftPrFromLog } from "./agentic-pr";
 import { classifyScope, type ScopeInfo } from "./scope";
@@ -582,7 +579,9 @@ async function spawnDispatch(
     if (spawnFailed) return;
     dispatch.ended_at = new Date().toISOString();
     dispatch.exit_code = code ?? undefined;
-    const wasKilled = signal === "SIGKILL" || signal === "SIGTERM" || killedByTimeout;
+    // taskkill on Windows exits 1 with no signal, so a user cancel is only
+    // visible through the flag cancelDispatch() leaves behind.
+    const wasKilled = signal === "SIGKILL" || signal === "SIGTERM" || killedByTimeout || consumeCancelRequest(dispatch.id);
     dispatch.status = wasKilled ? "killed" : code === 0 && result.complete && !result.failed ? "succeeded" : "failed";
     out.write(
       `\n[agentic-dispatcher] ─────────────────────────────\n` +

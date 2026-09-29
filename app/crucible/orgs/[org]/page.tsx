@@ -11,6 +11,8 @@ import { listInstallationRepos } from "@/lib/crucible/advisories";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Organization repos" };
+
 export default async function OrgReposPage({
   params,
 }: {

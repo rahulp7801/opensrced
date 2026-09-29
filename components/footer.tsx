@@ -5,7 +5,7 @@ export function SiteFooter() {
         <span>opensrcer</span>
         <div className="flex items-center gap-4">
           <a className="hover:text-paper" href="https://github.com/rahulp7801/opensrced" target="_blank" rel="noreferrer">
-            source
+            Source
           </a>
           <a className="hover:text-paper" href="/api/health">
             Service status

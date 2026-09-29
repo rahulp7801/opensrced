@@ -36,6 +36,8 @@ function connectErrorMessage(key: string): string {
   return "The GitHub organization connection failed. Please try again.";
 }
 
+export const metadata = { title: "Settings" };
+
 export default async function SettingsPage({
   searchParams,
 }: {

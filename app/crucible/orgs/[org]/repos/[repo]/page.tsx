@@ -43,6 +43,8 @@ function severityChip(sev: SecurityFinding["severity"]) {
   }
 }
 
+export const metadata = { title: "Security findings" };
+
 export default async function RepoFindingsPage({
   params,
 }: {

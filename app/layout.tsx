@@ -29,7 +29,7 @@ const description = "Find an issue, explore the code, and review an AI-generated
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
-  title,
+  title: { default: title, template: "%s · opensrcer" },
   description,
   applicationName: "opensrcer",
   openGraph: { type: "website", title, description },

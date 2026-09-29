@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
+  title: "Shared fix",
   robots: { index: false, follow: false },
 };
 

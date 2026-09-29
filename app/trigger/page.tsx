@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import { PageHeading } from "@/components/page-heading";
 import { TriggerForm } from "@/components/trigger-form";
 
+export const metadata = { title: "New run" };
+
 export default function TriggerPage() {
   return (
     <div className="mx-auto w-full max-w-[1200px] px-5 py-10 sm:px-8">

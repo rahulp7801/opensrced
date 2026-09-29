@@ -3,6 +3,8 @@ import { PageHeading } from "@/components/page-heading";
 import { IssueScanner } from "@/components/issue-scanner";
 import { SuggestedIssues } from "@/components/suggested-issues";
 
+export const metadata = { title: "Issues" };
+
 export default function IssuesPage() {
   return (
     <div className="mx-auto w-full max-w-[1200px] px-5 py-10 sm:px-8">

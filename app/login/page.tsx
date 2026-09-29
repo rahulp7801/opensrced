@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { authConfigured } from "@/lib/auth-config";
 import { safeReturnTo } from "@/lib/safe-return-to";
 
+export const metadata = { title: "Sign in" };
+
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ returnTo?: string }> }) {
   const params = await searchParams;
   const returnTo = safeReturnTo(params.returnTo);

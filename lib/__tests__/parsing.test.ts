@@ -204,6 +204,11 @@ describe("classifyScope", () => {
     assert.equal(s.bucket, "doc");
   });
 
+  test("a README issue that names a function call is not doc-only", () => {
+    const s = classifyScope("README.md example is wrong", "The example calling render() in README.md throws.");
+    assert.notEqual(s.bucket, "doc");
+  });
+
   test("buckets a single source file as leaf", () => {
     const s = classifyScope("Crash in src/parser.ts", "`src/parser.ts` throws on empty input.");
     assert.equal(s.bucket, "leaf");

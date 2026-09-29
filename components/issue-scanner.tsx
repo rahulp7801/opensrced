@@ -173,6 +173,7 @@ export function IssueScanner() {
     ? scan.issues.filter(
         (i) =>
           (filter === "solvable" ? i.solvable : true) &&
+          (beginner === "good-first" ? isGoodFirstIssue(i) : true) &&
           now - Date.parse(i.created_at) <= RECENT_CUTOFF_MS,
       ).length
     : 0;
@@ -181,6 +182,7 @@ export function IssueScanner() {
     ? scan.issues.filter(
         (i) =>
           (filter === "solvable" ? i.solvable : true) &&
+          (age === "recent" ? !Number.isFinite(Date.parse(i.created_at)) || now - Date.parse(i.created_at) <= RECENT_CUTOFF_MS : true) &&
           isGoodFirstIssue(i),
       ).length
     : 0;
@@ -193,7 +195,10 @@ export function IssueScanner() {
           e.preventDefault();
           // Explicit submit forces a fresh scan even if cached; auto-load
           // from ?repo= (the useEffect below) uses the cache.
-          if (repoUrl.trim()) void runScan(repoUrl.trim(), true);
+          if (repoUrl.trim()) {
+            setExpandedNumber(null);
+            void runScan(repoUrl.trim(), true);
+          }
         }}
         className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4 sm:flex-row sm:items-center"
       >
@@ -424,7 +429,7 @@ function fmtRelative(iso: string, now: number) {
   const days = Math.floor(hours / 24);
   if (days < 30) return `${days}d ago`;
   const months = Math.floor(days / 30);
-  if (months < 12) return `${months}mo ago`;
+  if (days < 365) return `${months}mo ago`;
   const years = Math.floor(days / 365);
   return `${years}y ago`;
 }

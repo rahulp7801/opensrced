@@ -87,10 +87,12 @@ async function searchRepos(filters: DiscoverFilters, token?: string | null, sign
   // GitHub's code-search accepts a range qualifier `stars:A..B`. Using the
   // range form (when both bounds are set) produces a cleaner query than two
   // separate `>=A` and `<=B` qualifiers.
-  const starQualifier =
-    filters.maxStars && filters.maxStars > filters.minStars
-      ? `stars:${filters.minStars}..${filters.maxStars}`
-      : `stars:>=${filters.minStars}`;
+  // A ceiling below the floor matches nothing; never fall back to `>=min`,
+  // which would return the largest repositories instead.
+  if (filters.maxStars !== undefined && filters.maxStars < filters.minStars) return [];
+  const starQualifier = filters.maxStars
+    ? `stars:${filters.minStars}..${filters.maxStars}`
+    : `stars:>=${filters.minStars}`;
   const query = [starQualifier, "archived:false"];
   if (filters.language) query.push(`language:${JSON.stringify(filters.language)}`);
   if (filters.maxRepoAgeDays && filters.maxRepoAgeDays > 0) {
@@ -165,6 +167,8 @@ export async function discover(filters: DiscoverFilters, token?: string | null, 
           });
         }
       } catch {
+        // Cut off by the deadline: count it as not scanned, not as failed.
+        if (signal?.aborted) { queue.push(repo); break; }
         warnings.push(`Could not scan ${repo.fullName}.`);
         // A single repo failing (e.g. transient rate limit) shouldn't kill
         // the whole scan. Skip and move on.
@@ -177,7 +181,11 @@ export async function discover(filters: DiscoverFilters, token?: string | null, 
   // Sort newest-first; client-side filters refine further.
   issues.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
 
-  if (completed === 0) throw new Error("GitHub issue scans failed. Check access and rate limits, then try again.");
+  if (completed === 0) {
+    throw new Error(signal?.aborted
+      ? "The search timed out before any repository was scanned. Try fewer repositories."
+      : "GitHub issue scans failed. Check access and rate limits, then try again.");
+  }
   if (queue.length) warnings.push(`${queue.length} repositories were not scanned before the search deadline.`);
   return { repos, issues, warnings };
 }

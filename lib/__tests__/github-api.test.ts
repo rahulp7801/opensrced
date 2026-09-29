@@ -57,6 +57,50 @@ test("anonymous issue scans filter PRs and retain comment counts", async (t) => 
   assert.equal(issues[0].comments, 12);
 });
 
+test("ordinary wording is not mistaken for an already-resolved issue", async (t) => {
+  const base = { labels: [], state: "open", user: { login: "alice" }, html_url: "https://github.com/acme/app/issues/1",
+    created_at: "2026-09-01", updated_at: "2026-09-01", assignees: [], comments: 0, title: "Search crashes" };
+  const live = ["This can be solved with 2 small changes", "First addressed in 2024 planning", "Ping me once this is fixed", "Blocking release until this is resolved."];
+  const done = ["Fixed in #123", "Resolved by PR 456", "This was already fixed", "Duplicate of #9"];
+  const page = [...live, ...done].map((body, n) => ({ ...base, number: n + 1, body }));
+  t.mock.method(globalThis, "fetch", async () => Response.json(page));
+  const issues = await listIssues("acme", "app", 50);
+  const resolved = (body: string) => /already resolved/i.test(issues.find(i => i.body === body)?.reason ?? "");
+  for (const body of live) assert.equal(resolved(body), false, body);
+  for (const body of done) assert.equal(resolved(body), true, body);
+});
+
+test("label keywords match whole words, not substrings", async (t) => {
+  const base = { body: "", state: "open", user: { login: "alice" }, html_url: "https://github.com/acme/app/issues/1",
+    created_at: "2026-09-01", updated_at: "2026-09-01", assignees: [], comments: 0, title: "Something" };
+  const page = [
+    { ...base, number: 1, labels: ["docker", "enhancement"] },
+    { ...base, number: 2, labels: ["debugger"] },
+    { ...base, number: 3, labels: ["ci-workflow"] },
+    { ...base, number: 4, labels: ["syntax-highlighting"] },
+    { ...base, number: 5, labels: ["type: bug", "priority: low"] },
+    { ...base, number: 6, labels: ["docs"] },
+  ];
+  t.mock.method(globalThis, "fetch", async () => Response.json(page));
+  const byNumber = new Map((await listIssues("acme", "app", 50)).map(i => [i.number, i]));
+  assert.equal(byNumber.get(1)?.category, "feature");
+  assert.notEqual(byNumber.get(2)?.category, "bug");
+  assert.equal(byNumber.get(3)?.severity, "medium");
+  assert.equal(byNumber.get(4)?.severity, "medium");
+  assert.equal(byNumber.get(5)?.category, "bug");
+  assert.equal(byNumber.get(5)?.severity, "low");
+  assert.equal(byNumber.get(6)?.category, "docs");
+});
+
+test("anonymous issue scans are not starved by PRs on the same page", async (t) => {
+  const base = { title: "Fix typo", body: "", labels: [], state: "open", user: { login: "alice" },
+    html_url: "https://github.com/acme/app/issues/1", created_at: "2026-09-01", updated_at: "2026-09-01", assignees: [], comments: 0 };
+  const page = Array.from({ length: 40 }, (_, n) => ({ ...base, number: n + 1, ...(n % 2 ? {} : { pull_request: {} }) }));
+  t.mock.method(globalThis, "fetch", async () => Response.json(page));
+  const issues = await listIssues("acme", "app", 5);
+  assert.equal(issues.length, 5);
+});
+
 test("issue scans bound GitHub concurrency and label payloads", async (t) => {
   let active = 0;
   let peak = 0;
@@ -74,8 +118,8 @@ test("issue scans bound GitHub concurrency and label payloads", async (t) => {
 
   assert.equal(urls.length, 6);
   assert.equal(peak, 3);
-  assert.equal(urls.filter(url => url.includes("per_page=20")).length, 5);
-  assert.equal(urls.filter(url => url.includes("per_page=50")).length, 1);
+  // Anonymous REST scans take a full page because /issues mixes in PRs.
+  assert.equal(urls.filter(url => url.includes("per_page=100")).length, 6);
 });
 
 test("discovery carries the caller token through search and issue queries", async (t) => {
@@ -123,5 +167,7 @@ test("discovery cancellation stops queued scans and preserves completed results"
   assert.equal(calls, 5, "the five queued repositories must not start after cancellation");
   assert.equal(active, 0);
   assert.equal(peak, 4);
-  assert.ok(partial.warnings.some(warning => warning.includes("5 repositories were not scanned")));
+  // In-flight scans cut off by the deadline are unscanned, not access failures.
+  assert.ok(partial.warnings.some(warning => warning.includes("9 repositories were not scanned")));
+  assert.ok(!partial.warnings.some(warning => warning.startsWith("Could not scan")));
 });

@@ -134,7 +134,7 @@ export async function GET(req: NextRequest) {
     return Response.json({
       issues: filtered.slice(0, limit),
       filteredOut: deduped.length - filtered.length,
-      partial: failures > 0 || next < plan.length,
+      partial: failures > 0 || next < plan.length || plan.length < queryPlan.length,
     });
   } catch (err) {
     return Response.json(

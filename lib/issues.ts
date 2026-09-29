@@ -24,11 +24,13 @@ import { classifyScope, type ScopeInfo } from "./scope";
 // the surrounding "body says …" / "comment says …" wrapper.
 const RESOLVED_PATTERNS: RegExp[] = [
   // "Fixed in PR #123", "Resolved by #456", "Merged in #789"
-  /\b(fixed|resolved|solved|addressed|merged|landed|shipped)\s+(?:in|by|via|with|through|as\s+of)\s+(?:(?:pr|pull\s*request|commit)\s*)?#?(\d+)\b/i,
+  // A bare number is not a reference: "solved with 2 changes", "addressed in 2024".
+  /\b(fixed|resolved|solved|addressed|merged|landed|shipped)\s+(?:in|by|via|with|through|as\s+of)\s+(?:(?:pr|pull\s*request|commit)\s*#?|#)(\d+)\b/i,
   // "#123 fixes this" / "PR #456 resolves it"
   /\b(?:pr|pull\s*request|commit)?\s*#(\d+)\s+(fixes|resolves|closes|addresses|solves)\s+(?:this|it|the\s+issue)\b/i,
   // "this was/is already fixed/resolved/merged/shipped"
-  /\bthis\s+(?:is|was|has\s+been)\s+(?:already\s+)?(fixed|resolved|solved|addressed|merged|shipped|released)\b/i,
+  // …but not "once/until/when this is fixed", which is a wish, not a status.
+  /(?<!\b(?:once|until|till|when|after|if|unless|before)\s+)\bthis\s+(?:is|was|has\s+been)\s+(?:already\s+)?(fixed|resolved|solved|addressed|merged|shipped|released)\b/i,
   // "duplicate of #123" / "dup of #456"
   /\b(?:duplicate|dup)\s+of\s+#?(\d+)/i,
   // "closing as fixed/resolved/duplicate/obsolete"
@@ -264,10 +266,12 @@ async function runListIssues(
     labels: Array<string | { name: string }>; user: { login: string } | null;
     html_url: string; created_at: string; updated_at: string; comments: number;
     assignees: Array<{ login: string }>; pull_request?: unknown };
-  const params = new URLSearchParams({ state: "open", sort: "created", direction: "desc", per_page: String(first) });
+  // /issues also returns PRs, so take a full page and trim after filtering.
+  // ponytail: one page; a PR-heavy repo can still yield fewer than `first`.
+  const params = new URLSearchParams({ state: "open", sort: "created", direction: "desc", per_page: "100" });
   if (labels.length) params.set("labels", labels.join(","));
   const issues = await githubApi<RestIssue[]>(`/repos/${owner}/${repo}/issues?${params}`, token, undefined, signal);
-  return issues.filter((issue) => !issue.pull_request).map((issue) => ({
+  return issues.filter((issue) => !issue.pull_request).slice(0, first).map((issue) => ({
     number: issue.number, title: issue.title, body: issue.body ?? "", state: issue.state,
     labels: issue.labels.map((label) => typeof label === "string" ? { name: label } : label),
     author: issue.user, url: issue.html_url, createdAt: issue.created_at, updatedAt: issue.updated_at,
@@ -286,8 +290,8 @@ function scoreIssue(i: GhIssue): ScannedIssue {
   // ── Category ────────────────────────────────────────
   const category: IssueCategory = (() => {
     if (labels.some((l) => /security|cve|vuln/.test(l))) return "security";
-    if (labels.some((l) => /bug|crash|regression|defect/.test(l))) return "bug";
-    if (labels.some((l) => /doc/.test(l))) return "docs";
+    if (labels.some((l) => /\b(bugs?|crash|regression|defect)\b/.test(l))) return "bug";
+    if (labels.some((l) => /\b(docs?|documentation)\b/.test(l))) return "docs";
     if (labels.some((l) => /performance|perf|slow/.test(l))) return "performance";
     if (labels.some((l) => /test/.test(l))) return "test";
     if (labels.some((l) => /refactor|cleanup/.test(l))) return "refactor";
@@ -304,10 +308,10 @@ function scoreIssue(i: GhIssue): ScannedIssue {
 
   // ── Severity ────────────────────────────────────────
   const severity: Severity = (() => {
-    if (labels.some((l) => /critical|p0/.test(l))) return "critical";
+    if (labels.some((l) => /\b(critical|p0)\b/.test(l))) return "critical";
     if (category === "security") return "high";
-    if (labels.some((l) => /high|p1/.test(l))) return "high";
-    if (labels.some((l) => /low|trivial|nice|minor/.test(l))) return "low";
+    if (labels.some((l) => /\b(high|p1)\b/.test(l))) return "high";
+    if (labels.some((l) => /\b(low|trivial|nice|minor)\b/.test(l))) return "low";
     if (/\b(crash|data loss|corruption|panic|segfault)\b/.test(all)) return "high";
     if (/\b(typo|minor|cosmetic)\b/.test(all)) return "low";
     return "medium";

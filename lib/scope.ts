@@ -208,7 +208,7 @@ export function classifyScope(title: string, body: string): ScopeInfo {
   // Doc short-circuit: every mentioned path is docs/packaging, AND no
   // code-shaped symbols (function calls) appear. If code symbols show up,
   // it's probably a source bug that *also* wants a README note.
-  const hasCallSymbol = symbols.some((s) => s.endsWith(")") || /[a-z][A-Z]|_/.test(s));
+  const hasCallSymbol = /\b[a-zA-Z_][\w.]{2,}\(/.test(text) || symbols.some((s) => /[a-z][A-Z]|_/.test(s));
   if (files.length > 0 && files.every(isDocPath) && !hasCallSymbol) {
     return {
       bucket: "doc",

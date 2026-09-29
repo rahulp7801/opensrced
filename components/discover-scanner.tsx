@@ -349,9 +349,11 @@ export function DiscoverScanner() {
                 {filtered.length === 0 ? (
                   <tr>
                     <td colSpan={11} className="py-10 text-center text-paper-muted text-[12px]">
-                      {data.issue_count === 0
+                      {data.repo_count === 0
                         ? "No repos matched. Loosen the star threshold or clear the language filter."
-                        : "Issues found but all filtered out. Relax the age/difficulty/scope pills."}
+                        : data.issue_count === 0
+                          ? "Repos matched, but none had open issues. Try a different star range or language."
+                          : "Issues found but all filtered out. Relax the age/difficulty/scope pills."}
                     </td>
                   </tr>
                 ) : (
@@ -688,7 +690,7 @@ function fmtRelative(iso: string, now: number): string {
   const days = Math.floor(hours / 24);
   if (days < 30) return `${days}d ago`;
   const months = Math.floor(days / 30);
-  if (months < 12) return `${months}mo ago`;
+  if (days < 365) return `${months}mo ago`;
   const years = Math.floor(days / 365);
   return `${years}y ago`;
 }

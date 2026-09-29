@@ -289,7 +289,10 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
   // into the shared clone's .git/config and only restored the clean URL on
   // the success path — every failure between here and the push (worktree,
   // diff apply, gitleaks, tests, commit, push) left the credential on disk.
-  const pushAuth = isCrucible ? gitAuthArgs(env.GITHUB_TOKEN) : [];
+  // Public flows push to the user's fork with the user's own token the same
+  // way. Relying on a host credential helper failed in the Sandbox and Docker
+  // (none configured) and elsewhere pushed as the machine's git user.
+  const pushAuth = gitAuthArgs(env.GITHUB_TOKEN);
 
   if (!isCrucible) {
     // No inherited credential to fall back on: without the requesting
@@ -543,8 +546,7 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
     };
   }
 
-  // 6. Push branch. `pushAuth` is empty for public flows (gh/git pick up
-  //    the user's own credentials) and a one-shot auth header for crucible.
+  // 6. Push branch with a one-shot auth header (user token or installation token).
   try {
     await run("git", [...pushAuth, "-C", worktreeDir, "push", "-u", pushRemote, branch], {
       env,

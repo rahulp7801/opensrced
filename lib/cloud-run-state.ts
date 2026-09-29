@@ -5,6 +5,8 @@ import { sanitizeLogValue } from "./sanitize";
 
 export type CloudRun = DispatchRecord & {
   sandbox_name: string;
+  /** Set once the app confirmed the run's VM is stopped. */
+  sandbox_stopped?: boolean;
   expires_at: number;
   log: string;
   log_size: number;
@@ -18,6 +20,8 @@ const TEST_STATUSES = new Set(["passed", "failed", "skipped", "not_run"]);
 const MAX_STORED_LOG_BYTES = 250_000;
 const RUN_ID_RE = /^c_\d{13}_[a-f0-9]{12}$/;
 const MAX_CANCELLATION_RECORDS = 100;
+/** Sandbox VM lifetime. The worker must finish (and record failure) inside it. */
+export const WORKER_TIMEOUT_MS = 40 * 60_000;
 
 export type CloudRunCancellation = { id: string; cancelled_at: string };
 
@@ -183,5 +187,8 @@ export function runLogChunk(run: CloudRun, since: number) {
   const log = Buffer.from(run.log);
   const start = Math.max(0, run.log_size - log.length);
   const offset = Number.isFinite(since) && since >= start && since <= run.log_size ? since - start : 0;
-  return { ...run, log: log.subarray(offset).toString("utf8"), log_reset: since < start || since > run.log_size };
+  const reset = since < start || since > run.log_size;
+  // The stored log is an exact file suffix; say so when serving it whole.
+  const notice = reset && start > 0 ? "…(earlier output omitted)…\n" : "";
+  return { ...run, log: notice + log.subarray(offset).toString("utf8"), log_reset: reset };
 }

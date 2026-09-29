@@ -465,6 +465,39 @@ export function readLogSince(
   }
 }
 
+/** The last `maxBytes` of a log as an exact suffix of the file, for the
+ *  cloud worker's stored record. Unlike readLogSince there is no truncation
+ *  marker, and both ends are cut on UTF-8 character boundaries, so the
+ *  chunk's byte length matches the file range it came from. `size` is the
+ *  file offset where the chunk ends; a character still being written at the
+ *  tail is picked up by the next read. */
+export function readLogTail(id: string, maxBytes = 200_000): { chunk: string; size: number } {
+  if (!isValidDispatchId(id)) return { chunk: "", size: 0 };
+  let handle: number | undefined;
+  try {
+    handle = openSync(join(DISPATCH_DIR, `${id}.log`), "r");
+    const fileSize = fstatSync(handle).size;
+    const length = Math.min(fileSize, maxBytes);
+    const buffer = Buffer.alloc(length);
+    const read = readSync(handle, buffer, 0, length, fileSize - length);
+    let start = 0;
+    while (start < read && (buffer[start] & 0xc0) === 0x80) start++;
+    let end = read;
+    for (let i = read - 1; i >= Math.max(start, read - 4); i--) {
+      const byte = buffer[i];
+      if ((byte & 0xc0) === 0x80) continue;
+      const width = byte >= 0xf0 ? 4 : byte >= 0xe0 ? 3 : byte >= 0xc0 ? 2 : 1;
+      if (read - i < width) end = i;
+      break;
+    }
+    return { chunk: buffer.subarray(start, end).toString("utf8"), size: fileSize - length + end };
+  } catch {
+    return { chunk: "", size: 0 };
+  } finally {
+    if (handle !== undefined) closeSync(handle);
+  }
+}
+
 export function readLog(id: string, maxBytes = 200_000): string {
   return readLogSince(id, 0, maxBytes).chunk;
 }

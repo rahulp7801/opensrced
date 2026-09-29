@@ -9,7 +9,9 @@ import { CapacityError } from "@/lib/concurrency";
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { startCloudRun } from "@/lib/cloud-runs";
 
-export const maxDuration = 120;
+// startCloudRun's bounded steps (capacity reads, record writes, Sandbox.create,
+// protocol check, launch) can exceed 120s; a kill mid-start strands the lease.
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   const auth0UserId = await sessionUserId();

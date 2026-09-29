@@ -37,4 +37,6 @@ test("missing run records protect only the short startup write window", () => {
   assert.equal(cloudRunLeaseIsStarting(current, now), true);
   assert.equal(cloudRunLeaseIsStarting(abandoned, now), false);
   assert.equal(cloudRunLeaseIsStarting(current, now - 1), false, "future reservations are not trusted");
+  const lateWrite = cloudRunLease({ path: abandoned!.path, expires: now + 40 * 60_000, reserved: now - 1_000 });
+  assert.equal(cloudRunLeaseIsStarting(lateWrite!, now), true, "grace counts from the lease write");
 });

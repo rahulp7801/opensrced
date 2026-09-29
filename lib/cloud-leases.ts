@@ -3,7 +3,8 @@ const SLOT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9
 const RUN_STARTUP_GRACE_MS = 2 * 60_000;
 
 export type CloudSlotLease = { id: string; expires: number };
-export type CloudRunLease = { path: string; expires: number };
+/** `reserved` is when the lease was written (older leases lack it). */
+export type CloudRunLease = { path: string; expires: number; reserved?: number };
 
 export function isCloudSlotLease(value: unknown): value is CloudSlotLease {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -16,9 +17,10 @@ export function cloudRunLease(value: unknown): (CloudRunLease & { id: string }) 
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const lease = value as Partial<CloudRunLease>;
   const match = typeof lease.path === "string" ? RUN_PATH_RE.exec(lease.path) : null;
+  const reserved = typeof lease.reserved === "number" && Number.isFinite(lease.reserved) ? { reserved: lease.reserved } : {};
   return match && Number(match[1]) === 9999999999999 - Number(match[3]) &&
     typeof lease.expires === "number" && Number.isFinite(lease.expires) && lease.expires >= 0
-    ? { path: lease.path!, expires: lease.expires, id: match[2] }
+    ? { path: lease.path!, expires: lease.expires, id: match[2], ...reserved }
     : null;
 }
 
@@ -31,6 +33,8 @@ export function cloudRunLeaseIsStarting(
   lease: CloudRunLease & { id: string },
   now = Date.now(),
 ): boolean {
-  const createdAt = Number(/^c_(\d{13})_/.exec(lease.id)?.[1]);
+  // Measured from the lease write, not the run id: slow reads while
+  // reserving can land the write after an id-based window already closed.
+  const createdAt = lease.reserved ?? Number(/^c_(\d{13})_/.exec(lease.id)?.[1]);
   return Number.isFinite(createdAt) && createdAt <= now && now - createdAt < RUN_STARTUP_GRACE_MS;
 }

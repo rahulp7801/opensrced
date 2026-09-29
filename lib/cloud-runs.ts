@@ -1,6 +1,6 @@
 import { del, list, put, BlobPreconditionFailedError } from "@vercel/blob";
 import { generateClientTokenFromReadWriteToken } from "@vercel/blob/client";
-import { Sandbox } from "@vercel/sandbox";
+import { APIError, Sandbox } from "@vercel/sandbox";
 import type { FindingInput, StartAgenticOpts } from "./agentic-dispatcher";
 import { CapacityError } from "./concurrency";
 import {
@@ -22,6 +22,7 @@ import {
   staleCloudRunIds,
   validCloudRun,
   validCloudRunSummary,
+  WORKER_TIMEOUT_MS,
 } from "./cloud-run-state";
 import { cloudRunLease, cloudRunLeaseIsStarting } from "./cloud-leases";
 import { cloudWorkerJobJson } from "./cloud-worker-job";
@@ -33,6 +34,23 @@ import { readJson, updateJson, privateJsonOptions as writeOptions } from "./blob
 
 async function writeRun(path: string, run: CloudRun) {
   await put(path, JSON.stringify(run), { ...writeOptions, allowOverwrite: true, abortSignal: AbortSignal.timeout(15_000) });
+}
+
+/** Stop a run's VM by name, so it works even when Sandbox.create's response
+ *  never arrived. True once no VM can still be running: stopped, gone, or
+ *  never created. False means one may still be alive (and billed). */
+async function stopSandbox(name: string): Promise<boolean> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const sandbox = await Sandbox.get({ name, signal: AbortSignal.timeout(15_000) });
+      if (["stopped", "failed", "aborted"].includes(sandbox.status)) return true;
+      await sandbox.stop({ signal: AbortSignal.timeout(15_000) });
+      return true;
+    } catch (error) {
+      if (error instanceof APIError && error.response.status === 404) return true;
+    }
+  }
+  return false;
 }
 
 async function writeSummary(path: string, run: CloudRun) {
@@ -75,7 +93,7 @@ async function reserveCapacity(path: string, expires: number): Promise<string> {
           !await readJson(lease.path.replace(/\/runs\/[^/]+$/, `/cancelled-runs/${lease.id}.json`))) continue;
     }
     try {
-      await put(key, JSON.stringify({ path, expires }), {
+      await put(key, JSON.stringify({ path, expires, reserved: Date.now() }), {
         ...writeOptions, allowOverwrite: !!stored, ...(stored ? { ifMatch: stored.etag } : {}),
         abortSignal: AbortSignal.timeout(15_000),
       });
@@ -103,12 +121,11 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
   };
   run.log_size = Buffer.byteLength(run.log);
   const leaseKey = await reserveCapacity(path, run.expires_at);
-  let sandbox: Sandbox | undefined;
   try {
     await writeRun(path, run);
     await writeSummary(summaryPath, run);
-    sandbox = await Sandbox.create({ name: run.sandbox_name, source: { type: "snapshot", snapshotId },
-      persistent: false, timeout: 40 * 60_000, signal: AbortSignal.timeout(60_000) });
+    const sandbox = await Sandbox.create({ name: run.sandbox_name, source: { type: "snapshot", snapshotId },
+      persistent: false, timeout: WORKER_TIMEOUT_MS, signal: AbortSignal.timeout(60_000) });
     await assertWorkerProtocol(sandbox);
     const tokenOptions = { allowedContentTypes: ["application/json"],
       validUntil: run.expires_at, allowOverwrite: true, addRandomSuffix: false, cacheControlMaxAge: 60 };
@@ -132,7 +149,7 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
     await pruneCloudRunHistory(opts.auth0UserId).catch(() => {});
     return run;
   } catch (error) {
-    await sandbox?.stop().catch(() => {});
+    await stopSandbox(run.sandbox_name);
     const log = "Could not start the isolated worker. Please retry.\n";
     const failedRun = { ...run, status: "failed" as const, ended_at: new Date().toISOString(), log, log_size: Buffer.byteLength(log) };
     await Promise.allSettled([writeRun(path, failedRun), writeSummary(summaryPath, failedRun)]);
@@ -152,7 +169,14 @@ export async function getCloudRun(owner: string, id: string): Promise<CloudRun |
   if (!found || !validCloudRun(found.value, owner, id)) return null;
   const run = found.value;
   if (await readJson(runCancellationPath(owner, id))) return { ...run, status: "killed", pr_status: "none" };
-  return effectiveCloudRunState(run);
+  const effective = effectiveCloudRunState(run);
+  // A finished worker exits, but its VM stays up (and billed) until the
+  // 40-minute timeout; nothing inside it can stop it. Stop it on first sight.
+  // ponytail: runs nobody polls idle until timeout; a sweeper would close that.
+  if (!runIsActive(effective) && !run.sandbox_stopped && await stopSandbox(run.sandbox_name)) {
+    await writeRun(runPath(owner, id), { ...run, sandbox_stopped: true }).catch(() => {});
+  }
+  return effective;
 }
 
 export async function listCloudRuns(owner: string, limit = 50): Promise<CloudRun[]> {
@@ -243,14 +267,12 @@ export async function cancelCloudRun(owner: string, id: string): Promise<boolean
   let indexSaved = true;
   await updateJson<unknown>(runCancellationIndexPath(owner), [], value =>
     addCloudRunCancellation(value, { id, cancelled_at: cancelledAt })).catch(() => { indexSaved = false; });
-  try {
-    const sandbox = await Sandbox.get({ name: run.sandbox_name, signal: AbortSignal.timeout(15_000) });
-    await sandbox.stop();
-  } catch {
-    // The durable tombstone has already cancelled the run. A missing sandbox
-    // is expected when its timeout and the user's stop action cross.
-  }
-  const cancelled = cancelledCloudRunState(run, cancelledAt);
+  // The durable tombstone has already cancelled the run. If the VM cannot be
+  // confirmed stopped it may still finish and publish, so say so in the log.
+  const stopped = await stopSandbox(run.sandbox_name);
+  const note = stopped ? "" : "\nCancelled, but the worker could not be confirmed stopped. It ends within 40 minutes and may still open a draft PR.\n";
+  const cancelled = { ...cancelledCloudRunState(run, cancelledAt), sandbox_stopped: stopped,
+    log: run.log + note, log_size: run.log_size + Buffer.byteLength(note) };
   await Promise.allSettled([
     writeRun(runPath(owner, id), cancelled),
     writeSummary(runSummaryPath(owner, id), cancelled),

@@ -3,8 +3,8 @@ const { put } = require('@vercel/blob/client');
 const { setTimeout: delay } = require('node:timers/promises');
 const { startAgenticDispatch, startFindingDispatch } = require('../.worker-build/lib/agentic-dispatcher');
 const store = require('../.worker-build/lib/dispatch-store');
-const { readLogSince } = require('../.worker-build/lib/dispatcher');
-const { cloudRunSummary, dispatchStatsFromLog } = require('../.worker-build/lib/cloud-run-state');
+const { readLogTail } = require('../.worker-build/lib/dispatcher');
+const { cloudRunSummary, dispatchStatsFromLog, WORKER_TIMEOUT_MS } = require('../.worker-build/lib/cloud-run-state');
 
 async function main() {
   const { run, path, summaryPath, opts, finding } = JSON.parse(process.env.OPENSRCER_JOB);
@@ -41,10 +41,15 @@ async function main() {
   }
   try {
     const dispatch = await (finding ? startFindingDispatch(run.repo_url, finding, opts) : startAgenticDispatch(run.repo_url, run.issue_number, opts));
-    while (Date.now() < run.expires_at - 15000) {
+    // Stop before the VM is killed (it was created after started_at, so this
+    // is conservative), leaving time to record the failure. expires_at is the
+    // later 45-minute record TTL and was never reached.
+    const deadline = Math.min(run.expires_at, Date.parse(run.started_at) + WORKER_TIMEOUT_MS) - 60000;
+    while (Date.now() < deadline) {
       await delay(3000);
       const record = store.read(dispatch.id) || dispatch;
-      const log = readLogSince(dispatch.id, 0);
+      // An exact file suffix: validCloudRun requires log_size >= its byte length.
+      const log = readLogTail(dispatch.id);
       const update = { ...run, ...record, id: run.id, log_path: '', log: log.chunk, log_size: log.size,
         stats: dispatchStatsFromLog(log.chunk, lastRecord.stats) };
       await publish(update);

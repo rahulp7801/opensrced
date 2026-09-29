@@ -21,6 +21,15 @@ test("large dispatch logs return bounded tails and incremental ranges", async ()
       size: body.length,
       reset: false,
     });
+
+    // Cloud records need an exact suffix: no marker, no split characters.
+    const { readLogTail } = await import("../dispatcher");
+    const euro = Buffer.from("€"); // 3 bytes
+    writeFileSync(".dispatches/d_utf8.log", Buffer.concat([Buffer.from("ab"), euro, Buffer.from("cd"), euro.subarray(0, 2)]));
+    const cut = readLogTail("d_utf8", 6); // starts mid "€", ends mid "€"
+    assert.deepEqual(cut, { chunk: "cd", size: 7 });
+    assert.ok(Buffer.byteLength(cut.chunk) <= cut.size);
+    assert.deepEqual(readLogTail("d_large", 16), { chunk: body.slice(-16), size: body.length });
   } finally {
     process.chdir(original);
     rmSync(root, { recursive: true, force: true });

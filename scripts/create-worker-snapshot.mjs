@@ -26,7 +26,9 @@ try {
   await run('node', ['scripts/smoke-worker-tools.mjs']);
   await run('node', ['scripts/smoke-secret-gate.mjs']);
   await run('env', ['OPENSRCER_GRAPH_PYTHON=/opt/graph/bin/python', 'node', 'scripts/smoke-graph.mjs']);
-  const snapshot = await sandbox.snapshot();
+  // No expiry: OPENSRCER_WORKER_SNAPSHOT_ID pins this image until the next
+  // release rebuilds it, and a platform-default expiry would silently break runs.
+  const snapshot = await sandbox.snapshot({ expiration: 0 });
   console.log(`OPENSRCER_WORKER_SNAPSHOT_ID=${snapshot.snapshotId}`);
 } finally {
   await sandbox.stop().catch(() => {});

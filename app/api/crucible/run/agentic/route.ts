@@ -8,15 +8,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
 import { CapacityError } from "@/lib/concurrency";
 import { startAgenticDispatch, startFindingDispatch } from "@/lib/agentic-dispatcher";
-import { mappingForOrg } from "@/lib/crucible/orgs";
-import { resolveGithubToken } from "@/lib/crucible/tokens";
+import { mappingForRequest, resolveGithubTokenForRequest } from "@/lib/crucible/tokens";
 import { resolveAnthropicKey, resolveGeminiKey, resolveMaxSpendUsd } from "@/lib/api-keys";
 
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { startCloudRun } from "@/lib/cloud-runs";
 import { parseRunTarget } from "@/lib/run-target";
 
-export const maxDuration = 120;
+// startCloudRun's bounded steps (capacity reads, record writes, Sandbox.create,
+// protocol check, launch) can exceed 120s; a kill mid-start strands the lease.
+export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
@@ -73,12 +74,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: "error", message: error instanceof Error ? error.message : "Invalid request" }, { status: 400 });
   }
 
-  const mapping = await mappingForOrg(sub, github_org);
+  const mapping = await mappingForRequest(sub, github_org);
   if (!mapping) {
     return NextResponse.json({ status: "error", message: "org not connected" }, { status: 404 });
   }
 
-  const resolved = await resolveGithubToken({ auth0UserId: sub, githubOrg: github_org });
+  const resolved = await resolveGithubTokenForRequest({ auth0UserId: sub, githubOrg: github_org });
   if (!resolved.token) {
     return NextResponse.json(
       { status: "error", message: "could not mint installation token" },

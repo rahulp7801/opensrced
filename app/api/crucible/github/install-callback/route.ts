@@ -23,6 +23,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getInstallationToken, installationFetch } from "@/lib/crucible/github-app";
 import { appJwt } from "@/lib/crucible/github-app";
 import { saveMapping } from "@/lib/crucible/orgs";
+import { verifyOrgAdmin } from "@/lib/crucible/org-admin";
 import { STATE_COOKIE } from "@/lib/crucible/constants";
 import { getGitHubTokenFromSession } from "@/lib/github-token";
 import { auth0 } from "@/lib/auth0";
@@ -45,42 +46,6 @@ function nonceMatches(a: string, b: string): boolean {
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
-}
-
-/** Is `login` an active admin of `org`, according to `org`'s own membership
- *  API, as seen by the caller's token? Returns the caller's login on success
- *  so we can record who actually connected. */
-async function verifyOrgAdmin(
-  org: string,
-  userToken: string,
-): Promise<{ ok: true; login: string } | { ok: false; reason: string }> {
-  const headers = {
-    Authorization: `Bearer ${userToken}`,
-    Accept: "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28",
-  };
-
-  // Who is the caller? `/user` also proves the token is live.
-  const meRes = await fetch("https://api.github.com/user", { headers, signal: AbortSignal.timeout(15_000), redirect: "error", cache: "no-store" });
-  if (!meRes.ok) return { ok: false, reason: `github_user_lookup_failed_${meRes.status}` };
-  const me = (await meRes.json()) as { login?: string };
-  if (!me.login) return { ok: false, reason: "github_user_has_no_login" };
-
-  // Membership from the org's perspective. 403 means the token lacks
-  // read:org; 404 means the caller simply isn't a member.
-  const memRes = await fetch(
-    `https://api.github.com/user/memberships/orgs/${encodeURIComponent(org)}`,
-    { headers, signal: AbortSignal.timeout(15_000), redirect: "error", cache: "no-store" },
-  );
-  if (memRes.status === 403) return { ok: false, reason: "missing_read_org_scope" };
-  if (memRes.status === 404) return { ok: false, reason: "not_a_member_of_org" };
-  if (!memRes.ok) return { ok: false, reason: `membership_lookup_failed_${memRes.status}` };
-
-  const mem = (await memRes.json()) as { role?: string; state?: string };
-  if (mem.state !== "active") return { ok: false, reason: "org_membership_not_active" };
-  if (mem.role !== "admin") return { ok: false, reason: "not_an_org_admin" };
-
-  return { ok: true, login: me.login };
 }
 
 export async function GET(req: NextRequest) {

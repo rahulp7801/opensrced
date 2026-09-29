@@ -7,7 +7,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth0 } from "@/lib/auth0";
 import { PageHeading } from "@/components/page-heading";
-import { mappingForOrg } from "@/lib/crucible/orgs";
+import { mappingForRequest } from "@/lib/crucible/tokens";
 import {
   listAdvisories,
   listDependabotAlerts,
@@ -55,7 +55,7 @@ export default async function RepoFindingsPage({
   const sub = session?.user?.sub;
   if (!sub) notFound();
 
-  const mapping = await mappingForOrg(sub, org);
+  const mapping = await mappingForRequest(sub, org);
   if (!mapping) notFound();
 
   let advisories: SecurityFinding[] = [];

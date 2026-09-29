@@ -6,7 +6,8 @@ export function safeReturnTo(value: string | undefined): string {
   try {
     decodeURI(value);
     const target = new URL(value, LOCAL_ORIGIN);
-    if (target.origin !== LOCAL_ORIGIN) return "/";
+    // "/.//evil.example" normalizes to "//evil.example", a protocol-relative URL.
+    if (target.origin !== LOCAL_ORIGIN || target.pathname.startsWith("//")) return "/";
     return `${target.pathname}${target.search}${target.hash}`;
   } catch {
     return "/";

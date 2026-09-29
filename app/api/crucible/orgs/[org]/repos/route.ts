@@ -5,7 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
-import { mappingForOrg } from "@/lib/crucible/orgs";
+import { mappingForRequest } from "@/lib/crucible/tokens";
 import { listInstallationRepos } from "@/lib/crucible/advisories";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,7 @@ export async function GET(
   if (!sub) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
   const { org } = await params;
-  const mapping = await mappingForOrg(sub, org);
+  const mapping = await mappingForRequest(sub, org);
   if (!mapping) {
     return NextResponse.json({ error: "org not connected" }, { status: 404 });
   }

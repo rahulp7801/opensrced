@@ -10,9 +10,13 @@ import { STATE_COOKIE } from "@/lib/crucible/constants";
 
 export const dynamic = "force-dynamic";
 
-const APP_SLUG = process.env.GITHUB_APP_SLUG || "opensrcer-crucible";
-
 export async function GET() {
+  // No default slug: a fallback would send org admins to install whichever
+  // app owns that name, granting it private-repo access.
+  const APP_SLUG = process.env.GITHUB_APP_SLUG;
+  if (!APP_SLUG) {
+    return NextResponse.json({ error: "Organization connections are not configured for this deployment." }, { status: 503 });
+  }
   const session = await auth0.getSession();
   const user = session?.user;
   if (!user?.sub) {

@@ -10,8 +10,7 @@ import { join } from "node:path";
 import { resolveAnthropicKey } from "@/lib/api-keys";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { auth0 } from "@/lib/auth0";
-import { mappingForOrg } from "@/lib/crucible/orgs";
-import { resolveGithubToken } from "@/lib/crucible/tokens";
+import { mappingForRequest, resolveGithubTokenForRequest } from "@/lib/crucible/tokens";
 import { reserveSlot } from "@/lib/concurrency";
 import { CLAUDE_AGENT_MODEL } from "@/lib/models";
 import { requireSession } from "@/lib/require-session";
@@ -115,9 +114,9 @@ export async function POST(req: NextRequest) {
     const session = await auth0.getSession();
     const sub = session?.user?.sub;
     if (sub) {
-      const mapping = await mappingForOrg(sub, body.github_org);
+      const mapping = await mappingForRequest(sub, body.github_org);
       if (mapping) {
-        const resolved = await resolveGithubToken({ auth0UserId: sub, githubOrg: body.github_org });
+        const resolved = await resolveGithubTokenForRequest({ auth0UserId: sub, githubOrg: body.github_org });
         if (resolved.token) githubToken = resolved.token;
       }
     }

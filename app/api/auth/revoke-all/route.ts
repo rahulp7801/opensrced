@@ -49,7 +49,9 @@ export async function POST() {
     // as a fallback to match lib/auth0.ts.
     const baseUrl =
       process.env.APP_BASE_URL || process.env.AUTH0_BASE_URL || "http://localhost:3000";
-    const logoutUrl = `/auth/logout?returnTo=${encodeURIComponent(baseUrl + "/login")}`;
+    // The bare origin is the documented Allowed Logout URL; an unlisted
+    // returnTo makes Auth0 refuse the logout and keep its session alive.
+    const logoutUrl = `/auth/logout?returnTo=${encodeURIComponent(baseUrl)}`;
     return NextResponse.json({ ok: true, stopped, disconnected: orgs.length, redirect: logoutUrl });
   } catch {
     // Keep the session and connections intact when cancellation cannot be

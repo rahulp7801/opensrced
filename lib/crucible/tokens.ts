@@ -4,7 +4,8 @@
 // mapping for that org.
 
 import { getInstallationToken } from "./github-app";
-import { mappingForOrg } from "./orgs";
+import { mappingForOrg, type OrgMapping } from "./orgs";
+import { stillOrgAdmin } from "./org-admin";
 import { resolveGitHubToken } from "../github-token";
 import { parseRunTarget } from "../run-target";
 import { githubApi } from "../github-api";
@@ -42,6 +43,23 @@ export async function resolveGithubToken(
   return patOrGhCli();
 }
 
+/** mappingForOrg for a user request: null once the user no longer
+ *  administers the org. Disconnect uses the plain lookup so a removed admin
+ *  can still clean up. */
+export async function mappingForRequest(auth0UserId: string, githubOrg: string): Promise<OrgMapping | null> {
+  const mapping = await mappingForOrg(auth0UserId, githubOrg);
+  if (!mapping) return null;
+  return await stillOrgAdmin(auth0UserId, githubOrg, await resolveGitHubToken()) ? mapping : null;
+}
+
+/** resolveGithubToken for a user request. The detached post-run PR step
+ *  keeps the plain resolver; its run was authorized here when it started. */
+export async function resolveGithubTokenForRequest(orgCtx: OrgContext): Promise<ResolvedToken> {
+  const mapping = await mappingForRequest(orgCtx.auth0UserId, orgCtx.githubOrg);
+  if (!mapping) return { token: undefined, source: "none" };
+  return { token: await getInstallationToken(mapping.installation_id), source: "installation" };
+}
+
 /** Resolve access for a repository selected from the combined public and
  * connected-organization picker. Verified GitHub App access takes priority
  * for a connected owner; other repositories use the caller's OAuth token. */
@@ -53,7 +71,7 @@ export async function resolveRepositoryToken(
   const canonical = parseRunTarget(repo).repo;
   const owner = canonical.split("/")[0];
   try {
-    const installation = await resolveGithubToken({ auth0UserId, githubOrg: owner });
+    const installation = await resolveGithubTokenForRequest({ auth0UserId, githubOrg: owner });
     if (installation.token) {
       await githubApi(`/repos/${canonical}`, installation.token, undefined, signal);
       return installation;

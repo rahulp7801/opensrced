@@ -3,7 +3,7 @@
 
 import { NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
-import { mappingForOrg } from "@/lib/crucible/orgs";
+import { mappingForRequest } from "@/lib/crucible/tokens";
 import { listInstallationIssues } from "@/lib/crucible/advisories";
 import { sanitizeGitHubName } from "@/lib/sanitize";
 
@@ -25,7 +25,7 @@ export async function GET(
     return NextResponse.json({ error: "invalid repo" }, { status: 400 });
   }
 
-  const mapping = await mappingForOrg(sub, owner);
+  const mapping = await mappingForRequest(sub, owner);
   if (!mapping) {
     return NextResponse.json({ error: "org not connected" }, { status: 404 });
   }

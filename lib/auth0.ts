@@ -52,6 +52,10 @@ export const auth0 = new Auth0Client({
   // Signed-out visitors get 204 rather than 401, so public pages don't log a
   // failed request (and SWR doesn't retry it). useUser() maps 204 to null.
   noContentProfileResponseWhenUnauthenticated: true,
+  // The raw ID token carries the GitHub token claim (see auth-session.ts).
+  // OIDC logout would otherwise put it in a browser-visible redirect URL as
+  // id_token_hint; client_id + logout_hint identify the session instead.
+  includeIdTokenHintInOIDCLogoutUrl: false,
   appBaseUrl: process.env.APP_BASE_URL ?? process.env.AUTH0_BASE_URL,
   authorizationParameters: {
     // `connection_scope` asks Auth0 to request these extra scopes from the

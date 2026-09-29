@@ -10,4 +10,7 @@ test("authentication return targets stay on this application", () => {
   assert.equal(safeReturnTo("/\\evil.example"), "/");
   assert.equal(safeReturnTo("/" + "a".repeat(2048)), "/");
   assert.equal(safeReturnTo("/%"), "/");
+  for (const dotted of ["/.//evil.example", "/..//evil.example", "/%2e//evil.example"]) {
+    assert.equal(safeReturnTo(dotted), "/", dotted);
+  }
 });

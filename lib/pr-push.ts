@@ -10,7 +10,9 @@ import { scanSecrets } from "./gitleaks-scanner";
 import { githubApi } from "./github-api";
 
 const exec = promisify(execFile);
-export type PushPatch = { repo: string; branch: string; diff: string; commit_message: string };
+/** `author` is required when `token` is a GitHub App installation token,
+ *  which cannot read /user. */
+export type PushPatch = { repo: string; branch: string; diff: string; commit_message: string; author?: { login: string; id: number } };
 
 /** Shared by the local runner and the disposable Vercel worker. */
 export async function pushPrPatch(input: PushPatch, token: string) {
@@ -23,7 +25,7 @@ export async function pushPrPatch(input: PushPatch, token: string) {
     await writeFile(config, "");
     const env = childEnv({ GIT_CONFIG_GLOBAL: config, GIT_CONFIG_NOSYSTEM: "1" });
     const git = async (args: string[]) => (await exec("git", ["-c", `core.hooksPath=${hooks}`, ...args], { env, timeout: 60_000, maxBuffer: 5_000_000, windowsHide: true })).stdout.trim();
-    const user = await githubApi<{ login: string; id: number }>("/user", token);
+    const user = input.author ?? await githubApi<{ login: string; id: number }>("/user", token);
     await git([...gitAuthArgs(token), "clone", "--depth=50", "--single-branch", "--branch", input.branch, `https://github.com/${input.repo}.git`, repo]);
     const applied = await applyDiff(repo, input.diff, join(root, "fix.patch"), { env });
     if (!applied.ok) throw new Error("The patch could not be applied. Regenerate it against the current PR head.");

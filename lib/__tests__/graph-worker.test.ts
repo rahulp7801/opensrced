@@ -71,3 +71,11 @@ test("stored graph validation rejects malformed worker and storage records", asy
   assert.throws(() => parseStoredGraph({ ...valid, revision: "main" }), /Invalid graph output/);
   assert.doesNotThrow(() => parseStoredGraph({ ...valid, revision: "", created_at: "" }, true));
 });
+
+test("graph compaction keeps only the fields the app reads", async () => {
+  const { compactGraph } = await import("../graph-worker");
+  const node = { id: "a", label: "A", community: 1, file_type: "code", source_file: "a.py", source_location: "L1", norm_label: "a" };
+  const link = { source: "a", target: "a", relation: "calls", confidence: "EXTRACTED", confidence_score: 1, source_file: "a.py", weight: 1 };
+  const raw = { nodes: [{ ...node, _origin: "ast", community_name: "a.py" }], links: [{ ...link, _origin: "ast", context: "call" }], hyperedges: [] };
+  assert.deepEqual(JSON.parse(JSON.stringify(compactGraph(raw as never))), { nodes: [node], links: [link], hyperedges: [] });
+});

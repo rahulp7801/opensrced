@@ -9,7 +9,11 @@ import type { GraphData, GraphEdge, GraphNode } from "./graph";
 
 const exec = promisify(execFile);
 export type StoredGraph = { graph: GraphData; html: string; revision: string; created_at: string };
-export const GRAPH_MAX_BYTES = 8_000_000;
+// ponytail: a ~400-file repo is ~6 MB after compaction; raise these, or prune
+// low-degree nodes, if larger repos matter. Graph JSON never reaches the browser.
+const GRAPH_JSON_MAX_BYTES = 12_000_000;
+const RAW_GRAPH_MAX_BYTES = 32_000_000;
+export const GRAPH_MAX_BYTES = 16_000_000;
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -53,10 +57,23 @@ export function parseStoredGraph(value: unknown, allowEmptyMetadata = false): St
     || typeof value.created_at !== "string" || (!Number.isFinite(Date.parse(value.created_at)) && !(allowEmptyMetadata && value.created_at === ""))) {
     throw new Error("Invalid graph output.");
   }
-  if (Buffer.byteLength(JSON.stringify(value.graph)) > 4_000_000 || Buffer.byteLength(JSON.stringify(value)) > GRAPH_MAX_BYTES) {
+  if (Buffer.byteLength(JSON.stringify(value.graph)) > GRAPH_JSON_MAX_BYTES ||Buffer.byteLength(JSON.stringify(value)) > GRAPH_MAX_BYTES) {
     throw new Error("Graph exceeds the current size limit.");
   }
   return value as StoredGraph;
+}
+
+/** Keep only the fields the app reads. Graphify's provenance fields
+ *  (_origin, context, community_name, ...) roughly double the size. */
+export function compactGraph(raw: GraphData): GraphData {
+  if (!record(raw) || !Array.isArray(raw.nodes) || !Array.isArray(raw.links)) return raw; // parseStoredGraph rejects it
+  return {
+    nodes: raw.nodes.map(({ id, label, community, file_type, source_file, source_location, norm_label }) =>
+      ({ id, label, community, file_type, source_file, source_location, norm_label })),
+    links: raw.links.map(({ source, target, relation, confidence, confidence_score, source_file, source_location, weight }) =>
+      ({ source, target, relation, confidence, confidence_score, source_file, source_location, weight })),
+    ...(raw.hyperedges === undefined ? {} : { hyperedges: raw.hyperedges }),
+  };
 }
 
 async function readLimited(path: string, maxBytes: number): Promise<string> {
@@ -93,7 +110,7 @@ export async function buildGraphWorker(repo: string, token: string | null, signa
     await exec(process.env.OPENSRCER_GRAPH_PYTHON || "python", ["-I", "-m", "graphify", "update", "."], { cwd: source, env, signal, timeout: 180_000, maxBuffer: 1_000_000, windowsHide: true });
     const jsonPath = join(output, "graph.json");
     const htmlPath = join(output, "graph.html");
-    const graph = JSON.parse(await readLimited(jsonPath, 4_000_000)) as GraphData;
+    const graph = compactGraph(JSON.parse(await readLimited(jsonPath, RAW_GRAPH_MAX_BYTES)) as GraphData);
     const result = { graph, html: await readLimited(htmlPath, 2_000_000), revision: stdout.trim(), created_at: new Date().toISOString() };
     return parseStoredGraph(result);
   } finally { await rm(root, { recursive: true, force: true }); }

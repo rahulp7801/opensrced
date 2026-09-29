@@ -13,9 +13,16 @@ const config: NextConfig = {
   poweredByHeader: false,
   async headers() {
     return [{
-      source: "/(.*)",
+      // Config headers replace a route's own header of the same name, so the
+      // graph viz route (repository-derived HTML) is excluded here and keeps
+      // its sandboxed policy from lib/graph-html.ts.
+      source: "/((?!api/graph/[^/]+/[^/]+/viz$).*)",
       headers: [
         { key: "Content-Security-Policy", value: `default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; frame-src 'self'; ${scriptSource}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://avatars.githubusercontent.com; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; form-action 'self' https://*.auth0.com; media-src 'none'; manifest-src 'self'; upgrade-insecure-requests` },
+      ],
+    }, {
+      source: "/(.*)",
+      headers: [
         { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
         { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
         { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },

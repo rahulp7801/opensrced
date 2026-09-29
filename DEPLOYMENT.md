@@ -40,8 +40,9 @@ nobody opens afterwards still idles until the 40-minute limit.
    `node scripts/create-worker-snapshot.mjs <full-committed-sha>`.
    Save its output as `OPENSRCER_WORKER_SNAPSHOT_ID` in the project.
    Rebuild this snapshot whenever agent or MCP code changes. Snapshots are
-   created without an expiry, so the saved ID stays valid until replaced; the
-   first one must come from `a2b1de2` or later.
+   created without an expiry, so the saved ID stays valid until replaced; build
+   the first one from current `main`, which carries the MCP boundary and graph
+   size fixes the worker runs.
 4. Deploy, configure Auth0 callback/logout origins, and verify health, login,
    key storage, preview, cancellation, and controlled live PR creation.
 

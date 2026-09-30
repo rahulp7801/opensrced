@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
     const anthropicKey = await resolveAnthropicKey();
     if (!anthropicKey) {
       return NextResponse.json(
-        { status: "error", message: "No Anthropic API key configured. Add one in Crucible → API Keys." },
+        { status: "error", message: "No Anthropic API key configured. Add one in Settings → AI providers." },
         { status: 400 },
       );
     }

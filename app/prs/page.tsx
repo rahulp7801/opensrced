@@ -212,9 +212,11 @@ export default function PRsPage() {
             const needsAction = githubPrs.filter((p) => p.reviewDecision === "CHANGES_REQUESTED");
             const hasComments = githubPrs.filter((p) => (p.commentCount ?? 0) > 0 && p.reviewDecision !== "CHANGES_REQUESTED" && p.reviewDecision !== "APPROVED");
             const approved = githubPrs.filter((p) => p.reviewDecision === "APPROVED");
+            // Stale is the older half of "Waiting for review": PRs with comments
+            // are already listed under "Has comments", drafts under "Drafts".
             const stale = githubPrs.filter((p) => {
               const daysSince = (Date.now() - new Date(p.updatedAt).getTime()) / 86400000;
-              return daysSince > 7 && p.reviewDecision !== "APPROVED" && p.reviewDecision !== "CHANGES_REQUESTED";
+              return !p.isDraft && (p.commentCount ?? 0) === 0 && daysSince > 7 && p.reviewDecision !== "APPROVED" && p.reviewDecision !== "CHANGES_REQUESTED";
             });
             const drafts = githubPrs.filter((p) => p.isDraft);
             const waiting = githubPrs.filter((p) =>

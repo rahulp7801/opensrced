@@ -5,7 +5,7 @@ import { parseRunTarget } from "@/lib/run-target";
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { buildCloudGraph } from "@/lib/cloud-graph";
 import { buildGraphWorker } from "@/lib/graph-worker";
-import { getStoredGraph, saveStoredGraph } from "@/lib/graph-store";
+import { hasStoredGraph, saveStoredGraph } from "@/lib/graph-store";
 import { reserveCloudSlot } from "@/lib/cloud-capacity";
 import { reserveSlot, CapacityError } from "@/lib/concurrency";
 import { resolveRepositoryToken } from "@/lib/crucible/tokens";
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
   const [owner, name] = repo.split("/");
   const encoder = new TextEncoder();
   let cached = false;
-  try { cached = !body.force && Boolean(await getStoredGraph(userId, repo)); }
+  try { cached = !body.force && await hasStoredGraph(userId, repo); }
   catch { return Response.json({ error: "Graph storage is unavailable." }, { status: 503 }); }
   if (cached) {
     return new Response(`data: ${JSON.stringify({ status: "done", message: "Using cached graph.", owner, repo: name, engine: "graphify" })}\n\n`, { headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-store" } });

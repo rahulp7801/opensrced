@@ -10,7 +10,7 @@ import { sessionUserId } from "@/lib/require-session";
 import { sanitizeGitHubName } from "@/lib/sanitize";
 
 import { cloudExecution } from "@/lib/cloud-run-state";
-import { getStoredGraph } from "@/lib/graph-store";
+import { getStoredGraph, hasStoredGraph } from "@/lib/graph-store";
 import { graphHtmlResponse } from "@/lib/graph-html";
 import { resolveRepositoryToken } from "@/lib/crucible/tokens";
 
@@ -118,7 +118,7 @@ export async function HEAD(
   catch { return new Response("Repository not accessible", { status: 403 }); }
 
   if (cloudExecution()) {
-    const stored = await getStoredGraph(userId, `${owner}/${repo}`);
+    const stored = await hasStoredGraph(userId, `${owner}/${repo}`);
     return new Response(null, { status: stored ? 200 : 404, headers: { "X-Graph-Engine": "graphify", "Cache-Control": "private, no-store" } });
   }
   const hasGraphify = existsSync(graphHtmlPath(owner, repo)) || existsSync(graphJsonPath(owner, repo));

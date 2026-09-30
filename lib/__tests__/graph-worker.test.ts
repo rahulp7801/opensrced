@@ -79,3 +79,15 @@ test("graph compaction keeps only the fields the app reads", async () => {
   const raw = { nodes: [{ ...node, _origin: "ast", community_name: "a.py" }], links: [{ ...link, _origin: "ast", context: "call" }], hyperedges: [] };
   assert.deepEqual(JSON.parse(JSON.stringify(compactGraph(raw as never))), { nodes: [node], links: [link], hyperedges: [] });
 });
+
+test("packed graphs round-trip and oversized records are refused", async () => {
+  const { packGraph, unpackGraph } = await import("../graph-worker");
+  const { gzipSync } = await import("node:zlib");
+  const stored = {
+    graph: { nodes: [{ id: "a", label: "A", community: 0, file_type: "code", source_file: "a.py" }], links: [] },
+    html: "<p>Graph</p>", revision: "b".repeat(40), created_at: new Date().toISOString(),
+  };
+  assert.deepEqual(unpackGraph(packGraph(stored)), stored);
+  // A small gzip that inflates past the cap must fail before it is parsed.
+  assert.throws(() => unpackGraph(gzipSync(Buffer.alloc(200_000_000, 32))), { code: "ERR_BUFFER_TOO_LARGE" });
+});

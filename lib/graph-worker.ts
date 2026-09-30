@@ -3,17 +3,24 @@ import { mkdtemp, open, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve, relative, isAbsolute } from "node:path";
 import { promisify } from "node:util";
+import { gunzipSync, gzipSync } from "node:zlib";
 import { childEnv } from "./child-env";
 import { gitAuthArgs } from "./git-auth";
 import type { GraphData, GraphEdge, GraphNode } from "./graph";
 
 const exec = promisify(execFile);
 export type StoredGraph = { graph: GraphData; html: string; revision: string; created_at: string };
-// ponytail: a ~400-file repo is ~6 MB after compaction; raise these, or prune
-// low-degree nodes, if larger repos matter. Graph JSON never reaches the browser.
-const GRAPH_JSON_MAX_BYTES = 12_000_000;
-const RAW_GRAPH_MAX_BYTES = 32_000_000;
-export const GRAPH_MAX_BYTES = 16_000_000;
+// Measured on Django (7k files): 70 MB raw graph.json, 46.5 MB compacted,
+// 3.1 MB gzipped, ~240 MB heap once parsed, 2.6 MB viewer HTML (graphify
+// aggregates anything over 5,000 nodes into communities). Graph JSON is read
+// server-side only; the browser gets the HTML. These caps leave ~2.5x headroom
+// while bounding function memory.
+const RAW_GRAPH_MAX_BYTES = 192_000_000;
+const GRAPH_JSON_MAX_BYTES = 128_000_000;
+const GRAPH_HTML_MAX_BYTES = 16_000_000;
+const RECORD_MAX_BYTES = GRAPH_JSON_MAX_BYTES + GRAPH_HTML_MAX_BYTES;
+/** Cap on the stored (gzipped) graph record. */
+export const GRAPH_MAX_BYTES = 32_000_000;
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -52,15 +59,28 @@ export function parseStoredGraph(value: unknown, allowEmptyMetadata = false): St
     || !Array.isArray(value.graph.nodes) || !value.graph.nodes.every(validNode)
     || !Array.isArray(value.graph.links) || !value.graph.links.every(validEdge)
     || (value.graph.hyperedges !== undefined && !Array.isArray(value.graph.hyperedges))
-    || typeof value.html !== "string" || Buffer.byteLength(value.html) > 2_000_000
+    || typeof value.html !== "string" || value.html.length > GRAPH_HTML_MAX_BYTES
     || typeof value.revision !== "string" || (!/^[0-9a-f]{40}$/i.test(value.revision) && !(allowEmptyMetadata && value.revision === ""))
     || typeof value.created_at !== "string" || (!Number.isFinite(Date.parse(value.created_at)) && !(allowEmptyMetadata && value.created_at === ""))) {
     throw new Error("Invalid graph output.");
   }
-  if (Buffer.byteLength(JSON.stringify(value.graph)) > GRAPH_JSON_MAX_BYTES ||Buffer.byteLength(JSON.stringify(value)) > GRAPH_MAX_BYTES) {
-    throw new Error("Graph exceeds the current size limit.");
-  }
   return value as StoredGraph;
+}
+
+/** Stored and transferred form: gzipped JSON (~15x smaller). Size is enforced
+ *  here and in unpackGraph rather than by re-serializing on every read. */
+export function packGraph(graph: StoredGraph): Buffer {
+  const json = Buffer.from(JSON.stringify(parseStoredGraph(graph)));
+  if (json.length > RECORD_MAX_BYTES) throw new Error("Graph exceeds the current size limit.");
+  const data = gzipSync(json);
+  if (data.length > GRAPH_MAX_BYTES) throw new Error("Graph exceeds the current size limit.");
+  return data;
+}
+
+export function unpackGraph(data: Buffer): StoredGraph {
+  if (data.length > GRAPH_MAX_BYTES) throw new Error("Graph exceeds the current size limit.");
+  // maxOutputLength bounds memory even for a hostile or corrupt record.
+  return parseStoredGraph(JSON.parse(gunzipSync(data, { maxOutputLength: RECORD_MAX_BYTES }).toString("utf8")));
 }
 
 /** Keep only the fields the app reads. Graphify's provenance fields
@@ -107,11 +127,11 @@ export async function buildGraphWorker(repo: string, token: string | null, signa
     progress("Parsing source and building graph...");
     // Isolated Python import mode prevents a repository's graphify.py from
     // shadowing the installed package. No provider or GitHub key enters Python.
-    await exec(process.env.OPENSRCER_GRAPH_PYTHON || "python", ["-I", "-m", "graphify", "update", "."], { cwd: source, env, signal, timeout: 180_000, maxBuffer: 1_000_000, windowsHide: true });
+    await exec(process.env.OPENSRCER_GRAPH_PYTHON || "python", ["-I", "-m", "graphify", "update", "."], { cwd: source, env, signal, timeout: 240_000, maxBuffer: 1_000_000, windowsHide: true });
     const jsonPath = join(output, "graph.json");
     const htmlPath = join(output, "graph.html");
     const graph = compactGraph(JSON.parse(await readLimited(jsonPath, RAW_GRAPH_MAX_BYTES)) as GraphData);
-    const result = { graph, html: await readLimited(htmlPath, 2_000_000), revision: stdout.trim(), created_at: new Date().toISOString() };
+    const result = { graph, html: await readLimited(htmlPath, GRAPH_HTML_MAX_BYTES), revision: stdout.trim(), created_at: new Date().toISOString() };
     return parseStoredGraph(result);
   } finally { await rm(root, { recursive: true, force: true }); }
 }

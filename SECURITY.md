@@ -43,6 +43,19 @@ intentional data flows, not a claim that repository content is non-sensitive.
   not hold the provider key, and ignores graph files committed by the target.
 - Logout omits the ID token, which carries the GitHub token claim, from the
   redirect URL. Shared fix links identify their owner only by a keyed hash.
+- Agent commits are authored as the user who started the run; there is no
+  operator fallback identity. Organization runs receive a freshly minted
+  installation token limited to the one target repository.
+- Repository graphs are built from a disposable clone with `python -I`, so code
+  committed to the target repository never runs during a build.
+- Target-repository tests are off by default (`OPENSRCER_RUN_TESTS`). When
+  enabled they run as the server's own OS user, which can read the server's
+  process environment, so enable them only on a single-user host.
+- API writes from another origin are refused, and `/auth/login` accepts only
+  `returnTo`, so a crafted link cannot request broader GitHub scopes.
+- Hosted capacity is capped per account (two agent runs; one graph, explore,
+  or push task each), and a finished run's VM is stopped when its slot is
+  reused.
 
 Five medium CodeQL data-flow findings remain open for visibility and continued
 review as of September 17, 2026. Analysis success is not a finding-free audit.

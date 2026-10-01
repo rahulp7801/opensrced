@@ -39,7 +39,9 @@ async function assertNoSeriousAccessibilityViolations(page, label) {
 
 try {
   for (const width of [1440, 390]) {
-    const context = await browser.newContext({ viewport: { width, height: 900 } });
+    // Entrance animations start at opacity 0; axe would measure contrast mid-fade.
+    // Reduced motion (which the site honors) audits the settled page.
+    const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: 'reduce' });
     if (width === 1440) await context.addInitScript(() => {
       const vitals = { cls: 0, lcp: 0 };
       Object.defineProperty(window, '__opensrcerVitals', { value: vitals });

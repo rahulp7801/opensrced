@@ -52,7 +52,7 @@ export function SiteHeader({ localMode = false }: { localMode?: boolean }) {
     <>
       {/* Stickiness lives on the wrapper in app/layout.tsx, which pins this
           header and the section tab bar together. */}
-      <header className="border-b border-border bg-ink">
+      <header className="border-b border-border bg-ink/85 backdrop-blur-md supports-[backdrop-filter]:bg-ink/70">
         <div className="flex items-stretch w-full min-h-16 max-w-[1440px] mx-auto">
           <Link
             href={signedIn ? "/discover" : "/"}
@@ -60,7 +60,7 @@ export function SiteHeader({ localMode = false }: { localMode?: boolean }) {
             className="group flex items-center gap-2.5 px-3 sm:px-6 py-3 shrink-0"
           >
             <Mark />
-            <span className={`${signedIn ? "hidden md:inline" : ""} text-[20px] font-semibold text-paper tracking-[-0.04em] whitespace-nowrap`}>
+            <span className={`${signedIn ? "hidden md:inline" : ""} display text-[23px] leading-none text-paper whitespace-nowrap transition-colors group-hover:text-signal-soft`}>
               opensrcer
             </span>
           </Link>
@@ -152,18 +152,21 @@ function HelpSection({ title, children }: { title: string; children: React.React
   );
 }
 
+/** A branch leaving the trunk: an issue becoming a pull request. */
 function Mark() {
   return (
     <svg
-      width="22"
-      height="22"
+      width="24"
+      height="24"
       viewBox="0 0 32 32"
       fill="none"
-      className="shrink-0"
+      className="shrink-0 transition-transform duration-300 group-hover:-rotate-6"
       aria-hidden
     >
-      <circle cx="16" cy="16" r="9" stroke="currentColor" className="text-paper-muted" />
-      <circle cx="16" cy="16" r="1.6" fill="currentColor" className="text-signal" />
+      <rect x="3.5" y="3.5" width="25" height="25" rx="6" stroke="currentColor" className="text-border-strong" />
+      <path d="M12 9v14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-paper-dim" />
+      <path d="M12 18c0-4 2-6 8-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-signal" />
+      <circle cx="21" cy="12" r="2.6" fill="currentColor" className="text-signal" />
     </svg>
   );
 }

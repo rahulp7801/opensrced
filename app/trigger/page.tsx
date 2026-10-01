@@ -25,7 +25,7 @@ export default function TriggerPage() {
       </div>
 
       <section className="mt-12 border-t border-border py-8" aria-labelledby="run-workflow-heading">
-        <h2 id="run-workflow-heading" className="text-base font-medium text-paper">What happens next</h2>
+        <h2 id="run-workflow-heading" className="display text-[28px] leading-tight text-paper">What happens next</h2>
         <ol className="mt-5 grid gap-5 md:grid-cols-3 md:gap-8">
           {[
             {

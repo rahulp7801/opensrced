@@ -782,7 +782,7 @@ export default function GraphPage() {
           <div className="mt-10 grid flex-1 gap-8 border-y border-border py-7 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
             <div>
               <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-paper-muted">What you can inspect</p>
-              <h2 className="mt-3 text-2xl font-medium tracking-[-0.03em] text-paper">Start with a repository</h2>
+              <h2 className="display mt-4 text-[32px] leading-tight text-paper">Start with a repository</h2>
               <p className="mt-3 max-w-lg text-[13px] leading-6 text-paper-muted">
                 Enter a public repository or one your connected GitHub account can access. Building the map reads source structure and relationships without calling an AI model.
               </p>

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, JetBrains_Mono } from "next/font/google";
+import { Gloock, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { SiteHeader } from "@/components/header";
 import { SectionNav } from "@/components/section-nav";
@@ -11,9 +11,18 @@ import { ToastProvider } from "@/components/toast";
 import { Auth0Provider } from "@auth0/nextjs-auth0";
 import { siteUrl } from "@/lib/site-url";
 
-const sans = Geist({
+// Hanken Grotesk for the interface, Gloock (a high-contrast display serif)
+// for headlines, JetBrains Mono for code, logs, and labels.
+const sans = Hanken_Grotesk({
   subsets: ["latin"],
   variable: "--font-sans-next",
+  display: "swap",
+});
+
+const display = Gloock({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-display-next",
   display: "swap",
 });
 
@@ -40,19 +49,20 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   colorScheme: "dark",
-  themeColor: "#101113",
+  themeColor: "#0f0e0c",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const localMode = process.env.AUTH_DISABLED === "1" && process.env.NODE_ENV !== "production";
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
+    <html lang="en" className={`${sans.variable} ${display.variable} ${mono.variable}`}>
       <body
         style={
           {
             // Bind next/font CSS vars to the theme vars used in globals.css
             "--font-sans": `var(--font-sans-next), "Segoe UI", sans-serif`,
-            "--font-serif": `var(--font-sans-next), "Segoe UI", sans-serif`,
+            "--font-serif": `var(--font-display-next), Georgia, serif`,
+            "--font-display": `var(--font-display-next), Georgia, serif`,
             "--font-mono": `var(--font-mono-next), ui-monospace, SFMono-Regular, Menlo, monospace`,
           } as React.CSSProperties
         }

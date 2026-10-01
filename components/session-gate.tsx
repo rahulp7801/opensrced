@@ -21,7 +21,7 @@ function SignedIn({ children }: { children: ReactNode }) {
   if (isLoading) return <SessionLoading returnTo={returnTo} />;
   return (
     <section className="m-auto w-full max-w-lg px-6 py-20">
-      <h1 className="text-3xl font-semibold tracking-tight text-paper">Sign in to continue</h1>
+      <h1 className="display text-[40px] leading-[1.05] text-paper">Sign in to continue</h1>
       <p className="mt-4 text-sm text-paper-muted">Connect your GitHub account to browse repositories, start runs, and view your activity.</p>
       <Link href={`/login?returnTo=${encodeURIComponent(returnTo)}`} className="mt-6 inline-flex min-h-12 items-center rounded-md bg-signal px-5 py-3 text-sm font-medium text-ink hover:bg-signal-soft">Sign in with GitHub</Link>
       <p className="mt-4"><Link href="/demo" className="text-sm text-paper-muted underline">Try the interactive demo</Link></p>
@@ -40,7 +40,7 @@ function SessionLoading({ returnTo }: { returnTo: string }) {
   if (timedOut) {
     return (
       <section className="m-auto w-full max-w-lg px-6 py-20" role="alert">
-        <h1 className="text-3xl font-semibold tracking-tight text-paper">Sign-in check took too long</h1>
+        <h1 className="display text-[40px] leading-[1.05] text-paper">Sign-in check took too long</h1>
         <p className="mt-4 text-sm leading-6 text-paper-muted">
           The authentication service did not respond. Reload this page or start a fresh GitHub sign-in.
         </p>
@@ -64,7 +64,7 @@ function SessionLoading({ returnTo }: { returnTo: string }) {
   }
   return (
     <section className="m-auto w-full max-w-lg px-6 py-20">
-      <h1 className="text-3xl font-semibold tracking-tight text-paper">Checking sign-in...</h1>
+      <h1 className="display text-[40px] leading-[1.05] text-paper">Checking sign-in...</h1>
       <p className="mt-4 text-sm text-paper-muted" role="status">Waiting for the authentication service.</p>
     </section>
   );

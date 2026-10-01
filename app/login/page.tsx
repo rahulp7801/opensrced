@@ -17,14 +17,14 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <div className="mx-auto grid w-full max-w-[1000px] flex-1 gap-12 px-5 py-16 sm:px-8 lg:grid-cols-[1fr_420px] lg:items-center lg:gap-20 lg:py-24">
       <section>
-        <p className="text-sm font-medium text-signal">Connect your GitHub account</p>
-        <h1 className="mt-5 max-w-lg text-[40px] font-semibold leading-tight tracking-[-0.04em] sm:text-[48px]">Pick up where the issue leaves off.</h1>
+        <p className="eyebrow">Connect your GitHub account</p>
+        <h1 className="display mt-6 max-w-lg text-[46px] leading-[1.02] text-paper sm:text-[60px]">Pick up where the issue leaves off.</h1>
         <p className="mt-5 max-w-lg text-base leading-7 text-paper-dim">Browse repositories, generate a patch, and review the change before opening a draft pull request.</p>
         <Link href="/demo" className="mt-8 inline-flex text-sm text-paper-dim hover:text-paper">Explore the demo without signing in <span aria-hidden="true" className="ml-2">&rarr;</span></Link>
       </section>
 
       <section className="rounded-lg border border-border bg-surface p-6 sm:p-8" aria-labelledby="sign-in-heading">
-        <h2 id="sign-in-heading" className="text-xl font-medium tracking-tight">{canSignIn ? "Sign in to opensrcer" : "Sign-in is being configured"}</h2>
+        <h2 id="sign-in-heading" className="display text-[26px] leading-tight">{canSignIn ? "Sign in to opensrcer" : "Sign-in is being configured"}</h2>
         <p className="mt-2 text-sm leading-6 text-paper-muted">{canSignIn ? "Authentication is handled by Auth0 using your GitHub account." : "This deployment is available for preview, but its GitHub sign-in is not ready yet."}</p>
         {canSignIn && params.error === "signin" && (
           <p role="alert" className="mt-4 rounded-md border border-alert/40 bg-alert/10 p-3 text-sm leading-6 text-alert">

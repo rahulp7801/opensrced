@@ -1,34 +1,38 @@
 @import "tailwindcss";
 
+/* "Editorial workbench": warm ink-black paper, cream type, one vermilion
+   accent used sparingly. Token names are unchanged so every page inherits
+   the palette; contrast is checked against WCAG AA (see the axe sweep). */
 @theme {
-  --color-ink: #101113;
-  --color-ink-2: #131517;
-  --color-surface: #17191c;
-  --color-surface-2: #1d2024;
-  --color-surface-3: #25282d;
-  --color-border: #34383e;
-  --color-border-soft: #282c31;
-  --color-border-strong: #515861;
+  --color-ink: #0f0e0c;
+  --color-ink-2: #13120f;
+  --color-surface: #181613;
+  --color-surface-2: #1f1c18;
+  --color-surface-3: #29251f;
+  --color-border: #39342c;
+  --color-border-soft: #2a2620;
+  --color-border-strong: #5a5246;
 
-  --color-paper: #f1f2f3;
-  --color-paper-2: #d9dce0;
-  --color-paper-dim: #bcc1c8;
-  --color-paper-muted: #a2a9b3;
-  --color-paper-faint: #969eaa;
+  --color-paper: #f1eadb;
+  --color-paper-2: #dfd6c4;
+  --color-paper-dim: #c8bfad;
+  --color-paper-muted: #aaa190;
+  --color-paper-faint: #978e7e;
 
-  --color-signal: #e5b975;
-  --color-signal-soft: #f1ce98;
-  --color-signal-dim: #8a5a1e;
-  --color-signal-faint: #2a1c0b;
+  --color-signal: #ff6b3d;
+  --color-signal-soft: #ff9068;
+  --color-signal-dim: #a43a17;
+  --color-signal-faint: #2c140b;
 
-  --color-ok: #8dcba8;
-  --color-ok-dim: #3f7620;
-  --color-alert: #f09b96;
-  --color-alert-dim: #7a2b2b;
-  --color-info: #a2c1de;
-  --color-info-dim: #205e84;
+  --color-ok: #a3d4a1;
+  --color-ok-dim: #3f6f2c;
+  --color-alert: #ff8a7a;
+  --color-alert-dim: #7f2a22;
+  --color-info: #9cc2e3;
+  --color-info-dim: #24597e;
 
-  --font-serif: "Geist", "Segoe UI", sans-serif;
+  --font-serif: "Gloock", Georgia, serif;
+  --font-display: "Gloock", Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --radius-xs: 2px;
@@ -60,6 +64,26 @@
     min-height: 100svh;
     font-size: 14px;
     line-height: 1.6;
+    /* A low, warm light from the top right; paper grain sits above it. */
+    background-image:
+      radial-gradient(1100px 520px at 88% -8%, rgb(255 107 61 / 0.075), transparent 62%),
+      radial-gradient(900px 600px at -8% 108%, rgb(241 234 219 / 0.035), transparent 60%);
+    background-attachment: fixed;
+  }
+
+  /* Paper grain. Fixed and non-interactive; opaque surfaces sit above it. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.07;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 0.95  0 0 0 0 0.85  0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  h1, h2, h3 {
+    text-wrap: balance;
   }
 
   ::selection {
@@ -116,10 +140,36 @@
 }
 
 @layer utilities {
-  .serif {
-    font-family: var(--font-serif);
+  .serif,
+  .display {
+    font-family: var(--font-display);
     font-weight: 400;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.012em;
+    font-feature-settings: "liga", "kern";
+  }
+  /* Mono kicker with a short leading rule: the section label above a title. */
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--color-signal);
+  }
+  .eyebrow::before {
+    content: "";
+    width: 1.75rem;
+    height: 1px;
+    background: currentColor;
+  }
+  /* Dotted leader between a label and its value, ledger style. */
+  .leader {
+    flex: 1;
+    min-width: 1.5rem;
+    border-bottom: 1px dotted var(--color-border-strong);
+    transform: translateY(-0.3em);
   }
   .num-tabular {
     font-variant-numeric: tabular-nums;
@@ -153,6 +203,14 @@
 .animate-pulse-signal { animation: pulse-signal 2.2s ease-in-out infinite; }
 .animate-pulse-ok { animation: pulse-ok 2.8s ease-in-out infinite; }
 .animate-fade-rise { animation: fade-rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+/* One orchestrated entrance: children set --d for their stagger. */
+.reveal { animation: fade-rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: var(--d, 0ms); }
+@keyframes stamp-in {
+  0% { opacity: 0; transform: rotate(-9deg) scale(1.35); }
+  60% { opacity: 1; transform: rotate(-6deg) scale(0.96); }
+  100% { opacity: 1; transform: rotate(-6deg) scale(1); }
+}
+.stamp-in { animation: stamp-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: var(--d, 0ms); }
 
 /* Shared keyboard navigation stays visible against every application surface. */
 :focus-visible { outline: 2px solid var(--color-signal); outline-offset: 4px; }

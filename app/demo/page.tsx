@@ -33,8 +33,8 @@ export default function DemoPage() {
     <div className="mx-auto w-full max-w-[1180px] px-5 py-12 sm:px-8 sm:py-16">
       <header className="grid gap-8 border-b border-border pb-10 lg:grid-cols-[1fr_23rem] lg:items-end">
         <div>
-          <p className="font-mono text-xs uppercase tracking-[0.14em] text-signal">Interactive product tour</p>
-          <h1 className="mt-5 max-w-3xl text-[42px] font-semibold leading-[0.98] tracking-[-0.055em] text-balance text-paper sm:text-[58px]">
+          <p className="eyebrow">Interactive product tour</p>
+          <h1 className="display mt-6 max-w-3xl text-[46px] leading-[1] text-paper sm:text-[64px]">
             See the complete path from issue to draft.
           </h1>
         </div>

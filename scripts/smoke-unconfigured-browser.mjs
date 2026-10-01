@@ -11,7 +11,9 @@ let pagesChecked = 0;
 
 try {
   for (const width of [1440, 390]) {
-    const context = await browser.newContext({ viewport: { width, height: 900 } });
+    // Entrance animations start at opacity 0; axe would measure contrast mid-fade.
+    // Reduced motion (which the site honors) audits the settled page.
+    const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: 'reduce' });
     context.setDefaultTimeout(15_000);
     context.setDefaultNavigationTimeout(30_000);
     try {

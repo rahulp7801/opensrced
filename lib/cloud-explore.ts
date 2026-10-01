@@ -4,11 +4,11 @@ import { CapacityError } from "./concurrency";
 import { claudeEvents } from "./claude-events";
 import { assertWorkerProtocol } from "./worker-protocol";
 
-export async function cloudExplore(args: string[], credentials: Record<string, string>, requestSignal: AbortSignal): Promise<Response> {
+export async function cloudExplore(args: string[], credentials: Record<string, string>, requestSignal: AbortSignal, ownerId: string): Promise<Response> {
   const snapshotId = process.env.OPENSRCER_WORKER_SNAPSHOT_ID;
   if (!snapshotId || !process.env.BLOB_READ_WRITE_TOKEN) return Response.json({ error: "Exploration hosting is not configured." }, { status: 503 });
   let release: () => Promise<void>;
-  try { release = await reserveCloudSlot("explore", 3, 4 * 60_000); }
+  try { release = await reserveCloudSlot("explore", 3, 4 * 60_000, ownerId); }
   catch (error) {
     if (!(error instanceof CapacityError)) throw error;
     return Response.json({ error: error.message }, { status: 429 });

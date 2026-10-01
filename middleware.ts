@@ -85,6 +85,24 @@ const UNCONFIGURED_PUBLIC_PATHS = new Set([
 ]);
 const UNCONFIGURED_PUBLIC_PREFIXES = ["/fix/", "/api/fixes/"];
 
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/** A browser write from another origin. SameSite=Lax already keeps the session
+ *  cookie off cross-site POSTs, but a sibling subdomain on a custom domain is
+ *  "same-site"; browsers send Origin on every cross-origin write, so checking
+ *  it closes that gap. Server-to-server calls (the GitHub webhook) send none. */
+function crossOriginWrite(req: NextRequest): boolean {
+  if (SAFE_METHODS.has(req.method)) return false;
+  const origin = req.headers.get("origin");
+  if (!origin) return false;
+  // Compare with the Host the browser sent (as Next does for Server Actions):
+  // req.nextUrl reflects the server's bind address, not preview, alias, or
+  // proxied hostnames. "null" (sandboxed frames) is never same-origin.
+  let originHost: string;
+  try { originHost = new URL(origin).host; } catch { return true; }
+  return originHost !== (req.headers.get("x-forwarded-host") ?? req.headers.get("host"));
+}
+
 function isPublic(pathname: string): boolean {
   return (
     PUBLIC_PATHS.has(pathname) ||
@@ -103,6 +121,10 @@ export async function middleware(req: NextRequest) {
       { error: "Authentication cannot be disabled in production." },
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
+  }
+
+  if (pathname.startsWith("/api/") && crossOriginWrite(req)) {
+    return NextResponse.json({ error: "Cross-origin request refused." }, { status: 403, headers: { "Cache-Control": "no-store" } });
   }
 
   // Local mode must not touch the Auth0 SDK: by definition its configuration
@@ -145,6 +167,16 @@ export async function middleware(req: NextRequest) {
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("returnTo", pathname + search);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // The SDK forwards any extra /auth/login query parameter to Auth0's
+  // /authorize, so a crafted link could request broader GitHub scopes
+  // (connection_scope=repo,delete_repo...). Only returnTo is ours.
+  if (pathname === "/auth/login" && [...req.nextUrl.searchParams.keys()].some((key) => key !== "returnTo")) {
+    const clean = new URL("/auth/login", req.url);
+    const returnTo = req.nextUrl.searchParams.get("returnTo");
+    if (returnTo) clean.searchParams.set("returnTo", returnTo);
+    return NextResponse.redirect(clean);
   }
 
   // 1. Let the SDK serve /auth/* and refresh the session cookie. `authRes`

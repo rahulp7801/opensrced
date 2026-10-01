@@ -39,7 +39,20 @@ const viz = await fetch(`${base}/api/graph/acme/app/viz`, { signal: AbortSignal.
 assert.ok(!viz.headers.get('content-security-policy')?.includes("default-src 'self'"), 'graph viz must keep its own CSP');
 assert.notEqual(viz.headers.get('referrer-policy'), 'strict-origin-when-cross-origin', 'graph viz must keep its own referrer policy');
 await viz.text();
-const missingFixId ='00000000-0000-4000-8000-000000000000';
+// Cross-origin writes are refused before auth; same-origin ones reach it.
+const crossOrigin = await fetch(base + '/api/run/agentic', { method: 'POST', headers: { origin: 'https://evil.example' }, signal: AbortSignal.timeout(15000) });
+assert.equal(crossOrigin.status, 403, 'cross-origin API write must be refused');
+await crossOrigin.text();
+const sameOrigin = await fetch(base + '/api/run/agentic', { method: 'POST', headers: { origin: new URL(base).origin }, signal: AbortSignal.timeout(15000) });
+assert.equal(sameOrigin.status, 401, 'same-origin API write reaches the auth check');
+await sameOrigin.text();
+// /auth/login forwards extra parameters to Auth0; only returnTo survives.
+const login = await fetch(base + '/auth/login?returnTo=%2Fdiscover&connection_scope=repo%20delete_repo', { redirect: 'manual', signal: AbortSignal.timeout(15000) });
+const loginTarget = login.headers.get('location') ?? '';
+assert.ok(!loginTarget.includes('connection_scope') && !loginTarget.includes('delete_repo'), `login must drop extra parameters: ${loginTarget}`);
+assert.match(loginTarget, /returnTo=%2Fdiscover/);
+await login.text();
+const missingFixId = '00000000-0000-4000-8000-000000000000';
 const missingFix = await fetch(`${base}/api/fixes/${missingFixId}`, { signal: AbortSignal.timeout(15000) });
 assert.equal(missingFix.status, 404);
 assert.equal(missingFix.headers.get('cache-control'), 'private, no-store');

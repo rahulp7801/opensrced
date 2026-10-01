@@ -61,6 +61,9 @@ export const auth0 = new Auth0Client({
   // OIDC logout would otherwise put it in a browser-visible redirect URL as
   // id_token_hint; client_id + logout_hint identify the session instead.
   includeIdTokenHintInOIDCLogoutUrl: false,
+  // Nothing in the browser needs the Auth0 access token, and serving it at
+  // /auth/access-token would hand any injected script a bearer for /userinfo.
+  enableAccessTokenEndpoint: false,
   appBaseUrl: process.env.APP_BASE_URL ?? process.env.AUTH0_BASE_URL,
   authorizationParameters: {
     // `connection_scope` asks Auth0 to request these extra scopes from the

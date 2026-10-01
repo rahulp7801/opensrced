@@ -2,7 +2,8 @@ const RUN_PATH_RE = /^users\/[a-f0-9]{64}\/runs\/(\d{13})-(c_(\d{13})_[a-f0-9]{1
 const SLOT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RUN_STARTUP_GRACE_MS = 2 * 60_000;
 
-export type CloudSlotLease = { id: string; expires: number };
+/** `owner` is a hash of the holder's account, used for the per-account cap. */
+export type CloudSlotLease = { id: string; expires: number; owner?: string };
 /** `reserved` is when the lease was written (older leases lack it). */
 export type CloudRunLease = { path: string; expires: number; reserved?: number };
 
@@ -10,7 +11,8 @@ export function isCloudSlotLease(value: unknown): value is CloudSlotLease {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const lease = value as Partial<CloudSlotLease>;
   return typeof lease.id === "string" && (lease.id === "" || SLOT_ID_RE.test(lease.id)) &&
-    typeof lease.expires === "number" && Number.isFinite(lease.expires) && lease.expires >= 0;
+    typeof lease.expires === "number" && Number.isFinite(lease.expires) && lease.expires >= 0 &&
+    (lease.owner === undefined || (typeof lease.owner === "string" && /^[a-f0-9]{32}$/.test(lease.owner)));
 }
 
 export function cloudRunLease(value: unknown): (CloudRunLease & { id: string }) | null {

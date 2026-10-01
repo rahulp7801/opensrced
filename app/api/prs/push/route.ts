@@ -7,8 +7,7 @@ import { cloudExecution } from "@/lib/cloud-run-state";
 import { cloudPush } from "@/lib/cloud-push";
 import { pushPrPatch, type PushPatch } from "@/lib/pr-push";
 import { resolveRepositoryToken } from "@/lib/crucible/tokens";
-import { resolveGitHubToken } from "@/lib/github-token";
-import { githubApi } from "@/lib/github-api";
+import { resolveCommitAuthor } from "@/lib/github-token";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
@@ -48,10 +47,9 @@ export async function POST(req: NextRequest) {
     token = resolved.token ?? null;
     // Installation tokens cannot read /user; commit as the signed-in user.
     if (token && resolved.source === "installation") {
-      const own = await resolveGitHubToken();
+      const own = await resolveCommitAuthor(req.signal);
       if (!own) return Response.json({ error: "Sign in again to push to this organization." }, { status: 401 });
-      const user = await githubApi<{ login: string; id: number }>("/user", own, undefined, req.signal);
-      author = { login: user.login, id: user.id };
+      author = own;
     }
   }
   catch { return Response.json({ error: "Repository not accessible" }, { status: 403 }); }
@@ -65,7 +63,7 @@ export async function POST(req: NextRequest) {
   let release: (() => void) | undefined;
   try {
     const input = { repo: body.repo, branch: body.branch, diff: body.diff, commit_message: body.commit_message, author };
-    if (cloudExecution()) return Response.json(await cloudPush(input, token, req.signal));
+    if (cloudExecution()) return Response.json(await cloudPush(input, token, req.signal, userId));
     release = reserveSlot("push", 2);
     return Response.json(await pushPrPatch(input, token));
   } catch (error) {

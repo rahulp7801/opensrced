@@ -13,7 +13,7 @@ import { auth0 } from "@/lib/auth0";
 import { mappingForRequest, resolveGithubTokenForRequest } from "@/lib/crucible/tokens";
 import { reserveSlot } from "@/lib/concurrency";
 import { CLAUDE_AGENT_MODEL } from "@/lib/models";
-import { requireSession } from "@/lib/require-session";
+import { requireSession, sessionUserId } from "@/lib/require-session";
 import { sanitizeForPrompt } from "@/lib/sanitize";
 import { childEnv } from "@/lib/child-env";
 import { READ_ONLY_CLAUDE_ARGS } from "@/lib/claude-tools";
@@ -127,11 +127,15 @@ export async function POST(req: NextRequest) {
     githubToken = (await resolveGitHubToken()) ?? undefined;
   }
 
-  if (cloudExecution()) return cloudExplore(args, {
-    OPENSRCER_ALLOWED_REPO: repoFull,
-    ANTHROPIC_API_KEY: anthropicKey,
-    ...(githubToken ? { GITHUB_TOKEN: githubToken } : {}),
-  }, req.signal);
+  if (cloudExecution()) {
+    const owner = await sessionUserId();
+    if (!owner) return Response.json({ error: "Not authenticated" }, { status: 401 });
+    return cloudExplore(args, {
+      OPENSRCER_ALLOWED_REPO: repoFull,
+      ANTHROPIC_API_KEY: anthropicKey,
+      ...(githubToken ? { GITHUB_TOKEN: githubToken } : {}),
+    }, req.signal, owner);
+  }
 
   let release: () => void;
   try { release = reserveSlot("explore", MAX_CONCURRENT_EXPLORE); }

@@ -8,6 +8,7 @@ import { notFound } from "next/navigation";
 import { auth0 } from "@/lib/auth0";
 import { PageHeading } from "@/components/page-heading";
 import { mappingForRequest } from "@/lib/crucible/tokens";
+import { sanitizeGitHubName } from "@/lib/sanitize";
 import {
   listAdvisories,
   listDependabotAlerts,
@@ -50,7 +51,12 @@ export default async function RepoFindingsPage({
 }: {
   params: Promise<{ org: string; repo: string }>;
 }) {
-  const { org, repo } = await params;
+  // Both segments reach GitHub API paths (lib/crucible/advisories.ts); the
+  // matching API routes sanitize them, and so must this page.
+  const raw = await params;
+  const org = sanitizeGitHubName(raw.org);
+  const repo = sanitizeGitHubName(raw.repo);
+  if (!org || !repo) notFound();
   const session = await auth0.getSession();
   const sub = session?.user?.sub;
   if (!sub) notFound();

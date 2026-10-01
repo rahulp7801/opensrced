@@ -56,7 +56,7 @@ export function RevokeAllButton() {
           <li>Stop your active hosted runs before access is cleared</li>
           <li>Disconnect all GitHub organizations you&apos;ve connected</li>
           <li>Revoke all cached installation tokens immediately</li>
-          <li>Sign you out and destroy your session</li>
+          <li>Sign this browser out (other signed-in devices stay signed in until their session expires; revoking the GitHub authorization below cuts off their GitHub access)</li>
           <li>Your GitHub OAuth authorization remains — revoke it at{" "}
             <a
               href="https://github.com/settings/applications"

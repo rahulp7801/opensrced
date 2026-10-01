@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
   if (useQuickFix) {
     return quickFix(body, anthropicKey, token, req.signal);
   } else {
-    return deepFix(body, anthropicKey, token, req.signal);
+    return deepFix(body, anthropicKey, token, req.signal, userId);
   }
 }
 
@@ -147,6 +147,7 @@ async function deepFix(
   apiKey: string,
   ghToken: string | null,
   signal: AbortSignal,
+  userId: string,
 ) {
   if (!cloudExecution() && !existsSync(MCP_CONFIG)) {
     releaseSlot("fix");
@@ -212,7 +213,7 @@ CONSTRAINTS — these are hard rules, not suggestions:
 
   if (cloudExecution()) {
     releaseSlot("fix");
-    return cloudExplore(args, { OPENSRCER_ALLOWED_REPO: sourceRepo, OPENSRCER_REPO_REF: head.sha, ANTHROPIC_API_KEY: apiKey, ...(ghToken ? { GITHUB_TOKEN: ghToken } : {}) }, signal);
+    return cloudExplore(args, { OPENSRCER_ALLOWED_REPO: sourceRepo, OPENSRCER_REPO_REF: head.sha, ANTHROPIC_API_KEY: apiKey, ...(ghToken ? { GITHUB_TOKEN: ghToken } : {}) }, signal, userId);
   }
 
   // Allowlisted env + a read-only toolbelt: this spawn embeds PR review

@@ -83,9 +83,11 @@ repositories, and generated graphs. Back up all four volumes and keep `AUTH0_SEC
 active runs before restarting. There is no durable job queue or restart recovery
 yet, so a rolling deployment is not safe while jobs are running.
 
-Target-repository test execution is **off** in Compose. Those tests execute
-repository-controlled commands on the host; a worktree and a non-root user are
-not a security sandbox. Keep this off until execution runs in isolated workers
+Target-repository test execution is **off** by default (`OPENSRCER_RUN_TESTS`
+unset), in Compose, the image, and local runs alike. Those tests execute
+repository-controlled commands on the host as the server's own user, which can
+read the server's process environment; a worktree and a non-root user are not a
+security sandbox. Keep this off until execution runs in isolated workers
 without the web server's secrets or filesystem. Such runs must remain unverified
 in the UI. The current container is suitable for controlled staging, not an
 unrestricted public multi-tenant execution service.

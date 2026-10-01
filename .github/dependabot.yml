@@ -46,6 +46,15 @@ updates:
       - dependency-name: networkx
         versions: [">=3.7"]
 
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      # Stay on Node 24 / Debian bookworm; take digest and patch updates only.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

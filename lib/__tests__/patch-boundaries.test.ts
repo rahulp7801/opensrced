@@ -23,3 +23,11 @@ test("patches cannot change Git configuration or escape through a directory link
     assert.equal(readFileSync(join(outside, "secret.txt"), "utf8"), "original\n");
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+test("symlink modes are caught however git would spell them", async () => {
+  const { hasSymlinkMode } = await import("../apply-diff");
+  for (const mode of ["120000", "120000 ", "0120000", "120755"]) {
+    assert.equal(hasSymlinkMode(`diff --git a/s b/s\nnew file mode ${mode}\n`), true, mode);
+  }
+  assert.equal(hasSymlinkMode("diff --git a/f b/f\nnew file mode 100644\nold mode 100755\n"), false);
+});

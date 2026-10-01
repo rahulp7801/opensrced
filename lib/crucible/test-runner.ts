@@ -56,6 +56,12 @@ function stopProcessTree(child: ChildProcess): void {
 }
 
 /** Credentials are intentionally absent from target-controlled test scripts. */
+/** OPENSRCER_RUN_TESTS: off (default) | crucible | all. One definition, read
+ *  by the PR pipeline and reported by /api/health. */
+export function testsMode(): string {
+  return process.env.OPENSRCER_RUN_TESTS ?? "off";
+}
+
 export function targetTestEnv(): NodeJS.ProcessEnv {
   return childEnv();
 }

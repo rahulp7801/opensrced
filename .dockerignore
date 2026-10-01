@@ -13,3 +13,8 @@ mcp-server/node_modules
 .npm-cache
 .audit-*.json
 .security-tools
+# Local-only notes and tool state
+.claude
+handoff.md
+HANDOFF.md
+tsconfig.tsbuildinfo

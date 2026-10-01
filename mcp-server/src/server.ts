@@ -33,6 +33,9 @@ import {
 // server only needs GITHUB_TOKEN (clones); drop the provider key so neither
 // it nor the git processes it spawns ever hold it.
 delete process.env.ANTHROPIC_API_KEY;
+// Clones of untrusted repos must not let a committed .lfsconfig make git-lfs
+// call an arbitrary URL during checkout (see lib/child-env.ts).
+process.env.GIT_LFS_SKIP_SMUDGE = "1";
 
 const server = new McpServer({
   name: "opensrcer-repo-tools",

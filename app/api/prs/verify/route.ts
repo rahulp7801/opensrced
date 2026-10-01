@@ -15,7 +15,9 @@ import { NextRequest } from "next/server";
 import { existsSync } from "node:fs";
 import { graphJsonPath, loadGraph } from "@/lib/graph";
 import { analyzeImpactFromDiff } from "@/lib/graph-impact";
-import { ensureGraph, hasCrg, graphCacheDir, crgPythonPath } from "@/lib/graph-build";
+import { hasCrg, graphCacheDir, crgPythonPath } from "@/lib/graph-build";
+import { buildGraphWorker } from "@/lib/graph-worker";
+import { reserveSlot } from "@/lib/concurrency";
 import { execFile } from "node:child_process";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -27,7 +29,7 @@ import { sessionUserId } from "@/lib/require-session";
 const execFileAsync = promisify(execFile);
 
 import { cloudExecution } from "@/lib/cloud-run-state";
-import { getStoredGraph } from "@/lib/graph-store";
+import { getStoredGraph, saveStoredGraph } from "@/lib/graph-store";
 import { resolveRepositoryToken } from "@/lib/crucible/tokens";
 
 export const dynamic = "force-dynamic";
@@ -283,19 +285,30 @@ export async function POST(req: NextRequest) {
           detail: "Building knowledge graph for impact analysis (first time only)...",
         });
 
-        // Clone as the requesting user — ensureGraph no longer falls back
-        // to the host GITHUB_TOKEN or gh keychain.
-        const buildResult = await ensureGraph(m[1], m[2], repositoryToken);
+        // Same hardened builder as /api/graph/generate: a disposable clone,
+        // symlinks removed, `python -I` so a repository-committed graphify/
+        // package cannot run, and the requester's own credential. The old
+        // in-place build ran `python -c` inside the clone.
+        let buildError: string | null = null;
+        let release: (() => void) | undefined;
+        try {
+          release = reserveSlot("graph", 2);
+          await saveStoredGraph(userId, body.repo, await buildGraphWorker(`${m[1]}/${m[2]}`, repositoryToken, req.signal));
+        } catch (error) {
+          buildError = error instanceof Error ? error.message : "graph build failed";
+        } finally {
+          release?.();
+        }
         // Remove the "building" placeholder
         checks.pop();
 
-        if (buildResult.error) {
+        if (buildError) {
           checks.push({
             name: "Graph impact",
             status: "warn",
-            detail: `Could not build graph: ${buildResult.error.slice(0, 150)}. Impact analysis skipped.`,
+            detail: `Could not build graph: ${buildError.slice(0, 150)}. Impact analysis skipped.`,
           });
-        } else if (buildResult.built) {
+        } else {
           checks.push({
             name: "Graph build",
             status: "pass",

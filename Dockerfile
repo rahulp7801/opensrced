@@ -40,8 +40,14 @@ ARG GITLEAKS_VERSION=8.30.1
 RUN set -eux; \
     arch="$(dpkg --print-architecture)"; \
     case "$arch" in amd64) gl_arch=x64 ;; arm64) gl_arch=arm64 ;; *) echo "unsupported arch $arch" >&2; exit 1 ;; esac; \
-    curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_${gl_arch}.tar.gz" \
-      | tar -xz -C /usr/local/bin gitleaks
+    cd /tmp; \
+    base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"; \
+    tarball="gitleaks_${GITLEAKS_VERSION}_linux_${gl_arch}.tar.gz"; \
+    curl -fsSLO "$base/$tarball"; \
+    curl -fsSLO "$base/gitleaks_${GITLEAKS_VERSION}_checksums.txt"; \
+    grep " ${tarball}\$" "gitleaks_${GITLEAKS_VERSION}_checksums.txt" | sha256sum -c -; \
+    tar -xzf "$tarball" -C /usr/local/bin gitleaks; \
+    rm -f "$tarball" "gitleaks_${GITLEAKS_VERSION}_checksums.txt"
 
 # Claude Code CLI — the agentic path shells out to `claude -p`.
 ARG CLAUDE_CODE_VERSION=2.1.269
@@ -77,12 +83,16 @@ RUN AUTH0_SECRET=build-time-placeholder-not-a-real-secret \
     APP_BASE_URL=http://localhost:3000 \
     AUTH0_DOMAIN=example.us.auth0.com \
     AUTH0_CLIENT_ID=build AUTH0_CLIENT_SECRET=build \
-    npm run build
+    npm run build \
+    && npm run build:worker
 
-# Drop root. This container runs the target repository's own test suite
-# (OPENSRCER_RUN_TESTS) and an LLM agent that shells out — both are code this
-# image did not write. As root, a malicious postinstall script owns the
-# container; as `node` it is confined to the app's own files and volumes.
+# Drop root, and keep the app itself root-owned: `node` can write only its
+# data directories, so nothing it runs can replace server code.
+#
+# Target-repository tests stay off (OPENSRCER_RUN_TESTS defaults to off). When
+# enabled they run as this same user, which can read the server's own process
+# environment (AUTH0_SECRET, the GitHub App key) through /proc. Enable them
+# only on a single-user host or an isolated runner.
 #
 # The mounted paths must be writable by uid 1000 (the `node` user):
 #   /app/.dispatches            dispatch logs + sidecars
@@ -91,8 +101,8 @@ RUN AUTH0_SECRET=build-time-placeholder-not-a-real-secret \
 #   /home/node/.opensrcer       generated graphs
 # Note the cache path moved with HOME — update the -v flag in the header
 # comment above accordingly when running as non-root.
-RUN mkdir -p /app/.dispatches /app/.fixes /home/node/.contribai/repos /home/node/.opensrcer \
-    && chown -R node:node /app /home/node/.contribai /home/node/.opensrcer
+RUN mkdir -p /app/.dispatches /app/.fixes /app/.next/cache /home/node/.contribai/repos /home/node/.opensrcer \
+    && chown -R node:node /app/.dispatches /app/.fixes /app/.next/cache /home/node/.contribai /home/node/.opensrcer
 USER node
 
 ENV NODE_ENV=production

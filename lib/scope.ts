@@ -65,10 +65,12 @@ const DOC_OR_PACKAGING_PATH = [
 // Triggers that almost always indicate a repo-wide change.
 const REFACTOR_PHRASES = [
   /\brefactor(ing)?\s+(across|through|the\s+entire)/i,
-  /\brename(d|ing)?\s+.+\s+(across|everywhere|in all)/i,
+  // `\s+\S` pins the first gap; the bounded lazy middle keeps these linear.
+  // The previous `\s+.+\s+` was cubic on long whitespace runs in issue text.
+  /\brename(d|ing)?\s+\S[^\n]{0,200}?\s(across|everywhere|in all)/i,
   /\b(every|all)\s+(callers?|usages?|consumers?|subclass(es)?|references?)\b/i,
   /\bbreaking\s+change\b/i,
-  /\bmigrate\s+.+\s+(codebase|project|everywhere)/i,
+  /\bmigrate\s+\S[^\n]{0,200}?\s(codebase|project|everywhere)/i,
 ];
 
 // Path-ish tokens: captures `foo/bar.py`, `src/lib.rs`, `a.b.c.ext` in
@@ -175,6 +177,9 @@ const NEW_FILE_BODY_RE =
   /\b(?:doesn'?t\s+(?:currently\s+)?exist|(?:is|are)\s+(?:currently\s+)?missing|add\s+a\s+new\s+file|create\s+a\s+new\s+file|new\s+file\s+(?:called|named))\b/i;
 
 export function classifyScope(title: string, body: string): ScopeInfo {
+  // Issue text is attacker-controlled; bound the work every pattern does.
+  title = title.slice(0, 1_000);
+  body = body.slice(0, 20_000);
   const text = `${title}\n${body}`;
   const files = extractPaths(text);
   const symbols = extractSymbols(text);

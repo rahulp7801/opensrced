@@ -72,6 +72,10 @@ export function childEnv(
     if (v !== undefined) env[key] = v;
   }
   env.GIT_TERMINAL_PROMPT = "0";
+  // A cloned repo's .lfsconfig can point git-lfs at any URL, and hosts with a
+  // system-wide LFS filter (Git for Windows) contact it during checkout. Keep
+  // pointer files instead; nothing here needs LFS content.
+  env.GIT_LFS_SKIP_SMUDGE = "1";
   for (const [k, v] of Object.entries(inject)) {
     if (v !== undefined && v !== "") env[k] = v;
   }

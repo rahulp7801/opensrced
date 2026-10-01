@@ -216,6 +216,14 @@ describe("classifyScope", () => {
     assert.ok(s.files.includes("src/parser.ts"));
   });
 
+  test("hostile whitespace in issue text classifies in linear time", () => {
+    // The old `rename\s+.+\s+(across…)` took ~5 s on 3,000 spaces (cubic).
+    const start = Date.now();
+    classifyScope("t", "Please rename" + " ".repeat(65_000) + "x");
+    classifyScope("t", "migrate" + "\t".repeat(65_000) + "x");
+    assert.ok(Date.now() - start < 1_000, `took ${Date.now() - start} ms`);
+  });
+
   test("recognizes a repo-wide refactor", () => {
     const s = classifyScope(
       "Rename Foo to Bar across the codebase",

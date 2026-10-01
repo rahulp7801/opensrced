@@ -13,6 +13,7 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { authConfigured } from "@/lib/auth-config";
+import { testsMode } from "@/lib/crucible/test-runner";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +54,7 @@ export async function GET(request: Request) {
     missing,
     deps: { ...deps, auth0_config: auth0Config },
     auth: process.env.AUTH_DISABLED === "1" ? "disabled" : "auth0",
-    tests_mode: process.env.OPENSRCER_RUN_TESTS ?? "crucible",
+    tests_mode: testsMode(),
     dispatch_logs: dispatchLogs,
     uptime_sec: Math.round(process.uptime()),
     timestamp: new Date().toISOString(),

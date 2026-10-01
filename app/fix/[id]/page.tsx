@@ -45,7 +45,9 @@ export default function SharedFixPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-[800px] px-4 py-12">
+      <div className="mx-auto max-w-[800px] px-4 py-12" aria-busy="true">
+        {/* The skeleton has no text, so give assistive tech something to announce. */}
+        <h1 className="sr-only">Loading shared fix…</h1>
         <div className="animate-pulse space-y-4">
           <div className="h-6 w-48 bg-surface-2 rounded" />
           <div className="h-4 w-96 bg-surface-2 rounded" />

@@ -2,7 +2,7 @@
 // Reads graphify's graph.json and performs pure JS traversal.
 
 import { parseRepo, authorizeRepo } from "./repo-cache.js";
-import { readFile, stat } from "node:fs/promises";
+import { open } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { safeRepoPath } from "./safe-path.js";
@@ -56,10 +56,16 @@ async function loadGraph(repo: string): Promise<GraphData> {
   if (!path) throw new Error("Graph not found. Build it first via the Graph page in the opensrcer UI.");
   const root = dirname(dirname(path));
   const safePath = await safeRepoPath(root, "graphify-out/graph.json");
-  // Same 8 MB ceiling the app enforces when it builds graphs.
-  if ((await stat(safePath)).size > 8_000_000) throw new Error("Graph is too large to load.");
-  const raw = await readFile(safePath, "utf8");
-  return JSON.parse(raw) as GraphData;
+  // Size and read go through one handle so the file cannot be swapped between
+  // the check and the read.
+  const file = await open(safePath, "r");
+  try {
+    // Matches GRAPH_JSON_MAX_BYTES in lib/graph-worker.ts.
+    if ((await file.stat()).size > 128_000_000) throw new Error("Graph is too large to load.");
+    return JSON.parse(await file.readFile("utf8")) as GraphData;
+  } finally {
+    await file.close();
+  }
 }
 
 function findNode(graph: GraphData, query: string): GraphNode | null {

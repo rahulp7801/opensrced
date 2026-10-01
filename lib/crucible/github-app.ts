@@ -3,8 +3,9 @@ import crypto from "node:crypto";
 import { githubApi } from "../github-api";
 
 const TOKEN_TTL_MS = 55 * 60 * 1000;
-const tokens = new Map<number, { token: string; expiresAt: number }>();
-const pending = new Map<number, Promise<string>>();
+// Keyed by installation, or installation/repository for repo-scoped tokens.
+const tokens = new Map<string, { token: string; expiresAt: number }>();
+const pending = new Map<string, Promise<string>>();
 
 function getPrivateKey(): string {
   const raw = process.env.GITHUB_APP_PRIVATE_KEY;
@@ -54,31 +55,38 @@ export async function mintInstallationToken(installationId: number, repositories
   return json.token;
 }
 
-export async function getInstallationToken(installationId: number): Promise<string> {
-  const cached = tokens.get(installationId);
+/** Cached installation token. With `repository`, the token is limited to
+ *  that one repository; use that form for anything handed to a child process
+ *  or VM that touches repository content. */
+export async function getInstallationToken(installationId: number, repository?: string): Promise<string> {
+  const key = repository ? `${installationId}/${repository.toLowerCase()}` : String(installationId);
+  const cached = tokens.get(key);
   if (cached && cached.expiresAt > Date.now()) return cached.token;
-  const existing = pending.get(installationId);
+  const existing = pending.get(key);
   if (existing) return existing;
-  const request = mintInstallationToken(installationId).then(token => {
+  const request = mintInstallationToken(installationId, repository ? [repository] : undefined).then(token => {
     // A disconnect can invalidate this mint while the GitHub request is in
-    // flight. Only the request still registered for this installation may
+    // flight. Only the request still registered for this key may
     // repopulate the cache.
-    if (pending.get(installationId) === request) {
-      tokens.delete(installationId);
+    if (pending.get(key) === request) {
+      tokens.delete(key);
       if (tokens.size >= 100) tokens.delete(tokens.keys().next().value!);
-      tokens.set(installationId, { token, expiresAt: Date.now() + TOKEN_TTL_MS });
+      tokens.set(key, { token, expiresAt: Date.now() + TOKEN_TTL_MS });
     }
     return token;
   }).finally(() => {
-    if (pending.get(installationId) === request) pending.delete(installationId);
+    if (pending.get(key) === request) pending.delete(key);
   });
-  pending.set(installationId, request);
+  pending.set(key, request);
   return request;
 }
 
+/** Drop every cached token (installation-wide and per-repository). */
 export function clearInstallationToken(installationId: number): void {
-  tokens.delete(installationId);
-  pending.delete(installationId);
+  const prefix = `${installationId}/`;
+  for (const map of [tokens, pending]) {
+    for (const key of [...map.keys()]) if (key === String(installationId) || key.startsWith(prefix)) map.delete(key);
+  }
 }
 
 function githubUrl(url: string): void {

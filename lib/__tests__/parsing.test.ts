@@ -221,7 +221,9 @@ describe("classifyScope", () => {
     const start = Date.now();
     classifyScope("t", "Please rename" + " ".repeat(65_000) + "x");
     classifyScope("t", "migrate" + "\t".repeat(65_000) + "x");
-    assert.ok(Date.now() - start < 1_000, `took ${Date.now() - start} ms`);
+    // Unbounded `[\w.]{2,}\(` was quadratic on dotted runs (280 ms at 20k).
+    classifyScope("t", "a.".repeat(10_000));
+    assert.ok(Date.now() - start < 500, `took ${Date.now() - start} ms`);
   });
 
   test("recognizes a repo-wide refactor", () => {

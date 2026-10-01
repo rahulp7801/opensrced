@@ -1,6 +1,6 @@
 import { readJsonBody } from "@/lib/request-body";
 import { NextRequest, NextResponse } from "next/server";
-import { startAgenticDispatch } from "@/lib/agentic-dispatcher";
+import { RunTargetError, startAgenticDispatch } from "@/lib/agentic-dispatcher";
 import { resolveCommitAuthor, resolveGitHubToken, type CommitAuthor } from "@/lib/github-token";
 import { resolveAnthropicKey, resolveGeminiKey, resolveMaxSpendUsd } from "@/lib/api-keys";
 import { sessionUserId } from "@/lib/require-session";
@@ -93,6 +93,7 @@ export async function POST(req: NextRequest) {
       { status: 202 },
     );
   } catch (err) {
+    if (err instanceof RunTargetError) return NextResponse.json({ status: "error", message: err.message }, { status: 400 });
     const capacity = err instanceof CapacityError;
     return NextResponse.json(
       { status: "error", message: capacity ? err.message : "Could not start the worker. Check the server configuration and try again." },

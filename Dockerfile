@@ -37,19 +37,26 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     && rm -rf /var/lib/apt/lists/*
 
 # gitleaks — hard gate on secrets in generated patches. The pipeline fails
-# closed when the scanner is absent.
+# closed when the scanner is absent. Hashes are pinned here (from the
+# release's checksums.txt) so a replaced release asset fails the build rather
+# than being checked against a checksum file replaced alongside it. Update the
+# version and both hashes together.
 ARG GITLEAKS_VERSION=8.30.1
+ARG GITLEAKS_SHA256_X64=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+ARG GITLEAKS_SHA256_ARM64=e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080
 RUN set -eux; \
     arch="$(dpkg --print-architecture)"; \
-    case "$arch" in amd64) gl_arch=x64 ;; arm64) gl_arch=arm64 ;; *) echo "unsupported arch $arch" >&2; exit 1 ;; esac; \
+    case "$arch" in \
+      amd64) gl_arch=x64; gl_sha="$GITLEAKS_SHA256_X64" ;; \
+      arm64) gl_arch=arm64; gl_sha="$GITLEAKS_SHA256_ARM64" ;; \
+      *) echo "unsupported arch $arch" >&2; exit 1 ;; \
+    esac; \
     cd /tmp; \
-    base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"; \
     tarball="gitleaks_${GITLEAKS_VERSION}_linux_${gl_arch}.tar.gz"; \
-    curl -fsSLO "$base/$tarball"; \
-    curl -fsSLO "$base/gitleaks_${GITLEAKS_VERSION}_checksums.txt"; \
-    grep " ${tarball}\$" "gitleaks_${GITLEAKS_VERSION}_checksums.txt" | sha256sum -c -; \
+    curl -fsSLO "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/$tarball"; \
+    echo "$gl_sha  $tarball" | sha256sum -c -; \
     tar -xzf "$tarball" -C /usr/local/bin gitleaks; \
-    rm -f "$tarball" "gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+    rm -f "$tarball"
 
 # Claude Code CLI — the agentic path shells out to `claude -p`.
 ARG CLAUDE_CODE_VERSION=2.1.269

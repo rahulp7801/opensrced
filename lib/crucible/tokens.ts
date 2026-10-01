@@ -28,11 +28,15 @@ function patOrGhCli(): ResolvedToken {
 
 export async function resolveGithubToken(
   orgCtx?: OrgContext | null,
+  /** Mint a fresh token limited to this repository (the post-run PR step). */
+  repository?: string,
 ): Promise<ResolvedToken> {
   if (orgCtx?.auth0UserId && orgCtx.githubOrg) {
     const mapping = await mappingForOrg(orgCtx.auth0UserId, orgCtx.githubOrg);
     if (mapping) {
-      const token = await getInstallationToken(mapping.installation_id);
+      const token = repository
+        ? await mintInstallationToken(mapping.installation_id, [repository])
+        : await getInstallationToken(mapping.installation_id);
       return { token, source: "installation" };
     }
     // Org context supplied but no verified mapping — do NOT fall back to
@@ -54,10 +58,10 @@ export async function mappingForRequest(auth0UserId: string, githubOrg: string):
 
 /** resolveGithubToken for a user request. The detached post-run PR step
  *  keeps the plain resolver; its run was authorized here when it started. */
-export async function resolveGithubTokenForRequest(orgCtx: OrgContext): Promise<ResolvedToken> {
+export async function resolveGithubTokenForRequest(orgCtx: OrgContext, repository?: string): Promise<ResolvedToken> {
   const mapping = await mappingForRequest(orgCtx.auth0UserId, orgCtx.githubOrg);
   if (!mapping) return { token: undefined, source: "none" };
-  return { token: await getInstallationToken(mapping.installation_id), source: "installation" };
+  return { token: await getInstallationToken(mapping.installation_id, repository), source: "installation" };
 }
 
 /** A token for one agent run: the same admin re-check, but freshly minted
@@ -81,7 +85,8 @@ export async function resolveRepositoryToken(
   const canonical = parseRunTarget(repo).repo;
   const owner = canonical.split("/")[0];
   try {
-    const installation = await resolveGithubTokenForRequest({ auth0UserId, githubOrg: owner });
+    // Repository-scoped: these tokens reach graph, fix, and push workers.
+    const installation = await resolveGithubTokenForRequest({ auth0UserId, githubOrg: owner }, canonical.split("/")[1]);
     if (installation.token) {
       await githubApi(`/repos/${canonical}`, installation.token, undefined, signal);
       return installation;

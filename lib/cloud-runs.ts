@@ -1,7 +1,8 @@
 import { del, list, put, BlobPreconditionFailedError } from "@vercel/blob";
 import { generateClientTokenFromReadWriteToken } from "@vercel/blob/client";
 import { APIError, Sandbox } from "@vercel/sandbox";
-import type { FindingInput, StartAgenticOpts } from "./agentic-dispatcher";
+import { fetchIssue, type FindingInput, type StartAgenticOpts } from "./agentic-dispatcher";
+import { parseRunTarget } from "./run-target";
 import { CapacityError } from "./concurrency";
 import {
   CloudRun,
@@ -75,44 +76,59 @@ async function pruneCloudRunHistory(owner: string): Promise<void> {
 /** One account may hold this many of the three agent slots at once. */
 const PER_OWNER_RUNS = 2;
 
+type StoredLease = Awaited<ReturnType<typeof readJson<unknown>>>;
+
+/** Whether a slot's lease still belongs to live work, and the finished run
+ *  behind it (if any). reserveCapacity writes the lease immediately before
+ *  startCloudRun writes the run, so a missing record is protected briefly; if
+ *  the creating function died, the slot is reclaimed instead of wedging
+ *  capacity for the 45-minute TTL. */
+async function slotState(stored: StoredLease): Promise<{ busy: boolean; owner?: string; finishedRunId?: string }> {
+  const lease = stored ? cloudRunLease(stored.value) : null;
+  if (!lease || lease.expires <= Date.now()) return { busy: false };
+  const owner = lease.path.slice(0, lease.path.lastIndexOf("/") + 1);
+  let previous: StoredLease;
+  try { previous = await readJson<unknown>(lease.path); }
+  catch { return { busy: true, owner }; }
+  if (!previous) return { busy: cloudRunLeaseIsStarting(lease), owner };
+  const prior = typeof previous.value === "object" && previous.value !== null &&
+    (previous.value as Partial<CloudRun>).id === lease.id ? previous.value as CloudRun : null;
+  const busy = Boolean(prior && runIsActive(prior) &&
+    !await readJson(lease.path.replace(/\/runs\/[^/]+$/, `/cancelled-runs/${lease.id}.json`)));
+  // Name the VM from the lease's own id, never from the record: a worker
+  // can rewrite its record, and must not be able to aim this at another VM.
+  return { busy, owner, finishedRunId: !busy && prior && !prior.sandbox_stopped ? lease.id : undefined };
+}
+
+async function ownerSlots(ownerRuns: string): Promise<number> {
+  let held = 0;
+  for (let slot = 0; slot < 3; slot++) {
+    const state = await slotState(await readJson<unknown>(`capacity/${slot}.json`));
+    if (state.busy && state.owner === ownerRuns) held++;
+  }
+  return held;
+}
+
 /** Blob ETags make these three leases shared across function instances.
  *  Exported for tests. */
 export async function reserveCapacity(path: string, expires: number): Promise<string> {
   // Run paths are users/<owner hash>/runs/<id>.json; the directory names the owner.
   const ownerRuns = path.slice(0, path.lastIndexOf("/") + 1);
+  const tooMany = () => new CapacityError(`You already have ${PER_OWNER_RUNS} runs in progress. Try again when one finishes.`);
   let mine = 0;
-  const reclaimable: Array<{ key: string; stored: Awaited<ReturnType<typeof readJson<unknown>>>; finishedVm?: string }> = [];
+  const reclaimable: Array<{ key: string; stored: StoredLease; finishedRunId?: string }> = [];
   for (let slot = 0; slot < 3; slot++) {
     const key = `capacity/${slot}.json`;
     const stored = await readJson<unknown>(key);
-    const lease = stored ? cloudRunLease(stored.value) : null;
-    let finishedVm: string | undefined;
-    if (lease && lease.expires > Date.now()) {
-      let previous: Awaited<ReturnType<typeof readJson<unknown>>>;
-      try { previous = await readJson<unknown>(lease.path); }
-      catch { continue; }
-      const prior = previous && typeof previous.value === "object" && previous.value !== null &&
-        (previous.value as Partial<CloudRun>).id === lease.id ? previous.value as CloudRun : null;
-      // reserveCapacity writes the lease immediately before startCloudRun
-      // writes the run. Keep that normal race protected briefly. If the
-      // creating function died and the record is still absent afterward,
-      // reclaim the slot instead of wedging capacity for the 45-minute TTL.
-      const busy = !previous
-        ? cloudRunLeaseIsStarting(lease)
-        : Boolean(prior && runIsActive(prior) &&
-          !await readJson(lease.path.replace(/\/runs\/[^/]+$/, `/cancelled-runs/${lease.id}.json`)));
-      if (busy) {
-        if (lease.path.startsWith(ownerRuns)) mine++;
-        continue;
-      }
-      // A finished run's VM idles (billed) until its 40-minute timeout unless
-      // someone polls the run. Reusing its slot is the moment to stop it.
-      if (prior && !prior.sandbox_stopped) finishedVm = prior.sandbox_name;
+    const state = await slotState(stored);
+    if (state.busy) {
+      if (state.owner === ownerRuns) mine++;
+      continue;
     }
-    reclaimable.push({ key, stored, finishedVm });
+    reclaimable.push({ key, stored, finishedRunId: state.finishedRunId });
   }
-  if (mine >= PER_OWNER_RUNS) throw new CapacityError(`You already have ${PER_OWNER_RUNS} runs in progress. Try again when one finishes.`);
-  for (const { key, stored, finishedVm } of reclaimable) {
+  if (mine >= PER_OWNER_RUNS) throw tooMany();
+  for (const { key, stored, finishedRunId } of reclaimable) {
     try {
       await put(key, JSON.stringify({ path, expires, reserved: Date.now() }), {
         ...writeOptions, allowOverwrite: !!stored, ...(stored ? { ifMatch: stored.etag } : {}),
@@ -122,7 +138,19 @@ export async function reserveCapacity(path: string, expires: number): Promise<st
       if (error instanceof BlobPreconditionFailedError || (error instanceof Error && /already exists/i.test(error.message))) continue;
       throw error;
     }
-    if (finishedVm) await stopSandbox(finishedVm);
+    // Simultaneous requests from one account all pass the count above. Re-count
+    // with this lease in place and back out if the account is over its share;
+    // racing requests then all back out, which errs toward refusing.
+    if (await ownerSlots(ownerRuns) > PER_OWNER_RUNS) {
+      await updateJson<unknown>(key, { path, expires: 0 }, value => {
+        const lease = cloudRunLease(value);
+        return lease?.path === path ? { path, expires: 0 } : value;
+      }).catch(() => {});
+      throw tooMany();
+    }
+    // A finished run's VM idles (billed) until its 40-minute timeout unless
+    // someone polls the run. Reusing its slot is the moment to stop it.
+    if (finishedRunId) await stopSandbox(finishedRunId.replaceAll("_", "-"));
     return key;
   }
   throw new CapacityError("All three agent slots are busy. Try again when a run finishes.");
@@ -135,6 +163,10 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
   const id = newCloudRunId();
   const path = runPath(opts.auth0UserId, id);
   const summaryPath = runSummaryPath(opts.auth0UserId, id);
+  // A missing issue or a pull request number would otherwise start (and bill)
+  // a VM that fails at once. Skipped without a user token: anonymous GitHub
+  // calls from shared egress IPs exhaust their rate limit quickly.
+  if (!finding && opts.token) await fetchIssue(parseRunTarget(repo).repo, issue, opts.token);
   const run: CloudRun = {
     id, auth0_user_id: opts.auth0UserId, repo_url: repo, issue_number: issue,
     mode: "agentic", dry_run: opts.dryRun === true, started_at: new Date().toISOString(), status: "running",

@@ -91,7 +91,9 @@ const PATH_RE = new RegExp(
 const SYMBOL_RE = new RegExp(
   String.raw`\b([A-Z][A-Za-z0-9]{2,}[A-Za-z0-9_]*` +
   String.raw`|[a-z][a-z0-9]*_[a-z0-9_]+` +
-  String.raw`|[a-zA-Z_][\w.]{2,}\s*\()`,
+  // Bounded: tokens over 64 chars are discarded below anyway, and the open
+  // run backtracked quadratically on text like "a.a.a…" with no "(".
+  String.raw`|[a-zA-Z_][\w.]{2,64}\s*\()`,
   "g",
 );
 
@@ -213,7 +215,7 @@ export function classifyScope(title: string, body: string): ScopeInfo {
   // Doc short-circuit: every mentioned path is docs/packaging, AND no
   // code-shaped symbols (function calls) appear. If code symbols show up,
   // it's probably a source bug that *also* wants a README note.
-  const hasCallSymbol = /\b[a-zA-Z_][\w.]{2,}\(/.test(text) || symbols.some((s) => /[a-z][A-Z]|_/.test(s));
+  const hasCallSymbol = /\b[a-zA-Z_][\w.]{2,64}\(/.test(text) || symbols.some((s) => /[a-z][A-Z]|_/.test(s));
   if (files.length > 0 && files.every(isDocPath) && !hasCallSymbol) {
     return {
       bucket: "doc",

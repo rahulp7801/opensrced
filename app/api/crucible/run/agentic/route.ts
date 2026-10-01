@@ -7,7 +7,7 @@ import { readJsonBody } from "@/lib/request-body";
 import { NextRequest, NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
 import { CapacityError } from "@/lib/concurrency";
-import { startAgenticDispatch, startFindingDispatch } from "@/lib/agentic-dispatcher";
+import { RunTargetError, startAgenticDispatch, startFindingDispatch } from "@/lib/agentic-dispatcher";
 import { mappingForRequest, resolveRunTokenForRequest } from "@/lib/crucible/tokens";
 import { resolveCommitAuthor } from "@/lib/github-token";
 import { resolveAnthropicKey, resolveGeminiKey, resolveMaxSpendUsd } from "@/lib/api-keys";
@@ -139,6 +139,7 @@ export async function POST(req: NextRequest) {
       { status: 202 },
     );
   } catch (err) {
+    if (err instanceof RunTargetError) return NextResponse.json({ status: "error", message: err.message }, { status: 400 });
     const capacity = err instanceof CapacityError;
     return NextResponse.json(
       { status: "error", message: capacity ? err.message : "Could not start the private-repository worker. Check the server configuration and try again." },

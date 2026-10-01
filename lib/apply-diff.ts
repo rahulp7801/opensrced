@@ -109,12 +109,16 @@ async function run(cmd: string, args: string[], opts: { cwd?: string; env?: Node
  * On success the touched files are staged, so the caller can commit
  * directly without a separate `git add`.
  */
-/** git parses mode lines as octal and treats any mode whose type bits are
- *  0120000 as a symlink, so `0120000`, `120000 ` and `120755` all create one.
- *  Matching the literal text `120000` let those through. */
-export function hasSymlinkMode(diff: string): boolean {
-  for (const m of diff.matchAll(/^(?:(?:new|deleted) file mode|(?:old|new) mode)[ \t]+([0-7]+)/gm)) {
-    if ((parseInt(m[1], 8) & 0o170000) === 0o120000) return true;
+/** A patch may only create or keep regular files. git reads modes with
+ *  strtoul (accepting `+`, leading \v \f \r, and any 012xxxx value as a
+ *  symlink, 0160000 as a submodule) from mode lines AND from the trailing
+ *  field of `index a..b <mode>` lines, so an allowlist is the only safe check. */
+export function hasUnsafeMode(diff: string): boolean {
+  for (const m of diff.matchAll(/^(?:(?:new|deleted) file mode|(?:old|new) mode)(.*)$/gm)) {
+    if (!/^ 100(?:644|755)[ \t]*$/.test(m[1])) return true;
+  }
+  for (const m of diff.matchAll(/^index [0-9a-f]+\.\.[0-9a-f]+(.*)$/gm)) {
+    if (!/^(?: 100(?:644|755))?[ \t]*$/.test(m[1])) return true;
   }
   return false;
 }
@@ -130,7 +134,7 @@ export async function applyDiff(
   await writeFile(patchPath, normalized, { mode: 0o600 });
 
   const files = diffTouchedFiles(normalized);
-  if (files.some(file => !containedPath(dir, file)) || hasSymlinkMode(normalized)) {
+  if (files.some(file => !containedPath(dir, file)) || hasUnsafeMode(normalized)) {
     return { ok: false, errors: ["Patch contains an unsafe path, Git metadata, or a symbolic link."] };
   }
   const errors: string[] = [];

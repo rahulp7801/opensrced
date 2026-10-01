@@ -259,7 +259,9 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
   // long agentic run can't fail the push with an expired token.
   if (args.orgCtx) {
     const { resolveGithubToken } = await import("./crucible/tokens");
-    const resolved = await resolveGithubToken(args.orgCtx);
+    // Fresh and limited to this repository: the git/gh steps below never
+    // hold access to the rest of the installation.
+    const resolved = await resolveGithubToken(args.orgCtx, name);
     if (!resolved.token) {
       await appendFile(
         args.logPath,

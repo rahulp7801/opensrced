@@ -85,6 +85,30 @@ test("run tokens are minted for exactly the requested repository", async (t) => 
   for (const scope of [[], ["../other"], ["a/b"]]) await assert.rejects(mintInstallationToken(704, scope), /Invalid repository scope/);
 });
 
+test("repository-scoped tokens are cached apart and cleared with their installation", async (t) => {
+  const previousKey = process.env.GITHUB_APP_PRIVATE_KEY, previousId = process.env.GITHUB_APP_ID;
+  process.env.GITHUB_APP_PRIVATE_KEY = privateKey;
+  process.env.GITHUB_APP_ID = "123";
+  t.after(() => {
+    clearInstallationToken(705);
+    if (previousKey === undefined) delete process.env.GITHUB_APP_PRIVATE_KEY; else process.env.GITHUB_APP_PRIVATE_KEY = previousKey;
+    if (previousId === undefined) delete process.env.GITHUB_APP_ID; else process.env.GITHUB_APP_ID = previousId;
+  });
+  const bodies: string[] = [];
+  t.mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+    bodies.push(String(init.body));
+    return Response.json({ token: `token-${bodies.length}` });
+  });
+  const wide = await getInstallationToken(705);
+  const scoped = await getInstallationToken(705, "Widgets");
+  assert.notEqual(wide, scoped);
+  assert.equal(await getInstallationToken(705, "widgets"), scoped, "case-insensitive cache hit");
+  assert.deepEqual(bodies.map(body => JSON.parse(body)), [{}, { repositories: ["Widgets"] }]);
+  clearInstallationToken(705);
+  await getInstallationToken(705, "widgets");
+  assert.equal(bodies.length, 3, "clearing the installation drops its repository tokens too");
+});
+
 test("git failures cannot print encoded authentication headers", () => {
   const args = gitAuthArgs("test-installation-value");
   const error = redactGitCredentials(`Command failed: git ${args.join(" ")} push origin HEAD\nfatal: permission denied`);

@@ -95,12 +95,24 @@ function crossOriginWrite(req: NextRequest): boolean {
   if (SAFE_METHODS.has(req.method)) return false;
   const origin = req.headers.get("origin");
   if (!origin) return false;
-  // Compare with the Host the browser sent (as Next does for Server Actions):
-  // req.nextUrl reflects the server's bind address, not preview, alias, or
-  // proxied hostnames. "null" (sandboxed frames) is never same-origin.
+  // Compare with the host the browser addressed (as Next does for Server
+  // Actions): req.nextUrl reflects the bind address, not preview or alias
+  // hostnames. A reverse proxy may pass its upstream address as Host, so the
+  // configured public origin (APP_BASE_URL) also counts. "null" (sandboxed
+  // frames) is never same-origin.
   let originHost: string;
   try { originHost = new URL(origin).host; } catch { return true; }
-  return originHost !== (req.headers.get("x-forwarded-host") ?? req.headers.get("host"));
+  const hosts = [req.headers.get("x-forwarded-host")?.split(",")[0].trim(), req.headers.get("host")];
+  try { if (process.env.APP_BASE_URL) hosts.push(new URL(process.env.APP_BASE_URL).host); } catch {}
+  return !hosts.includes(originHost);
+}
+
+/** Local no-auth mode serves the operator's GITHUB_TOKEN to anyone who can
+ *  reach it. DNS rebinding (an attacker domain resolving to 127.0.0.1) would
+ *  make a web page same-origin with it, so only loopback Host names pass. */
+function loopbackHost(req: NextRequest): boolean {
+  const host = (req.headers.get("host") ?? "").replace(/:\d+$/, "").toLowerCase();
+  return host === "localhost" || host === "127.0.0.1" || host === "[::1]";
 }
 
 function isPublic(pathname: string): boolean {
@@ -131,6 +143,9 @@ export async function middleware(req: NextRequest) {
   // can be absent, and SDK discovery would fail before the request reaches the
   // local session fallback.
   if (AUTH_DISABLED) {
+    if (!loopbackHost(req)) {
+      return NextResponse.json({ error: "Local mode only answers on localhost." }, { status: 403, headers: { "Cache-Control": "no-store" } });
+    }
     const response = NextResponse.next();
     response.headers.set("X-Auth", "disabled-via-env");
     return response;

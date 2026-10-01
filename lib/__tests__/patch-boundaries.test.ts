@@ -24,10 +24,20 @@ test("patches cannot change Git configuration or escape through a directory link
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("symlink modes are caught however git would spell them", async () => {
-  const { hasSymlinkMode } = await import("../apply-diff");
-  for (const mode of ["120000", "120000 ", "0120000", "120755"]) {
-    assert.equal(hasSymlinkMode(`diff --git a/s b/s\nnew file mode ${mode}\n`), true, mode);
+test("patch modes are allowlisted, however git would spell a symlink", async () => {
+  const { hasUnsafeMode } = await import("../apply-diff");
+  // git reads modes with strtoul: a sign, leading \v \f \r, any 012xxxx value
+  // (symlink), 0160000 (submodule), and the mode field of an index line.
+  const unsafe = [
+    "new file mode 120000", "new file mode 120000 ", "new file mode 0120000", "new file mode 120755",
+    "new file mode +120000", "new file mode \v120000", "new file mode \f120000", "new file mode \r120000",
+    "new mode 160000", "old mode 120000", "deleted file mode 120000", "index 0000000..e69de29 120000",
+  ];
+  for (const line of unsafe) {
+    assert.equal(hasUnsafeMode(`diff --git a/s b/s\n${line}\n`), true, JSON.stringify(line));
   }
-  assert.equal(hasSymlinkMode("diff --git a/f b/f\nnew file mode 100644\nold mode 100755\n"), false);
+  const safe = ["new file mode 100644", "new file mode 100755", "old mode 100644", "index 0000000..e69de29", "index 83db48f..bf269f4 100644"];
+  for (const line of safe) {
+    assert.equal(hasUnsafeMode(`diff --git a/f b/f\n${line}\n`), false, JSON.stringify(line));
+  }
 });

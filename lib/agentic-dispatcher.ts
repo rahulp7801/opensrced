@@ -90,6 +90,10 @@ type FetchedIssue = {
   formatted: string; // pre-formatted block used in the prompt
 };
 
+/** The requested issue cannot be run (missing, inaccessible, or a pull
+ *  request). Its message is safe to show the user; routes answer 400. */
+export class RunTargetError extends Error {}
+
 export async function fetchIssue(
   repoFull: string,
   issueNumber: number,
@@ -98,11 +102,14 @@ export async function fetchIssue(
   const fallbackTitle = `Issue #${issueNumber}`;
   // Fetch and authorize before reading cached source or starting paid work.
   // A missing issue or denied token must never turn into a speculative solve.
-  const parsed = await githubApi<{
+  let parsed: {
     title: string; body: string | null; labels: Array<{ name: string }>;
     html_url: string; pull_request?: unknown;
-  }>(`/repos/${repoFull}/issues/${issueNumber}`, token);
-  if (parsed.pull_request) throw new Error("This target is a pull request, not an issue.");
+  };
+  // lib/github-api.ts maps every failure to a fixed, credential-free message.
+  try { parsed = await githubApi(`/repos/${repoFull}/issues/${issueNumber}`, token); }
+  catch (error) { throw new RunTargetError(error instanceof Error ? error.message : "GitHub request failed."); }
+  if (parsed.pull_request) throw new RunTargetError("This target is a pull request, not an issue.");
   // Everything below this line is attacker-controlled: anyone can file an
   // issue, pick its title, and write its body. It gets interpolated into
   // the prompt of an agent with tools, so it is sanitized (control chars

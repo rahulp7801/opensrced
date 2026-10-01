@@ -46,13 +46,13 @@ async function load() {
   return { ...runs, ...state, ...slots };
 }
 
-async function seed(slot: number, owner: string, status: "running" | "failed", sandboxStopped = false) {
+async function seed(slot: number, owner: string, status: "running" | "failed", sandboxStopped = false, forgedName?: string) {
   const { newCloudRunId, runPath } = await load();
   const id = newCloudRunId();
   const path = runPath(owner, id);
   const expires = Date.now() + 60_000;
   store.set(path, { etag: String(++etags), body: JSON.stringify({
-    id, auth0_user_id: owner, status, expires_at: expires, sandbox_name: id.replaceAll("_", "-"),
+    id, auth0_user_id: owner, status, expires_at: expires, sandbox_name: forgedName ?? id.replaceAll("_", "-"),
     ...(sandboxStopped ? { sandbox_stopped: true } : {}),
   }) });
   store.set(`capacity/${slot}.json`, { etag: String(++etags), body: JSON.stringify({ path, expires, reserved: Date.now() }) });
@@ -73,7 +73,9 @@ test("reusing a finished run's slot stops its idle VM", async () => {
   const { reserveCapacity, runPath, newCloudRunId } = await load();
   store.clear();
   stopped.length = 0;
-  const idle = await seed(0, "auth0|alice", "failed");
+  // The record names another VM (a worker can rewrite its own record); the
+  // stop must still target the VM derived from the lease's run id.
+  const idle = await seed(0, "auth0|alice", "failed", false, "c-1767225600000-victimvictim1");
   await seed(1, "auth0|dana", "running");
   await seed(2, "auth0|erin", "running");
   assert.equal(await reserveCapacity(runPath("auth0|carol", newCloudRunId()), Date.now() + 60_000), "capacity/0.json");
@@ -85,6 +87,17 @@ test("reusing a finished run's slot stops its idle VM", async () => {
   await seed(0, "auth0|alice", "failed", true);
   await reserveCapacity(runPath("auth0|carol", newCloudRunId()), Date.now() + 60_000);
   assert.deepEqual(stopped, []);
+});
+
+test("simultaneous requests cannot slip past the per-account caps", async () => {
+  const { reserveCapacity, runPath, newCloudRunId, reserveCloudSlot } = await load();
+  store.clear();
+  const runs = await Promise.allSettled([0, 1, 2].map(() => reserveCapacity(runPath("auth0|alice", newCloudRunId()), Date.now() + 60_000)));
+  assert.ok(runs.filter(r => r.status === "fulfilled").length <= 2, "at most two agent slots for one account");
+  const slots = await Promise.allSettled([0, 1, 2].map(() => reserveCloudSlot("explore", 3, 60_000, "auth0|alice")));
+  assert.ok(slots.filter(r => r.status === "fulfilled").length <= 1, "at most one explore slot for one account");
+  // Someone else is never locked out by the race.
+  assert.ok(await reserveCloudSlot("explore", 3, 60_000, "auth0|bob"));
 });
 
 test("short-task slots allow one per account", async () => {

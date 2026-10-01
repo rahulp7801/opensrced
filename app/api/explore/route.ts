@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
     if (sub) {
       const mapping = await mappingForRequest(sub, body.github_org);
       if (mapping) {
-        const resolved = await resolveGithubTokenForRequest({ auth0UserId: sub, githubOrg: body.github_org });
+        const resolved = await resolveGithubTokenForRequest({ auth0UserId: sub, githubOrg: body.github_org }, repoFull.split("/")[1]);
         if (resolved.token) githubToken = resolved.token;
       }
     }

@@ -265,19 +265,18 @@ export function SuggestedIssues() {
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-paper-muted">
                       <span className="font-medium text-paper-dim">{issue.repo}</span>
                       <span className="text-paper-faint">#{issue.number}</span>
-                      {issue.language && <span className="rounded border border-info/25 bg-info/5 px-1.5 py-0.5 text-info">{issue.language}</span>}
+                      {issue.language && <span className="tag" data-tone="info">{issue.language.toLowerCase()}</span>}
                       {issue.labels.slice(0, 2).map((label) => (
-                        <span key={label} className={cn(
-                          "rounded border px-1.5 py-0.5",
-                          label.toLowerCase().includes("good first") ? "border-ok/25 bg-ok/5 text-ok" :
-                          label.toLowerCase().includes("bug") ? "border-alert/25 bg-alert/5 text-alert" :
-                          "border-border text-paper-muted",
-                        )}>
+                        <span
+                          key={label}
+                          className="tag"
+                          data-tone={label.toLowerCase().includes("good first") ? "ok" : label.toLowerCase().includes("bug") ? "alert" : undefined}
+                        >
                           {label}
                         </span>
                       ))}
                     </div>
-                    <h3 className="mt-1.5 text-sm font-medium leading-snug text-paper">{issue.title}</h3>
+                    <h3 className="mt-2 text-[15px] font-medium leading-snug text-paper transition-colors group-hover:text-signal-soft">{issue.title}</h3>
                     <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-paper-faint">
                       <span>Updated {timeAgo(issue.updatedAt)}</span>
                       {issue.comments > 0 && <span className="inline-flex items-center gap-1"><ChatCircle aria-hidden size={14} />{issue.comments}</span>}
@@ -290,7 +289,7 @@ export function SuggestedIssues() {
                       target="_blank"
                       rel="noreferrer"
                       aria-label={`Open ${issue.repo} issue ${issue.number} on GitHub`}
-                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-xs font-medium text-paper-muted transition-colors hover:border-border-strong hover:text-paper"
+                      className="btn-quiet"
                     >
                       <GithubLogo aria-hidden size={16} />
                       GitHub
@@ -298,7 +297,7 @@ export function SuggestedIssues() {
                     </a>
                     <a
                       href={`/trigger?repo=${encodeURIComponent(issue.repo)}&issue=${issue.number}`}
-                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-signal px-3.5 py-2 text-xs font-semibold text-ink transition-colors hover:bg-signal-soft"
+                      className="row-cta"
                     >
                       Fix issue
                       <ArrowRight aria-hidden size={15} />

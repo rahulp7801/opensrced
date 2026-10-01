@@ -308,9 +308,9 @@ export function IssueScanner() {
                               <span className="sr-only">Open on GitHub</span>
                             </a>
                             <span title={issue.created_at}>Opened {fmtRelative(issue.created_at, now)}</span>
-                            {now - Date.parse(issue.created_at) <= NEW_CUTOFF_MS && <span className="rounded border border-signal/30 bg-signal/5 px-1.5 py-0.5 text-signal">New</span>}
-                            <span className="rounded border border-border px-1.5 py-0.5 text-paper-muted">{issue.category}</span>
-                            {issue.labels.slice(0, 3).map((label) => <span key={label} className="rounded border border-border-soft px-1.5 py-0.5 text-paper-muted">{label}</span>)}
+                            {now - Date.parse(issue.created_at) <= NEW_CUTOFF_MS && <span className="tag" data-tone="signal">new</span>}
+                            <span className="tag" data-tone="info">{issue.category}</span>
+                            {issue.labels.slice(0, 3).map((label) => <span key={label} className="tag">{label}</span>)}
                           </div>
                           <button
                             type="button"

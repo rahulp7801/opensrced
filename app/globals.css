@@ -129,6 +129,72 @@
 }
 
 @layer components {
+  /* Calm label pill; the dot carries meaning (data-tone), not the border. */
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border: 1px solid var(--color-border-soft);
+    border-radius: 999px;
+    padding: 0.1rem 0.55rem;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--color-paper-muted);
+    white-space: nowrap;
+  }
+  .tag::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--color-border-strong);
+  }
+  .tag[data-tone="ok"]::before { background: var(--color-ok); }
+  .tag[data-tone="alert"]::before { background: var(--color-alert); }
+  .tag[data-tone="info"]::before { background: var(--color-info); }
+  .tag[data-tone="signal"]::before { background: var(--color-signal); }
+
+  /* Hairline pill button for secondary actions. */
+  .btn-quiet {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    min-height: 2.5rem;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    padding: 0 0.9rem;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-paper-dim);
+    transition: border-color 150ms, color 150ms, background-color 150ms;
+  }
+  .btn-quiet:hover { border-color: var(--color-paper-muted); color: var(--color-paper); }
+
+  /* A list row's main action: quiet until its row is hovered or focused. */
+  .row-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    min-height: 2.5rem;
+    border: 1px solid rgb(255 107 61 / 0.45);
+    border-radius: 999px;
+    padding: 0 1rem;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-signal);
+    transition: background-color 150ms, color 150ms, border-color 150ms;
+  }
+  .group:hover .row-cta,
+  .group:focus-within .row-cta,
+  .row-cta:hover {
+    border-color: var(--color-signal);
+    background: var(--color-signal);
+    color: var(--color-ink);
+  }
+
   .mono-label {
     font-family: var(--font-mono);
     font-size: 11px;

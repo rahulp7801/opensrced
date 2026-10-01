@@ -88,7 +88,7 @@ export function StatsBoard() {
 
       <section>
         <div className="mb-4 sm:flex sm:items-baseline sm:justify-between sm:gap-6">
-          <h2 className="text-xl font-medium tracking-tight text-paper">Biggest contributions</h2>
+          <h2 className="display text-[30px] leading-tight text-paper">Biggest contributions</h2>
           <p className="mt-1 text-xs text-paper-muted sm:mt-0">Draft PRs on repositories with 1,000+ stars</p>
         </div>
         {data.biggestContributions.length === 0 ? (
@@ -135,7 +135,7 @@ export function StatsBoard() {
 
       <section>
         <div className="mb-4 flex items-baseline justify-between gap-4">
-          <h2 className="text-xl font-medium tracking-tight text-paper">Recent activity</h2>
+          <h2 className="display text-[30px] leading-tight text-paper">Recent activity</h2>
           <span className="text-xs text-paper-muted">Latest 20</span>
         </div>
         {data.recentActivity.length === 0 ? (
@@ -145,7 +145,7 @@ export function StatsBoard() {
         ) : (
           <ul className="divide-y divide-border-soft overflow-hidden rounded-md border border-border bg-surface/40 text-[12.5px]">
             {data.recentActivity.map((a, i) => (
-              <li key={i} className="grid grid-cols-[72px_1fr] items-center gap-x-3 gap-y-1.5 px-4 py-3 sm:grid-cols-[72px_90px_minmax(0,1fr)]">
+              <li key={i} className="grid grid-cols-[96px_1fr] items-center gap-x-4 gap-y-1.5 px-5 py-3 sm:grid-cols-[96px_90px_minmax(0,1fr)]">
                 <ActivityKindChip kind={a.kind} />
                 <span className="justify-self-end text-[11px] text-paper-muted tabular-nums sm:justify-self-start">
                   {fmtRelative(a.ts, Date.now())}
@@ -198,18 +198,19 @@ function Counter({
   format?: "currency";
   className?: string;
 }) {
-  const color = {
-    paper: "text-paper",
-    ok: "text-ok",
-    signal: "text-signal",
-    info: "text-info",
+  // Color marks the metric's kind with a small dot; the numeral stays cream.
+  const dot = {
+    paper: "bg-paper-muted",
+    ok: "bg-ok",
+    signal: "bg-signal",
+    info: "bg-info",
   }[tone];
   const display = format === "currency" ? `$${value.toFixed(2)}` : String(value);
   return (
-    <div className={cn("relative flex flex-col gap-1.5 bg-ink p-5 transition hover:bg-surface-2/40", className)}>
-      <div className="mono-label text-paper-muted">{label}</div>
-      <div className={cn("text-[36px] font-medium leading-none num-tabular", color)}>{display}</div>
-      {sub && <div className="text-[11px] text-paper-dim mt-1">{sub}</div>}
+    <div className={cn("relative flex flex-col gap-2 bg-ink p-6 transition hover:bg-surface-2/40", className)}>
+      <div className="mono-label flex items-center gap-2 text-paper-muted"><span aria-hidden className={cn("size-1.5 rounded-full", dot)} />{label}</div>
+      <div className="display num-tabular text-[52px] leading-none text-paper">{display}</div>
+      {sub && <div className="mt-1 text-[12px] text-paper-dim">{sub}</div>}
     </div>
   );
 }
@@ -219,13 +220,13 @@ function ActivityKindChip({ kind }: { kind: "scan" | "discover" | "dispatch" }) 
     "scan" | "discover" | "dispatch",
     { label: string; cls: string }
   > = {
-    scan:     { label: "scan",     cls: "border-border-soft bg-surface text-paper-dim" },
-    discover: { label: "discover", cls: "border-info/40 bg-info/10 text-info" },
-    dispatch: { label: "run", cls: "border-signal/40 bg-signal/10 text-signal" },
+    scan:     { label: "scan",     cls: "" },
+    discover: { label: "discover", cls: "info" },
+    dispatch: { label: "run", cls: "signal" },
   };
   const c = cfg[kind];
   return (
-    <span className={cn("inline-block text-[11px] uppercase tracking-[0.12em] border px-1.5 py-0.5 leading-none w-[72px] text-center", c.cls)}>
+    <span className="tag w-[88px] justify-start" data-tone={c.cls || undefined}>
       {c.label}
     </span>
   );

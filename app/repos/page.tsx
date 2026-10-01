@@ -194,46 +194,47 @@ export default function ReposPage() {
             {filtered.map((repo) => (
               <div
                 key={repo.nameWithOwner}
-                className="group flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-surface-2/60"
+                className="group flex flex-wrap items-center gap-x-5 gap-y-2 px-5 py-4 transition-colors hover:bg-surface-2/50"
               >
-                <span
-                  aria-hidden="true"
-                  className="h-2.5 w-2.5 rounded-full shrink-0"
-                  style={{ background: LANG_COLORS[repo.language] ?? "var(--color-paper-muted)" }}
-                />
+
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <a
                       href={`https://github.com/${repo.nameWithOwner}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-[13px] text-paper hover:text-signal truncate"
+                      className="truncate text-[15px] font-medium text-paper hover:text-signal"
                     >
                       {repo.nameWithOwner}
                     </a>
                     {repo.isPrivate && (
-                      <span className="text-[11px] text-paper-faint border border-border px-1 py-0.5">private</span>
+                      <span className="tag">private</span>
                     )}
                   </div>
                   {repo.description && (
-                    <p className="mt-0.5 text-[11px] text-paper-muted truncate max-w-[500px]">{repo.description}</p>
+                    <p className="mt-1 max-w-[560px] truncate text-[13px] text-paper-muted">{repo.description}</p>
                   )}
                 </div>
-                <div className="hidden sm:flex items-center gap-4 text-[11px] text-paper-muted shrink-0">
-                  {repo.language && <span>{repo.language}</span>}
+                <div className="hidden shrink-0 items-center gap-4 font-mono text-[11px] text-paper-muted sm:flex">
+                  {repo.language && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <span aria-hidden="true" className="size-2 rounded-full" style={{ background: LANG_COLORS[repo.language] ?? "var(--color-paper-muted)" }} />
+                      {repo.language}
+                    </span>
+                  )}
                   <span>★ {repo.stars.toLocaleString()}</span>
                   {repo.updatedAt && <span className="text-paper-faint">{timeAgo(repo.updatedAt)}</span>}
                 </div>
                 <div className="ml-6 flex w-full items-center gap-2 sm:ml-0 sm:w-auto">
                   <Link
                     href={`/graph?repo=${encodeURIComponent(repo.nameWithOwner)}`}
-                    className="inline-flex min-h-8 items-center rounded-md border border-signal/30 px-3 text-xs text-signal transition hover:bg-signal/10"
+                    className="btn-quiet"
                   >
                     Graph
                   </Link>
                   <Link
                     href={`/issues?repo=${encodeURIComponent(repo.nameWithOwner)}`}
-                    className="inline-flex min-h-8 items-center rounded-md border border-info/30 px-3 text-xs text-info transition hover:bg-info/10"
+                    className="row-cta"
                   >
                     Issues
                   </Link>

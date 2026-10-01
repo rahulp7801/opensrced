@@ -5,7 +5,7 @@ import { safeReturnTo } from "@/lib/safe-return-to";
 
 export const metadata = { title: "Sign in" };
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ returnTo?: string }> }) {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ returnTo?: string; error?: string }> }) {
   const params = await searchParams;
   const returnTo = safeReturnTo(params.returnTo);
   if (process.env.AUTH_DISABLED === "1" && process.env.NODE_ENV !== "production") {
@@ -26,6 +26,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <section className="rounded-lg border border-border bg-surface p-6 sm:p-8" aria-labelledby="sign-in-heading">
         <h2 id="sign-in-heading" className="text-xl font-medium tracking-tight">{canSignIn ? "Sign in to opensrcer" : "Sign-in is being configured"}</h2>
         <p className="mt-2 text-sm leading-6 text-paper-muted">{canSignIn ? "Authentication is handled by Auth0 using your GitHub account." : "This deployment is available for preview, but its GitHub sign-in is not ready yet."}</p>
+        {canSignIn && params.error === "signin" && (
+          <p role="alert" className="mt-4 rounded-md border border-alert/40 bg-alert/10 p-3 text-sm leading-6 text-alert">
+            Sign-in didn&apos;t complete. The sign-in page may have been open too long, or cookies may be blocked. Please try again.
+          </p>
+        )}
         {canSignIn ? (
           <a href={loginHref} className="mt-6 flex min-h-12 w-full items-center justify-center gap-3 rounded-md bg-signal px-5 py-3 text-sm font-medium text-ink transition hover:bg-signal-soft">
             <GitHubMark />

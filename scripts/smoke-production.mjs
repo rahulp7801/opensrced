@@ -52,6 +52,11 @@ const loginTarget = login.headers.get('location') ?? '';
 assert.ok(!loginTarget.includes('connection_scope') && !loginTarget.includes('delete_repo'), `login must drop extra parameters: ${loginTarget}`);
 assert.match(loginTarget, /returnTo=%2Fdiscover/);
 await login.text();
+// A failed or replayed callback returns to sign-in with a message, not a raw 500.
+const callback = await fetch(base + '/auth/callback?code=forged&state=forged', { redirect: 'manual', signal: AbortSignal.timeout(15000) });
+assert.ok([302, 303, 307].includes(callback.status), `callback error must redirect, got ${callback.status}`);
+assert.match(callback.headers.get('location') ?? '', /\/login\?error=signin$/);
+await callback.text();
 const missingFixId = '00000000-0000-4000-8000-000000000000';
 const missingFix = await fetch(`${base}/api/fixes/${missingFixId}`, { signal: AbortSignal.timeout(15000) });
 assert.equal(missingFix.status, 404);

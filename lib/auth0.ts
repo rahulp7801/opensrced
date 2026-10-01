@@ -21,6 +21,7 @@
 // AUTH0_SECRET / AUTH0_CLIENT_ID / AUTH0_CLIENT_SECRET are unchanged.
 
 import { Auth0Client } from "@auth0/nextjs-auth0/server";
+import { NextResponse } from "next/server";
 import { prepareSession } from "./auth-session";
 import { authConfigured } from "./auth-config";
 
@@ -54,6 +55,16 @@ export const auth0 = new Auth0Client({
     ? Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, "0")).join("")
     : undefined),
   beforeSessionSaved: prepareSession,
+  // The SDK's default answers a failed callback (a stale or replayed login
+  // tab, blocked cookies, denied consent) with a bare 500 text page. Send the
+  // user back to sign-in with an explanation instead. Success keeps the
+  // default: return to the requested page, same origin only.
+  onCallback: async (error, ctx) => {
+    const base = ctx.appBaseUrl ?? process.env.APP_BASE_URL ?? process.env.AUTH0_BASE_URL ?? "http://localhost:3000";
+    if (error) return NextResponse.redirect(new URL("/login?error=signin", base));
+    const target = new URL(ctx.returnTo || "/", base);
+    return NextResponse.redirect(target.origin === new URL(base).origin ? target : new URL("/", base));
+  },
   // Signed-out visitors get 204 rather than 401, so public pages don't log a
   // failed request (and SWR doesn't retry it). useUser() maps 204 to null.
   noContentProfileResponseWhenUnauthenticated: true,

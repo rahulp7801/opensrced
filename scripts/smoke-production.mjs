@@ -37,6 +37,7 @@ for (const headers of [{}, {'next-router-prefetch': '1'}, {'x-middleware-subrequ
 // The graph viz route sets its own sandboxed CSP; the global one would replace it.
 const viz = await fetch(`${base}/api/graph/acme/app/viz`, { signal: AbortSignal.timeout(15000) });
 assert.ok(!viz.headers.get('content-security-policy')?.includes("default-src 'self'"), 'graph viz must keep its own CSP');
+assert.notEqual(viz.headers.get('referrer-policy'), 'strict-origin-when-cross-origin', 'graph viz must keep its own referrer policy');
 await viz.text();
 const missingFixId ='00000000-0000-4000-8000-000000000000';
 const missingFix = await fetch(`${base}/api/fixes/${missingFixId}`, { signal: AbortSignal.timeout(15000) });

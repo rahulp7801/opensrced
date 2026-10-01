@@ -40,10 +40,13 @@ export async function POST(req: NextRequest) {
     return new Response(`data: ${JSON.stringify({ status: "done", message: "Using cached graph.", owner, repo: name, engine: "graphify" })}\n\n`, { headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-store" } });
   }
   let release: () => void | Promise<void>;
-  try { release = cloudExecution() ? await reserveCloudSlot("graph", 2, 5 * 60_000) : reserveSlot("graph", 2); }
+  try { release = cloudExecution() ? await reserveCloudSlot("graph", 2, 5.5 * 60_000) : reserveSlot("graph", 2); }
   catch (error) { return Response.json({ error: error instanceof CapacityError ? error.message : "Graph storage is unavailable." }, { status: error instanceof CapacityError ? 429 : 503 }); }
   const cancellation = new AbortController();
-  const signal = AbortSignal.any([req.signal, cancellation.signal, AbortSignal.timeout(270_000)]);
+  // The lease outlives the 5-minute graph VM (it starts first and must cover an
+  // orphaned VM), and the build stops at 260 s so the save (<= 30 s upload)
+  // still finishes inside maxDuration.
+  const signal = AbortSignal.any([req.signal, cancellation.signal, AbortSignal.timeout(260_000)]);
   let cancelled = false;
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {

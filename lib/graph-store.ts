@@ -7,7 +7,7 @@ import { cloudExecution } from "./cloud-run-state";
 import { privateJsonOptions } from "./blob-store";
 import { parseRunTarget } from "./run-target";
 import { graphJsonPath, graphHtmlPath } from "./graph";
-import { GRAPH_MAX_BYTES, packGraph, parseStoredGraph, unpackGraph, type StoredGraph } from "./graph-worker";
+import { GRAPH_JSON_MAX_BYTES, GRAPH_MAX_BYTES, packGraph, parseStoredGraph, unpackGraph, type StoredGraph } from "./graph-worker";
 
 function graphPath(userId: string, repo: string): string {
   if (!userId) throw new Error("Graph owner is required");
@@ -56,7 +56,10 @@ export async function saveStoredGraph(userId: string, repo: string, graph: Store
   graph = parseStoredGraph(graph);
   const [owner, name] = parseRunTarget(repo).repo.split("/");
   const jsonPath = graphJsonPath(owner, name);
+  // The MCP server reads this file and refuses anything over the same cap.
+  const json = Buffer.from(JSON.stringify(graph.graph));
+  if (json.length > GRAPH_JSON_MAX_BYTES) throw new Error("Graph exceeds the current size limit");
   await mkdir(dirname(jsonPath), { recursive: true });
-  await writeFile(jsonPath, JSON.stringify(graph.graph));
+  await writeFile(jsonPath, json);
   await writeFile(graphHtmlPath(owner, name), graph.html);
 }

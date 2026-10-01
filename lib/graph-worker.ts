@@ -16,7 +16,7 @@ export type StoredGraph = { graph: GraphData; html: string; revision: string; cr
 // server-side only; the browser gets the HTML. These caps leave ~2.5x headroom
 // while bounding function memory.
 const RAW_GRAPH_MAX_BYTES = 192_000_000;
-const GRAPH_JSON_MAX_BYTES = 128_000_000;
+export const GRAPH_JSON_MAX_BYTES = 128_000_000;
 const GRAPH_HTML_MAX_BYTES = 16_000_000;
 const RECORD_MAX_BYTES = GRAPH_JSON_MAX_BYTES + GRAPH_HTML_MAX_BYTES;
 /** Cap on the stored (gzipped) graph record. */

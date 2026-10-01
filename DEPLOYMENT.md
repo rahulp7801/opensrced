@@ -218,7 +218,7 @@ CLI checks passed locally on Node 22; the container image was not rebuilt.
 The provider-disclosure checkpoint adds a real Gitleaks regression gate to
 container CI and worker snapshot creation. It checks deleted patch credentials,
 inline allow comments, and target scan configuration/ignore files using synthetic
-fixtures. Worker protocol **4** requires rebuilding snapshots from a commit with
+fixtures. Worker protocol **5** (gzip graph handoff) requires rebuilding snapshots from a commit with
 these controls before hosted jobs can start. Direct Anthropic text requests block
 recognized prompt credentials; incomplete Gemini reviews are recorded as
 unavailable rather than clean. The open CodeQL flows are documented in

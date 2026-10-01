@@ -42,9 +42,14 @@ export function appJwt(): string {
   return `${signingInput}.${signature}`;
 }
 
-export async function mintInstallationToken(installationId: number): Promise<string> {
+/** `repositories` narrows the token to those repository names in the
+ *  installation; omitted, it covers every repository the installation has. */
+export async function mintInstallationToken(installationId: number, repositories?: string[]): Promise<string> {
   if (!Number.isSafeInteger(installationId) || installationId <= 0) throw new Error("Invalid installation ID");
-  const json = await githubApi<{ token: string }>(`/app/installations/${installationId}/access_tokens`, appJwt(), {});
+  if (repositories && (repositories.length === 0 || repositories.some(name => !/^[A-Za-z0-9_.-]{1,100}$/.test(name)))) {
+    throw new Error("Invalid repository scope");
+  }
+  const json = await githubApi<{ token: string }>(`/app/installations/${installationId}/access_tokens`, appJwt(), repositories ? { repositories } : {});
   if (typeof json.token !== "string" || !json.token) throw new Error("GitHub returned no installation token");
   return json.token;
 }

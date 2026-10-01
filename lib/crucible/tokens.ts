@@ -3,7 +3,7 @@
 // cached installation token if (and only if) the user has a verified
 // mapping for that org.
 
-import { getInstallationToken } from "./github-app";
+import { getInstallationToken, mintInstallationToken } from "./github-app";
 import { mappingForOrg, type OrgMapping } from "./orgs";
 import { stillOrgAdmin } from "./org-admin";
 import { resolveGitHubToken } from "../github-token";
@@ -58,6 +58,16 @@ export async function resolveGithubTokenForRequest(orgCtx: OrgContext): Promise<
   const mapping = await mappingForRequest(orgCtx.auth0UserId, orgCtx.githubOrg);
   if (!mapping) return { token: undefined, source: "none" };
   return { token: await getInstallationToken(mapping.installation_id), source: "installation" };
+}
+
+/** A token for one agent run: the same admin re-check, but freshly minted
+ *  (full hour, never a nearly expired cached one) and limited to the single
+ *  target repository, so the run's child processes and VM cannot reach the
+ *  rest of the organization's installation. */
+export async function resolveRunTokenForRequest(orgCtx: OrgContext, repoName: string): Promise<ResolvedToken> {
+  const mapping = await mappingForRequest(orgCtx.auth0UserId, orgCtx.githubOrg);
+  if (!mapping) return { token: undefined, source: "none" };
+  return { token: await mintInstallationToken(mapping.installation_id, [repoName]), source: "installation" };
 }
 
 /** Resolve access for a repository selected from the combined public and

@@ -30,6 +30,7 @@ test("hosted worker jobs use an explicit input allowlist", () => {
     geminiKey: "fake-gemini-key",
     maxSpendUsd: 1,
     auth0UserId: "auth0|alice",
+    author: { login: "alice", id: 4242 },
     serverOnlyFutureField: "must-not-enter-the-worker",
   } as StartAgenticOpts & { serverOnlyFutureField: string };
 
@@ -44,6 +45,8 @@ test("hosted worker jobs use an explicit input allowlist", () => {
     geminiKey: "fake-gemini-key",
     maxSpendUsd: 1,
     auth0UserId: "auth0|alice",
+    // The VM commits as the requester; without this it has no identity.
+    author: { login: "alice", id: 4242 },
   });
   assert.equal("orgCtx" in job.opts, false);
   assert.equal("serverOnlyFutureField" in job.opts, false);

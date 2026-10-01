@@ -67,6 +67,24 @@ test("installation requests reject credential destinations and invalid IDs", asy
   for (const id of [0, -1, 1.2, Infinity]) await assert.rejects(mintInstallationToken(id), /Invalid installation ID/);
 });
 
+test("run tokens are minted for exactly the requested repository", async (t) => {
+  const previousKey = process.env.GITHUB_APP_PRIVATE_KEY, previousId = process.env.GITHUB_APP_ID;
+  process.env.GITHUB_APP_PRIVATE_KEY = privateKey;
+  process.env.GITHUB_APP_ID = "123";
+  t.after(() => {
+    if (previousKey === undefined) delete process.env.GITHUB_APP_PRIVATE_KEY; else process.env.GITHUB_APP_PRIVATE_KEY = previousKey;
+    if (previousId === undefined) delete process.env.GITHUB_APP_ID; else process.env.GITHUB_APP_ID = previousId;
+  });
+  const bodies: unknown[] = [];
+  t.mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+    bodies.push(JSON.parse(String(init.body)));
+    return Response.json({ token: "scoped-installation-value" });
+  });
+  assert.equal(await mintInstallationToken(704, ["widgets"]), "scoped-installation-value");
+  assert.deepEqual(bodies, [{ repositories: ["widgets"] }]);
+  for (const scope of [[], ["../other"], ["a/b"]]) await assert.rejects(mintInstallationToken(704, scope), /Invalid repository scope/);
+});
+
 test("git failures cannot print encoded authentication headers", () => {
   const args = gitAuthArgs("test-installation-value");
   const error = redactGitCredentials(`Command failed: git ${args.join(" ")} push origin HEAD\nfatal: permission denied`);

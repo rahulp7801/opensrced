@@ -3,6 +3,7 @@
 // Installation-token flows have their own resolver in lib/crucible/tokens.ts.
 
 import { auth0 } from "@/lib/auth0";
+import { githubApi } from "@/lib/github-api";
 
 // lib/auth-session.ts preserves the custom claim outside the public user profile.
 
@@ -34,4 +35,16 @@ export async function resolveGitHubToken(): Promise<string | null> {
   }
 
   return null;
+}
+
+export type CommitAuthor = { login: string; id: number };
+
+/** The requesting user's own GitHub identity. Commits are attributed to them
+ *  even when an installation token pushes (installation tokens cannot read
+ *  /user). Null when there is no user token. */
+export async function resolveCommitAuthor(signal?: AbortSignal): Promise<CommitAuthor | null> {
+  const token = await resolveGitHubToken();
+  if (!token) return null;
+  const user = await githubApi<{ login: string; id: number }>("/user", token, undefined, signal);
+  return { login: user.login, id: user.id };
 }

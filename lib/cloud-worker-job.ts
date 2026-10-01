@@ -23,6 +23,7 @@ export function cloudWorkerJobJson(
       geminiKey: opts.geminiKey,
       maxSpendUsd: opts.maxSpendUsd,
       auth0UserId: opts.auth0UserId,
+      author: opts.author,
     },
   });
 }

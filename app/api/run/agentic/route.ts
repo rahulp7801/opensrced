@@ -1,7 +1,7 @@
 import { readJsonBody } from "@/lib/request-body";
 import { NextRequest, NextResponse } from "next/server";
 import { startAgenticDispatch } from "@/lib/agentic-dispatcher";
-import { resolveGitHubToken } from "@/lib/github-token";
+import { resolveCommitAuthor, resolveGitHubToken, type CommitAuthor } from "@/lib/github-token";
 import { resolveAnthropicKey, resolveGeminiKey, resolveMaxSpendUsd } from "@/lib/api-keys";
 import { sessionUserId } from "@/lib/require-session";
 import { parseRunTarget } from "@/lib/run-target";
@@ -59,6 +59,12 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
+  // Live runs commit as the requester, never as the deployer.
+  let author: CommitAuthor | undefined;
+  if (body.dry_run !== true) {
+    author = (await resolveCommitAuthor(req.signal).catch(() => null)) ?? undefined;
+    if (!author) return NextResponse.json({ status: "error", message: "Sign in with GitHub again before starting a live solve." }, { status: 401 });
+  }
 
   try {
     const geminiKey = (await resolveGeminiKey()) ?? undefined;
@@ -70,6 +76,7 @@ export async function POST(req: NextRequest) {
       geminiKey,
       maxSpendUsd,
       auth0UserId,
+      author,
       dryRun: body.dry_run === true,
       notes: body.notes,
     });

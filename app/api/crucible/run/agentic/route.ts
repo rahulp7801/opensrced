@@ -8,7 +8,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
 import { CapacityError } from "@/lib/concurrency";
 import { startAgenticDispatch, startFindingDispatch } from "@/lib/agentic-dispatcher";
-import { mappingForRequest, resolveGithubTokenForRequest } from "@/lib/crucible/tokens";
+import { mappingForRequest, resolveRunTokenForRequest } from "@/lib/crucible/tokens";
+import { resolveCommitAuthor } from "@/lib/github-token";
 import { resolveAnthropicKey, resolveGeminiKey, resolveMaxSpendUsd } from "@/lib/api-keys";
 
 import { cloudExecution } from "@/lib/cloud-run-state";
@@ -79,12 +80,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: "error", message: "org not connected" }, { status: 404 });
   }
 
-  const resolved = await resolveGithubTokenForRequest({ auth0UserId: sub, githubOrg: github_org });
+  // Fresh, single-repository token: the run and its VM never hold access to
+  // the rest of the installation.
+  const resolved = await resolveRunTokenForRequest({ auth0UserId: sub, githubOrg: github_org }, canonicalRepoUrl.split("/").pop()!);
   if (!resolved.token) {
     return NextResponse.json(
       { status: "error", message: "could not mint installation token" },
       { status: 502 },
     );
+  }
+  // The installation token pushes, but the commit names the admin who asked.
+  const author = await resolveCommitAuthor(req.signal).catch(() => null);
+  if (!author) {
+    return NextResponse.json({ status: "error", message: "Sign in with GitHub again before starting this run." }, { status: 401 });
   }
 
   try {
@@ -107,6 +115,7 @@ export async function POST(req: NextRequest) {
       // source and diffs, so this is the field that keeps them out of other
       // users' /api/dispatches listings.
       auth0UserId: sub,
+      author,
     };
     const d = await (cloudExecution()
       ? startCloudRun(canonicalRepoUrl, issue_number ?? 0, sharedOpts, isSecurityFinding ? finding : undefined)

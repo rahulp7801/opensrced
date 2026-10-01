@@ -347,6 +347,8 @@ export type StartAgenticOpts = {
   geminiKey?: string;
   // Hard cap on Anthropic API spend for this dispatch.
   maxSpendUsd?: number;
+  // The requester's GitHub identity; the auto-PR commit is authored as them.
+  author?: { login: string; id: number };
   // Auth0 `sub` of the requesting user. Recorded on the dispatch so only
   // they can read its log (which contains repo source and the generated
   // diff) or cancel the run.
@@ -627,6 +629,7 @@ async function spawnDispatch(
             // deployer's PAT or gh keychain.
             token: opts.token,
             geminiKey: opts.geminiKey,
+            author: opts.author,
           });
           const line = result.ok
             ? `[agentic-pr] opened draft PR: ${sanitizeLogValue(result.url)}\n` +

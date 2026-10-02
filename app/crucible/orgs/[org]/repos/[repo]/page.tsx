@@ -32,11 +32,11 @@ function severityChip(sev: SecurityFinding["severity"]) {
   const base = "inline-block px-1.5 py-0.5 text-xs font-mono border";
   switch (sev) {
     case "critical":
-      return `${base} border-red-700 bg-red-950/60 text-red-200`;
+      return `${base} border-alert/30 bg-alert/5 text-alert`;
     case "high":
       return `${base} border-orange-700 bg-orange-950/40 text-orange-200`;
     case "medium":
-      return `${base} border-yellow-700 bg-yellow-950/40 text-yellow-200`;
+      return `${base} border-amber-300 bg-amber-50 text-amber-800`;
     case "low":
       return `${base} border-blue-700 bg-blue-950/40 text-blue-200`;
     default:
@@ -119,7 +119,7 @@ export default async function RepoFindingsPage({
       </div>
 
       {loadError && (
-        <div className="mt-4 border border-red-900/60 bg-red-950/30 p-3 text-[12.5px] text-red-200">
+        <div className="mt-4 border border-alert/30 bg-alert/5 p-3 text-[12.5px] text-alert">
           Failed to load findings: {loadError}
         </div>
       )}
@@ -136,11 +136,11 @@ export default async function RepoFindingsPage({
           )}
         </div>
         {findings.length === 0 ? (
-          <div className="mt-2 border border-border bg-surface/40 p-4 text-[12px] text-paper-dim">
+          <div className="rounded-2xl mt-2 border border-border-soft bg-surface p-4 text-[12px] text-paper-dim">
             No open advisories or Dependabot alerts.
           </div>
         ) : (
-          <ul className="mt-2 divide-y divide-border-soft border border-border bg-surface/40">
+          <ul className="rounded-2xl mt-2 divide-y divide-border-soft border border-border-soft bg-surface">
             {findings.map((f) => (
               <li key={`${f.kind}-${f.id}`} className="px-4 py-3">
                 <div className="flex items-start justify-between gap-3">
@@ -196,11 +196,11 @@ export default async function RepoFindingsPage({
           open issues ({issues.length})
         </div>
         {issues.length === 0 ? (
-          <div className="mt-2 border border-border bg-surface/40 p-4 text-[12px] text-paper-dim">
+          <div className="rounded-2xl mt-2 border border-border-soft bg-surface p-4 text-[12px] text-paper-dim">
             No open issues.
           </div>
         ) : (
-          <ul className="mt-2 divide-y divide-border-soft border border-border bg-surface/40">
+          <ul className="rounded-2xl mt-2 divide-y divide-border-soft border border-border-soft bg-surface">
             {issues.map((i) => (
               <li key={i.number} className="px-4 py-3 flex items-start justify-between gap-3">
                 <div className="min-w-0">

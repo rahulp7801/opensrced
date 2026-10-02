@@ -6,7 +6,7 @@ export default function OrgLoading() {
         <div className="h-3.5 w-72 max-w-full bg-surface-2 animate-pulse" />
       </div>
       <div className="h-3 w-24 bg-surface-2 animate-pulse" />
-      <div className="border border-border bg-surface/40 divide-y divide-border-soft">
+      <div className="rounded-2xl border border-border-soft bg-surface divide-y divide-border-soft">
         {[1, 2, 3, 4].map((i) => (
           <div key={i} className="px-4 py-3 flex items-center gap-3">
             <div className="h-4 w-4 bg-surface-3 animate-pulse rounded-full" />

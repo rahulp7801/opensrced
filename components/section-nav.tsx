@@ -26,9 +26,9 @@ export function SectionNav({ localMode = false }: { localMode?: boolean }) {
   return (
     // Not sticky on its own — app/layout.tsx sticks the header and this bar
     // together as one unit, so neither needs to know the other's height.
-    <nav aria-label={`${section.label} section`} className="border-b border-border-soft bg-ink/80 backdrop-blur-md supports-[backdrop-filter]:bg-ink/65">
-      <div className="mx-auto flex w-full max-w-[1400px] items-center gap-1 px-4 sm:px-6">
-        <span className="mono-label mr-2 hidden shrink-0 py-2.5 sm:inline">
+    <nav aria-label={`${section.label} section`} className="border-b border-border-soft bg-ink/80 backdrop-blur-xl backdrop-saturate-150">
+      <div className="mx-auto flex min-h-[52px] w-full max-w-[1200px] items-center gap-1 overflow-x-auto px-5 sm:px-8">
+        <span className="mr-auto hidden shrink-0 pr-4 text-[19px] font-semibold tracking-[-0.02em] text-paper sm:inline">
           {section.label}
         </span>
         {section.links.map((link) => {
@@ -40,16 +40,13 @@ export function SectionNav({ localMode = false }: { localMode?: boolean }) {
               title={link.title}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "relative whitespace-nowrap px-3 py-2.5 text-[12.5px] transition-colors",
+                "whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] transition-colors",
                 active
-                  ? "text-paper"
+                  ? "bg-surface-3 font-medium text-paper"
                   : "text-paper-muted hover:text-paper",
               )}
             >
               {link.label}
-              {active && (
-                <span className="absolute inset-x-2 -bottom-px h-px bg-signal" />
-              )}
             </Link>
           );
         })}

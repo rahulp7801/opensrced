@@ -52,20 +52,20 @@ export function SiteHeader({ localMode = false }: { localMode?: boolean }) {
     <>
       {/* Stickiness lives on the wrapper in app/layout.tsx, which pins this
           header and the section tab bar together. */}
-      <header className="border-b border-border bg-ink/85 backdrop-blur-md supports-[backdrop-filter]:bg-ink/70">
-        <div className="flex items-stretch w-full min-h-16 max-w-[1440px] mx-auto">
+      <header className="border-b border-border-soft bg-ink/80 backdrop-blur-xl backdrop-saturate-150">
+        <div className="mx-auto flex min-h-12 w-full max-w-[1200px] items-stretch px-2 sm:px-5">
           <Link
             href={signedIn ? "/discover" : "/"}
             aria-label="opensrcer home"
-            className="group flex items-center gap-2.5 px-3 sm:px-6 py-3 shrink-0"
+            className="group flex shrink-0 items-center gap-2 px-3 py-2"
           >
             <Mark />
-            <span className={`${signedIn ? "hidden md:inline" : ""} display text-[23px] leading-none text-paper whitespace-nowrap transition-colors group-hover:text-signal-soft`}>
+            <span className={`${signedIn ? "hidden md:inline" : ""} whitespace-nowrap text-[17px] font-semibold leading-none tracking-[-0.02em] text-paper`}>
               opensrcer
             </span>
           </Link>
 
-          {signedIn ? <Nav /> : <nav aria-label="Main navigation" className="ml-auto flex items-center gap-5 px-4 text-sm"><Link href="/demo" className="text-paper-dim hover:text-paper">Demo</Link></nav>}
+          {signedIn ? <Nav /> : <nav aria-label="Main navigation" className="ml-auto flex items-center gap-5 px-4 text-[13px]"><Link href="/demo" className="text-paper-dim transition-colors hover:text-paper">Demo</Link></nav>}
 
           {signedIn && (
             <button
@@ -74,7 +74,7 @@ export function SiteHeader({ localMode = false }: { localMode?: boolean }) {
               aria-label="Open help"
               aria-expanded={helpOpen}
               aria-controls="quick-help-dialog"
-              className="flex items-center justify-center px-3 border-l border-border text-paper-muted hover:text-signal transition"
+              className="flex items-center justify-center px-3 text-paper-muted transition hover:text-paper"
               title="Help & quick reference"
             >
               <IconHelp size={17} />
@@ -94,11 +94,11 @@ export function SiteHeader({ localMode = false }: { localMode?: boolean }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="quick-help-title"
-            className="mt-12 mr-4 max-h-[80vh] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto border border-border bg-ink shadow-2xl"
+            className="mt-14 mr-4 max-h-[80vh] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-border-soft bg-surface shadow-[0_24px_70px_rgb(0_0_0/0.14)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-4 py-3 border-b border-border-soft flex items-center justify-between">
-              <span id="quick-help-title" className="text-[11px] uppercase tracking-[0.15em] text-paper-muted">Quick help</span>
+              <span id="quick-help-title" className="text-[15px] font-semibold text-paper">Quick help</span>
               <button
                 ref={closeButtonRef}
                 onClick={closeHelp}
@@ -146,7 +146,7 @@ export function SiteHeader({ localMode = false }: { localMode?: boolean }) {
 function HelpSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-xs uppercase tracking-[0.15em] text-paper-muted mb-1.5">{title}</div>
+      <div className="mb-1.5 text-[12px] font-semibold text-paper-muted">{title}</div>
       <div className="space-y-1">{children}</div>
     </div>
   );
@@ -156,17 +156,17 @@ function HelpSection({ title, children }: { title: string; children: React.React
 function Mark() {
   return (
     <svg
-      width="24"
-      height="24"
+      width="22"
+      height="22"
       viewBox="0 0 32 32"
       fill="none"
-      className="shrink-0 transition-transform duration-300 group-hover:-rotate-6"
+      className="shrink-0"
       aria-hidden
     >
-      <rect x="3.5" y="3.5" width="25" height="25" rx="6" stroke="currentColor" className="text-border-strong" />
-      <path d="M12 9v14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-paper-dim" />
-      <path d="M12 18c0-4 2-6 8-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-signal" />
-      <circle cx="21" cy="12" r="2.6" fill="currentColor" className="text-signal" />
+      <rect x="2" y="2" width="28" height="28" rx="8" fill="currentColor" className="text-paper" />
+      <path d="M12 9v14" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" />
+      <path d="M12 18c0-4 2-6 8-6" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" />
+      <circle cx="21" cy="12" r="2.6" fill="#fff" />
     </svg>
   );
 }

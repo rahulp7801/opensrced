@@ -78,7 +78,7 @@ export default async function SettingsPage({
         >
           <div className="flex flex-wrap items-center justify-between gap-4 rounded-md border border-border-soft bg-surface/40 px-4 py-3">
             <div>
-              <p className="text-xs uppercase tracking-[0.12em] text-paper-muted">Signed in as</p>
+              <p className="text-xs font-medium text-paper-muted">Signed in as</p>
               <p className="mt-1 text-sm font-medium text-paper">
                 {localMode ? "Local workspace" : user?.name || user?.email || "GitHub account"}
               </p>

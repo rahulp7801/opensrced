@@ -16,7 +16,7 @@ export function AuthChip({ localMode = false }: { localMode?: boolean }) {
       <Link
         href="/crucible"
         aria-label="Local settings"
-        className="ml-auto flex shrink-0 items-center gap-2 border-l border-border px-3 text-[11.5px] text-paper-muted transition hover:bg-surface-2/60 hover:text-paper"
+        className="ml-auto flex shrink-0 items-center gap-2 px-3 text-[11.5px] text-paper-muted transition hover:bg-surface-2/60 hover:text-paper"
         title="Local development mode — open settings"
       >
         <span className="h-2 w-2 rounded-full bg-ok" aria-hidden />
@@ -27,7 +27,7 @@ export function AuthChip({ localMode = false }: { localMode?: boolean }) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center border-l border-border px-4 shrink-0" aria-hidden>
+      <div className="flex items-center px-4 shrink-0" aria-hidden>
         <span className="inline-block h-1.5 w-1.5 rounded-full bg-paper-faint animate-pulse" />
       </div>
     );
@@ -54,7 +54,7 @@ export function AuthChip({ localMode = false }: { localMode?: boolean }) {
       <Link
         href="/crucible"
         aria-label={`Settings for ${display}`}
-        className="flex items-center gap-2 border-l border-border px-3 hover:bg-surface-2/60 transition"
+        className="flex items-center gap-2 px-3 hover:bg-surface-2/60 transition"
         title={`${display} — manage connections`}
       >
         {picture ? (
@@ -77,7 +77,7 @@ export function AuthChip({ localMode = false }: { localMode?: boolean }) {
       <a
         href="/auth/logout"
         aria-label="Sign out"
-        className="flex items-center gap-2 border-l border-border px-3 text-[11px] text-paper-faint hover:text-red-300 hover:bg-red-950/20 transition whitespace-nowrap"
+        className="flex items-center gap-2 px-3 text-[11px] text-paper-faint hover:text-alert transition whitespace-nowrap"
         title="Sign out"
       >
         <IconSignOut size={16} />

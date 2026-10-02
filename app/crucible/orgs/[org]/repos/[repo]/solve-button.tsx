@@ -86,7 +86,7 @@ export function SolveButton({
         onClick={onClick}
         disabled={state === "pending"}
         title="Generate a fix and open a draft PR after checks"
-        className="text-[12px] text-paper border border-border bg-surface/60 hover:bg-surface px-2.5 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="rounded-lg text-[12px] text-paper border border-border bg-surface/60 hover:bg-surface px-2.5 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {state === "pending" ? "Starting…" : "Fix issue"}
       </button>

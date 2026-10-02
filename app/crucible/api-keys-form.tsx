@@ -133,7 +133,7 @@ export function ApiKeysForm() {
                   type="button"
                   onClick={() => clearKey("anthropic")}
                   disabled={saving}
-                  className="text-[11px] text-red-300 border border-red-700 bg-red-950/30 px-2.5 py-1.5 disabled:opacity-50"
+                  className="text-[11px] text-alert border border-alert/30 bg-alert/5 px-2.5 py-1.5 disabled:opacity-50"
                 >
                   {saving ? "..." : "confirm"}
                 </button>
@@ -150,7 +150,7 @@ export function ApiKeysForm() {
                 type="button"
                 onClick={() => setConfirmClear("anthropic")}
                 disabled={saving}
-                className="text-[11px] text-paper-muted hover:text-red-300 border border-border px-2.5 py-1.5 disabled:opacity-50"
+                className="text-[11px] text-paper-muted hover:text-alert border border-border px-2.5 py-1.5 disabled:opacity-50"
               >
                 Clear
               </button>
@@ -198,7 +198,7 @@ export function ApiKeysForm() {
                   type="button"
                   onClick={() => clearKey("gemini")}
                   disabled={saving}
-                  className="text-[11px] text-red-300 border border-red-700 bg-red-950/30 px-2.5 py-1.5 disabled:opacity-50"
+                  className="text-[11px] text-alert border border-alert/30 bg-alert/5 px-2.5 py-1.5 disabled:opacity-50"
                 >
                   {saving ? "..." : "confirm"}
                 </button>
@@ -215,7 +215,7 @@ export function ApiKeysForm() {
                 type="button"
                 onClick={() => setConfirmClear("gemini")}
                 disabled={saving}
-                className="text-[11px] text-paper-muted hover:text-red-300 border border-border px-2.5 py-1.5 disabled:opacity-50"
+                className="text-[11px] text-paper-muted hover:text-alert border border-border px-2.5 py-1.5 disabled:opacity-50"
               >
                 Clear
               </button>

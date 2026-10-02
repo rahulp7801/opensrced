@@ -8,7 +8,7 @@ export default function RepoLoading() {
       <div className="h-3 w-24 bg-surface-2 animate-pulse" />
       <div className="space-y-4">
         <div className="h-4 w-36 bg-surface-3 animate-pulse" />
-        <div className="border border-border bg-surface/40 divide-y divide-border-soft">
+        <div className="rounded-2xl border border-border-soft bg-surface divide-y divide-border-soft">
           {[1, 2, 3].map((i) => (
             <div key={i} className="px-4 py-3 flex items-center gap-3">
               <div className="h-5 w-14 bg-surface-3 animate-pulse" />
@@ -18,7 +18,7 @@ export default function RepoLoading() {
           ))}
         </div>
         <div className="h-4 w-28 bg-surface-3 animate-pulse" />
-        <div className="border border-border bg-surface/40 divide-y divide-border-soft">
+        <div className="rounded-2xl border border-border-soft bg-surface divide-y divide-border-soft">
           {[1, 2, 3].map((i) => (
             <div key={i} className="px-4 py-3 flex items-center gap-3">
               <div className="h-4 w-8 bg-surface-3 animate-pulse" />

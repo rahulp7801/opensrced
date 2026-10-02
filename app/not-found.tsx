@@ -5,7 +5,7 @@ export const metadata = { title: "Page not found" };
 export default function NotFound() {
   return (
     <section className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center px-5 py-16 sm:px-8">
-      <p className="font-mono text-xs uppercase tracking-[0.16em] text-paper-faint">404</p>
+      <p className="font-mono text-xs font-medium text-paper-faint">404</p>
       <h1 className="display mt-3 text-[40px] leading-[1.05] text-paper">Page not found.</h1>
       <p className="mt-4 max-w-xl text-sm leading-6 text-paper-muted">
         The address may be outdated, or the page may have moved.

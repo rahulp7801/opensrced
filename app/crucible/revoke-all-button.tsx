@@ -34,7 +34,7 @@ export function RevokeAllButton() {
         <button
           type="button"
           onClick={() => { setError(null); setState("confirm"); }}
-          className="text-[12px] text-alert hover:text-red-200 transition"
+          className="text-[12px] text-alert hover:text-alert transition"
         >
           Disconnect all &amp; sign out
         </button>
@@ -45,8 +45,8 @@ export function RevokeAllButton() {
 
   if (state === "confirm") {
     return (
-      <div className="border border-red-900/60 bg-red-950/20 p-4 space-y-3">
-        <div className="text-[13px] text-red-300 font-medium">
+      <div className="border border-alert/30 bg-alert/5 p-4 space-y-3">
+        <div className="text-[13px] text-alert font-medium">
           Disconnect this account?
         </div>
         <div className="text-[12px] text-paper-dim leading-relaxed">
@@ -73,7 +73,7 @@ export function RevokeAllButton() {
           <button
             type="button"
             onClick={revoke}
-            className="text-[12px] text-red-300 border border-red-800 bg-red-950/40 px-3 py-1.5 hover:bg-red-900/40 transition"
+            className="text-[12px] text-alert border border-alert/30 bg-alert/5 px-3 py-1.5 hover:bg-alert/10 transition"
           >
             Stop runs, disconnect, and sign out
           </button>
@@ -90,7 +90,7 @@ export function RevokeAllButton() {
   }
 
   return (
-    <div className="text-[12px] text-red-300 animate-pulse" role="status">
+    <div className="text-[12px] text-alert animate-pulse" role="status">
       Revoking all access and signing out…
     </div>
   );

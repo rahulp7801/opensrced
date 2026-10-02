@@ -116,7 +116,7 @@ export function TriggerForm() {
             placeholder="https://github.com/owner/repo or https://github.com/owner/repo/issues/123"
             spellCheck={false}
             autoComplete="off"
-            className="w-full border border-border bg-ink px-3 py-3 text-[14px] text-paper placeholder:text-paper-faint focus:border-signal focus:outline-none"
+            className="rounded-2xl w-full border border-border-soft bg-ink px-3 py-3 text-[14px] text-paper placeholder:text-paper-faint focus:border-signal focus:outline-none"
           />
         </Row>
 
@@ -127,7 +127,7 @@ export function TriggerForm() {
               onClick={() => setDryRun(true)}
               aria-pressed={dryRun}
               className={cn(
-                "px-4 py-2 text-[12px] uppercase tracking-[0.15em]",
+                "px-4 py-2 text-[12px] font-medium",
                 dryRun ? "bg-info/10 text-info" : "text-paper-muted hover:text-paper",
               )}
             >
@@ -138,7 +138,7 @@ export function TriggerForm() {
               onClick={() => setDryRun(false)}
               aria-pressed={!dryRun}
               className={cn(
-                "px-4 py-2 text-[12px] uppercase tracking-[0.15em] border-l border-border",
+                "px-4 py-2 text-[12px] font-medium border-l border-border",
                 !dryRun ? "bg-signal/10 text-signal" : "text-paper-muted hover:text-paper",
               )}
             >
@@ -154,7 +154,7 @@ export function TriggerForm() {
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
             placeholder="e.g. focus on security fixes, avoid license-encumbered files, skip tests/"
-            className="w-full border border-border bg-ink px-3 py-3 text-[13px] text-paper placeholder:text-paper-faint focus:border-signal focus:outline-none resize-none"
+            className="rounded-lg w-full border border-border bg-ink px-3 py-3 text-[13px] text-paper placeholder:text-paper-faint focus:border-signal focus:outline-none resize-none"
           />
         </Row>
 

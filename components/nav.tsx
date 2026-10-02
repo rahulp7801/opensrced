@@ -9,10 +9,9 @@ export function Nav() {
   const path = usePathname();
 
   return (
-    <nav aria-label="Main navigation" className="flex items-stretch flex-1 min-w-0">
+    <nav aria-label="Main navigation" className="flex min-w-0 flex-1 items-stretch justify-center">
       {SECTIONS.map((section) => {
         const active = section.links.some((l) => isLinkActive(path, l.href));
-        const { Icon } = section;
         return (
           <Link
             key={section.label}
@@ -22,29 +21,16 @@ export function Nav() {
             title={section.title}
             aria-label={section.label}
             aria-current={active ? "page" : undefined}
-            className={cn(
-              "group relative flex min-w-0 items-center justify-center gap-1 px-1.5 transition-colors sm:gap-2 sm:px-5",
-              "hover:bg-surface-2/60",
-              active ? "bg-surface-2/80" : "bg-transparent",
-            )}
+            className="group flex min-w-0 items-center justify-center px-2 sm:px-4"
           >
-            <Icon
-              className={cn(
-                "hidden shrink-0 sm:block",
-                active ? "text-signal" : "text-paper-muted group-hover:text-paper",
-              )}
-            />
             <span
               className={cn(
-                "truncate text-[11.5px] font-medium tracking-tight sm:text-[14px]",
-                active ? "text-paper" : "text-paper-dim group-hover:text-paper",
+                "truncate text-[13px] transition-colors",
+                active ? "font-medium text-paper" : "text-paper-muted group-hover:text-paper",
               )}
             >
               {section.label}
             </span>
-            {active && (
-              <span className="absolute inset-x-0 -bottom-px h-0.5 bg-signal" />
-            )}
           </Link>
         );
       })}

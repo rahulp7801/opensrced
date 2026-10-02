@@ -190,7 +190,7 @@ export function DispatchList() {
     return (
       <div className="grid grid-cols-12 gap-6">
         <aside className="col-span-12 md:col-span-5 lg:col-span-4">
-          <div className="border border-border bg-surface/40">
+          <div className="rounded-2xl border border-border-soft bg-surface">
             <div className="border-b border-border px-4 py-2.5">
               <div className="h-4 w-20 bg-surface-3 animate-pulse" />
             </div>
@@ -204,7 +204,7 @@ export function DispatchList() {
           </div>
         </aside>
         <section className="col-span-12 md:col-span-7 lg:col-span-8">
-          <div className="border border-border bg-surface/40 p-10 text-center text-[12px] text-paper-muted">
+          <div className="rounded-2xl border border-border-soft bg-surface p-10 text-center text-[12px] text-paper-muted">
             {pollError ? `Could not load runs: ${pollError} Retrying...` : "Loading runs..."}
           </div>
         </section>
@@ -213,7 +213,7 @@ export function DispatchList() {
   }
   if (items.length === 0) {
     return (
-      <div className="border border-border bg-surface/40 px-6 py-10 text-center sm:px-10">
+      <div className="rounded-2xl border border-border-soft bg-surface px-6 py-10 text-center sm:px-10">
         <h2 className="text-lg font-medium text-paper">No runs yet</h2>
         <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-paper-muted">
           Start with a GitHub repository or issue. Preview mode lets you inspect the proposed patch before anything is published.
@@ -235,7 +235,7 @@ export function DispatchList() {
       {pollError && <p role="status" className="col-span-12 text-sm text-alert">Could not refresh runs: {pollError} Retrying...</p>}
       {/* List */}
       <aside className="col-span-12 md:col-span-5 lg:col-span-4">
-        <div className="border border-border bg-surface/40">
+        <div className="rounded-2xl border border-border-soft bg-surface">
           <div className="border-b border-border px-4 py-3 flex items-center justify-between gap-3">
             <span className="text-[13px] text-paper">Pipelines</span>
             <div className="flex items-center gap-3">
@@ -269,12 +269,12 @@ export function DispatchList() {
                       )}
                     </span>
                     {d.mode === "agentic" && (
-                      <span className="ml-auto text-[11px] tracking-[0.12em] uppercase text-info border border-info/40 px-1 py-px leading-none">
+                      <span className="ml-auto text-[11px] font-medium text-info border border-info/40 px-1 py-px leading-none">
                         deep
                       </span>
                     )}
                     {d.dry_run && (
-                      <span className="ml-auto text-[11px] tracking-[0.12em] uppercase text-info border border-info/40 px-1 py-px leading-none">
+                      <span className="ml-auto text-[11px] font-medium text-info border border-info/40 px-1 py-px leading-none">
                         dry
                       </span>
                     )}
@@ -353,7 +353,7 @@ export function DispatchList() {
       {/* Detail */}
       <section className="col-span-12 md:col-span-7 lg:col-span-8">
         {detail ? (
-          <div className="border border-border bg-surface/40">
+          <div className="rounded-2xl border border-border-soft bg-surface">
             {/* Header */}
             <div className="border-b border-border px-4 py-3">
               <div className="flex items-center justify-between gap-4">
@@ -432,7 +432,7 @@ export function DispatchList() {
             <LogViewer log={detail.log} isRunning={detail.status === "running"} logRef={logRef} onScroll={onLogScroll} />
           </div>
         ) : (
-          <div className="border border-border bg-surface/40 p-10 text-center text-[12px] text-paper-muted">
+          <div className="rounded-2xl border border-border-soft bg-surface p-10 text-center text-[12px] text-paper-muted">
             Select a run to view its log.
           </div>
         )}
@@ -485,7 +485,7 @@ function RetryButton({ dispatch }: { dispatch: DispatchWithLog }) {
       <button
         onClick={retry}
         disabled={pending}
-        className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-2 py-0.5 text-xs uppercase tracking-[0.12em] disabled:opacity-50"
+        className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-2 py-0.5 text-xs font-medium disabled:opacity-50"
       >
         {pending ? "retrying…" : "retry"}
       </button>
@@ -521,7 +521,7 @@ function CancelButton({ dispatchId }: { dispatchId: string }) {
         <button
           onClick={cancel}
           disabled={pending}
-          className="border border-alert bg-alert/10 text-alert px-2 py-0.5 text-xs uppercase tracking-[0.12em] hover:bg-alert/20 disabled:opacity-50"
+          className="border border-alert bg-alert/10 text-alert px-2 py-0.5 text-xs font-medium hover:bg-alert/20 disabled:opacity-50"
         >
           {pending ? "…" : "confirm kill"}
         </button>
@@ -538,7 +538,7 @@ function CancelButton({ dispatchId }: { dispatchId: string }) {
   return (
     <button
       onClick={() => { setConfirming(true); setError(null); }}
-      className="border border-border text-paper-muted hover:text-alert hover:border-alert/50 px-2 py-0.5 text-xs uppercase tracking-[0.12em]"
+      className="border border-border text-paper-muted hover:text-alert hover:border-alert/50 px-2 py-0.5 text-xs font-medium"
       title="Stop the opensrcer agent subprocess"
     >
       ■ stop
@@ -608,7 +608,7 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
     const parts = clean.split(new RegExp(`(${escaped})`, "gi"));
     return parts.map((part, i) =>
       part.toLowerCase() === search.toLowerCase()
-        ? <mark key={i} className="bg-signal/30 text-signal">{part}</mark>
+        ? <mark key={i} className="rounded-sm bg-[#ffd60a] text-[#1d1d1f]">{part}</mark>
         : part
     );
   }
@@ -616,7 +616,7 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
   return (
     <div className="relative">
       {isRunning && !showSearch && (
-        <div className="absolute top-2 right-3 z-10 flex items-center gap-1.5 text-xs text-signal">
+        <div className="absolute top-2 right-3 z-10 flex items-center gap-1.5 text-xs text-[#64d2ff]">
           <StatusDot tone="signal" /> streaming
         </div>
       )}
@@ -628,7 +628,7 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="search log..."
-            className="bg-ink/90 border border-border px-2 py-1 text-[11px] text-paper w-48 focus:outline-none focus:border-signal/50"
+            className="rounded-lg bg-surface border border-border px-2 py-1 text-[11px] text-paper w-48 focus:outline-none focus:border-signal/50"
           />
           {search.length >= 2 && (
             <span className="text-xs text-paper-muted tabular-nums">{matchCount}</span>
@@ -641,8 +641,8 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
           <button
             onClick={() => setRawMode(!rawMode)}
             className={cn(
-              "border bg-ink/80 px-2 py-1 text-xs transition",
-              rawMode ? "border-signal/50 text-signal" : "border-border text-paper-faint hover:text-paper-muted"
+              "rounded-lg border bg-surface px-2 py-1 text-xs transition",
+              rawMode ? "border-signal/50 text-signal" : "border-border text-paper-dim hover:text-paper"
             )}
             title="Toggle terminal colors"
           >
@@ -650,7 +650,7 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
           </button>
           <button
             onClick={() => { setShowSearch(true); setTimeout(() => searchRef.current?.focus(), 50); }}
-            className="flex items-center gap-1 border border-border bg-ink/80 hover:border-signal/50 hover:text-signal px-2 py-1 text-xs text-paper-muted transition"
+            className="rounded-lg flex items-center gap-1 border border-border bg-surface hover:border-signal/50 hover:text-signal px-2 py-1 text-xs text-paper-dim transition"
             title="Search log (Ctrl+F)"
           >
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7" cy="7" r="4" /><path d="m13 13-3.5-3.5" /></svg>
@@ -658,7 +658,7 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
           </button>
         </div>
       )}
-      <pre ref={logRef} onScroll={onScroll} className="h-[50vh] overflow-auto p-4 text-[11.5px] leading-relaxed text-paper-dim bg-ink/70 font-mono whitespace-pre-wrap">
+      <pre ref={logRef} onScroll={onScroll} className="term h-[50vh] overflow-auto rounded-none p-4 text-[11.5px] leading-relaxed font-mono whitespace-pre-wrap">
         {search.length >= 2 ? renderLog() : rawMode ? <AnsiLog text={log} /> : (clean || "(log empty — waiting for first write)")}
       </pre>
     </div>
@@ -755,7 +755,7 @@ function ExportButton({ dispatch }: { dispatch: DispatchWithLog }) {
   return (
     <button
       onClick={download}
-      className="border border-border text-paper-muted hover:text-paper hover:border-border-strong px-2 py-0.5 text-xs uppercase tracking-[0.12em]"
+      className="border border-border text-paper-muted hover:text-paper hover:border-border-strong px-2 py-0.5 text-xs font-medium"
       title="Download run report as .md"
     >
       export
@@ -780,7 +780,7 @@ function PipelineTimeline({ log, status }: { log: string; status: string }) {
           {i > 0 && <div className={cn("w-4 h-px", p.done || p.active ? "bg-signal/40" : "bg-border")} />}
           <span
             className={cn(
-              "flex items-center gap-1 px-1.5 py-0.5 text-[11px] uppercase tracking-[0.1em] border leading-none",
+              "flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-medium border leading-none",
               p.failed ? "border-alert/40 text-alert" :
               p.done ? "border-ok/40 text-ok" :
               p.active ? "border-signal/40 text-signal" :
@@ -1009,7 +1009,7 @@ function DiffPreviewFromLog({ log, prOpened, dryRun }: { log: string; prOpened: 
       {/* Full-screen modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-ink/90 backdrop-blur-sm overflow-y-auto py-8 px-4">
-          <div className="w-full max-w-4xl border border-border bg-ink">
+          <div className="rounded-2xl w-full max-w-4xl border border-border-soft bg-ink">
             {/* Modal header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <div>

@@ -329,7 +329,7 @@ export function DiscoverScanner() {
           </div>
 
           {/* Results table */}
-          <div className="mt-6 border border-border bg-surface/40 overflow-x-auto">
+          <div className="rounded-2xl mt-6 border border-border-soft bg-surface overflow-x-auto">
             <table className="w-full text-[12.5px]">
               <thead>
                 <tr className="border-b border-border bg-ink/50 text-paper-muted">
@@ -337,7 +337,7 @@ export function DiscoverScanner() {
                     (h) => (
                       <th
                         key={h}
-                        className="py-2.5 px-3 text-left font-normal tracking-[0.15em] text-xs uppercase"
+                        className="py-2.5 px-3 text-left font-medium text-xs"
                       >
                         {h}
                       </th>
@@ -385,7 +385,7 @@ export function DiscoverScanner() {
                           {i.repo.fullName}
                         </Link>
                         {i.repo.language && (
-                          <span className="ml-2 text-[11px] uppercase tracking-[0.12em] text-paper-faint border border-border-soft px-1 py-0.5">
+                          <span className="ml-2 text-[11px] font-medium text-paper-faint border border-border-soft px-1 py-0.5">
                             {i.repo.language}
                           </span>
                         )}
@@ -411,7 +411,7 @@ export function DiscoverScanner() {
                             {i.labels.slice(0, 3).map((l) => (
                               <span
                                 key={l}
-                                className="text-[11px] uppercase tracking-[0.1em] border border-border-soft px-1 py-0.5 text-paper-muted"
+                                className="text-[11px] font-medium border border-border-soft px-1 py-0.5 text-paper-muted"
                               >
                                 {l}
                               </span>
@@ -422,7 +422,7 @@ export function DiscoverScanner() {
                       <td className="px-3 py-2.5 whitespace-nowrap text-paper-muted tabular-nums text-[11px]" title={i.created_at}>
                         {fmtRelative(i.created_at, now)}
                       </td>
-                      <td className="px-3 py-2.5 text-xs uppercase tracking-[0.12em] text-paper-dim">
+                      <td className="px-3 py-2.5 text-xs font-medium text-paper-dim">
                         {i.category}
                       </td>
                       <td className="px-3 py-2.5">
@@ -440,7 +440,7 @@ export function DiscoverScanner() {
                       <td className="px-3 py-2.5">
                         <Link
                           href={`/issues?repo=${encodeURIComponent(i.repo.fullName)}&issue=${i.number}`}
-                          className="inline-flex items-center gap-1.5 border border-border bg-surface px-2.5 py-1 text-[11px] text-paper-dim hover:text-paper hover:border-border-strong"
+                          className="rounded-lg inline-flex items-center gap-1.5 border border-border bg-surface px-2.5 py-1 text-[11px] text-paper-dim hover:text-paper hover:border-border-strong"
                           title="Load this repo in the scanner"
                         >
                           open
@@ -458,14 +458,14 @@ export function DiscoverScanner() {
 
       {/* Bookmarked repos */}
       {bookmarks.length > 0 && (
-        <div className="mt-4 border border-border bg-surface/40 px-4 py-3">
+        <div className="rounded-2xl mt-4 border border-border-soft bg-surface px-4 py-3">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs uppercase tracking-[0.15em] text-signal">Saved repos</span>
+            <span className="text-xs font-medium text-signal">Saved repos</span>
             <span className="text-xs text-paper-faint">{bookmarks.length} bookmarked</span>
           </div>
           <div className="flex flex-wrap gap-2">
             {bookmarks.map((repo) => (
-              <div key={repo} className="flex items-center gap-1.5 border border-border bg-ink/30 px-2.5 py-1 text-[11px]">
+              <div key={repo} className="rounded-lg flex items-center gap-1.5 border border-border bg-ink/30 px-2.5 py-1 text-[11px]">
                 <Link href={`/issues?repo=${encodeURIComponent(repo)}`} className="text-paper hover:text-signal transition">{repo}</Link>
                 <Link href={`/trigger?repo=${repo}`} className="text-signal hover:underline text-xs">fix</Link>
                 <button onClick={() => toggleBookmark(repo)} className="text-paper-faint hover:text-alert text-xs transition ml-1">x</button>
@@ -485,7 +485,7 @@ export function DiscoverScanner() {
               Open a familiar project in the issue scanner, or use the filters above to search across GitHub.
             </p>
           </div>
-          <div className="mt-5 grid overflow-hidden border border-border bg-border gap-px sm:grid-cols-3">
+          <div className="mt-5 grid overflow-hidden rounded-2xl border border-border-soft bg-border-soft gap-px sm:grid-cols-3">
             {[
               { name: "astral-sh/ruff", lang: "Rust" },
               { name: "withastro/astro", lang: "TypeScript" },
@@ -494,7 +494,7 @@ export function DiscoverScanner() {
               <Link
                 key={repo.name}
                 href={`/issues?repo=${encodeURIComponent(`https://github.com/${repo.name}`)}`}
-                className="group flex min-h-20 items-center justify-between gap-4 bg-ink px-4 py-3 transition-colors hover:bg-surface"
+                className="group flex min-h-20 items-center justify-between gap-4 bg-surface px-5 py-4 transition-colors hover:bg-ink-2"
               >
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium text-paper group-hover:text-signal">
@@ -630,7 +630,7 @@ function ScopeBadge({ s }: { s: ScopeInfo }) {
     <span
       title={title}
       className={cn(
-        "inline-block text-[11px] uppercase tracking-[0.12em] border px-1.5 py-0.5 leading-none cursor-help",
+        "inline-block text-[11px] font-medium border px-1.5 py-0.5 leading-none cursor-help",
         styles[s.bucket],
       )}
     >

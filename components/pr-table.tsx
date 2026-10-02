@@ -58,7 +58,7 @@ export function PrTable({ prs }: { prs: PullRequest[] }) {
   return (
     <div>
       {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-3 border border-border border-b-0 bg-surface/40 px-4 py-3">
+      <div className="rounded-2xl flex flex-wrap items-center gap-3 border border-border-soft border-b-0 bg-surface px-4 py-3">
         <div className="flex items-center gap-2">
           <IconFilter className="text-paper-muted" />
           <span className="text-[12px] text-paper-muted">Status</span>
@@ -80,7 +80,7 @@ export function PrTable({ prs }: { prs: PullRequest[] }) {
           ))}
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <div className="flex items-center gap-2 border border-border bg-ink px-2.5 py-1.5 focus-within:border-signal transition-colors">
+          <div className="rounded-2xl flex items-center gap-2 border border-border-soft bg-ink px-2.5 py-1.5 focus-within:border-signal transition-colors">
             <IconSearch className="text-paper-muted" />
             <input
               value={q}
@@ -96,7 +96,7 @@ export function PrTable({ prs }: { prs: PullRequest[] }) {
       </div>
 
       {/* Table */}
-      <div className="border border-border bg-surface/40 overflow-x-auto">
+      <div className="rounded-2xl border border-border-soft bg-surface overflow-x-auto">
         <table className="w-full text-[12.5px]">
           <thead>
             <tr className="border-b border-border bg-ink/50 text-paper-muted">
@@ -125,7 +125,7 @@ export function PrTable({ prs }: { prs: PullRequest[] }) {
                   <td className="px-3 py-2.5 text-paper-dim max-w-[220px] truncate">{pr.repo}</td>
                   <td className="px-3 py-2.5 text-paper max-w-[440px] truncate">{pr.title}</td>
                   <td className="px-3 py-2.5">
-                    <span className="text-xs uppercase tracking-[0.12em] text-paper-dim">
+                    <span className="text-xs font-medium text-paper-dim">
                       {pr.contribution_type.replace(/_/g, " ")}
                     </span>
                   </td>
@@ -196,7 +196,7 @@ function Th({
   return (
     <th
       className={cn(
-        "py-2.5 px-3 font-normal tracking-[0.15em] text-xs uppercase",
+        "py-2.5 px-3 font-medium text-xs",
         align === "right" ? "text-right" : "text-left",
         sortable && "cursor-pointer hover:text-paper select-none",
         active && "text-paper",

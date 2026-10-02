@@ -121,7 +121,7 @@ try {
     await context.close();
   }
 
-  const slowAuthContext = await browser.newContext({ viewport: { width: 390, height: 900 } });
+  const slowAuthContext = await browser.newContext({ viewport: { width: 390, height: 900 }, reducedMotion: 'reduce' });
   slowAuthContext.setDefaultTimeout(15_000);
   await slowAuthContext.route('**/auth/profile', () => new Promise(() => {}));
   const slowAuthPage = await slowAuthContext.newPage();
@@ -135,7 +135,7 @@ try {
   await assertNoSeriousAccessibilityViolations(slowAuthPage, 'auth timeout recovery');
   await slowAuthContext.close();
 
-  const privateStorageContext = await browser.newContext({ viewport: { width: 390, height: 900 } });
+  const privateStorageContext = await browser.newContext({ viewport: { width: 390, height: 900 }, reducedMotion: 'reduce' });
   privateStorageContext.setDefaultTimeout(15_000);
   await privateStorageContext.addInitScript(() => {
     for (const method of ['getItem', 'setItem', 'removeItem']) {
@@ -164,7 +164,7 @@ try {
 
   // Client interaction test only: fake session/data, intercept every mutation.
   // Real Auth0 and provider workflows remain a separate deployment release gate.
-  const context = await browser.newContext();
+  const context = await browser.newContext({ reducedMotion: 'reduce' });
   await context.addInitScript(() => {
     try { localStorage.setItem('opensrcer-bookmarks', '{"stale":true}'); } catch {}
     window.__notificationPromptCount = 0;

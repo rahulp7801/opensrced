@@ -651,7 +651,7 @@ function ScopeBadge({ s }: { s: ScopeInfo }) {
     <span
       title={titleParts.join(" · ")}
       className={cn(
-        "inline-block text-[11px] uppercase tracking-[0.12em] border px-1.5 py-0.5 leading-none cursor-help",
+        "inline-block text-[11px] font-medium border px-1.5 py-0.5 leading-none cursor-help",
         styles[s.bucket],
       )}
     >

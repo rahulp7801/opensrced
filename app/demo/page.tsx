@@ -47,7 +47,7 @@ export default function DemoPage() {
 
       <section className="grid gap-8 py-10 lg:grid-cols-[17rem_minmax(0,1fr)] lg:gap-12 lg:py-12" aria-label="Choose a product workflow">
         <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-paper-muted">Choose a workflow</p>
+          <p className="font-mono text-[11px] font-medium text-paper-muted">Choose a workflow</p>
           <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-1" role="tablist" aria-label="Demo workflows">
             {DEMOS.map((demo, index) => {
               const selected = activeDemo === demo.key;
@@ -89,7 +89,7 @@ export default function DemoPage() {
               <p className="text-sm font-medium text-paper">{active.label}</p>
               <p className="mt-1 text-xs text-paper-muted">Interactive sample · reset any time</p>
             </div>
-            <span className="rounded-full border border-ok/30 bg-ok/5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.1em] text-ok">Ready</span>
+            <span className="rounded-full border border-ok/30 bg-ok/5 px-2.5 py-1 font-mono text-[10px] font-medium text-ok">Ready</span>
           </div>
           <div id={`demo-${activeDemo}`} role="tabpanel" aria-labelledby={`demo-tab-${activeDemo}`}>
             {activeDemo === "dispatch" && <DispatchDemo />}
@@ -206,7 +206,7 @@ function DispatchDemo() {
             <div className="flex items-center gap-2">
               <span className="text-[13px] text-paper-muted">acme-corp/web-app</span>
               <span className="text-[12px] text-info border border-info/40 px-1.5 py-0.5 leading-none">#47</span>
-              <span className="text-xs border border-red-700/40 text-red-300 px-1.5">security</span>
+              <span className="text-xs border border-alert/30 text-alert px-1.5">security</span>
             </div>
             <div className="text-[15px] text-paper">SQL injection in user search endpoint</div>
             <div className="text-[12px] text-paper-dim leading-relaxed">
@@ -232,7 +232,7 @@ function DispatchDemo() {
               {PHASES.map((p, i) => (
                 <div key={p} className="flex items-center gap-1">
                   {i > 0 && <div className={cn("w-4 h-px", i <= phaseIdx ? "bg-ok/40" : "bg-border")} />}
-                  <span className={cn("flex items-center gap-1 px-1.5 py-0.5 text-[11px] uppercase tracking-[0.1em] border leading-none",
+                  <span className={cn("flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-medium border leading-none",
                     i < phaseIdx ? "border-ok/40 text-ok" : i === phaseIdx ? "border-signal/40 text-signal" : "border-border-soft text-paper-faint")}>
                     {i < phaseIdx ? "✓" : i === phaseIdx ? "●" : "○"} {p}
                   </span>
@@ -329,12 +329,12 @@ function ExploreDemo() {
         <div className="p-6 space-y-4">
           <div className="mono-label text-paper-muted">step 1 — enter a repo</div>
           <div className="border border-border p-4 space-y-3">
-            <div className="bg-ink border border-border px-3 py-2 text-[13px] text-paper">acme-corp/web-app</div>
+            <div className="rounded-lg bg-ink border border-border px-3 py-2 text-[13px] text-paper">acme-corp/web-app</div>
             <div className="text-[11px] text-paper-faint">Budget: $0.10 max cost per query</div>
           </div>
           <div className="mono-label text-paper-muted">step 2 — ask a question</div>
           <div className="border border-border p-4">
-            <div className="bg-ink border border-border px-3 py-2 text-[13px] text-paper">Where is the authentication middleware and how does it work?</div>
+            <div className="rounded-lg bg-ink border border-border px-3 py-2 text-[13px] text-paper">Where is the authentication middleware and how does it work?</div>
           </div>
           <button onClick={run} className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-2 text-[12px] transition">Explore →</button>
         </div>
@@ -343,7 +343,7 @@ function ExploreDemo() {
       {(step === "running" || step === "done") && (
         <>
           <div className="px-4 py-2.5 border-b border-border-soft flex items-center gap-2">
-            <span className="text-xs uppercase tracking-[0.15em] text-signal">Q</span>
+            <span className="text-xs font-medium text-signal">Q</span>
             <span className="text-[13px] text-paper">Where is the authentication middleware and how does it work?</span>
             {step === "done" && <span className="ml-auto text-xs text-ok">complete</span>}
           </div>
@@ -370,7 +370,7 @@ function ExploreDemo() {
           </div>
           {step === "done" && (
             <div className="px-4 py-2.5 border-t border-border-soft flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-paper-faint uppercase tracking-[0.1em]">follow up:</span>
+              <span className="text-xs text-paper-faint font-medium">follow up:</span>
               {["What permissions does it check?", "How are tokens stored?", "Show me the test suite"].map((q, i) => (
                 <span key={i} className="text-[11px] text-paper-dim border border-border-soft px-2 py-1">{q}</span>
               ))}
@@ -445,9 +445,9 @@ function SecurityDemo() {
   }
 
   const sevCls: Record<string, string> = {
-    critical: "border-red-700 bg-red-950/60 text-red-200",
+    critical: "border-alert/30 bg-alert/5 text-alert",
     high: "border-orange-700 bg-orange-950/40 text-orange-200",
-    medium: "border-yellow-700 bg-yellow-950/40 text-yellow-200",
+    medium: "border-amber-300 bg-amber-50 text-amber-800",
     low: "border-blue-700 bg-blue-950/40 text-blue-200",
   };
 
@@ -481,7 +481,7 @@ function SecurityDemo() {
                   <div className="mt-1 text-[12px] text-paper-dim">{f.summary}</div>
                 </div>
                 {step === "findings" && f.sev === "critical" && (
-                  <button onClick={solve} className="shrink-0 text-[11px] text-paper border border-border bg-surface/60 hover:bg-surface px-2 py-1">Fix issue</button>
+                  <button onClick={solve} className="rounded-lg shrink-0 text-[11px] text-paper border border-border bg-surface/60 hover:bg-surface px-2 py-1">Fix issue</button>
                 )}
               </div>
             ))}
@@ -648,7 +648,7 @@ function CrucibleDemo() {
             <span className="text-ok text-[14px]">✓</span>
             <div><div className="text-[13px] text-ok">acme-corp connected</div><div className="text-[11px] text-paper-muted">Installation #48291 · 60-min tokens · revocable anytime</div></div>
           </div>
-          <button onClick={() => setStep("repos")} className="border border-border bg-surface/60 hover:bg-surface text-paper px-4 py-2 text-[12px] transition">Browse repos →</button>
+          <button onClick={() => setStep("repos")} className="rounded-lg border border-border bg-surface/60 hover:bg-surface text-paper px-4 py-2 text-[12px] transition">Browse repos →</button>
         </div>
       )}
 
@@ -682,7 +682,7 @@ function CrucibleDemo() {
               <li key={iss.num} className="px-4 py-3 flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-[13px] text-paper"><span className="text-paper-muted">#{iss.num}</span> {iss.title}</div>
-                  <div className="mt-1 flex gap-1">{iss.labels.map(l => <span key={l} className={cn("text-xs font-mono border px-1.5", l === "security" ? "border-red-700/40 text-red-300" : l === "bug" || l === "p1" ? "border-orange-700/40 text-orange-300" : "border-border-soft text-paper-muted")}>{l}</span>)}</div>
+                  <div className="mt-1 flex gap-1">{iss.labels.map(l => <span key={l} className={cn("text-xs font-mono border px-1.5", l === "security" ? "border-alert/30 text-alert" : l === "bug" || l === "p1" ? "border-orange-700/40 text-orange-300" : "border-border-soft text-paper-muted")}>{l}</span>)}</div>
                 </div>
                 <button onClick={iss.num === 12 ? solve : undefined} className={cn("shrink-0 text-[11px] border px-2.5 py-1", iss.num === 12 ? "text-paper border-border bg-surface/60 hover:bg-surface" : "text-paper-faint border-border-soft cursor-default")}>Fix issue</button>
               </li>

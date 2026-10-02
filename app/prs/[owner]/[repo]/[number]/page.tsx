@@ -890,15 +890,15 @@ export default function PrDetailPage() {
 
       {/* Shortcuts overlay */}
       {showShortcuts && (
-        <div className="mb-3 border border-border bg-ink/80 px-4 py-3">
+        <div className="rounded-2xl mb-3 border border-border-soft bg-ink/80 px-4 py-3">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs uppercase tracking-[0.15em] text-paper-muted">Keyboard shortcuts</span>
+            <span className="text-xs font-medium text-paper-muted">Keyboard shortcuts</span>
             <button onClick={() => setShowShortcuts(false)} className="text-xs text-paper-faint hover:text-paper-muted">close</button>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-1">
             {SHORTCUTS.map((s) => (
               <div key={s.key} className="flex items-center gap-2 text-[11px]">
-                <kbd className="bg-surface border border-border px-1.5 py-0.5 text-xs text-paper font-mono min-w-[24px] text-center">{s.key}</kbd>
+                <kbd className="rounded-lg bg-surface border border-border px-1.5 py-0.5 text-xs text-paper font-mono min-w-[24px] text-center">{s.key}</kbd>
                 <span className="text-paper-dim">{s.label}</span>
               </div>
             ))}
@@ -919,10 +919,10 @@ export default function PrDetailPage() {
       {pr && (
         <>
           {/* PR header */}
-          <div className="mt-4 border border-border bg-surface/40 px-4 py-3">
+          <div className="rounded-2xl mt-4 border border-border-soft bg-surface px-4 py-3">
             <div className="flex items-center gap-3">
               <span className={cn(
-                "text-xs uppercase tracking-[0.12em] px-1.5 py-0.5 border",
+                "text-xs font-medium px-1.5 py-0.5 border",
                 pr.state === "OPEN" ? "text-signal border-signal/30" : pr.state === "MERGED" ? "text-ok border-ok/30" : "text-paper-muted border-border",
               )}>
                 {pr.state}
@@ -964,7 +964,7 @@ export default function PrDetailPage() {
 
           {/* Collapsible PR diff */}
           {showDiff && (
-            <div className="border border-border border-t-0 bg-ink/30 max-h-[500px] overflow-auto">
+            <div className="rounded-2xl border border-border-soft border-t-0 bg-ink/30 max-h-[500px] overflow-auto">
               {diffLoading ? (
                 <div className="px-4 py-3 text-[11px] text-paper-muted animate-pulse-signal">Loading diff...</div>
               ) : diffError ? (
@@ -1021,14 +1021,14 @@ export default function PrDetailPage() {
                   <button
                     onClick={handleFixAll}
                     disabled={isFixing || writesPending}
-                    className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-1.5 text-[11px] uppercase tracking-[0.12em] disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-1.5 text-[11px] font-medium disabled:opacity-50 disabled:cursor-not-allowed transition"
                   >
                     {isFixing && fixState?.commentId === "all" ? "generating fixes..." : `fix all ${actionableComments.length} comments`}
                   </button>
                 )}
               </div>
               {/* Fix mode selector */}
-              <div className="flex items-start gap-3 border border-border bg-ink/20 px-3 py-2">
+              <div className="rounded-2xl flex items-start gap-3 border border-border-soft bg-ink/20 px-3 py-2">
                 <div className="flex items-center gap-0.5 border border-border shrink-0">
                   <button
                     onClick={() => setFixMode("quick")}
@@ -1071,7 +1071,7 @@ export default function PrDetailPage() {
           {/* Review comments */}
           <div className="mt-4 space-y-3">
             {comments.length === 0 && (
-              <div className="border border-border bg-surface/40 px-4 py-6 text-center text-[12px] text-paper-muted">
+              <div className="rounded-lg border border-border bg-surface/40 px-4 py-6 text-center text-[12px] text-paper-muted">
                 No review comments from maintainers yet.
               </div>
             )}
@@ -1086,7 +1086,7 @@ export default function PrDetailPage() {
                   key={c.id}
                   ref={(el) => { if (el) commentRefs.current.set(c.id, el); }}
                   className={cn(
-                    "border bg-surface/40 transition-all",
+                    "rounded-2xl border bg-surface transition-all",
                     c.isOwnComment ? "border-border-soft opacity-60" : "border-border",
                     isFocused && "ring-1 ring-signal/50 border-signal/30",
                     status === "fixed" && "border-l-2 border-l-ok",
@@ -1103,7 +1103,7 @@ export default function PrDetailPage() {
                     {/* Status indicator */}
                     {!c.isOwnComment && status !== "pending" && (
                       <span className={cn(
-                        "text-[11px] uppercase tracking-[0.1em] px-1 py-0.5 border",
+                        "text-[11px] font-medium px-1 py-0.5 border",
                         status === "fixed" ? "text-ok border-ok/30" : "text-info border-info/30",
                       )}>
                         {status}
@@ -1196,13 +1196,13 @@ export default function PrDetailPage() {
                           onChange={(e) => setReplyTexts((prev) => new Map(prev).set(c.id, e.target.value))}
                           placeholder="Write a reply..."
                           rows={2}
-                          className="flex-1 bg-surface border border-border px-2.5 py-1.5 text-[12px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50 resize-y min-h-[40px]"
+                          className="rounded-lg flex-1 bg-surface border border-border px-2.5 py-1.5 text-[12px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50 resize-y min-h-[40px]"
                         />
                         <div className="flex flex-col gap-1 self-end">
                           <button
                             onClick={() => handleReply(c)}
                             disabled={!replyTexts.get(c.id)?.trim() || replySt?.status === "sending"}
-                            className="border border-info/50 bg-info/10 text-info hover:bg-info/20 px-3 py-1.5 text-[11px] uppercase tracking-[0.12em] disabled:opacity-50 shrink-0 transition"
+                            className="border border-info/50 bg-info/10 text-info hover:bg-info/20 px-3 py-1.5 text-[11px] font-medium disabled:opacity-50 shrink-0 transition"
                           >
                             {replySt?.status === "sending" ? "..." : "send"}
                           </button>
@@ -1223,9 +1223,9 @@ export default function PrDetailPage() {
 
           {/* Fix output */}
           {fixState && (
-            <div ref={fixRef} className="mt-4 border border-border bg-surface/40">
+            <div ref={fixRef} className="rounded-2xl mt-4 border border-border-soft bg-surface">
               <div className="px-4 py-2 border-b border-border-soft flex items-center gap-2">
-                <span className="text-xs uppercase tracking-[0.15em] text-signal">
+                <span className="text-xs font-medium text-signal">
                   {fixState.commentId === "all" ? "fix all comments" : "fix generation"}
                 </span>
                 {fixState.status === "generating" && (
@@ -1250,7 +1250,7 @@ export default function PrDetailPage() {
               {fixState.tools.length > 0 && (
                 <div className="px-4 py-2 border-b border-border-soft bg-ink/30">
                   <div className="flex items-center gap-1 mb-1.5">
-                    <span className="text-[11px] uppercase tracking-[0.15em] text-paper-faint">Agent activity</span>
+                    <span className="text-[11px] font-medium text-paper-faint">Agent activity</span>
                     <span className="text-[11px] text-paper-faint tabular-nums">{fixState.tools.length} tool calls</span>
                     {fixState.status === "generating" && <span className="text-[11px] text-signal animate-pulse-signal ml-1">live</span>}
                   </div>
@@ -1345,7 +1345,7 @@ export default function PrDetailPage() {
               {/* Export buttons */}
               {fixState.status === "done" && extractDiff(fixState.response) && (
                 <div className="px-4 py-2 border-t border-border-soft flex items-center gap-2">
-                  <span className="text-xs text-paper-faint uppercase tracking-[0.15em]">export</span>
+                  <span className="text-xs text-paper-faint font-medium">export</span>
                   <button
                     onClick={async () => {
                       try {
@@ -1436,7 +1436,7 @@ export default function PrDetailPage() {
               {fixState.status === "done" && extractDiff(fixState.response) && (
                 <div className="px-4 py-3 border-t border-border-soft">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs uppercase tracking-[0.15em] text-paper-muted">
+                    <span className="text-xs font-medium text-paper-muted">
                       verification checks
                     </span>
                     {verifying && (
@@ -1446,7 +1446,7 @@ export default function PrDetailPage() {
                     )}
                     {verifyResult && (
                       <span className={cn(
-                        "text-xs uppercase tracking-[0.1em] px-1.5 py-0.5 border",
+                        "text-xs font-medium px-1.5 py-0.5 border",
                         verifyResult.summary.verdict === "clean" ? "text-ok border-ok/30" :
                         verifyResult.summary.verdict === "review" ? "text-signal border-signal/30" :
                         "text-alert border-alert/30",
@@ -1513,7 +1513,7 @@ export default function PrDetailPage() {
                   </span>
 
                   {askOpen && (
-                    <div className="mt-3 border border-border bg-ink/30 max-h-[300px] flex flex-col">
+                    <div className="rounded-2xl mt-3 border border-border-soft bg-ink/30 max-h-[300px] flex flex-col">
                       <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-[80px]">
                         {askMessages.length === 0 && (
                           <div className="text-xs text-paper-faint italic">
@@ -1523,7 +1523,7 @@ export default function PrDetailPage() {
                         {askMessages.map((msg, i) => (
                           <div key={i} className={cn("text-[11px]", msg.role === "user" ? "text-paper" : "text-paper-dim")}>
                             <span className={cn(
-                              "text-[11px] uppercase tracking-[0.1em] mr-1.5",
+                              "text-[11px] font-medium mr-1.5",
                               msg.role === "user" ? "text-signal" : "text-info",
                             )}>
                               {msg.role === "user" ? "you" : "ai"}
@@ -1546,12 +1546,12 @@ export default function PrDetailPage() {
                           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAsk(); } }}
                           placeholder="Why did you make this change?"
                           disabled={askLoading}
-                          className="flex-1 bg-surface border border-border px-2.5 py-1.5 text-[11px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-info/50 disabled:opacity-50"
+                          className="rounded-lg flex-1 bg-surface border border-border px-2.5 py-1.5 text-[11px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-info/50 disabled:opacity-50"
                         />
                         <button
                           onClick={handleAsk}
                           disabled={!askInput.trim() || askLoading}
-                          className="border border-info/50 bg-info/10 text-info hover:bg-info/20 px-3 py-1.5 text-xs uppercase tracking-[0.12em] disabled:opacity-50 shrink-0 transition"
+                          className="border border-info/50 bg-info/10 text-info hover:bg-info/20 px-3 py-1.5 text-xs font-medium disabled:opacity-50 shrink-0 transition"
                         >
                           ask
                         </button>
@@ -1565,20 +1565,20 @@ export default function PrDetailPage() {
               {fixState.status === "done" && extractDiff(fixState.response) && (
                 <div className="px-4 py-3 border-t border-border-soft bg-ink/20">
                   <div className="flex items-center gap-3 flex-wrap">
-                    <span className="text-xs text-paper-faint uppercase tracking-[0.1em]">commit:</span>
+                    <span className="text-xs text-paper-faint font-medium">commit:</span>
                     <input
                       type="text"
                       value={commitMsg}
                       onChange={(e) => setCommitMsg(e.target.value)}
                       disabled={pushState === "pushing" || pushState === "pushed"}
-                      className="flex-1 min-w-[200px] max-w-md bg-surface border border-border px-2.5 py-1.5 text-[12px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50 disabled:opacity-50"
+                      className="rounded-lg flex-1 min-w-[200px] max-w-md bg-surface border border-border px-2.5 py-1.5 text-[12px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50 disabled:opacity-50"
                       placeholder="address review feedback"
                     />
                     <button
                       onClick={() => handlePush()}
                       disabled={pushState === "pushing" || pushState === "pushed"}
                       className={cn(
-                        "px-4 py-1.5 text-[11px] uppercase tracking-[0.12em] transition shrink-0",
+                        "px-4 py-1.5 text-[11px] font-medium transition shrink-0",
                         pushState === "pushed" ? "border border-ok/50 bg-ok/10 text-ok" : "border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20",
                         "disabled:opacity-50 disabled:cursor-not-allowed",
                       )}
@@ -1610,7 +1610,7 @@ export default function PrDetailPage() {
                   <div className="mt-3 pt-3 border-t border-border-soft">
                     {autoExplainer && !followUpComment && (
                       <div className="mb-2 px-3 py-2 border border-ok/20 bg-ok/5 text-[11px] text-paper-dim">
-                        <span className="text-[11px] text-ok uppercase tracking-[0.1em] block mb-1">auto-generated explanation</span>
+                        <span className="text-[11px] text-ok font-medium block mb-1">auto-generated explanation</span>
                         <p className="whitespace-pre-wrap">{autoExplainer}</p>
                         <button
                           onClick={() => { setFollowUpComment(autoExplainer); }}
@@ -1621,7 +1621,7 @@ export default function PrDetailPage() {
                       </div>
                     )}
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs text-paper-faint uppercase tracking-[0.1em]">
+                      <span className="text-xs text-paper-faint font-medium">
                         follow-up comment
                       </span>
                       <button
@@ -1646,7 +1646,7 @@ export default function PrDetailPage() {
                           onChange={(e) => setFollowUpComment(e.target.value)}
                           disabled={followUpGenerating || followUpSending || followUpSent}
                           rows={5}
-                          className="w-full bg-surface border border-border px-3 py-2 text-[12px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-info/50 disabled:opacity-50 resize-y"
+                          className="rounded-lg w-full bg-surface border border-border px-3 py-2 text-[12px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-info/50 disabled:opacity-50 resize-y"
                           placeholder="Generating comment..."
                         />
                         <div className="mt-2 flex items-center gap-2">
@@ -1654,7 +1654,7 @@ export default function PrDetailPage() {
                             onClick={handleSendFollowUp}
                             disabled={!followUpComment.trim() || followUpGenerating || followUpSending || followUpSent}
                             className={cn(
-                              "px-3 py-1 text-xs uppercase tracking-[0.12em] transition",
+                              "px-3 py-1 text-xs font-medium transition",
                               followUpSent
                                 ? "border border-ok/50 bg-ok/10 text-ok"
                                 : "border border-info/50 bg-info/10 text-info hover:bg-info/20",
@@ -1838,7 +1838,7 @@ function DiffPreview({ diff }: { diff: string }) {
             onClick={() => setExpanded(!expanded)}
             className="flex items-center gap-2 text-xs text-paper-muted hover:text-paper-dim transition"
           >
-            <span className="uppercase tracking-[0.15em]">diff preview</span>
+            <span className="font-medium">diff preview</span>
             <span className="text-ok tabular-nums">+{added}</span>
             <span className="text-alert tabular-nums">-{removed}</span>
             <span className="text-paper-faint">{files.length} file{files.length !== 1 ? "s" : ""}</span>
@@ -1855,7 +1855,7 @@ function DiffPreview({ diff }: { diff: string }) {
         </div>
 
         {expanded && !poppedOut && (
-          <div className="mt-2 border border-border bg-ink/30 max-h-[400px] overflow-auto">
+          <div className="rounded-2xl mt-2 border border-border-soft bg-ink/30 max-h-[400px] overflow-auto">
             {diffContent}
           </div>
         )}
@@ -1868,11 +1868,11 @@ function DiffPreview({ diff }: { diff: string }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="diff-preview-dialog-title"
-            className="bg-ink border border-border shadow-2xl w-[90vw] max-w-[900px] max-h-[80vh] flex flex-col"
+            className="rounded-2xl bg-ink border border-border-soft shadow-2xl w-[90vw] max-w-[900px] max-h-[80vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-4 py-2 border-b border-border-soft flex items-center justify-between shrink-0">
-              <span id="diff-preview-dialog-title" className="text-[11px] text-paper-muted uppercase tracking-[0.15em]">Diff preview</span>
+              <span id="diff-preview-dialog-title" className="text-[11px] text-paper-muted font-medium">Diff preview</span>
               <div className="flex items-center gap-3">
                 <button
                   onClick={copyDiff}
@@ -1923,10 +1923,10 @@ function FixResponse({ text }: { text: string }) {
           const isDiff = block.lang === "diff" || block.lang === "patch" || block.content.includes("@@");
           return (
             <div key={i} className="overflow-x-auto">
-              <div className="flex items-center px-3 py-1 bg-ink/80 border border-border-soft border-b-0 text-xs text-paper-muted">
+              <div className="rounded-lg flex items-center px-3 py-1 bg-ink/80 border border-border-soft border-b-0 text-xs text-paper-muted">
                 <span className="font-mono">{block.lang || (isDiff ? "diff" : "code")}</span>
               </div>
-              <pre className="overflow-x-auto px-3 py-2.5 bg-ink/60 border border-border-soft text-[11px] leading-snug font-mono">
+              <pre className="rounded-lg overflow-x-auto px-3 py-2.5 bg-ink/60 border border-border-soft text-[11px] leading-snug font-mono">
                 {isDiff ? (
                   <DiffLines diff={block.content} strong />
                 ) : (
@@ -1955,7 +1955,7 @@ function FixResponse({ text }: { text: string }) {
 function PrSkeleton() {
   return (
     <div className="mt-4 space-y-4 animate-pulse">
-      <div className="border border-border bg-surface/40 px-4 py-3">
+      <div className="rounded-2xl border border-border-soft bg-surface px-4 py-3">
         <div className="flex items-center gap-3">
           <div className="h-5 w-14 bg-surface-2 rounded" />
           <div className="h-5 w-96 bg-surface-2 rounded" />
@@ -1967,7 +1967,7 @@ function PrSkeleton() {
       </div>
 
       {[1, 2].map((i) => (
-        <div key={i} className="border border-border bg-surface/40">
+        <div key={i} className="rounded-2xl border border-border-soft bg-surface">
           <div className="px-4 py-2 border-b border-border-soft flex items-center gap-2">
             <div className="h-4 w-20 bg-surface-2 rounded" />
             <div className="h-3 w-32 bg-surface-2 rounded" />

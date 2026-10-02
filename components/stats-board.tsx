@@ -45,9 +45,9 @@ export function StatsBoard() {
   if (loading && !data) {
     return (
       <div className="space-y-10">
-        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-border bg-border lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border-soft bg-border-soft lg:grid-cols-5">
           {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className={cn("flex flex-col gap-2 bg-ink p-5", i === 5 && "col-span-2 lg:col-span-1")}>
+            <div key={i} className={cn("flex flex-col gap-2 bg-surface p-5", i === 5 && "col-span-2 lg:col-span-1")}>
               <div className="h-2.5 w-16 bg-surface-3 animate-pulse" />
               <div className="h-10 w-20 bg-surface-2 animate-pulse" />
               <div className="h-2 w-24 bg-surface-2 animate-pulse" />
@@ -56,7 +56,7 @@ export function StatsBoard() {
         </div>
         <div className="space-y-3">
           <div className="h-6 w-48 bg-surface-3 animate-pulse" />
-          <div className="border border-border bg-surface/40 p-6 space-y-3">
+          <div className="rounded-2xl border border-border-soft bg-surface p-6 space-y-3">
             {[1, 2, 3].map((i) => (
               <div key={i} className="flex gap-4">
                 <div className="h-4 w-8 bg-surface-2 animate-pulse" />
@@ -78,7 +78,7 @@ export function StatsBoard() {
     <div className="space-y-10">
       {err && <p role="status" className="border border-alert/30 bg-alert/5 px-3 py-2 text-[12px] text-alert">Could not refresh activity. Showing the last loaded data.</p>}
       {data.dispatchWindow && <p className="text-[12px] text-paper-muted">Run, patch, PR, and spend figures cover your latest {data.dispatchWindow} runs. Scan counts cover your recorded history.</p>}
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-border bg-border lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border-soft bg-border-soft lg:grid-cols-5">
         <Counter label="runs" value={data.dispatches} tone="info" sub={data.dispatchWindow ? "recent runs" : "your history"} />
         <Counter label="patches" value={data.patchesGenerated} tone="signal" sub={`${Math.round(data.successRate * 100)}% success rate`} />
         <Counter label="PRs opened" value={data.prsCreated} tone="ok" sub={`${Math.round(data.prRate * 100)}% of runs`} />
@@ -92,7 +92,7 @@ export function StatsBoard() {
           <p className="mt-1 text-xs text-paper-muted sm:mt-0">Draft PRs on repositories with 1,000+ stars</p>
         </div>
         {data.biggestContributions.length === 0 ? (
-          <div className="border border-border bg-surface/40 p-8 text-center">
+          <div className="rounded-2xl border border-border-soft bg-surface p-8 text-center">
             <div className="text-[13px] text-paper">No 1k★ PRs yet.</div>
             <p className="mt-2 text-[11.5px] text-paper-muted leading-snug">
               Open a draft PR on a repo with more than 1000 stars from an opensrcer run —
@@ -139,7 +139,7 @@ export function StatsBoard() {
           <span className="text-xs text-paper-muted">Latest 20</span>
         </div>
         {data.recentActivity.length === 0 ? (
-          <div className="border border-border bg-surface/40 p-6 text-center text-[12px] text-paper-muted">
+          <div className="rounded-2xl border border-border-soft bg-surface p-6 text-center text-[12px] text-paper-muted">
             Nothing yet. Run a scan or start a run.
           </div>
         ) : (
@@ -207,7 +207,7 @@ function Counter({
   }[tone];
   const display = format === "currency" ? `$${value.toFixed(2)}` : String(value);
   return (
-    <div className={cn("relative flex flex-col gap-2 bg-ink p-6 transition hover:bg-surface-2/40", className)}>
+    <div className={cn("relative flex flex-col gap-2 bg-surface p-6", className)}>
       <div className="mono-label flex items-center gap-2 text-paper-muted"><span aria-hidden className={cn("size-1.5 rounded-full", dot)} />{label}</div>
       <div className="display num-tabular text-[52px] leading-none text-paper">{display}</div>
       {sub && <div className="mt-1 text-[12px] text-paper-dim">{sub}</div>}

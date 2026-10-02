@@ -184,7 +184,7 @@ export default function PRsPage() {
       {tab === "inbox" && (
         <div id="prs-panel-inbox" role="tabpanel" aria-labelledby="prs-tab-inbox" className="mt-4">
           {loading && (
-            <div className="border border-border bg-surface/40 divide-y divide-border-soft animate-pulse">
+            <div className="rounded-2xl border border-border-soft bg-surface divide-y divide-border-soft animate-pulse">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="flex items-center gap-4 px-4 py-4">
                   <div className="h-8 w-8 bg-surface-2 rounded-full" />
@@ -294,7 +294,7 @@ export default function PRsPage() {
       {tab === "github" && (
         <div id="prs-panel-github" role="tabpanel" aria-labelledby="prs-tab-github" className="mt-4">
           {loading && (
-            <div className="border border-border bg-surface/40 divide-y divide-border-soft animate-pulse">
+            <div className="rounded-2xl border border-border-soft bg-surface divide-y divide-border-soft animate-pulse">
               {[1, 2, 3, 4].map((i) => (
                 <div key={i} className="flex items-center gap-4 px-4 py-3.5">
                   <div className="h-4 w-40 bg-surface-2 rounded" />
@@ -365,7 +365,7 @@ export default function PRsPage() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search PRs..."
-                    className="bg-surface border border-border px-2.5 py-1 text-[11px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50 w-full sm:w-[180px]"
+                    className="rounded-lg bg-surface border border-border px-2.5 py-1 text-[11px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50 w-full sm:w-[180px]"
                   />
                   {/* Status filter */}
                   <div className="flex flex-wrap items-center gap-0.5" role="group" aria-label="Pull request status">
@@ -402,16 +402,16 @@ export default function PRsPage() {
               </div>
 
               {/* Table */}
-              <div className="border border-border bg-surface/40 overflow-x-auto">
+              <div className="rounded-2xl border border-border-soft bg-surface overflow-x-auto">
                 <table className="w-full text-[12.5px]">
                   <thead>
                     <tr className="border-b border-border bg-ink/50 text-paper-muted">
-                      <th className="px-3 py-2 text-left text-xs uppercase tracking-[0.12em]">Repository</th>
-                      <th className="px-3 py-2 text-left text-xs uppercase tracking-[0.12em]">Title</th>
-                      <th className="px-3 py-2 text-left text-xs uppercase tracking-[0.12em]">Status</th>
-                      <th className="px-3 py-2 text-left text-xs uppercase tracking-[0.12em]">Lines</th>
-                      <th className="px-3 py-2 text-left text-xs uppercase tracking-[0.12em]">Updated</th>
-                      <th className="px-3 py-2 text-right text-xs uppercase tracking-[0.12em]">Actions</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium">Repository</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium">Title</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium">Status</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium">Lines</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium">Updated</th>
+                      <th className="px-3 py-2 text-right text-xs font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -529,34 +529,34 @@ export default function PRsPage() {
 function PrBadge({ pr }: { pr: GitHubPr }) {
   if (pr.isDraft) {
     return (
-      <span className="text-xs uppercase tracking-[0.12em] text-paper-muted border border-border px-1.5 py-0.5">
+      <span className="text-xs font-medium text-paper-muted border border-border px-1.5 py-0.5">
         draft
       </span>
     );
   }
   if (pr.reviewDecision === "APPROVED") {
     return (
-      <span className="text-xs uppercase tracking-[0.12em] text-ok border border-ok/30 px-1.5 py-0.5">
+      <span className="text-xs font-medium text-ok border border-ok/30 px-1.5 py-0.5">
         approved
       </span>
     );
   }
   if (pr.reviewDecision === "CHANGES_REQUESTED") {
     return (
-      <span className="text-xs uppercase tracking-[0.12em] text-alert border border-alert/30 px-1.5 py-0.5">
+      <span className="text-xs font-medium text-alert border border-alert/30 px-1.5 py-0.5">
         changes requested
       </span>
     );
   }
   if (pr.reviewDecision === "REVIEW_REQUIRED") {
     return (
-      <span className="text-xs uppercase tracking-[0.12em] text-signal border border-signal/30 px-1.5 py-0.5">
+      <span className="text-xs font-medium text-signal border border-signal/30 px-1.5 py-0.5">
         review needed
       </span>
     );
   }
   return (
-    <span className="text-xs uppercase tracking-[0.12em] text-signal border border-signal/30 px-1.5 py-0.5">
+    <span className="text-xs font-medium text-signal border border-signal/30 px-1.5 py-0.5">
       open
     </span>
   );
@@ -591,7 +591,7 @@ function DashboardPrs() {
 
   if (!prs.length) {
     return (
-      <div className="mt-4 border border-border bg-surface/40 p-8 text-center text-[12px] text-paper-muted">
+      <div className="rounded-2xl mt-4 border border-border-soft bg-surface p-8 text-center text-[12px] text-paper-muted">
         No PRs created through the dashboard yet.
       </div>
     );
@@ -620,7 +620,7 @@ function LazyPrTable({ prs }: { prs: unknown[] }) {
 function InboxSection({ title, subtitle, color, prs, actionHint }: { title: string; subtitle: string; color: string; prs: GitHubPr[]; actionHint?: string }) {
   const statusIcon = color === "alert" ? "x" : color === "ok" ? "+" : color === "signal" ? "!" : color === "info" ? "~" : "-";
   return (
-    <div className="border border-border bg-surface/40">
+    <div className="rounded-2xl border border-border-soft bg-surface">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border-soft px-4 py-2.5">
         <span className="text-[12px] font-mono" role="img" aria-label={title}>{statusIcon}</span>
         <div>
@@ -666,7 +666,7 @@ function InboxSection({ title, subtitle, color, prs, actionHint }: { title: stri
 
 function EmptyPrState({ account }: { account?: string }) {
   return (
-    <div className="border border-border bg-surface/40 px-6 py-10 text-center sm:px-10">
+    <div className="rounded-2xl border border-border-soft bg-surface px-6 py-10 text-center sm:px-10">
       <h2 className="text-lg font-medium text-paper">No open pull requests</h2>
       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-paper-muted">
         {account ? `GitHub returned no open pull requests for ${account}.` : "Choose an issue and opensrcer will keep the resulting draft and review feedback here."}

@@ -54,7 +54,7 @@ export default async function OrgReposPage({
       </div>
 
       {error && (
-        <div className="mt-4 border border-red-900/60 bg-red-950/30 p-3 text-[12.5px] text-red-200">
+        <div className="mt-4 border border-alert/30 bg-alert/5 p-3 text-[12.5px] text-alert">
           Failed to load repos: {error}
         </div>
       )}
@@ -64,12 +64,12 @@ export default async function OrgReposPage({
           {repos.length} repo{repos.length === 1 ? "" : "s"} accessible
         </div>
         {repos.length === 0 ? (
-          <div className="mt-2 border border-border bg-surface/40 p-6 text-[12.5px] text-paper-dim leading-relaxed">
+          <div className="rounded-2xl mt-2 border border-border-soft bg-surface p-6 text-[12.5px] text-paper-dim leading-relaxed">
             The installation has no repositories yet. Add repos via the GitHub
             App settings for <code>{org}</code>, then return here.
           </div>
         ) : (
-          <ul className="mt-2 divide-y divide-border-soft border border-border bg-surface/40">
+          <ul className="rounded-2xl mt-2 divide-y divide-border-soft border border-border-soft bg-surface">
             {repos.map((r) => (
               <li
                 key={r.fullName}

@@ -158,7 +158,7 @@ export default function ReposPage() {
           ))}
         </div>
 
-        <div className="w-full sm:w-auto sm:ml-auto flex items-center gap-2 border border-border bg-ink px-2.5 py-1 focus-within:border-signal/50 transition-colors">
+        <div className="rounded-2xl w-full sm:w-auto sm:ml-auto flex items-center gap-2 border border-border-soft bg-ink px-2.5 py-1 focus-within:border-signal/50 transition-colors">
           <input
             aria-label="Filter repositories"
             value={search}
@@ -251,7 +251,7 @@ export default function ReposPage() {
               onClick={() => fetchPage(tab, current.page + 1, current.nextCursor)}
               disabled={current.loading}
               className={cn(
-                "px-6 py-2 text-[11px] uppercase tracking-[0.12em] border transition",
+                "px-6 py-2 text-[11px] font-medium border transition",
                 current.loading
                   ? "border-border text-paper-faint"
                   : "border-signal/40 text-signal hover:bg-signal/10",

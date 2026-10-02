@@ -470,10 +470,10 @@ export default function GraphPage() {
             onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
             placeholder="owner/repository"
             autoComplete="off"
-            className="w-full bg-surface border border-border px-3 py-2 text-[13px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50"
+            className="rounded-lg w-full bg-surface border border-border px-3 py-2 text-[13px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50"
           />
           {showSuggestions && suggestions.length > 0 && (
-            <ul className="absolute z-20 top-full left-0 right-0 mt-1 border border-border bg-ink max-h-48 overflow-y-auto">
+            <ul className="rounded-2xl absolute z-20 top-full left-0 right-0 mt-1 border border-border-soft bg-ink max-h-48 overflow-y-auto">
               {suggestions
                 .filter(
                   (s) =>
@@ -517,7 +517,7 @@ export default function GraphPage() {
           }} className="border border-border px-4 py-2 text-[12px]">Cancel</button>
         )}
         {buildStatus === "ready" && (
-          <span className="text-xs text-ok uppercase tracking-[0.1em] flex items-center gap-1">
+          <span className="text-xs text-ok font-medium flex items-center gap-1">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-ok" />
             ready
           </span>
@@ -531,7 +531,7 @@ export default function GraphPage() {
         buildMessages.length > 0 && (
         <div
           className={cn(
-            "mt-3 border bg-surface/40 px-4 py-3",
+            "rounded-2xl mt-3 border bg-surface px-4 py-3",
             buildStatus === "error" ? "border-alert/40" : "border-border",
           )}
         >
@@ -589,9 +589,9 @@ export default function GraphPage() {
       {buildStatus === "ready" ? (
         <div className="mt-4 flex-1 min-h-0 flex flex-col xl:flex-row gap-4">
           {/* Left: Graph visualization */}
-          <div className="xl:w-[55%] min-h-[300px] xl:min-h-0 border border-border bg-ink/30 relative flex flex-col">
+          <div className="rounded-2xl xl:w-[55%] min-h-[300px] xl:min-h-0 border border-border-soft bg-ink/30 relative flex flex-col">
             <div className="flex items-center justify-between px-3 py-1.5 border-b border-border-soft bg-ink/50">
-              <span className="text-xs text-paper-faint uppercase tracking-[0.15em]">
+              <span className="text-xs text-paper-faint font-medium">
                 {engine === "crg" ? "code-review-graph" : "interactive graph"} — {owner}/{repo}
               </span>
               <a
@@ -640,7 +640,7 @@ export default function GraphPage() {
               className="flex-1 overflow-y-auto min-h-0 space-y-3"
             >
               {results.length === 0 && (
-                <div className="border border-border bg-surface/40 p-6 text-center">
+                <div className="rounded-2xl border border-border-soft bg-surface p-6 text-center">
                   <div className="serif text-[18px] text-paper">
                     Query the knowledge graph
                   </div>
@@ -677,9 +677,9 @@ export default function GraphPage() {
               )}
 
               {results.map((r) => (
-                <div key={r._id} className="border border-border bg-surface/40">
+                <div key={r._id} className="rounded-2xl border border-border-soft bg-surface">
                   <div className="px-3 py-2 border-b border-border-soft flex items-center gap-2">
-                    <span className="text-xs uppercase tracking-[0.15em] text-signal">
+                    <span className="text-xs font-medium text-signal">
                       Q
                     </span>
                     <span className="text-[12px] text-paper">
@@ -763,12 +763,12 @@ export default function GraphPage() {
                   }}
                   placeholder="trace, impact, explain, path, stats, or any symbol name..."
                   disabled={isQuerying}
-                  className="flex-1 bg-surface border border-border px-3 py-2.5 text-[12px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50 disabled:opacity-50"
+                  className="rounded-lg flex-1 bg-surface border border-border px-3 py-2.5 text-[12px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50 disabled:opacity-50"
                 />
                 <button
                   type="submit"
                   disabled={!query.trim() || isQuerying}
-                  className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-2.5 text-[12px] uppercase tracking-[0.12em] disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                  className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-2.5 text-[12px] font-medium disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                 >
                   {isQuerying ? "..." : "query"}
                 </button>
@@ -781,7 +781,7 @@ export default function GraphPage() {
           /* Empty state */
           <div className="mt-10 grid flex-1 gap-8 border-y border-border py-7 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
             <div>
-              <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-paper-muted">What you can inspect</p>
+              <p className="font-mono text-[11px] font-medium text-paper-muted">What you can inspect</p>
               <h2 className="display mt-4 text-[32px] leading-tight text-paper">Start with a repository</h2>
               <p className="mt-3 max-w-lg text-[13px] leading-6 text-paper-muted">
                 Enter a public repository or one your connected GitHub account can access. Building the map reads source structure and relationships without calling an AI model.
@@ -914,10 +914,10 @@ function MarkdownResponse({ text }: { text: string }) {
         if (block.type === "code") {
           return (
             <div key={i} className="overflow-x-auto">
-              <div className="flex items-center px-3 py-1 bg-ink/80 border border-border-soft border-b-0 text-xs text-paper-muted">
+              <div className="rounded-lg flex items-center px-3 py-1 bg-ink/80 border border-border-soft border-b-0 text-xs text-paper-muted">
                 <span className="font-mono">{block.lang || "code"}</span>
               </div>
-              <pre className="overflow-x-auto px-3 py-2.5 bg-ink/60 border border-border-soft text-[11px] leading-snug font-mono whitespace-pre-wrap break-words">
+              <pre className="rounded-lg overflow-x-auto px-3 py-2.5 bg-ink/60 border border-border-soft text-[11px] leading-snug font-mono whitespace-pre-wrap break-words">
                 {block.content}
               </pre>
             </div>
@@ -969,7 +969,7 @@ function FollowUps({
 
   return (
     <div className="px-3 py-2 border-t border-border-soft flex items-center gap-2 flex-wrap">
-      <span className="text-xs text-paper-faint uppercase tracking-[0.1em]">
+      <span className="text-xs text-paper-faint font-medium">
         follow up:
       </span>
       {followUps.map((q) => (

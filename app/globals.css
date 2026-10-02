@@ -1,48 +1,48 @@
 @import "tailwindcss";
 
-/* "Editorial workbench": warm ink-black paper, cream type, one vermilion
-   accent used sparingly. Token names are unchanged so every page inherits
-   the palette; contrast is checked against WCAG AA (see the axe sweep). */
+/* Apple-style light surface: #f5f5f7 ground, white cards, near-black type,
+   one blue accent. Accent and status colours keep 4.5:1 even as text on their
+   own 20% tints (bg-signal/20 and friends). Token names are unchanged so every page inherits it:
+   "ink" is the ground (and the text colour on accent fills), "paper" is the
+   ink-on-paper text. Contrast is checked against WCAG AA by the axe sweep. */
 @theme {
-  --color-ink: #0f0e0c;
-  --color-ink-2: #13120f;
-  --color-surface: #181613;
-  --color-surface-2: #1f1c18;
-  --color-surface-3: #29251f;
-  --color-border: #39342c;
-  --color-border-soft: #2a2620;
-  --color-border-strong: #5a5246;
+  --color-ink: #f5f5f7;
+  --color-ink-2: #fbfbfd;
+  --color-surface: #ffffff;
+  --color-surface-2: #f0f0f3;
+  --color-surface-3: #e8e8ed;
+  --color-border: #d2d2d7;
+  --color-border-soft: #e4e4e9;
+  --color-border-strong: #a1a1a6;
 
-  --color-paper: #f1eadb;
-  --color-paper-2: #dfd6c4;
-  --color-paper-dim: #c8bfad;
-  --color-paper-muted: #aaa190;
-  --color-paper-faint: #978e7e;
+  --color-paper: #1d1d1f;
+  --color-paper-2: #333336;
+  --color-paper-dim: #424245;
+  --color-paper-muted: #636366;
+  --color-paper-faint: #6e6e73;
 
-  --color-signal: #ff6b3d;
-  --color-signal-soft: #ff9068;
-  --color-signal-dim: #a43a17;
-  --color-signal-faint: #2c140b;
+  --color-signal: #0056ad;
+  --color-signal-soft: #0062c4;
+  --color-signal-dim: #8fbbe8;
+  --color-signal-faint: #e8f1fb;
 
-  --color-ok: #a3d4a1;
-  --color-ok-dim: #3f6f2c;
-  --color-alert: #ff8a7a;
-  --color-alert-dim: #7f2a22;
-  --color-info: #9cc2e3;
-  --color-info-dim: #24597e;
+  --color-ok: #156534;
+  --color-ok-dim: #b9dfc4;
+  --color-alert: #a81f26;
+  --color-alert-dim: #f2c1c3;
+  --color-info: #09589a;
+  --color-info-dim: #bcd9f0;
 
-  --font-serif: "Gloock", Georgia, serif;
-  --font-display: "Gloock", Georgia, serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  --radius-xs: 2px;
-  --radius-sm: 3px;
-  --radius-md: 4px;
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
 }
 
 @layer base {
   :root {
-    color-scheme: dark;
+    color-scheme: light;
   }
 
   html,
@@ -50,7 +50,6 @@
     background-color: var(--color-ink);
     color: var(--color-paper);
     font-family: var(--font-sans, "Segoe UI", sans-serif);
-    font-feature-settings: "ss01", "ss02", "cv01", "cv11";
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     /* No horizontal scroll, ever — keep the viewport bounded so wide
@@ -64,22 +63,6 @@
     min-height: 100svh;
     font-size: 14px;
     line-height: 1.6;
-    /* A low, warm light from the top right; paper grain sits above it. */
-    background-image:
-      radial-gradient(1100px 520px at 88% -8%, rgb(255 107 61 / 0.075), transparent 62%),
-      radial-gradient(900px 600px at -8% 108%, rgb(241 234 219 / 0.035), transparent 60%);
-    background-attachment: fixed;
-  }
-
-  /* Paper grain. Fixed and non-interactive; opaque surfaces sit above it. */
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    opacity: 0.07;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 0.95  0 0 0 0 0.85  0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
 
   h1, h2, h3 {
@@ -87,8 +70,7 @@
   }
 
   ::selection {
-    background: var(--color-signal);
-    color: var(--color-ink);
+    background: rgb(0 86 173 / 0.18);
   }
 
   *,
@@ -121,7 +103,7 @@
   *::-webkit-scrollbar-thumb {
     background: var(--color-border);
     border: 2px solid var(--color-ink);
-    border-radius: 0;
+    border-radius: 999px;
   }
   *::-webkit-scrollbar-thumb:hover {
     background: var(--color-border-strong);
@@ -129,18 +111,18 @@
 }
 
 @layer components {
-  /* Calm label pill; the dot carries meaning (data-tone), not the border. */
+  /* Soft grey label pill; the dot carries meaning (data-tone), not the fill. */
   .tag {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    border: 1px solid var(--color-border-soft);
     border-radius: 999px;
-    padding: 0.1rem 0.55rem;
-    font-family: var(--font-mono);
-    font-size: 11px;
+    background: var(--color-surface-2);
+    padding: 0.15rem 0.6rem;
+    font-size: 12px;
+    font-weight: 500;
     line-height: 1.5;
-    color: var(--color-paper-muted);
+    color: var(--color-paper-dim);
     white-space: nowrap;
   }
   .tag::before {
@@ -155,87 +137,68 @@
   .tag[data-tone="info"]::before { background: var(--color-info); }
   .tag[data-tone="signal"]::before { background: var(--color-signal); }
 
-  /* Hairline pill button for secondary actions. */
-  .btn-quiet {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.45rem;
-    min-height: 2.5rem;
-    border: 1px solid var(--color-border);
-    border-radius: 999px;
-    padding: 0 0.9rem;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--color-paper-dim);
-    transition: border-color 150ms, color 150ms, background-color 150ms;
-  }
-  .btn-quiet:hover { border-color: var(--color-paper-muted); color: var(--color-paper); }
-
-  /* A list row's main action: quiet until its row is hovered or focused. */
+  /* Apple's pill buttons: filled blue for the one action, grey for the rest. */
+  .btn-primary,
+  .btn-quiet,
   .row-cta {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.45rem;
+    gap: 0.4rem;
     min-height: 2.5rem;
-    border: 1px solid rgb(255 107 61 / 0.45);
     border-radius: 999px;
-    padding: 0 1rem;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--color-signal);
-    transition: background-color 150ms, color 150ms, border-color 150ms;
+    padding: 0 1.1rem;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: background-color 150ms, color 150ms;
   }
+  .btn-primary { background: var(--color-signal); color: #fff; }
+  .btn-primary:hover { background: var(--color-signal-soft); }
+  .btn-quiet { background: var(--color-surface-3); color: var(--color-paper); }
+  .btn-quiet:hover { background: #dcdce1; }
+
+  /* A list row's main action: a blue link-pill that fills on row hover. */
+  .row-cta { background: var(--color-signal-faint); color: var(--color-signal); }
   .group:hover .row-cta,
   .group:focus-within .row-cta,
-  .row-cta:hover {
-    border-color: var(--color-signal);
-    background: var(--color-signal);
-    color: var(--color-ink);
+  .row-cta:hover { background: var(--color-signal); color: #fff; }
+
+  /* White card on the grey ground: the basic Apple tile. */
+  .card {
+    border-radius: 18px;
+    background: var(--color-surface);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 28px rgb(0 0 0 / 0.04);
+  }
+
+  /* Logs and raw output stay on a dark pane so ANSI colours read. */
+  .term {
+    background: #1d1d1f;
+    color: #e8e8ed;
+    border-radius: 12px;
   }
 
   .mono-label {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--color-paper-dim);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-paper-muted);
   }
-
 }
 
 @layer utilities {
+  /* Tight, heavy sans for headlines: the whole display system. */
   .serif,
   .display {
-    font-family: var(--font-display);
-    font-weight: 400;
-    letter-spacing: -0.012em;
-    font-feature-settings: "liga", "kern";
+    font-family: var(--font-sans);
+    font-weight: 600;
+    letter-spacing: -0.028em;
   }
-  /* Mono kicker with a short leading rule: the section label above a title. */
+  /* Small coloured kicker above a headline. */
   .eyebrow {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.75rem;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
     color: var(--color-signal);
-  }
-  .eyebrow::before {
-    content: "";
-    width: 1.75rem;
-    height: 1px;
-    background: currentColor;
-  }
-  /* Dotted leader between a label and its value, ledger style. */
-  .leader {
-    flex: 1;
-    min-width: 1.5rem;
-    border-bottom: 1px dotted var(--color-border-strong);
-    transform: translateY(-0.3em);
   }
   .num-tabular {
     font-variant-numeric: tabular-nums;
@@ -268,20 +231,12 @@
 
 .animate-pulse-signal { animation: pulse-signal 2.2s ease-in-out infinite; }
 .animate-pulse-ok { animation: pulse-ok 2.8s ease-in-out infinite; }
-.animate-fade-rise { animation: fade-rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-/* One orchestrated entrance: children set --d for their stagger. */
-.reveal { animation: fade-rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: var(--d, 0ms); }
-@keyframes stamp-in {
-  0% { opacity: 0; transform: rotate(-9deg) scale(1.35); }
-  60% { opacity: 1; transform: rotate(-6deg) scale(0.96); }
-  100% { opacity: 1; transform: rotate(-6deg) scale(1); }
-}
-.stamp-in { animation: stamp-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: var(--d, 0ms); }
+.animate-fade-rise { animation: fade-rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 
 /* Shared keyboard navigation stays visible against every application surface. */
-:focus-visible { outline: 2px solid var(--color-signal); outline-offset: 4px; }
+:focus-visible { outline: 2px solid var(--color-signal); outline-offset: 3px; }
 #main-content { scroll-margin-top: 8rem; }
-.skip-link { position: fixed; top: 8px; left: 8px; z-index: 100; transform: translateY(-160%); padding: 12px 18px; background: var(--color-signal); color: var(--color-ink); border-radius: 4px; }
+.skip-link { position: fixed; top: 8px; left: 8px; z-index: 100; transform: translateY(-160%); padding: 12px 18px; background: var(--color-signal); color: #fff; border-radius: 999px; }
 .skip-link:focus { transform: translateY(0); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }

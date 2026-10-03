@@ -22,6 +22,7 @@ import { parseRunTarget } from "./run-target";
 import { consumeCancelRequest, registerDispatch, type Dispatch } from "./dispatcher";
 import { patch, persist } from "./dispatch-store";
 import { createDraftPrFromLog } from "./agentic-pr";
+import { claudeResultFailure } from "./claude-events";
 import { classifyScope, type ScopeInfo } from "./scope";
 import { sanitizeForPrompt, sanitizeLogValue } from "./sanitize";
 import { childEnv } from "./child-env";
@@ -57,9 +58,10 @@ export function pipeStreamJson(
         if (typeof evt.total_cost_usd === "number" && Number.isFinite(evt.total_cost_usd)) {
           out.write(`\n[agentic-dispatcher] total_cost_usd=${evt.total_cost_usd.toFixed(6)}\n`);
         }
-        if (evt.is_error || (evt.subtype && evt.subtype !== "success") || (evt.stop_reason && evt.stop_reason !== "end_turn")) {
+        const failure = claudeResultFailure(evt, "Agent could not complete the task. Check provider access and the task budget.");
+        if (failure) {
           state.failed = true;
-          out.write("\n[agentic-dispatcher] Agent could not complete the task. Check provider access and the task budget.\n");
+          out.write(`\n[agentic-dispatcher] ${failure}\n`);
         } else state.complete = true;
       }
     } catch { state.failed = true; }

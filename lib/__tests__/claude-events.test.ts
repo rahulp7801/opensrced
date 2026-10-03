@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { claudeEvents } from "../claude-events";
+import { claudeEvents, claudeResultFailure } from "../claude-events";
 
 test("exploration forwards text and read-only tool progress without raw inputs", () => {
   assert.deepEqual(claudeEvents(JSON.stringify({ type: "assistant", message: { content: [
@@ -26,4 +26,13 @@ test("a successful CLI envelope does not hide an incomplete model stop", () => {
     assert.ok(events.some(event => typeof event.error === "string"));
     assert.ok(!events.some(event => event.done));
   }
+});
+
+test("budget, turn limits and refusals tell the user what to change, not to retry blindly", () => {
+  const fallback = "generic";
+  assert.match(claudeResultFailure({ subtype: "error_max_budget_usd", is_error: true }, fallback)!, /spend limit/);
+  assert.match(claudeResultFailure({ subtype: "error_max_turns", is_error: true }, fallback)!, /step limit/);
+  assert.match(claudeResultFailure({ subtype: "success", stop_reason: "refusal" }, fallback)!, /declined/);
+  assert.equal(claudeResultFailure({ is_error: true, subtype: "error_during_execution" }, fallback), fallback);
+  assert.equal(claudeResultFailure({ subtype: "success", stop_reason: "end_turn" }, fallback), null);
 });

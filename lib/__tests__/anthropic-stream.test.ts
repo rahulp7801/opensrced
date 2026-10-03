@@ -64,6 +64,27 @@ test("cancelling the browser stream aborts the provider request and frees capaci
   assert.equal(released, true);
 });
 
+test("provider failures and refusals say what the user can actually do", async t => {
+  const cases: [() => Response, RegExp][] = [
+    [() => new Response("", { status: 401 }), /API key was rejected/],
+    [() => new Response("", { status: 429 }), /rate-limited/],
+    [() => new Response("", { status: 529 }), /overloaded/],
+    [() => providerStream([{ type: "error", error: { type: "overloaded_error" } }]), /overloaded/],
+    [() => providerStream([
+      { type: "content_block_delta", delta: { text: "I can't" } },
+      { type: "message_delta", delta: { stop_reason: "refusal" } },
+      { type: "message_stop" },
+    ]), /declined.*rather than retrying/],
+  ];
+  for (const [reply, message] of cases) {
+    const mock = t.mock.method(globalThis, "fetch", async () => reply());
+    const body = await anthropicStream("test-key", "system", "user", 300, new AbortController().signal).text();
+    assert.match(body, message);
+    assert.ok(!body.includes('"done":true'));
+    mock.mock.restore();
+  }
+});
+
 test("token limits, refusals, missing stop reasons and empty answers cannot succeed", async t => {
   for (const reason of ["max_tokens", "refusal", "tool_use", undefined, "end_turn"]) {
     let releases = 0;

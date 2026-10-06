@@ -198,9 +198,9 @@ export default function PRsPage() {
           )}
 
           {error && (
-            <div className="border border-alert/30 bg-alert/5 px-4 py-3 text-[12px] text-alert flex items-center justify-between">
+            <div className="rounded-xl border border-alert/30 bg-alert/5 px-4 py-3 text-[12px] text-alert flex items-center justify-between">
               <span>{error}</span>
-              <button onClick={handleRefresh} className="text-xs border border-alert/30 px-2 py-0.5 hover:bg-alert/10 transition">retry</button>
+              <button onClick={handleRefresh} className="rounded-full text-xs border border-alert/30 px-2 py-0.5 hover:bg-alert/10 transition">retry</button>
             </div>
           )}
 
@@ -310,9 +310,9 @@ export default function PRsPage() {
           )}
 
           {error && (
-            <div className="border border-alert/30 bg-alert/5 px-4 py-3 text-[12px] text-alert flex items-center justify-between">
+            <div className="rounded-xl border border-alert/30 bg-alert/5 px-4 py-3 text-[12px] text-alert flex items-center justify-between">
               <span>{error}</span>
-              <button onClick={handleRefresh} className="text-xs border border-alert/30 px-2 py-0.5 hover:bg-alert/10 transition">
+              <button onClick={handleRefresh} className="rounded-full text-xs border border-alert/30 px-2 py-0.5 hover:bg-alert/10 transition">
                 retry
               </button>
             </div>
@@ -381,7 +381,7 @@ export default function PRsPage() {
                         aria-pressed={statusFilter === f.key}
                         onClick={() => setStatusFilter(f.key)}
                         className={cn(
-                          "text-xs px-2 py-1 transition border",
+                          "rounded-full text-xs px-2 py-1 transition border",
                           statusFilter === f.key
                             ? "text-signal border-signal/40 bg-signal/10"
                             : "text-paper-faint border-transparent hover:text-paper-muted",
@@ -394,7 +394,7 @@ export default function PRsPage() {
                   <button
                     onClick={handleRefresh}
                     disabled={loading}
-                    className="text-xs text-paper-dim hover:text-signal border border-border px-2 py-1 transition"
+                    className="rounded-full text-xs text-paper-dim hover:text-signal border border-border px-2 py-1 transition"
                   >
                     refresh
                   </button>
@@ -487,7 +487,7 @@ export default function PRsPage() {
                     <button
                       onClick={() => setPage(Math.max(0, page - 1))}
                       disabled={page === 0}
-                      className="px-2.5 py-1 border border-border text-paper-dim hover:text-signal hover:border-signal/30 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="rounded-full px-2.5 py-1 border border-border text-paper-dim hover:text-signal hover:border-signal/30 transition disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                       prev
                     </button>
@@ -496,7 +496,7 @@ export default function PRsPage() {
                         key={i}
                         onClick={() => setPage(i)}
                         className={cn(
-                          "px-2 py-1 border transition tabular-nums",
+                          "rounded-full px-2 py-1 border transition tabular-nums",
                           i === page
                             ? "border-signal/40 text-signal bg-signal/10"
                             : "border-border text-paper-faint hover:text-paper-dim",
@@ -508,7 +508,7 @@ export default function PRsPage() {
                     <button
                       onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
                       disabled={page >= totalPages - 1}
-                      className="px-2.5 py-1 border border-border text-paper-dim hover:text-signal hover:border-signal/30 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="rounded-full px-2.5 py-1 border border-border text-paper-dim hover:text-signal hover:border-signal/30 transition disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                       next
                     </button>
@@ -536,27 +536,27 @@ function PrBadge({ pr }: { pr: GitHubPr }) {
   }
   if (pr.reviewDecision === "APPROVED") {
     return (
-      <span className="text-xs font-medium text-ok border border-ok/30 px-1.5 py-0.5">
+      <span className="rounded-full text-xs font-medium text-ok border border-ok/30 px-1.5 py-0.5">
         approved
       </span>
     );
   }
   if (pr.reviewDecision === "CHANGES_REQUESTED") {
     return (
-      <span className="text-xs font-medium text-alert border border-alert/30 px-1.5 py-0.5">
+      <span className="rounded-full text-xs font-medium text-alert border border-alert/30 px-1.5 py-0.5">
         changes requested
       </span>
     );
   }
   if (pr.reviewDecision === "REVIEW_REQUIRED") {
     return (
-      <span className="text-xs font-medium text-signal border border-signal/30 px-1.5 py-0.5">
+      <span className="rounded-full text-xs font-medium text-signal border border-signal/30 px-1.5 py-0.5">
         review needed
       </span>
     );
   }
   return (
-    <span className="text-xs font-medium text-signal border border-signal/30 px-1.5 py-0.5">
+    <span className="rounded-full text-xs font-medium text-signal border border-signal/30 px-1.5 py-0.5">
       open
     </span>
   );
@@ -583,7 +583,7 @@ function DashboardPrs() {
 
   if (error) {
     return (
-      <div role="alert" className="mt-4 border border-alert/30 bg-alert/5 p-8 text-center text-[12px] text-alert">
+      <div role="alert" className="rounded-xl mt-4 border border-alert/30 bg-alert/5 p-8 text-center text-[12px] text-alert">
         Could not load dashboard PRs. {error}
       </div>
     );

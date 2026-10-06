@@ -62,7 +62,7 @@ export default function SharedFixPage() {
       <div className="mx-auto max-w-[800px] px-4 py-12 text-center">
         <h1 className="serif text-[28px] text-paper">Could not load fix</h1>
         <p className="mt-2 text-[13px] text-paper-dim">{error ?? "This shared fix link may have expired or been deleted."}</p>
-        <button onClick={() => window.location.reload()} className="mt-4 border border-border px-3 py-2 text-[12px] text-paper-muted hover:border-signal hover:text-signal">
+        <button onClick={() => window.location.reload()} className="rounded-full mt-4 border border-border px-3 py-2 text-[12px] text-paper-muted hover:border-signal hover:text-signal">
           Try again
         </button>
       </div>
@@ -76,7 +76,7 @@ export default function SharedFixPage() {
         <div className="flex items-center gap-3 mb-2">
           <span className="text-xs font-medium text-signal">shared fix</span>
           {fix.pr_number && (
-            <span className="text-xs text-info border border-info/30 px-1.5 py-0.5">PR #{fix.pr_number}</span>
+            <span className="rounded-full text-xs text-info border border-info/30 px-1.5 py-0.5">PR #{fix.pr_number}</span>
           )}
           <span className="text-xs text-paper-faint ml-auto">{new Date(fix.created_at).toLocaleString()}</span>
         </div>
@@ -92,7 +92,7 @@ export default function SharedFixPage() {
 
       {/* Explainer */}
       {fix.explainer && (
-        <div className="mt-3 border border-ok/20 bg-ok/5 px-5 py-3">
+        <div className="rounded-xl mt-3 border border-ok/20 bg-ok/5 px-5 py-3">
           <span className="text-[11px] text-ok font-medium block mb-1">Why this fix</span>
           <p className="text-[12px] text-paper-dim whitespace-pre-wrap">{fix.explainer}</p>
         </div>

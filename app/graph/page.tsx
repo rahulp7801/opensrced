@@ -514,7 +514,7 @@ export default function GraphPage() {
           <button type="button" onClick={() => {
             buildRequest.current?.abort(new Error("Build cancelled."));
             queryRequest.current?.abort(new Error("Query cancelled."));
-          }} className="border border-border px-4 py-2 text-[12px]">Cancel</button>
+          }} className="rounded-full border border-border px-4 py-2 text-[12px]">Cancel</button>
         )}
         {buildStatus === "ready" && (
           <span className="text-xs text-ok font-medium flex items-center gap-1">
@@ -626,7 +626,7 @@ export default function GraphPage() {
                   key={cmd}
                   onClick={() => quickQuery(cmd)}
                   disabled={isQuerying}
-                  className="text-xs text-paper-dim border border-border-soft hover:border-signal/40 hover:text-signal px-2 py-1 transition disabled:opacity-50"
+                  className="rounded-full text-xs text-paper-dim border border-border-soft hover:border-signal/40 hover:text-signal px-2 py-1 transition disabled:opacity-50"
                 >
                   {cmd}
                 </button>
@@ -701,7 +701,7 @@ export default function GraphPage() {
                     {r.status === "done" && (
                       <span className="ml-auto flex items-center gap-2">
                         {r.mode === "llm" && (
-                          <span className="text-[11px] text-info border border-info/30 px-1 py-0.5">
+                          <span className="rounded-full text-[11px] text-info border border-info/30 px-1 py-0.5">
                             AI
                           </span>
                         )}
@@ -768,7 +768,7 @@ export default function GraphPage() {
                 <button
                   type="submit"
                   disabled={!query.trim() || isQuerying}
-                  className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-2.5 text-[12px] font-medium disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                  className="rounded-full border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-2.5 text-[12px] font-medium disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                 >
                   {isQuerying ? "..." : "query"}
                 </button>
@@ -781,7 +781,7 @@ export default function GraphPage() {
           /* Empty state */
           <div className="mt-10 grid flex-1 gap-8 border-y border-border py-7 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
             <div>
-              <p className="font-mono text-[11px] font-medium text-paper-muted">What you can inspect</p>
+              <p className="text-[13px] font-semibold text-paper-muted">What you can inspect</p>
               <h2 className="display mt-4 text-[32px] leading-tight text-paper">Start with a repository</h2>
               <p className="mt-3 max-w-lg text-[13px] leading-6 text-paper-muted">
                 Enter a public repository or one your connected GitHub account can access. Building the map reads source structure and relationships without calling an AI model.
@@ -976,7 +976,7 @@ function FollowUps({
         <button
           key={q}
           onClick={() => onPick(q)}
-          className="text-xs text-paper-dim border border-border-soft hover:border-signal/40 hover:text-signal px-2 py-1 transition"
+          className="rounded-full text-xs text-paper-dim border border-border-soft hover:border-signal/40 hover:text-signal px-2 py-1 transition"
         >
           {q}
         </button>

@@ -45,7 +45,7 @@ export function RevokeAllButton() {
 
   if (state === "confirm") {
     return (
-      <div className="border border-alert/30 bg-alert/5 p-4 space-y-3">
+      <div className="rounded-xl border border-alert/30 bg-alert/5 p-4 space-y-3">
         <div className="text-[13px] text-alert font-medium">
           Disconnect this account?
         </div>
@@ -73,7 +73,7 @@ export function RevokeAllButton() {
           <button
             type="button"
             onClick={revoke}
-            className="text-[12px] text-alert border border-alert/30 bg-alert/5 px-3 py-1.5 hover:bg-alert/10 transition"
+            className="rounded-full text-[12px] text-alert border border-alert/30 bg-alert/5 px-3 py-1.5 hover:bg-alert/10 transition"
           >
             Stop runs, disconnect, and sign out
           </button>

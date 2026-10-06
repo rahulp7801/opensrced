@@ -17,8 +17,10 @@ git push origin <40-character-commit-sha>:staging
 
 The projects already contain separate generated `AUTH0_SECRET` values and the
 correct `APP_BASE_URL` for their stable origins. Do not copy the secret between
-environments. Auth0 tenant credentials, Blob storage, and worker snapshot IDs
-remain intentionally unconfigured until their real values are available.
+environments. As of October 6, 2026 the production project has Auth0, a private
+Blob store (`opensrced-prod`, Production scope only) and a worker snapshot
+(`OPENSRCER_WORKER_SNAPSHOT_ID`, built from `0f31929`). The staging project
+still lacks Auth0 credentials, Blob and a snapshot.
 
 Vercel serves Next.js; isolated Vercel Sandboxes execute agent jobs. Private Blob
 stores run results, cancellation markers, organization connections, and shared
@@ -38,7 +40,11 @@ nobody opens afterwards still idles until the 40-minute limit.
    (`BLOB_READ_WRITE_TOKEN`), and Vercel Sandbox access through project OIDC.
 3. From an authenticated environment, run
    `node scripts/create-worker-snapshot.mjs <full-committed-sha>`.
-   Save its output as `OPENSRCER_WORKER_SNAPSHOT_ID` in the project.
+   Save its output as `OPENSRCER_WORKER_SNAPSHOT_ID` in the project. Sandbox
+   access comes from `VERCEL_OIDC_TOKEN` (`vercel env pull`, then
+   `node --env-file=.env.local ...`). The default `universal` image clones the
+   repository to `/vercel/opensrced`; the script links `/vercel/sandbox` to it,
+   and the link is saved in the snapshot, because the worker runs there.
    Rebuild this snapshot whenever agent or MCP code changes. Snapshots are
    created without an expiry, so the saved ID stays valid until replaced; build
    the first one from current `main`, which carries the MCP boundary and graph
@@ -228,8 +234,9 @@ unavailable rather than clean. The open CodeQL flows are documented in
 
 - Configure Auth0, private Blob, and worker snapshots in both Vercel projects.
   Private-org connections also need `GITHUB_APP_SLUG`; there is no default app.
-- Add a Vercel Firewall rate limit for `/api/fixes/*`: each anonymous lookup is
-  an uncached Blob read.
+- Publish the Vercel Firewall rule "shared-fix lookups" (staged: 30 requests
+  per minute per IP on `/api/fixes/` and `/fix/`) with `vercel firewall publish`;
+  each anonymous lookup is an uncached Blob read.
 - If the local alternative is used, exercise the CI-verified Linux image on its
   target host with the real reverse proxy and persistent volumes.
 - Verify Auth0 login/logout, GitHub token scopes, saved keys, preview, live PR,

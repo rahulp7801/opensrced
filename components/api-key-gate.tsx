@@ -41,7 +41,7 @@ export function ApiKeyGate({ localMode = false }: { localMode?: boolean }) {
       </span>
       <Link
         href="/crucible"
-        className="inline-flex min-h-8 items-center border border-signal/30 px-2.5 text-signal transition hover:bg-signal/10"
+        className="rounded-full inline-flex min-h-8 items-center border border-signal/30 px-2.5 text-signal transition hover:bg-signal/10"
       >
         Open settings
       </Link>

@@ -269,12 +269,12 @@ export function DispatchList() {
                       )}
                     </span>
                     {d.mode === "agentic" && (
-                      <span className="ml-auto text-[11px] font-medium text-info border border-info/40 px-1 py-px leading-none">
+                      <span className="rounded-full ml-auto text-[11px] font-medium text-info border border-info/40 px-1 py-px leading-none">
                         deep
                       </span>
                     )}
                     {d.dry_run && (
-                      <span className="ml-auto text-[11px] font-medium text-info border border-info/40 px-1 py-px leading-none">
+                      <span className="rounded-full ml-auto text-[11px] font-medium text-info border border-info/40 px-1 py-px leading-none">
                         dry
                       </span>
                     )}
@@ -366,7 +366,7 @@ export function DispatchList() {
                       </a>
                     ) : <span className="text-[13px] text-paper-muted">{dispatchTarget(detail)}</span>}
                     {detail.repo_url && detail.issue_number !== undefined && (
-                      <a href={`${repoHref(detail.repo_url)}/issues/${detail.issue_number}`} target="_blank" rel="noreferrer" className="text-[12px] text-info hover:text-signal border border-info/40 px-1.5 py-0.5 leading-none">
+                      <a href={`${repoHref(detail.repo_url)}/issues/${detail.issue_number}`} target="_blank" rel="noreferrer" className="rounded-full text-[12px] text-info hover:text-signal border border-info/40 px-1.5 py-0.5 leading-none">
                         #{detail.issue_number}
                       </a>
                     )}
@@ -418,7 +418,7 @@ export function DispatchList() {
               return (
                 <div className="border-b border-ok/40 bg-ok/5 px-4 py-2.5 flex items-center gap-3">
                   <span className="text-[13px] text-ok">PR #{info.prNumber} opened</span>
-                  <a href={info.url} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1.5 border border-ok/50 bg-ok/10 text-ok hover:bg-ok/20 px-3 py-1 text-[12px]">
+                  <a href={info.url} target="_blank" rel="noreferrer" className="rounded-full ml-auto inline-flex items-center gap-1.5 border border-ok/50 bg-ok/10 text-ok hover:bg-ok/20 px-3 py-1 text-[12px]">
                     Open on GitHub <IconExternal />
                   </a>
                 </div>
@@ -485,7 +485,7 @@ function RetryButton({ dispatch }: { dispatch: DispatchWithLog }) {
       <button
         onClick={retry}
         disabled={pending}
-        className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-2 py-0.5 text-xs font-medium disabled:opacity-50"
+        className="rounded-full border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-2 py-0.5 text-xs font-medium disabled:opacity-50"
       >
         {pending ? "retrying…" : "retry"}
       </button>
@@ -521,7 +521,7 @@ function CancelButton({ dispatchId }: { dispatchId: string }) {
         <button
           onClick={cancel}
           disabled={pending}
-          className="border border-alert bg-alert/10 text-alert px-2 py-0.5 text-xs font-medium hover:bg-alert/20 disabled:opacity-50"
+          className="rounded-full border border-alert bg-alert/10 text-alert px-2 py-0.5 text-xs font-medium hover:bg-alert/20 disabled:opacity-50"
         >
           {pending ? "…" : "confirm kill"}
         </button>
@@ -538,7 +538,7 @@ function CancelButton({ dispatchId }: { dispatchId: string }) {
   return (
     <button
       onClick={() => { setConfirming(true); setError(null); }}
-      className="border border-border text-paper-muted hover:text-alert hover:border-alert/50 px-2 py-0.5 text-xs font-medium"
+      className="rounded-full border border-border text-paper-muted hover:text-alert hover:border-alert/50 px-2 py-0.5 text-xs font-medium"
       title="Stop the opensrcer agent subprocess"
     >
       ■ stop
@@ -755,7 +755,7 @@ function ExportButton({ dispatch }: { dispatch: DispatchWithLog }) {
   return (
     <button
       onClick={download}
-      className="border border-border text-paper-muted hover:text-paper hover:border-border-strong px-2 py-0.5 text-xs font-medium"
+      className="rounded-full border border-border text-paper-muted hover:text-paper hover:border-border-strong px-2 py-0.5 text-xs font-medium"
       title="Download run report as .md"
     >
       export
@@ -1065,7 +1065,7 @@ function DiffPreviewFromLog({ log, prOpened, dryRun }: { log: string; prOpened: 
               <div className="flex items-center gap-3">
                 <button
                   onClick={copyDiff}
-                  className="inline-flex items-center gap-1.5 border border-border hover:border-border-strong px-3 py-2 text-[12px] text-paper-dim hover:text-paper transition"
+                  className="rounded-full inline-flex items-center gap-1.5 border border-border hover:border-border-strong px-3 py-2 text-[12px] text-paper-dim hover:text-paper transition"
                 >
                   {copied ? "Copied ✓" : "Copy diff"}
                 </button>
@@ -1087,7 +1087,7 @@ function DiffPreviewFromLog({ log, prOpened, dryRun }: { log: string; prOpened: 
                     href={prInfo.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-2 border border-ok/50 bg-ok/10 text-ok hover:bg-ok/20 px-4 py-2 text-[12px] transition"
+                    className="rounded-full inline-flex items-center gap-2 border border-ok/50 bg-ok/10 text-ok hover:bg-ok/20 px-4 py-2 text-[12px] transition"
                   >
                     View PR #{prInfo.prNumber}
                     <IconExternal />
@@ -1135,7 +1135,7 @@ function CommitMsgButton({
   return (
     <button
       onClick={generate}
-      className="inline-flex items-center gap-1.5 border border-border hover:border-border-strong px-3 py-2 text-[12px] text-paper-dim hover:text-paper transition"
+      className="rounded-full inline-flex items-center gap-1.5 border border-border hover:border-border-strong px-3 py-2 text-[12px] text-paper-dim hover:text-paper transition"
     >
       {copied ? "Copied ✓" : "Commit msg"}
     </button>

@@ -47,7 +47,7 @@ export default function DemoPage() {
 
       <section className="grid gap-8 py-10 lg:grid-cols-[17rem_minmax(0,1fr)] lg:gap-12 lg:py-12" aria-label="Choose a product workflow">
         <div>
-          <p className="font-mono text-[11px] font-medium text-paper-muted">Choose a workflow</p>
+          <p className="text-[13px] font-semibold text-paper-muted">Choose a workflow</p>
           <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-1" role="tablist" aria-label="Demo workflows">
             {DEMOS.map((demo, index) => {
               const selected = activeDemo === demo.key;
@@ -89,7 +89,7 @@ export default function DemoPage() {
               <p className="text-sm font-medium text-paper">{active.label}</p>
               <p className="mt-1 text-xs text-paper-muted">Interactive sample · reset any time</p>
             </div>
-            <span className="rounded-full border border-ok/30 bg-ok/5 px-2.5 py-1 font-mono text-[10px] font-medium text-ok">Ready</span>
+            <span className="tag" data-tone="ok">Ready</span>
           </div>
           <div id={`demo-${activeDemo}`} role="tabpanel" aria-labelledby={`demo-tab-${activeDemo}`}>
             {activeDemo === "dispatch" && <DispatchDemo />}
@@ -195,7 +195,7 @@ function DispatchDemo() {
             <div className="text-[14px] text-paper">Bug fix run</div>
             <p className="text-[12px] leading-relaxed text-paper-dim">Walk through an example diagnosis, patch, and draft pull request. Check results shown here are simulated; hosted runs do not execute repository tests.</p>
           </div>
-          <button onClick={() => setStep("issue")} className="shrink-0 self-start border border-signal/50 bg-signal/10 px-4 py-2 text-[12px] text-signal transition hover:bg-signal/20 sm:self-auto">Start walkthrough →</button>
+          <button onClick={() => setStep("issue")} className="rounded-full shrink-0 self-start border border-signal/50 bg-signal/10 px-4 py-2 text-[12px] text-signal transition hover:bg-signal/20 sm:self-auto">Start walkthrough →</button>
         </div>
       )}
 
@@ -205,8 +205,8 @@ function DispatchDemo() {
           <div className="border border-border p-4 space-y-3">
             <div className="flex items-center gap-2">
               <span className="text-[13px] text-paper-muted">acme-corp/web-app</span>
-              <span className="text-[12px] text-info border border-info/40 px-1.5 py-0.5 leading-none">#47</span>
-              <span className="text-xs border border-alert/30 text-alert px-1.5">security</span>
+              <span className="rounded-full text-[12px] text-info border border-info/40 px-1.5 py-0.5 leading-none">#47</span>
+              <span className="rounded-full text-xs border border-alert/30 text-alert px-1.5">security</span>
             </div>
             <div className="text-[15px] text-paper">SQL injection in user search endpoint</div>
             <div className="text-[12px] text-paper-dim leading-relaxed">
@@ -214,7 +214,7 @@ function DispatchDemo() {
             </div>
             <div className="text-[11px] text-paper-faint">Deep repository review · repo size: 4.1 MB</div>
           </div>
-          <button onClick={runDispatch} className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-2 text-[12px] transition">Fix issue →</button>
+          <button onClick={runDispatch} className="rounded-full border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-2 text-[12px] transition">Fix issue →</button>
         </div>
       )}
 
@@ -223,7 +223,7 @@ function DispatchDemo() {
           <div className="px-4 py-3 border-b border-border">
             <div className="flex items-center gap-2">
               <span className="text-[13px] text-paper-muted">acme-corp/web-app</span>
-              <span className="text-[12px] text-info border border-info/40 px-1.5 py-0.5 leading-none">#47</span>
+              <span className="rounded-full text-[12px] text-info border border-info/40 px-1.5 py-0.5 leading-none">#47</span>
             </div>
             <div className="mt-1 text-[15px] text-paper">SQL injection in user search endpoint</div>
           </div>
@@ -245,7 +245,7 @@ function DispatchDemo() {
               <span className="text-[13px] text-ok">Draft PR #48 opened — review required</span>
               <span className="ml-auto flex items-center gap-3">
                 <span className="text-[12px] text-paper-muted tabular-nums">$0.0847 · 3m 42s</span>
-                <button onClick={reset} className="flex items-center gap-1 border border-border hover:border-signal/50 hover:text-signal px-2 py-0.5 text-xs text-paper-muted transition">replay</button>
+                <button onClick={reset} className="rounded-full flex items-center gap-1 border border-border hover:border-signal/50 hover:text-signal px-2 py-0.5 text-xs text-paper-muted transition">replay</button>
               </span>
             </div>
           )}
@@ -321,7 +321,7 @@ function ExploreDemo() {
             <div className="text-[14px] text-paper">Codebase explorer</div>
             <p className="text-[12px] leading-relaxed text-paper-dim">Ask plain-English questions about any codebase. The agent uses tree-sitter AST indexing, grep, and file reading to find answers with real code snippets.</p>
           </div>
-          <button onClick={() => setStep("repo")} className="shrink-0 self-start border border-signal/50 bg-signal/10 px-4 py-2 text-[12px] text-signal transition hover:bg-signal/20 sm:self-auto">Start walkthrough →</button>
+          <button onClick={() => setStep("repo")} className="rounded-full shrink-0 self-start border border-signal/50 bg-signal/10 px-4 py-2 text-[12px] text-signal transition hover:bg-signal/20 sm:self-auto">Start walkthrough →</button>
         </div>
       )}
 
@@ -336,7 +336,7 @@ function ExploreDemo() {
           <div className="border border-border p-4">
             <div className="rounded-lg bg-ink border border-border px-3 py-2 text-[13px] text-paper">Where is the authentication middleware and how does it work?</div>
           </div>
-          <button onClick={run} className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-2 text-[12px] transition">Explore →</button>
+          <button onClick={run} className="rounded-full border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-2 text-[12px] transition">Explore →</button>
         </div>
       )}
 
@@ -374,7 +374,7 @@ function ExploreDemo() {
               {["What permissions does it check?", "How are tokens stored?", "Show me the test suite"].map((q, i) => (
                 <span key={i} className="text-[11px] text-paper-dim border border-border-soft px-2 py-1">{q}</span>
               ))}
-              <button onClick={reset} className="ml-auto flex items-center gap-1 border border-border hover:border-signal/50 hover:text-signal px-2 py-0.5 text-xs text-paper-muted transition">replay</button>
+              <button onClick={reset} className="rounded-full ml-auto flex items-center gap-1 border border-border hover:border-signal/50 hover:text-signal px-2 py-0.5 text-xs text-paper-muted transition">replay</button>
             </div>
           )}
         </>
@@ -459,7 +459,7 @@ function SecurityDemo() {
             <div className="text-[14px] text-paper">Security scan</div>
             <p className="text-[12px] leading-relaxed text-paper-dim">Scan a repo for CVEs and Dependabot alerts, then watch the agent prepare a reviewable patch for the critical finding.</p>
           </div>
-          <button onClick={scan} className="shrink-0 self-start border border-signal/50 bg-signal/10 px-4 py-2 text-[12px] text-signal transition hover:bg-signal/20 sm:self-auto">Start scan →</button>
+          <button onClick={scan} className="rounded-full shrink-0 self-start border border-signal/50 bg-signal/10 px-4 py-2 text-[12px] text-signal transition hover:bg-signal/20 sm:self-auto">Start scan →</button>
         </div>
       )}
 
@@ -506,7 +506,7 @@ function SecurityDemo() {
               <span className="text-[13px] text-ok">PR #49 opened — CVE-2024-4068 remediated</span>
               <span className="ml-auto flex items-center gap-3">
                 <span className="text-[12px] text-paper-muted tabular-nums">$0.0614 · 1m 52s</span>
-                <button onClick={reset} className="flex items-center gap-1 border border-border hover:border-signal/50 hover:text-signal px-2 py-0.5 text-xs text-paper-muted transition">replay</button>
+                <button onClick={reset} className="rounded-full flex items-center gap-1 border border-border hover:border-signal/50 hover:text-signal px-2 py-0.5 text-xs text-paper-muted transition">replay</button>
               </span>
             </div>
           )}
@@ -612,7 +612,7 @@ function CrucibleDemo() {
             <div className="text-[14px] text-paper">Private repo flow</div>
             <p className="text-[12px] leading-relaxed text-paper-dim">Walk through connecting a GitHub Organization, browsing private repos, and starting a security fix with short-lived installation tokens.</p>
           </div>
-          <button onClick={() => setStep("connect")} className="shrink-0 self-start border border-signal/50 bg-signal/10 px-4 py-2 text-[12px] text-signal transition hover:bg-signal/20 sm:self-auto">Connect GitHub Org →</button>
+          <button onClick={() => setStep("connect")} className="rounded-full shrink-0 self-start border border-signal/50 bg-signal/10 px-4 py-2 text-[12px] text-signal transition hover:bg-signal/20 sm:self-auto">Connect GitHub Org →</button>
         </div>
       )}
 
@@ -629,7 +629,7 @@ function CrucibleDemo() {
               <div className="flex items-center gap-2"><span className="text-ok">+</span> Pull requests — read & write</div>
               <div className="flex items-center gap-2"><span className="text-ok">+</span> Issues, Dependabot alerts, Security advisories — read</div>
             </div>
-            <button onClick={() => setStep("install")} className="w-full border border-ok/50 bg-ok/10 text-ok hover:bg-ok/20 py-2 text-[12px] transition">Install & Authorize</button>
+            <button onClick={() => setStep("install")} className="rounded-full w-full border border-ok/50 bg-ok/10 text-ok hover:bg-ok/20 py-2 text-[12px] transition">Install & Authorize</button>
           </div>
         </div>
       )}
@@ -644,7 +644,7 @@ function CrucibleDemo() {
       {step === "connected" && (
         <div className="p-6 space-y-4">
           <div className="mono-label text-paper-muted">step 2 — org connected</div>
-          <div className="border border-ok/40 bg-ok/5 px-4 py-3 flex items-center gap-3">
+          <div className="rounded-xl border border-ok/40 bg-ok/5 px-4 py-3 flex items-center gap-3">
             <span className="text-ok text-[14px]">✓</span>
             <div><div className="text-[13px] text-ok">acme-corp connected</div><div className="text-[11px] text-paper-muted">Installation #48291 · 60-min tokens · revocable anytime</div></div>
           </div>
@@ -684,7 +684,7 @@ function CrucibleDemo() {
                   <div className="text-[13px] text-paper"><span className="text-paper-muted">#{iss.num}</span> {iss.title}</div>
                   <div className="mt-1 flex gap-1">{iss.labels.map(l => <span key={l} className={cn("text-xs font-mono border px-1.5", l === "security" ? "border-alert/30 text-alert" : l === "bug" || l === "p1" ? "border-orange-700/40 text-orange-300" : "border-border-soft text-paper-muted")}>{l}</span>)}</div>
                 </div>
-                <button onClick={iss.num === 12 ? solve : undefined} className={cn("shrink-0 text-[11px] border px-2.5 py-1", iss.num === 12 ? "text-paper border-border bg-surface/60 hover:bg-surface" : "text-paper-faint border-border-soft cursor-default")}>Fix issue</button>
+                <button onClick={iss.num === 12 ? solve : undefined} className={cn("rounded-full shrink-0 text-[11px] border px-2.5 py-1", iss.num === 12 ? "text-paper border-border bg-surface/60 hover:bg-surface" : "text-paper-faint border-border-soft cursor-default")}>Fix issue</button>
               </li>
             ))}
           </ul>
@@ -703,7 +703,7 @@ function CrucibleDemo() {
               <span className="text-[13px] text-ok">Draft PR #15 opened — review required</span>
               <span className="ml-auto flex items-center gap-3">
                 <span className="text-[12px] text-paper-muted tabular-nums">$0.0923 · 2m 18s</span>
-                <button onClick={reset} className="flex items-center gap-1 border border-border hover:border-signal/50 hover:text-signal px-2 py-0.5 text-xs text-paper-muted transition">replay</button>
+                <button onClick={reset} className="rounded-full flex items-center gap-1 border border-border hover:border-signal/50 hover:text-signal px-2 py-0.5 text-xs text-paper-muted transition">replay</button>
               </span>
             </div>
           )}

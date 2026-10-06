@@ -908,9 +908,9 @@ export default function PrDetailPage() {
 
       {loading && <PrSkeleton />}
       {error && (
-        <div className="mt-8 border border-alert/30 bg-alert/5 px-4 py-3 text-[12px] text-alert flex items-center justify-between">
+        <div className="rounded-xl mt-8 border border-alert/30 bg-alert/5 px-4 py-3 text-[12px] text-alert flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={() => fetchComments()} className="text-xs border border-alert/30 px-2 py-0.5 hover:bg-alert/10 transition">
+          <button onClick={() => fetchComments()} className="rounded-full text-xs border border-alert/30 px-2 py-0.5 hover:bg-alert/10 transition">
             retry
           </button>
         </div>
@@ -1008,7 +1008,7 @@ export default function PrDetailPage() {
                 </span>
               )}
               {stats.pending === 0 && stats.total > 0 && (
-                <span className="text-ok text-xs border border-ok/30 px-1.5 py-0.5">all addressed</span>
+                <span className="rounded-full text-ok text-xs border border-ok/30 px-1.5 py-0.5">all addressed</span>
               )}
             </div>
           )}
@@ -1021,7 +1021,7 @@ export default function PrDetailPage() {
                   <button
                     onClick={handleFixAll}
                     disabled={isFixing || writesPending}
-                    className="border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-1.5 text-[11px] font-medium disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    className="rounded-full border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-1.5 text-[11px] font-medium disabled:opacity-50 disabled:cursor-not-allowed transition"
                   >
                     {isFixing && fixState?.commentId === "all" ? "generating fixes..." : `fix all ${actionableComments.length} comments`}
                   </button>
@@ -1113,7 +1113,7 @@ export default function PrDetailPage() {
                       <span className="ml-auto text-xs text-info font-mono">{c.path}{c.line ? `:${c.line}` : ""}</span>
                     )}
                     {c.type === "review" && (
-                      <span className="text-[11px] text-signal border border-signal/30 px-1 py-0.5">inline</span>
+                      <span className="rounded-full text-[11px] text-signal border border-signal/30 px-1 py-0.5">inline</span>
                     )}
                   </div>
 
@@ -1137,13 +1137,13 @@ export default function PrDetailPage() {
                           <button
                             onClick={() => handleDraftReply(c)}
                             disabled={isFixing || writesPending}
-                            className="text-[11px] text-info border border-info/40 hover:bg-info/10 px-3 py-1 transition disabled:opacity-50"
+                            className="rounded-full text-[11px] text-info border border-info/40 hover:bg-info/10 px-3 py-1 transition disabled:opacity-50"
                           >
                             {fixState?.commentId === c.id && isFixing ? "drafting..." : "draft reply"}
                           </button>
                           <button
                             onClick={() => setShowReplyFor(showReplyFor === c.id ? null : c.id)}
-                            className="text-[11px] text-paper-dim border border-border-soft hover:border-paper-muted hover:text-paper-dim px-3 py-1 transition"
+                            className="rounded-full text-[11px] text-paper-dim border border-border-soft hover:border-paper-muted hover:text-paper-dim px-3 py-1 transition"
                           >
                             reply manually
                           </button>
@@ -1155,7 +1155,7 @@ export default function PrDetailPage() {
                             onClick={() => handleFix(c)}
                             disabled={isFixing || writesPending}
                             className={cn(
-                              "text-[11px] px-3 py-1 transition disabled:opacity-50 border",
+                              "rounded-full text-[11px] px-3 py-1 transition disabled:opacity-50 border",
                               fixMode === "quick"
                                 ? "text-ok border-ok/40 hover:bg-ok/10"
                                 : "text-signal border-signal/40 hover:bg-signal/10",
@@ -1166,13 +1166,13 @@ export default function PrDetailPage() {
                           <button
                             onClick={() => handleDraftReply(c)}
                             disabled={isFixing || writesPending}
-                            className="text-[11px] text-info border border-info/40 hover:bg-info/10 px-3 py-1 transition disabled:opacity-50"
+                            className="rounded-full text-[11px] text-info border border-info/40 hover:bg-info/10 px-3 py-1 transition disabled:opacity-50"
                           >
                             draft reply
                           </button>
                           <button
                             onClick={() => setShowReplyFor(showReplyFor === c.id ? null : c.id)}
-                            className="text-[11px] text-paper-dim border border-border-soft hover:border-paper-muted hover:text-paper-dim px-3 py-1 transition"
+                            className="rounded-full text-[11px] text-paper-dim border border-border-soft hover:border-paper-muted hover:text-paper-dim px-3 py-1 transition"
                           >
                             reply manually
                           </button>
@@ -1202,7 +1202,7 @@ export default function PrDetailPage() {
                           <button
                             onClick={() => handleReply(c)}
                             disabled={!replyTexts.get(c.id)?.trim() || replySt?.status === "sending"}
-                            className="border border-info/50 bg-info/10 text-info hover:bg-info/20 px-3 py-1.5 text-[11px] font-medium disabled:opacity-50 shrink-0 transition"
+                            className="rounded-full border border-info/50 bg-info/10 text-info hover:bg-info/20 px-3 py-1.5 text-[11px] font-medium disabled:opacity-50 shrink-0 transition"
                           >
                             {replySt?.status === "sending" ? "..." : "send"}
                           </button>
@@ -1234,7 +1234,7 @@ export default function PrDetailPage() {
                     <span className="text-xs text-signal animate-pulse-signal">
                       <LoadingDots />
                     </span>
-                    <button onClick={cancelGeneration} className="text-xs text-paper-muted hover:text-alert transition border border-border px-1.5 py-0.5">cancel</button>
+                    <button onClick={cancelGeneration} className="rounded-full text-xs text-paper-muted hover:text-alert transition border border-border px-1.5 py-0.5">cancel</button>
                   </span>
                 )}
                 {fixState.status === "done" && fixState.cost !== null && (
@@ -1310,14 +1310,14 @@ export default function PrDetailPage() {
                             if (c) handleFix(c);
                           }
                         }}
-                        className="text-xs text-signal border border-signal/30 px-2 py-0.5 hover:bg-signal/10 transition"
+                        className="rounded-full text-xs text-signal border border-signal/30 px-2 py-0.5 hover:bg-signal/10 transition"
                       >
                         retry from scratch
                       </button>
                       {fixRetryCount < 3 && lastFixComment && (
                         <button
                           onClick={handleRetryWithContext}
-                          className="text-xs text-ok border border-ok/30 px-2 py-0.5 hover:bg-ok/10 transition"
+                          className="rounded-full text-xs text-ok border border-ok/30 px-2 py-0.5 hover:bg-ok/10 transition"
                         >
                           self-heal (retry with error context)
                         </button>
@@ -1355,7 +1355,7 @@ export default function PrDetailPage() {
                         toast("Clipboard access failed. Download the patch instead.", "alert");
                       }
                     }}
-                    className="text-xs text-paper-dim border border-border hover:border-paper-muted hover:text-paper px-2 py-0.5 transition"
+                    className="rounded-full text-xs text-paper-dim border border-border hover:border-paper-muted hover:text-paper px-2 py-0.5 transition"
                   >
                     copy diff
                   </button>
@@ -1371,7 +1371,7 @@ export default function PrDetailPage() {
                       URL.revokeObjectURL(url);
                       toast("Patch file downloaded", "ok");
                     }}
-                    className="text-xs text-paper-dim border border-border hover:border-paper-muted hover:text-paper px-2 py-0.5 transition"
+                    className="rounded-full text-xs text-paper-dim border border-border hover:border-paper-muted hover:text-paper px-2 py-0.5 transition"
                   >
                     download .patch
                   </button>
@@ -1384,7 +1384,7 @@ export default function PrDetailPage() {
                         toast("Clipboard access failed. Try again from a secure browser window.", "alert");
                       }
                     }}
-                    className="text-xs text-paper-faint border border-border hover:border-paper-muted hover:text-paper-dim px-2 py-0.5 transition"
+                    className="rounded-full text-xs text-paper-faint border border-border hover:border-paper-muted hover:text-paper-dim px-2 py-0.5 transition"
                   >
                     copy full response
                   </button>
@@ -1424,7 +1424,7 @@ export default function PrDetailPage() {
                         );
                       }
                     }}
-                    className="text-xs text-signal border border-signal/30 hover:bg-signal/10 px-2 py-0.5 transition"
+                    className="rounded-full text-xs text-signal border border-signal/30 hover:bg-signal/10 px-2 py-0.5 transition"
                   >
                     share fix
                   </button>
@@ -1487,7 +1487,7 @@ export default function PrDetailPage() {
                         <div className="mt-2 pt-2 border-t border-border-soft">
                           <button
                             onClick={handleRetryWithContext}
-                            className="text-xs text-ok border border-ok/30 px-2.5 py-1 hover:bg-ok/10 transition"
+                            className="rounded-full text-xs text-ok border border-ok/30 px-2.5 py-1 hover:bg-ok/10 transition"
                           >
                             Self-heal: retry fix using these verification results as context
                           </button>
@@ -1504,7 +1504,7 @@ export default function PrDetailPage() {
                 <div className="px-4 py-2 border-t border-border-soft">
                   <button
                     onClick={() => { setAskOpen(!askOpen); if (!askOpen && askMessages.length === 0) setAskMessages([]); }}
-                    className="text-[11px] text-info border border-info/30 hover:bg-info/10 px-3 py-1 transition"
+                    className="rounded-full text-[11px] text-info border border-info/30 hover:bg-info/10 px-3 py-1 transition"
                   >
                     {askOpen ? "close chat" : "ask about this change"}
                   </button>
@@ -1551,7 +1551,7 @@ export default function PrDetailPage() {
                         <button
                           onClick={handleAsk}
                           disabled={!askInput.trim() || askLoading}
-                          className="border border-info/50 bg-info/10 text-info hover:bg-info/20 px-3 py-1.5 text-xs font-medium disabled:opacity-50 shrink-0 transition"
+                          className="rounded-full border border-info/50 bg-info/10 text-info hover:bg-info/20 px-3 py-1.5 text-xs font-medium disabled:opacity-50 shrink-0 transition"
                         >
                           ask
                         </button>
@@ -1596,7 +1596,7 @@ export default function PrDetailPage() {
                           <span className="whitespace-pre-wrap break-words">{pushMessage}</span>
                           <button
                             onClick={() => handlePush()}
-                            className="shrink-0 text-xs text-signal border border-signal/30 px-2 py-0.5 hover:bg-signal/10 transition"
+                            className="rounded-full shrink-0 text-xs text-signal border border-signal/30 px-2 py-0.5 hover:bg-signal/10 transition"
                           >
                             retry
                           </button>
@@ -1609,12 +1609,12 @@ export default function PrDetailPage() {
                   {/* Follow-up comment — auto-populated with explainer */}
                   <div className="mt-3 pt-3 border-t border-border-soft">
                     {autoExplainer && !followUpComment && (
-                      <div className="mb-2 px-3 py-2 border border-ok/20 bg-ok/5 text-[11px] text-paper-dim">
+                      <div className="rounded-xl mb-2 px-3 py-2 border border-ok/20 bg-ok/5 text-[11px] text-paper-dim">
                         <span className="text-[11px] text-ok font-medium block mb-1">auto-generated explanation</span>
                         <p className="whitespace-pre-wrap">{autoExplainer}</p>
                         <button
                           onClick={() => { setFollowUpComment(autoExplainer); }}
-                          className="mt-1.5 text-xs text-ok border border-ok/30 px-2 py-0.5 hover:bg-ok/10 transition"
+                          className="rounded-full mt-1.5 text-xs text-ok border border-ok/30 px-2 py-0.5 hover:bg-ok/10 transition"
                         >
                           use as follow-up comment
                         </button>
@@ -1627,7 +1627,7 @@ export default function PrDetailPage() {
                       <button
                         onClick={handleGenerateFollowUp}
                         disabled={followUpGenerating || followUpSending || followUpSent}
-                        className="text-xs text-info border border-info/30 hover:bg-info/10 px-2 py-0.5 transition disabled:opacity-50"
+                        className="rounded-full text-xs text-info border border-info/30 hover:bg-info/10 px-2 py-0.5 transition disabled:opacity-50"
                       >
                         {followUpGenerating ? "drafting..." : followUpComment ? "regenerate" : "draft detailed version"}
                       </button>

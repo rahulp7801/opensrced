@@ -7,6 +7,11 @@ const sandbox = await Sandbox.create({
   timeout: 15 * 60_000, persistent: false,
 });
 try {
+  // The universal image clones the repo to <cwd>/opensrced (cwd is /vercel);
+  // the worker, its scripts and the protocol marker all live at
+  // /vercel/sandbox. Link it once here so the snapshot carries the path.
+  const link = await sandbox.runCommand({ cmd: 'bash', args: ['-c', 'test -e /vercel/sandbox || sudo ln -s "$PWD/opensrced" /vercel/sandbox; test -f /vercel/sandbox/package.json'] });
+  if (link.exitCode !== 0) throw new Error(`repository not found at /vercel/sandbox: ${(await link.stderr()).slice(-500)}`);
   async function run(cmd, args, sudo = false) {
     const result = await sandbox.runCommand({ cmd, args, sudo, cwd: '/vercel/sandbox' });
     if (result.exitCode !== 0) throw new Error(`${cmd} failed: ${(await result.stderr()).slice(-1500)}`);

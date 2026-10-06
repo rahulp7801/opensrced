@@ -171,7 +171,7 @@ export default function ReposPage() {
 
       <div id="repos-panel" role="tabpanel" aria-labelledby={`repos-tab-${tab}`} className="mt-4">
         {current.error && (
-          <div role="alert" className="border border-alert/30 bg-alert/5 px-4 py-3 text-[12px] text-alert mb-3">
+          <div role="alert" className="rounded-xl border border-alert/30 bg-alert/5 px-4 py-3 text-[12px] text-alert mb-3">
             {current.error}
             <button className="ml-3 underline" disabled={current.loading} onClick={() => fetchPage(tab, current.page + 1, current.nextCursor)}>Retry</button>
           </div>
@@ -251,7 +251,7 @@ export default function ReposPage() {
               onClick={() => fetchPage(tab, current.page + 1, current.nextCursor)}
               disabled={current.loading}
               className={cn(
-                "px-6 py-2 text-[11px] font-medium border transition",
+                "rounded-full px-6 py-2 text-[11px] font-medium border transition",
                 current.loading
                   ? "border-border text-paper-faint"
                   : "border-signal/40 text-signal hover:bg-signal/10",

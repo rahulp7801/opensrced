@@ -54,7 +54,7 @@ export default async function OrgReposPage({
       </div>
 
       {error && (
-        <div className="mt-4 border border-alert/30 bg-alert/5 p-3 text-[12.5px] text-alert">
+        <div className="rounded-xl mt-4 border border-alert/30 bg-alert/5 p-3 text-[12.5px] text-alert">
           Failed to load repos: {error}
         </div>
       )}

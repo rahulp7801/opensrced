@@ -69,7 +69,7 @@ export function PrTable({ prs }: { prs: PullRequest[] }) {
               key={f.key}
               onClick={() => setFilter(f.key)}
               className={cn(
-                "px-2.5 py-1 text-[11px] border transition-colors",
+                "rounded-full px-2.5 py-1 text-[11px] border transition-colors",
                 filter === f.key
                   ? "border-signal/60 bg-signal/10 text-signal"
                   : "border-border text-paper-muted hover:text-paper hover:border-border-strong",
@@ -144,7 +144,7 @@ export function PrTable({ prs }: { prs: PullRequest[] }) {
                     <div className="flex items-center justify-end gap-3">
                       <Link
                         href={`/prs/${pr.repo}/${pr.pr_number}`}
-                        className="text-xs text-signal border border-signal/30 hover:bg-signal/10 px-1.5 py-0.5 transition"
+                        className="rounded-full text-xs text-signal border border-signal/30 hover:bg-signal/10 px-1.5 py-0.5 transition"
                         title="Review & fix comments"
                       >
                         review

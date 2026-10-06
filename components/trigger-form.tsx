@@ -163,7 +163,7 @@ export function TriggerForm() {
             type="submit"
             disabled={state.kind === "pending"}
             className={cn(
-              "group inline-flex items-center gap-3 border px-5 py-3 text-[13px] transition",
+              "rounded-full group inline-flex items-center gap-3 border px-5 py-3 text-[13px] transition",
               state.kind === "pending"
                 ? "border-border text-paper-muted"
                 : "border-signal bg-signal/10 text-paper hover:bg-signal/20",

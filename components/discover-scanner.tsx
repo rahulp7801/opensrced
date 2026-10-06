@@ -242,13 +242,13 @@ export function DiscoverScanner() {
       )}
 
       {!!data?.warnings?.length && (
-        <div role="status" className="mt-4 border border-alert/30 bg-alert/5 p-3 text-[12px] text-alert">
+        <div role="status" className="rounded-xl mt-4 border border-alert/30 bg-alert/5 p-3 text-[12px] text-alert">
           Partial results: {data.warnings.join(" ")}
         </div>
       )}
 
       {err && (
-        <div className="mt-3 border border-alert/40 bg-alert/5 p-3 text-[12px] text-alert">
+        <div className="rounded-xl mt-3 border border-alert/40 bg-alert/5 p-3 text-[12px] text-alert">
           {err}
         </div>
       )}

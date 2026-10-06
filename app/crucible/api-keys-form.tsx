@@ -107,11 +107,11 @@ export function ApiKeysForm() {
           {loading ? (
             <span className="text-paper-faint text-[11px]">loading…</span>
           ) : status?.anthropic ? (
-            <span className="text-xs text-ok border border-ok/30 px-1.5 py-0.5">configured</span>
+            <span className="rounded-full text-xs text-ok border border-ok/30 px-1.5 py-0.5">configured</span>
           ) : status ? (
-            <span className="text-xs text-alert border border-alert/30 px-1.5 py-0.5">required</span>
+            <span className="rounded-full text-xs text-alert border border-alert/30 px-1.5 py-0.5">required</span>
           ) : (
-            <span className="text-xs text-alert border border-alert/30 px-1.5 py-0.5">unavailable</span>
+            <span className="rounded-full text-xs text-alert border border-alert/30 px-1.5 py-0.5">unavailable</span>
           )}
         </div>
         <div className="flex gap-2">
@@ -133,7 +133,7 @@ export function ApiKeysForm() {
                   type="button"
                   onClick={() => clearKey("anthropic")}
                   disabled={saving}
-                  className="text-[11px] text-alert border border-alert/30 bg-alert/5 px-2.5 py-1.5 disabled:opacity-50"
+                  className="rounded-full text-[11px] text-alert border border-alert/30 bg-alert/5 px-2.5 py-1.5 disabled:opacity-50"
                 >
                   {saving ? "..." : "confirm"}
                 </button>
@@ -150,7 +150,7 @@ export function ApiKeysForm() {
                 type="button"
                 onClick={() => setConfirmClear("anthropic")}
                 disabled={saving}
-                className="text-[11px] text-paper-muted hover:text-alert border border-border px-2.5 py-1.5 disabled:opacity-50"
+                className="rounded-full text-[11px] text-paper-muted hover:text-alert border border-border px-2.5 py-1.5 disabled:opacity-50"
               >
                 Clear
               </button>
@@ -172,7 +172,7 @@ export function ApiKeysForm() {
           {loading ? (
             <span className="text-paper-faint text-[11px]">loading…</span>
           ) : status?.gemini ? (
-            <span className="text-xs text-ok border border-ok/30 px-1.5 py-0.5">configured</span>
+            <span className="rounded-full text-xs text-ok border border-ok/30 px-1.5 py-0.5">configured</span>
           ) : status ? (
             <span className="text-xs text-paper-muted px-1.5 py-0.5">not configured</span>
           ) : (
@@ -198,7 +198,7 @@ export function ApiKeysForm() {
                   type="button"
                   onClick={() => clearKey("gemini")}
                   disabled={saving}
-                  className="text-[11px] text-alert border border-alert/30 bg-alert/5 px-2.5 py-1.5 disabled:opacity-50"
+                  className="rounded-full text-[11px] text-alert border border-alert/30 bg-alert/5 px-2.5 py-1.5 disabled:opacity-50"
                 >
                   {saving ? "..." : "confirm"}
                 </button>
@@ -215,7 +215,7 @@ export function ApiKeysForm() {
                 type="button"
                 onClick={() => setConfirmClear("gemini")}
                 disabled={saving}
-                className="text-[11px] text-paper-muted hover:text-alert border border-border px-2.5 py-1.5 disabled:opacity-50"
+                className="rounded-full text-[11px] text-paper-muted hover:text-alert border border-border px-2.5 py-1.5 disabled:opacity-50"
               >
                 Clear
               </button>

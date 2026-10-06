@@ -20,7 +20,10 @@ correct `APP_BASE_URL` for their stable origins. Do not copy the secret between
 environments. As of October 6, 2026 the production project has Auth0, a private
 Blob store (`opensrced-prod`, Production scope only) and a worker snapshot
 (`OPENSRCER_WORKER_SNAPSHOT_ID`, built from `0f31929`). The staging project
-still lacks Auth0 credentials, Blob and a snapshot.
+still lacks Auth0 credentials, Blob and a snapshot. The Vercel Firewall rule "shared-fix lookups"
+rate-limits `/api/fixes/` and `/fix/` to 30 requests per minute per IP, since
+each anonymous lookup is an uncached Blob read (verified: the 29th request in a
+minute returns 429).
 
 Vercel serves Next.js; isolated Vercel Sandboxes execute agent jobs. Private Blob
 stores run results, cancellation markers, organization connections, and shared
@@ -234,9 +237,6 @@ unavailable rather than clean. The open CodeQL flows are documented in
 
 - Configure Auth0, private Blob, and worker snapshots in both Vercel projects.
   Private-org connections also need `GITHUB_APP_SLUG`; there is no default app.
-- Publish the Vercel Firewall rule "shared-fix lookups" (staged: 30 requests
-  per minute per IP on `/api/fixes/` and `/fix/`) with `vercel firewall publish`;
-  each anonymous lookup is an uncached Blob read.
 - If the local alternative is used, exercise the CI-verified Linux image on its
   target host with the real reverse proxy and persistent volumes.
 - Verify Auth0 login/logout, GitHub token scopes, saved keys, preview, live PR,

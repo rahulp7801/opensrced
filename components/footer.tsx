@@ -7,6 +7,9 @@ export function SiteFooter() {
           <a className="transition-colors hover:text-paper" href="https://github.com/rahulp7801/opensrced" target="_blank" rel="noreferrer">
             Source
           </a>
+          <a className="transition-colors hover:text-paper" href="/privacy">
+            Privacy
+          </a>
           <a className="transition-colors hover:text-paper" href="/api/health">
             Service status
           </a>

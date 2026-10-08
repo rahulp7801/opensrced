@@ -19,7 +19,7 @@ The projects already contain separate generated `AUTH0_SECRET` values and the
 correct `APP_BASE_URL` for their stable origins. Do not copy the secret between
 environments. As of October 6, 2026 the production project has Auth0, a private
 Blob store (`opensrced-prod`, Production scope only) and a worker snapshot
-(`OPENSRCER_WORKER_SNAPSHOT_ID`, built from `0f31929`). The staging project
+(`OPENSRCER_WORKER_SNAPSHOT_ID`, rebuilt October 7 from `2f9257d`). The staging project
 still lacks Auth0 credentials, Blob and a snapshot. The Vercel Firewall rule "shared-fix lookups"
 rate-limits `/api/fixes/` and `/fix/` to 30 requests per minute per IP, since
 each anonymous lookup is an uncached Blob read (verified: the 29th request in a
@@ -242,7 +242,15 @@ unavailable rather than clean. The open CodeQL flows are documented in
 - Verify Auth0 login/logout, GitHub token scopes, saved keys, preview, live PR,
   cancellation, and private-org access against controlled test repositories.
 - Isolate repository code execution before enabling it for untrusted users.
-- Verify the cloud worker lifecycle and all UI entry points on the deployed project.
+- Verify the cloud worker lifecycle with a real provider key on the deployed project.
+  On October 7, 2026 the hosted path was driven end to end from a local server in
+  sandbox mode (`AUTH_DISABLED=1 OPENSRCER_EXECUTION=sandbox`) against a dev-only
+  private Blob store: a graph build (1,618 nodes in 84 s), a preview run on a
+  public issue (snapshot boot, worker start, triage, Claude Code with the MCP
+  tools, a provider 401 from a deliberately invalid key, failure recorded, log
+  streamed), and cancellation (`killed`, VM stopped). Every VM was confirmed
+  stopped afterwards. Not yet exercised: a run with a valid key, a live draft PR,
+  and private-organization access.
 - Load-test authenticated scans and real jobs against an agreed workload and
   provider budget; health endpoint concurrency is only a smoke test.
 

@@ -42,7 +42,10 @@ intentional data flows, not a claim that repository content is non-sensitive.
   remote configuration cannot receive them. The repository tool server does
   not hold the provider key, and ignores graph files committed by the target.
 - Logout omits the ID token, which carries the GitHub token claim, from the
-  redirect URL. Shared fix links identify their owner only by a keyed hash.
+  redirect URL, and refuses cross-site requests (`Sec-Fetch-Site`), so another
+  site cannot sign a visitor out and clear their saved keys. Shared fix links
+  identify their owner only by a keyed hash, and each shared page states that
+  opensrcer does not review shared fixes.
 - Agent commits are authored as the user who started the run; there is no
   operator fallback identity. Organization runs receive a freshly minted
   installation token limited to the one target repository.

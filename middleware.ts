@@ -32,9 +32,16 @@ const PUBLIC_PATHS = new Set([
   "/api/health",
   // Login page — renders before the user has a session.
   "/login",
+  // What the app stores; must be readable before signing in.
+  "/privacy",
   // Public crawler metadata must not be redirected through authentication.
   "/robots.txt",
   "/sitemap.xml",
+  // Generated share card and home-screen icon (app/opengraph-image.tsx,
+  // app/apple-icon.tsx). They have no file extension, so the static-file
+  // exemption in the matcher below does not cover them.
+  "/opengraph-image",
+  "/apple-icon",
   // GitHub App webhook — authenticates via HMAC, not session.
   "/api/crucible/github/webhook",
   // Install callback — authenticates via nonce cookie.
@@ -77,8 +84,11 @@ const UNCONFIGURED_PUBLIC_PATHS = new Set([
   "/",
   "/api/health",
   "/login",
+  "/privacy",
   "/robots.txt",
   "/sitemap.xml",
+  "/opengraph-image",
+  "/apple-icon",
   "/demo",
   "/fix",
   "/api/fixes",
@@ -192,6 +202,15 @@ export async function middleware(req: NextRequest) {
     const returnTo = req.nextUrl.searchParams.get("returnTo");
     if (returnTo) clean.searchParams.set("returnTo", returnTo);
     return NextResponse.redirect(clean);
+  }
+
+  // Logout is a GET the SDK serves, so any site could embed it (an <img> or a
+  // hidden iframe) to sign a visitor out and wipe their saved provider keys.
+  // Sign-out only ever starts from our own pages; a cross-site request just
+  // lands on the home page with the session intact. Browsers that send no
+  // Sec-Fetch-Site header are unaffected.
+  if (pathname === "/auth/logout" && req.headers.get("sec-fetch-site") === "cross-site") {
+    return NextResponse.redirect(new URL("/", req.url));
   }
 
   // 1. Let the SDK serve /auth/* and refresh the session cookie. `authRes`

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 const base = process.env.SMOKE_BASE_URL || 'http://localhost:3100';
-const paths = ['/', '/login', '/trigger', '/issues', '/dispatches', '/stats'];
+const paths = ['/', '/login', '/privacy', '/trigger', '/issues', '/dispatches', '/stats'];
 const securityHeaders = {
   'content-security-policy': "frame-ancestors 'self'",
   'permissions-policy': 'camera=(), microphone=(), geolocation=()',
@@ -52,6 +52,11 @@ const loginTarget = login.headers.get('location') ?? '';
 assert.ok(!loginTarget.includes('connection_scope') && !loginTarget.includes('delete_repo'), `login must drop extra parameters: ${loginTarget}`);
 assert.match(loginTarget, /returnTo=%2Fdiscover/);
 await login.text();
+// Another site cannot sign a visitor out (and wipe saved keys) by embedding logout.
+const crossSiteLogout = await fetch(base + '/auth/logout', { redirect: 'manual', headers: { 'sec-fetch-site': 'cross-site' }, signal: AbortSignal.timeout(15000) });
+assert.equal(new URL(crossSiteLogout.headers.get('location') ?? '', base).pathname, '/', 'cross-site logout must not reach the SDK');
+assert.ok(!(crossSiteLogout.headers.get('set-cookie') ?? '').includes('opensrcer-keys'), 'cross-site logout must not clear saved keys');
+await crossSiteLogout.text();
 // A failed or replayed callback returns to sign-in with a message, not a raw 500.
 const callback = await fetch(base + '/auth/callback?code=forged&state=forged', { redirect: 'manual', signal: AbortSignal.timeout(15000) });
 assert.ok([302, 303, 307].includes(callback.status), `callback error must redirect, got ${callback.status}`);
@@ -66,6 +71,14 @@ await missingFix.text();
 const sharedFixPage = await fetch(`${base}/fix/${missingFixId}`, { signal: AbortSignal.timeout(15000) });
 assert.equal(sharedFixPage.status, 200);
 assert.match(await sharedFixPage.text(), /<meta name="robots" content="noindex, nofollow"/);
+
+// Share card and home-screen icon must reach crawlers, not the login redirect.
+for (const path of ['/opengraph-image', '/apple-icon']) {
+  const image = await fetch(base + path, { redirect: 'manual', signal: AbortSignal.timeout(30000) });
+  assert.equal(image.status, 200, path);
+  assert.equal(image.headers.get('content-type'), 'image/png', path);
+  await image.arrayBuffer();
+}
 
 const robots = await fetch(`${base}/robots.txt`, { signal: AbortSignal.timeout(15000) });
 assert.equal(robots.status, 200);

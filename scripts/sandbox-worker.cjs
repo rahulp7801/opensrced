@@ -1,7 +1,7 @@
 // Runs inside a disposable VM. Each upload token is limited to one result file.
 const { put } = require('@vercel/blob/client');
 const { setTimeout: delay } = require('node:timers/promises');
-const { startAgenticDispatch, startFindingDispatch } = require('../.worker-build/lib/agentic-dispatcher');
+const { startAgenticDispatch, startFindingDispatch, RunTargetError } = require('../.worker-build/lib/agentic-dispatcher');
 const store = require('../.worker-build/lib/dispatch-store');
 const { readLogTail } = require('../.worker-build/lib/dispatcher');
 const { cloudRunSummary, dispatchStatsFromLog, WORKER_TIMEOUT_MS } = require('../.worker-build/lib/cloud-run-state');
@@ -56,8 +56,12 @@ async function main() {
       if (record.status !== 'running' && record.pr_status !== 'pending') return;
     }
     throw new Error('Worker deadline reached');
-  } catch {
-    const message = '\nThe isolated worker failed. Check provider access and retry.\n';
+  } catch (error) {
+    // Run-target errors (missing issue, inaccessible repo, pull request number)
+    // carry fixed, credential-free messages that say what to change; anything
+    // else stays generic so internal details never reach the run log.
+    const reason = error instanceof RunTargetError ? error.message : 'Check provider access and retry.';
+    const message = `\nThe isolated worker failed. ${reason}\n`;
     await publish({ ...lastRecord, status: 'failed', pr_status: 'failed', ended_at: new Date().toISOString(),
       log: lastRecord.log + message, log_size: lastRecord.log_size + Buffer.byteLength(message) });
     process.exitCode = 1;

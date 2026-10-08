@@ -23,3 +23,19 @@ test("local exploration never turns failed or truncated output into a done event
     child.stderr!.destroy();
   }
 });
+
+test("a specific exploration failure is the only error the client receives", async (t) => {
+  const stdout = new PassThrough();
+  const child = Object.assign(new EventEmitter(), { stdout, stderr: new PassThrough() }) as unknown as processes.ChildProcess;
+  t.mock.method(processes, "spawn", () => child);
+  let releases = 0;
+  const response = localClaudeStream([], { NODE_ENV: "test" }, new AbortController().signal, () => { releases++; });
+  stdout.write(JSON.stringify({ type: "result", subtype: "error_max_budget_usd", is_error: true }) + "\n");
+  child.emit("close", 1);
+  const errors = (await response.text()).split("\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6))).filter(event => event.error);
+  assert.equal(errors.length, 1);
+  assert.match(errors[0].error, /spend limit/);
+  assert.equal(releases, 1);
+  stdout.end();
+  child.stderr!.destroy();
+});

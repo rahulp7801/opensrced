@@ -23,12 +23,12 @@ export function localClaudeStream(args: string[], env: NodeJS.ProcessEnv, reques
       const disconnect = () => { cancelled = true; stop(); };
       requestSignal.addEventListener("abort", disconnect, { once: true });
       const timeout = setTimeout(() => { send({ error: "Exploration time limit reached." }); stop(); }, 3 * 60_000);
-      const finish = (event: Record<string, unknown>) => {
+      const finish = (event: Record<string, unknown> | null) => {
         if (finished) return;
         clearTimeout(timeout);
         requestSignal.removeEventListener("abort", disconnect);
         release();
-        send(event);
+        if (event) send(event);
         finished = true;
         if (!cancelled) controller.close();
       };
@@ -49,7 +49,9 @@ export function localClaudeStream(args: string[], env: NodeJS.ProcessEnv, reques
       child.stderr.resume();
       child.on("close", code => {
         consume(buffer + decoder.end());
-        if (code !== 0 || !completed || failed) finish({ error: "Exploration did not complete. Check provider access and retry." });
+        // A specific failure already streamed stays the last word.
+        if (failed) finish(null);
+        else if (code !== 0 || !completed) finish({ error: "Exploration did not complete. Check provider access and retry." });
         else finish({ done: true, exit_code: code });
       });
       child.on("error", () => finish({ error: "Could not start the exploration worker." }));

@@ -50,7 +50,9 @@ export async function cloudExplore(args: string[], credentials: Record<string, s
         if (result.exitCode !== 0 || !completed || failed) throw new Error("Exploration did not complete.");
         send({ done: true, exit_code: result.exitCode });
       } catch {
-        send({ error: signal.aborted ? "Exploration time limit reached." : "Exploration failed. Please retry." });
+        // A specific failure (say, a rejected key) was already streamed; a
+        // generic one after it would be what the client shows last.
+        if (!failed || signal.aborted) send({ error: signal.aborted ? "Exploration time limit reached." : "Exploration failed. Please retry." });
       } finally {
         const stopped = !sandbox || await sandbox.stop().then(() => true, () => false);
         if (stopped) await release().catch(() => {});

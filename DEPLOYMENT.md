@@ -19,7 +19,7 @@ The projects already contain separate generated `AUTH0_SECRET` values and the
 correct `APP_BASE_URL` for their stable origins. Do not copy the secret between
 environments. As of October 6, 2026 the production project has Auth0, a private
 Blob store (`opensrced-prod`, Production scope only) and a worker snapshot
-(`OPENSRCER_WORKER_SNAPSHOT_ID`, rebuilt October 7 from `2f9257d`). The staging project
+(`OPENSRCER_WORKER_SNAPSHOT_ID`, rebuilt October 8 from `ed8dce8`). The staging project
 still lacks Auth0 credentials, Blob and a snapshot. The Vercel Firewall rule "shared-fix lookups"
 rate-limits `/api/fixes/` and `/fix/` to 30 requests per minute per IP, since
 each anonymous lookup is an uncached Blob read (verified: the 29th request in a

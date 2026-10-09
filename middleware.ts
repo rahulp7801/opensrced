@@ -204,6 +204,13 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(clean);
   }
 
+  // The SDK also proxies /me/* and /my-org/* to Auth0's My Account and My
+  // Organization APIs with the user's refresh token. Nothing here uses them,
+  // and they sit outside the /api/ origin check, so they are switched off.
+  if (pathname.startsWith("/me/") || pathname.startsWith("/my-org/")) {
+    return new NextResponse(null, { status: 404 });
+  }
+
   // Logout is a GET the SDK serves, so any site could embed it (an <img> or a
   // hidden iframe) to sign a visitor out and wipe their saved provider keys.
   // Sign-out only ever starts from our own pages; a cross-site request just

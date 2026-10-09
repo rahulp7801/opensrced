@@ -76,6 +76,9 @@ export function childEnv(
   // system-wide LFS filter (Git for Windows) contact it during checkout. Keep
   // pointer files instead; nothing here needs LFS content.
   env.GIT_LFS_SKIP_SMUDGE = "1";
+  // Claude Code otherwise phones home (telemetry, error reporting, update
+  // checks). Workers allow egress only to the hosts a job needs; keep it that way.
+  env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1";
   for (const [k, v] of Object.entries(inject)) {
     if (v !== undefined && v !== "") env[k] = v;
   }

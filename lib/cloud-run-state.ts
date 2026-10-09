@@ -73,6 +73,10 @@ export function validCloudRun(value: unknown, owner: string, id: string): value 
     (run.tests === undefined || TEST_STATUSES.has(run.tests)) &&
     (run.stats === undefined || validDispatchStats(run.stats)) &&
     typeof run.expires_at === "number" && Number.isFinite(run.expires_at) && run.expires_at > 0 &&
+    // The worker can rewrite its own record, so expiry is bounded by the
+    // server-minted id (c_<ms>_...), not by any field the worker controls:
+    // a forged far-future expiry would otherwise keep a slot busy forever.
+    run.expires_at <= Number(id.slice(2, 15)) + MAX_RUN_LIFETIME_MS &&
     typeof run.log === "string" && typeof run.log_size === "number" && Number.isSafeInteger(run.log_size) &&
     Buffer.byteLength(run.log) <= MAX_STORED_LOG_BYTES && run.log_size >= Buffer.byteLength(run.log);
 }
@@ -102,6 +106,9 @@ export function effectiveCloudRunState<T extends CloudRunSummary>(run: T, now = 
 export function cloudExecution(): boolean {
   return process.env.VERCEL === "1" || process.env.OPENSRCER_EXECUTION === "sandbox";
 }
+
+/** A run record expires 45 minutes after its id was minted (cloud-runs TTL). */
+const MAX_RUN_LIFETIME_MS = 46 * 60_000;
 
 export function newCloudRunId(): string {
   return `c_${Date.now()}_${randomBytes(6).toString("hex")}`;

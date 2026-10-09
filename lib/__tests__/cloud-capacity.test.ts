@@ -63,10 +63,10 @@ test("one account cannot hold every agent slot", async () => {
   const { reserveCapacity, runPath, newCloudRunId } = await load();
   store.clear();
   await seed(0, "auth0|alice", "running");
-  await seed(1, "auth0|alice", "running");
-  await assert.rejects(reserveCapacity(runPath("auth0|alice", newCloudRunId()), Date.now() + 60_000), /already have 2 runs/);
-  // Someone else still gets the free slot.
-  assert.equal(await reserveCapacity(runPath("auth0|bob", newCloudRunId()), Date.now() + 60_000), "capacity/2.json");
+  // One run per account: two accounts together can never fill all three slots.
+  await assert.rejects(reserveCapacity(runPath("auth0|alice", newCloudRunId()), Date.now() + 60_000), /already have a run in progress/);
+  // Someone else still gets a free slot.
+  assert.equal(await reserveCapacity(runPath("auth0|bob", newCloudRunId()), Date.now() + 60_000), "capacity/1.json");
 });
 
 test("reusing a finished run's slot stops its idle VM", async () => {
@@ -81,19 +81,22 @@ test("reusing a finished run's slot stops its idle VM", async () => {
   assert.equal(await reserveCapacity(runPath("auth0|carol", newCloudRunId()), Date.now() + 60_000), "capacity/0.json");
   assert.deepEqual(stopped, [idle]);
 
-  // An already-stopped VM is not stopped again.
+  // A record that claims its VM already stopped is not believed: the worker
+  // writes that field, so the lease's VM is stopped anyway (stop is idempotent).
   store.clear();
   stopped.length = 0;
-  await seed(0, "auth0|alice", "failed", true);
+  const claimedStopped = await seed(0, "auth0|alice", "failed", true);
+  await seed(1, "auth0|dana", "running");
+  await seed(2, "auth0|erin", "running");
   await reserveCapacity(runPath("auth0|carol", newCloudRunId()), Date.now() + 60_000);
-  assert.deepEqual(stopped, []);
+  assert.deepEqual(stopped, [claimedStopped]);
 });
 
 test("simultaneous requests cannot slip past the per-account caps", async () => {
   const { reserveCapacity, runPath, newCloudRunId, reserveCloudSlot } = await load();
   store.clear();
   const runs = await Promise.allSettled([0, 1, 2].map(() => reserveCapacity(runPath("auth0|alice", newCloudRunId()), Date.now() + 60_000)));
-  assert.ok(runs.filter(r => r.status === "fulfilled").length <= 2, "at most two agent slots for one account");
+  assert.ok(runs.filter(r => r.status === "fulfilled").length <= 1, "at most one agent slot for one account");
   const slots = await Promise.allSettled([0, 1, 2].map(() => reserveCloudSlot("explore", 3, 60_000, "auth0|alice")));
   assert.ok(slots.filter(r => r.status === "fulfilled").length <= 1, "at most one explore slot for one account");
   // Someone else is never locked out by the race.

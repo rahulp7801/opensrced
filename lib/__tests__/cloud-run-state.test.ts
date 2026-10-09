@@ -98,7 +98,8 @@ test("hosted run records are bound to their owner, id, sandbox, and bounded log 
     status: "running",
     log_path: "",
     sandbox_name: "c-1767225600000-abcdef123456",
-    expires_at: Date.now() + 60_000,
+    // 45 minutes after the id's timestamp: the furthest a real run can expire.
+    expires_at: 1767225600000 + 45 * 60_000,
     log: "working\n",
     log_size: 8,
   } satisfies CloudRun;
@@ -120,6 +121,8 @@ test("hosted run records are bound to their owner, id, sandbox, and bounded log 
     { log: "x".repeat(250_001), log_size: 250_001 },
     { issue_number: -1 },
     { pr_url: "javascript:alert(1)" },
+    // A worker cannot keep its run (and its slot) alive past the id's lifetime.
+    { expires_at: 1767225600000 + 2 * 60 * 60_000 },
     { pr_failure_reason: "x".repeat(501) },
     { stats: { cost_usd: -1, has_diff: true } },
     { stats: { cost_usd: null, has_diff: "yes" } },

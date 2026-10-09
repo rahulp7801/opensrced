@@ -65,9 +65,8 @@ RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
 WORKDIR /app
 
 # Dependencies first so a source-only change doesn't reinstall them.
-# --legacy-peer-deps: react-diff-viewer-continued hasn't declared React 19.
 COPY package.json package-lock.json ./
-RUN npm ci --legacy-peer-deps
+RUN npm ci
 
 # Keep graph dependencies isolated and identical to the Vercel worker image.
 COPY requirements-graph.txt ./

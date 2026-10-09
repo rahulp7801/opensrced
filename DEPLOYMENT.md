@@ -104,7 +104,7 @@ unrestricted public multi-tenant execution service.
 ## Repeatable checks
 
 ```sh
-npm ci --legacy-peer-deps
+npm ci
 npm test
 npm run typecheck
 npm audit --audit-level=high
@@ -236,7 +236,7 @@ unavailable rather than clean. The open CodeQL flows are documented in
 [SECURITY.md](SECURITY.md#reviewed-external-data-flows) and remain visible.
 
 - Configure Auth0, private Blob, and worker snapshots in both Vercel projects.
-  Private-org connections also need `GITHUB_APP_SLUG`; there is no default app.
+  Private-org connections also need `GITHUB_APP_SLUG`; there is no default app. Grant the App exactly: Contents read/write, Pull requests read/write, Issues read, Metadata read. Do not grant Workflows: run tokens request only these permissions, and an App without Workflows cannot be used to change CI in a connected repository.
 - If the local alternative is used, exercise the CI-verified Linux image on its
   target host with the real reverse proxy and persistent volumes.
 - Verify Auth0 login/logout, GitHub token scopes, saved keys, preview, live PR,

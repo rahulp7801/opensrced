@@ -76,15 +76,14 @@ Python 3.11 or later. Local agent execution requires Claude CLI and Gitleaks;
 the Docker image packages those runtimes.
 
 ```sh
-npm ci --legacy-peer-deps
+npm ci
 npm --prefix mcp-server ci
 npm --prefix mcp-server run build
 cp .env.example .env.local
 ```
 
 On PowerShell, use `Copy-Item .env.example .env.local` for the last command.
-`--legacy-peer-deps` is required because the diff viewer has not declared React
-19 support. Keep `.env.local` out of source control.
+Keep `.env.local` out of source control.
 
 ### Without Auth0
 

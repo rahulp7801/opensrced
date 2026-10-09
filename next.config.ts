@@ -28,6 +28,9 @@ const config: NextConfig = {
         { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
         { key: "X-Content-Type-Options", value: "nosniff" },
         { key: "X-Frame-Options", value: "SAMEORIGIN" },
+        // Sign-in is a full redirect, never a popup, so nothing needs a
+        // cross-origin window handle to this one.
+        { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
       ],
     }];
   },

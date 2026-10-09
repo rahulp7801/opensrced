@@ -81,7 +81,8 @@ test("run tokens are minted for exactly the requested repository", async (t) => 
     return Response.json({ token: "scoped-installation-value" });
   });
   assert.equal(await mintInstallationToken(704, ["widgets"]), "scoped-installation-value");
-  assert.deepEqual(bodies, [{ repositories: ["widgets"] }]);
+  // Repository-scoped tokens also narrow permissions: no `workflows`.
+  assert.deepEqual(bodies, [{ repositories: ["widgets"], permissions: { contents: "write", pull_requests: "write", issues: "read", metadata: "read" } }]);
   for (const scope of [[], ["../other"], ["a/b"]]) await assert.rejects(mintInstallationToken(704, scope), /Invalid repository scope/);
 });
 
@@ -103,7 +104,7 @@ test("repository-scoped tokens are cached apart and cleared with their installat
   const scoped = await getInstallationToken(705, "Widgets");
   assert.notEqual(wide, scoped);
   assert.equal(await getInstallationToken(705, "widgets"), scoped, "case-insensitive cache hit");
-  assert.deepEqual(bodies.map(body => JSON.parse(body)), [{}, { repositories: ["Widgets"] }]);
+  assert.deepEqual(bodies.map(body => JSON.parse(body)), [{}, { repositories: ["Widgets"], permissions: { contents: "write", pull_requests: "write", issues: "read", metadata: "read" } }]);
   clearInstallationToken(705);
   await getInstallationToken(705, "widgets");
   assert.equal(bodies.length, 3, "clearing the installation drops its repository tokens too");

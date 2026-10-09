@@ -11,6 +11,7 @@ import { readJsonBody } from "@/lib/request-body";
 // 4. Syntax — basic AST-level checks (balanced braces, valid structure)
 // 5. Impact — if graph data available, show downstream callers
 
+import { redactGitCredentials } from "@/lib/git-auth";
 import { NextRequest } from "next/server";
 import { existsSync } from "node:fs";
 import { graphJsonPath, loadGraph } from "@/lib/graph";
@@ -295,7 +296,9 @@ export async function POST(req: NextRequest) {
           release = reserveSlot("graph", 2);
           await saveStoredGraph(userId, body.repo, await buildGraphWorker(`${m[1]}/${m[2]}`, repositoryToken, req.signal));
         } catch (error) {
-          buildError = error instanceof Error ? error.message : "graph build failed";
+          // A failed clone's message repeats git's argv, including the
+          // credential header; never return that to the browser.
+          buildError = error instanceof Error ? redactGitCredentials(error.message) : "graph build failed";
         } finally {
           release?.();
         }

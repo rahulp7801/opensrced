@@ -86,11 +86,20 @@ export function normalizeDiff(raw: string): string {
   return diff;
 }
 
-/** Every file path the diff claims to touch. */
+/** Every file path the diff claims to touch: header names read to the end of
+ *  the line (so names with spaces are checked whole, minus a tab-separated
+ *  timestamp), plus both names on `diff --git` lines, which git and GNU patch
+ *  also honour. */
 export function diffTouchedFiles(diff: string): string[] {
-  return [...new Set([...diff.matchAll(/^(?:\+\+\+|---) (?:[ab]\/)?(\S+)/gm)]
-    .map((m) => m[1])
-    .filter((p) => p !== "/dev/null"))];
+  const headers = [...diff.matchAll(/^(?:\+\+\+|---) (?:[ab]\/)?([^\t\n]+)/gm)].map((m) => m[1].trimEnd());
+  const gitNames = [...diff.matchAll(/^diff --git a\/(\S+) b\/(\S+)\s*$/gm)].flatMap((m) => [m[1], m[2]]);
+  return [...new Set([...headers, ...gitNames].filter((p) => p !== "/dev/null"))];
+}
+
+/** Renames and copies name a second path the header checks would miss; an
+ *  issue fix never needs them, so they are refused outright. */
+export function hasRenameOrCopy(diff: string): boolean {
+  return /^(?:rename|copy) (?:from|to) /m.test(diff);
 }
 
 async function run(cmd: string, args: string[], opts: { cwd?: string; env?: NodeJS.ProcessEnv }) {
@@ -134,7 +143,7 @@ export async function applyDiff(
   await writeFile(patchPath, normalized, { mode: 0o600 });
 
   const files = diffTouchedFiles(normalized);
-  if (files.some(file => !containedPath(dir, file)) || hasUnsafeMode(normalized)) {
+  if (files.some(file => !containedPath(dir, file)) || hasUnsafeMode(normalized) || hasRenameOrCopy(normalized)) {
     return { ok: false, errors: ["Patch contains an unsafe path, Git metadata, or a symbolic link."] };
   }
   const errors: string[] = [];
@@ -172,8 +181,9 @@ export async function applyDiff(
 
   // GNU patch slides hunks to find their match, which handles the very
   // common case of Claude writing the right change with a wrong @@ line
-  // number. -p0 covers diffs whose paths never had a/ b/ prefixes.
-  for (const strip of ["-p1", "-p0"]) {
+  // number. Only -p1: normalizeDiff gives every header an a/ or b/ prefix,
+  // and -p0 would write a path other than the one checked above.
+  for (const strip of ["-p1"]) {
     try {
       await run("patch", [strip, "--batch", "--forward", "--fuzz=3", "--no-backup-if-mismatch", "-i", patchPath], {
         cwd: dir,

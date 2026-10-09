@@ -20,7 +20,7 @@ try {
   await run('apt-get', ['install', '-y', 'git', 'gh', 'patch', 'curl', 'ca-certificates', 'python3-venv'], true);
   await run('python3', ['-m', 'venv', '/opt/graph'], true);
   await run('/opt/graph/bin/python', ['-m', 'pip', 'install', '--no-cache-dir', '-r', '/vercel/sandbox/requirements-graph.txt'], true);
-  await run('npm', ['ci', '--legacy-peer-deps']);
+  await run('npm', ['ci']);
   await run('npm', ['ci', '--prefix', 'mcp-server']);
   await run('npm', ['run', 'build', '--prefix', 'mcp-server']);
   await run('npm', ['run', 'build:worker']);

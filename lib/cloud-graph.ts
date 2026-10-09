@@ -2,6 +2,7 @@ import { Sandbox } from "@vercel/sandbox";
 import { randomBytes } from "node:crypto";
 import { GRAPH_MAX_BYTES, unpackGraph, type StoredGraph } from "./graph-worker";
 import { assertWorkerProtocol } from "./worker-protocol";
+import { GRAPH_EGRESS } from "./sandbox-egress";
 
 export async function buildCloudGraph(repo: string, token: string | null, signal: AbortSignal, progress: (message: string) => void, release: () => void | Promise<void>): Promise<StoredGraph> {
   const snapshotId = process.env.OPENSRCER_WORKER_SNAPSHOT_ID;
@@ -9,7 +10,7 @@ export async function buildCloudGraph(repo: string, token: string | null, signal
   const outputPath = `/tmp/opensrcer-graph-${randomBytes(16).toString("hex")}.json.gz`;
   try {
     if (!snapshotId) throw new Error("Graph hosting is not configured");
-    sandbox = await Sandbox.create({ source: { type: "snapshot", snapshotId }, persistent: false, timeout: 5 * 60_000, signal });
+    sandbox = await Sandbox.create({ source: { type: "snapshot", snapshotId }, networkPolicy: GRAPH_EGRESS, persistent: false, timeout: 5 * 60_000, signal });
     await assertWorkerProtocol(sandbox, signal);
     const command = await sandbox.runCommand({ cmd: "node", args: ["scripts/sandbox-graph.cjs"], cwd: "/vercel/sandbox", env: { OPENSRCER_GRAPH: JSON.stringify({ repo, token, outputPath }) }, detached: true, signal });
     let buffer = "";

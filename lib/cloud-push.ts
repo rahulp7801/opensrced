@@ -2,6 +2,7 @@ import { Sandbox } from "@vercel/sandbox";
 import { reserveCloudSlot } from "./cloud-capacity";
 import type { PushPatch } from "./pr-push";
 import { assertWorkerProtocol } from "./worker-protocol";
+import { PUSH_EGRESS } from "./sandbox-egress";
 
 export async function cloudPush(input: PushPatch, token: string, requestSignal: AbortSignal, ownerId: string) {
   const snapshotId = process.env.OPENSRCER_WORKER_SNAPSHOT_ID;
@@ -10,7 +11,7 @@ export async function cloudPush(input: PushPatch, token: string, requestSignal: 
   let sandbox: Sandbox | undefined;
   try {
     const signal = AbortSignal.any([requestSignal, AbortSignal.timeout(4 * 60_000)]);
-    sandbox = await Sandbox.create({ source: { type: "snapshot", snapshotId }, persistent: false, timeout: 4 * 60_000, signal });
+    sandbox = await Sandbox.create({ source: { type: "snapshot", snapshotId }, networkPolicy: PUSH_EGRESS, persistent: false, timeout: 4 * 60_000, signal });
     await assertWorkerProtocol(sandbox, signal);
     const command = await sandbox.runCommand({ cmd: "node", args: ["scripts/sandbox-push.cjs"], cwd: "/vercel/sandbox", env: { OPENSRCER_PUSH: JSON.stringify({ input, token }) }, signal });
     const result = JSON.parse(await command.stdout());

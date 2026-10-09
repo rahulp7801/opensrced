@@ -594,14 +594,9 @@ export default function GraphPage() {
               <span className="text-xs text-paper-faint font-medium">
                 {engine === "crg" ? "code-review-graph" : "interactive graph"} — {owner}/{repo}
               </span>
-              <a
-                href={`/api/graph/${owner}/${repo}/viz`}
-                target="_blank"
-                rel="noopener"
-                className="text-xs text-paper-muted hover:text-signal transition-colors"
-              >
-                open fullscreen
-              </a>
+              {/* No "open fullscreen" link: as its own tab the graph HTML (built
+                  from repository content) could navigate that tab; inside this
+                  sandboxed iframe it cannot. */}
             </div>
             <iframe
               sandbox="allow-scripts"

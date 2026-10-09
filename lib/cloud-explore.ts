@@ -3,6 +3,7 @@ import { reserveCloudSlot } from "./cloud-capacity";
 import { CapacityError } from "./concurrency";
 import { claudeEvents } from "./claude-events";
 import { assertWorkerProtocol } from "./worker-protocol";
+import { EXPLORE_EGRESS } from "./sandbox-egress";
 
 export async function cloudExplore(args: string[], credentials: Record<string, string>, requestSignal: AbortSignal, ownerId: string): Promise<Response> {
   const snapshotId = process.env.OPENSRCER_WORKER_SNAPSHOT_ID;
@@ -33,9 +34,9 @@ export async function cloudExplore(args: string[], credentials: Record<string, s
         }
       };
       try {
-        sandbox = await Sandbox.create({ source: { type: "snapshot", snapshotId }, persistent: false, timeout: 3 * 60_000, signal });
+        sandbox = await Sandbox.create({ source: { type: "snapshot", snapshotId }, networkPolicy: EXPLORE_EGRESS, persistent: false, timeout: 3 * 60_000, signal });
         await assertWorkerProtocol(sandbox, signal);
-        const command = await sandbox.runCommand({ cmd: "claude", args, cwd: "/vercel/sandbox", env: credentials, detached: true, signal });
+        const command = await sandbox.runCommand({ cmd: "claude", args, cwd: "/vercel/sandbox", env: { ...credentials, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1" }, detached: true, signal });
         let buffer = "";
         for await (const log of command.logs({ signal })) {
           if (log.stream !== "stdout") continue;

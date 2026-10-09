@@ -6,7 +6,7 @@
     "node": "24.x"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -H 127.0.0.1",
     "build": "next build",
     "build:worker": "tsc -p tsconfig.worker.json && node --check scripts/sandbox-worker.cjs && node --check scripts/sandbox-graph.cjs && node --check scripts/sandbox-push.cjs",
     "start": "next start",
@@ -17,8 +17,6 @@
   },
   "dependencies": {
     "@auth0/nextjs-auth0": "^4.30.0",
-    "@octokit/app": "^16.1.4",
-    "@octokit/request": "^10.0.8",
     "@phosphor-icons/react": "2.1.10",
     "@vercel/blob": "2.8.0",
     "@vercel/sandbox": "3.5.0",
@@ -26,9 +24,7 @@
     "gsap": "3.15.0",
     "next": "15.5.27",
     "react": "19.3.0",
-    "react-diff-viewer-continued": "^4.4.0",
     "react-dom": "19.3.0",
-    "sonner": "^2.0.8",
     "tailwind-merge": "^2.5.5"
   },
   "overrides": {

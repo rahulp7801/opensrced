@@ -81,6 +81,7 @@ export default function SharedFixPage() {
           <span className="text-xs text-paper-faint ml-auto">{new Date(fix.created_at).toLocaleString()}</span>
         </div>
         <h1 className="serif text-[22px] text-paper">{fix.repo}</h1>
+        <p className="mt-1 text-[12px] text-paper-muted">Shared by an opensrcer user. opensrcer does not review shared fixes; check the code before you use it.</p>
 
         {fix.comment_body && (
           <div className="mt-3 px-3 py-2 border-l-2 border-signal/40 bg-ink/30 text-[12px] text-paper-dim">
@@ -139,7 +140,6 @@ export default function SharedFixPage() {
       {/* Footer */}
       <div className="mt-6 text-center text-[11px] text-paper-faint">
         <p>Available until {new Date(Date.parse(fix.created_at) + SHARED_FIX_RETENTION_MS).toLocaleString()}</p>
-        <p className="mt-1">Shared by an opensrcer user. opensrcer does not review shared fixes; check the code before you use it.</p>
       </div>
     </div>
   );

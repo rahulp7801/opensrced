@@ -41,3 +41,26 @@ test("patch modes are allowlisted, however git would spell a symlink", async () 
     assert.equal(hasUnsafeMode(`diff --git a/f b/f\n${line}\n`), false, JSON.stringify(line));
   }
 });
+
+test("renames, copies and diff --git names cannot reach paths the header check skips", async () => {
+  const root = mkdtempSync(join(tmpdir(), "opensrcer-patch-names-"));
+  try {
+    const repo = join(root, "repo");
+    mkdirSync(join(repo, ".git"), { recursive: true });
+    writeFileSync(join(repo, ".git", "config"), "original\n");
+    writeFileSync(join(repo, "safe.txt"), "original\n");
+    const attempts = [
+      // A rename names its destination only in the extended header.
+      "diff --git a/safe.txt b/.git/config\nsimilarity index 100%\nrename from safe.txt\nrename to .git/config\n",
+      "diff --git a/safe.txt b/moved.txt\ncopy from safe.txt\ncopy to moved.txt\n",
+      // The diff --git name escapes while the ---/+++ names look harmless.
+      "diff --git a/.git/config b/.git/config\n--- a/safe.txt\n+++ b/safe.txt\n@@ -1 +1 @@\n-original\n+changed\n",
+    ];
+    for (const diff of attempts) {
+      const result = await applyDiff(repo, diff, join(root, "fix.patch"));
+      assert.equal(result.ok, false, diff.split("\n")[0]);
+    }
+    assert.equal(readFileSync(join(repo, ".git", "config"), "utf8"), "original\n");
+    assert.equal(readFileSync(join(repo, "safe.txt"), "utf8"), "original\n");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});

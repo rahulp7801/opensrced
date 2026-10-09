@@ -43,6 +43,11 @@ export function appJwt(): string {
   return `${signingInput}.${signature}`;
 }
 
+/** Permissions for repository-scoped run tokens. The GitHub App must be
+ *  granted at least these (see DEPLOYMENT.md); it should not be granted
+ *  `workflows` at all. */
+const RUN_TOKEN_PERMISSIONS = { contents: "write", pull_requests: "write", issues: "read", metadata: "read" } as const;
+
 /** `repositories` narrows the token to those repository names in the
  *  installation; omitted, it covers every repository the installation has. */
 export async function mintInstallationToken(installationId: number, repositories?: string[]): Promise<string> {
@@ -50,7 +55,12 @@ export async function mintInstallationToken(installationId: number, repositories
   if (repositories && (repositories.length === 0 || repositories.some(name => !/^[A-Za-z0-9_.-]{1,100}$/.test(name)))) {
     throw new Error("Invalid repository scope");
   }
-  const json = await githubApi<{ token: string }>(`/app/installations/${installationId}/access_tokens`, appJwt(), repositories ? { repositories } : {});
+  // Repository-scoped tokens go into worker VMs that act on attacker-
+  // controllable content. Request only what a run needs: no `workflows`, so
+  // an injected patch can never change CI in a connected organization's repo
+  // (GitHub refuses such pushes), and nothing beyond this repository.
+  const body = repositories ? { repositories, permissions: RUN_TOKEN_PERMISSIONS } : {};
+  const json = await githubApi<{ token: string }>(`/app/installations/${installationId}/access_tokens`, appJwt(), body);
   if (typeof json.token !== "string" || !json.token) throw new Error("GitHub returned no installation token");
   return json.token;
 }

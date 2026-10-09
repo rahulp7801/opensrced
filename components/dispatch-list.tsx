@@ -182,7 +182,7 @@ export function DispatchList() {
   // being called twice per render on top of that. A running dispatch renders
   // every 1.5s against a log that reaches 200KB, so key them on the log.
   const log = detail?.log ?? "";
-  const prInfo = useMemo(() => extractPrInfo(log), [log]);
+  const prInfo = useMemo(() => extractPrInfo(detail?.pr_url), [detail?.pr_url]);
   const cost = useMemo(() => extractCost(log), [log]);
 
   // #10: Loading skeleton
@@ -399,7 +399,7 @@ export function DispatchList() {
             {/* Pipeline timeline */}
             {detail.log && (
               <div className="border-b border-border px-4 py-2">
-                <PipelineTimeline log={detail.log} status={detail.status} />
+                <PipelineTimeline log={detail.log} status={detail.status} prUrl={detail.pr_url} />
               </div>
             )}
 
@@ -426,7 +426,7 @@ export function DispatchList() {
             })()}
 
             {/* Diff preview */}
-            <DiffPreviewFromLog log={detail.log} prOpened={!!prInfo} dryRun={detail.dry_run} />
+            <DiffPreviewFromLog log={detail.log} prOpened={!!prInfo} prUrl={detail.pr_url} dryRun={detail.dry_run} />
 
             {/* Log */}
             <LogViewer log={detail.log} isRunning={detail.status === "running"} logRef={logRef} onScroll={onLogScroll} />
@@ -718,7 +718,7 @@ function AnsiLog({ text }: { text: string }) {
 function ExportButton({ dispatch }: { dispatch: DispatchWithLog }) {
   function download() {
     const repo = dispatchTarget(dispatch);
-    const prInfo = extractPrInfo(dispatch.log);
+    const prInfo = extractPrInfo(dispatch.pr_url);
     const diff = extractFirstDiff(dispatch.log);
     const costMatch = /total_cost_usd=([\d.]+)/.exec(dispatch.log);
     const cost = costMatch ? parseFloat(costMatch[1]) : null;
@@ -763,8 +763,8 @@ function ExportButton({ dispatch }: { dispatch: DispatchWithLog }) {
   );
 }
 
-function PipelineTimeline({ log, status }: { log: string; status: string }) {
-  const hasPullRequest = Boolean(findGitHubPullUrl(log));
+function PipelineTimeline({ log, status, prUrl }: { log: string; status: string; prUrl?: string }) {
+  const hasPullRequest = Boolean(extractPrInfo(prUrl));
   const phases = [
     { label: "clone", done: log.includes("[agentic-dispatcher] repo:"), active: status === "running" && !/grep|read_file|find_definition/.test(log), failed: false },
     { label: "explore", done: /find_definition|read_file|grep|list_files|repo_info/.test(log), active: status === "running" && /find_definition|read_file|grep/.test(log) && !/```diff/.test(log), failed: false },
@@ -966,7 +966,7 @@ function extractLogSection(log: string, headingAlt: string): string | null {
   return re.exec(log)?.[1]?.trim() ?? null;
 }
 
-function DiffPreviewFromLog({ log, prOpened, dryRun }: { log: string; prOpened: boolean; dryRun: boolean }) {
+function DiffPreviewFromLog({ log, prOpened, prUrl, dryRun }: { log: string; prOpened: boolean; prUrl?: string; dryRun: boolean }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -976,7 +976,7 @@ function DiffPreviewFromLog({ log, prOpened, dryRun }: { log: string; prOpened: 
   const diagnosis = extractLogSection(log, "Diagnosis|Analysis|Root cause|Problem");
   const risk = extractLogSection(log, "Risk\\s*/\\s*Test|Risk / test|Risk and test|Testing|Test notes");
   const prTitle = extractLogSection(log, "PR title|Suggested PR title|Title");
-  const prInfo = extractPrInfo(log);
+  const prInfo = extractPrInfo(prUrl);
 
   async function copyDiff() {
     try {
@@ -1190,12 +1190,9 @@ function DiffPane({ lines, tone }: { lines: DiffRow[]; tone: "before" | "after" 
 
 type PrInfo = { url: string; repoFull: string; prNumber: number };
 
-// Scan the dispatch log for the first GitHub PR URL and parse owner/repo/n.
-// One regex handles both producers:
-//   deterministic contribai: '✅ PR #N created → https://github.com/.../pull/N'
-//                          + 'INFO PR created ... url=https://github.com/.../pull/N'
-//   agentic auto-PR:        '[agentic-pr] opened draft PR: https://github.com/.../pull/N'
-function extractPrInfo(log: string): PrInfo | null {
-  if (!log) return null;
-  return findGitHubPullUrl(log);
+// Only the run record's pr_url, which the server sets when it opens the PR.
+// The log can't be trusted for this: model output is written into it, so an
+// injected issue could print a "PR opened" line pointing at any PR.
+function extractPrInfo(prUrl: string | undefined): PrInfo | null {
+  return prUrl ? findGitHubPullUrl(prUrl) : null;
 }

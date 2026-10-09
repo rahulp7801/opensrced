@@ -28,6 +28,7 @@ import {
 import { cloudRunLease, cloudRunLeaseIsStarting } from "./cloud-leases";
 import { cloudWorkerJobJson } from "./cloud-worker-job";
 import { assertWorkerProtocol } from "./worker-protocol";
+import { AGENT_EGRESS } from "./sandbox-egress";
 
 const TTL = 45 * 60_000;
 const MAX_LISTED_RECORDS = 250;
@@ -73,8 +74,9 @@ async function pruneCloudRunHistory(owner: string): Promise<void> {
   ]), { abortSignal: AbortSignal.timeout(8_000) });
 }
 
-/** One account may hold this many of the three agent slots at once. */
-const PER_OWNER_RUNS = 2;
+/** One account may hold this many of the three agent slots at once. With
+ *  two, a pair of accounts could hold every slot and lock everyone out. */
+const PER_OWNER_RUNS = 1;
 
 type StoredLease = Awaited<ReturnType<typeof readJson<unknown>>>;
 
@@ -97,7 +99,9 @@ async function slotState(stored: StoredLease): Promise<{ busy: boolean; owner?: 
     !await readJson(lease.path.replace(/\/runs\/[^/]+$/, `/cancelled-runs/${lease.id}.json`)));
   // Name the VM from the lease's own id, never from the record: a worker
   // can rewrite its record, and must not be able to aim this at another VM.
-  return { busy, owner, finishedRunId: !busy && prior && !prior.sandbox_stopped ? lease.id : undefined };
+  // Stop it on every reclaim, ignoring the record's sandbox_stopped: a
+  // worker could claim it had stopped and keep billing until its timeout.
+  return { busy, owner, finishedRunId: busy ? undefined : lease.id };
 }
 
 async function ownerSlots(ownerRuns: string): Promise<number> {
@@ -114,7 +118,9 @@ async function ownerSlots(ownerRuns: string): Promise<number> {
 export async function reserveCapacity(path: string, expires: number): Promise<string> {
   // Run paths are users/<owner hash>/runs/<id>.json; the directory names the owner.
   const ownerRuns = path.slice(0, path.lastIndexOf("/") + 1);
-  const tooMany = () => new CapacityError(`You already have ${PER_OWNER_RUNS} runs in progress. Try again when one finishes.`);
+  const tooMany = () => new CapacityError(PER_OWNER_RUNS === 1
+    ? "You already have a run in progress. Try again when it finishes."
+    : `You already have ${PER_OWNER_RUNS} runs in progress. Try again when one finishes.`);
   let mine = 0;
   const reclaimable: Array<{ key: string; stored: StoredLease; finishedRunId?: string }> = [];
   for (let slot = 0; slot < 3; slot++) {
@@ -178,7 +184,7 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
   try {
     await writeRun(path, run);
     await writeSummary(summaryPath, run);
-    const sandbox = await Sandbox.create({ name: run.sandbox_name, source: { type: "snapshot", snapshotId },
+    const sandbox = await Sandbox.create({ name: run.sandbox_name, source: { type: "snapshot", snapshotId }, networkPolicy: AGENT_EGRESS,
       persistent: false, timeout: WORKER_TIMEOUT_MS, signal: AbortSignal.timeout(60_000) });
     await assertWorkerProtocol(sandbox);
     const tokenOptions = { allowedContentTypes: ["application/json"],

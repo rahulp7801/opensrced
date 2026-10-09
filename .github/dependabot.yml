@@ -4,6 +4,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Let a fresh release age a week first; a hijacked package is usually
+    # caught and yanked within days.
+    cooldown:
+      default-days: 7
     groups:
       app-dependencies:
         patterns: ["*"]
@@ -16,6 +20,10 @@ updates:
     directory: /mcp-server
     schedule:
       interval: weekly
+    # Let a fresh release age a week first; a hijacked package is usually
+    # caught and yanked within days.
+    cooldown:
+      default-days: 7
     groups:
       mcp-dependencies:
         patterns: ["*"]
@@ -31,6 +39,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Let a fresh release age a week first; a hijacked package is usually
+    # caught and yanked within days.
+    cooldown:
+      default-days: 7
     groups:
       graph-dependencies:
         patterns: ["*"]
@@ -50,6 +62,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Let a fresh release age a week first; a hijacked package is usually
+    # caught and yanked within days.
+    cooldown:
+      default-days: 7
     ignore:
       # Stay on Node 24 / Debian bookworm; take digest and patch updates only.
       - dependency-name: "*"
@@ -59,6 +75,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Let a fresh release age a week first; a hijacked package is usually
+    # caught and yanked within days.
+    cooldown:
+      default-days: 7
     groups:
       workflow-actions:
         patterns: ["*"]

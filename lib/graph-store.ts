@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { BlobNotFoundError, get, head, put } from "@vercel/blob";
+import { BlobNotFoundError, del, get, head, list, put } from "@vercel/blob";
 import { existsSync } from "node:fs";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
@@ -9,9 +9,22 @@ import { parseRunTarget } from "./run-target";
 import { graphJsonPath, graphHtmlPath } from "./graph";
 import { GRAPH_JSON_MAX_BYTES, GRAPH_MAX_BYTES, packGraph, parseStoredGraph, unpackGraph, type StoredGraph } from "./graph-worker";
 
-function graphPath(userId: string, repo: string): string {
+function graphPrefix(userId: string): string {
   if (!userId) throw new Error("Graph owner is required");
-  return `users/${createHash("sha256").update(userId).digest("hex")}/graphs/${parseRunTarget(repo).repo.toLowerCase()}.json.gz`;
+  return `users/${createHash("sha256").update(userId).digest("hex")}/graphs/`;
+}
+
+function graphPath(userId: string, repo: string): string {
+  return `${graphPrefix(userId)}${parseRunTarget(repo).repo.toLowerCase()}.json.gz`;
+}
+
+/** Graphs an account keeps. Each can be tens of MB, and nothing else ever
+ *  removes them, so without a cap one account could fill the store. */
+export const GRAPHS_PER_ACCOUNT = 20;
+
+/** The stored graphs to delete so only the newest `keep` remain. Exported for tests. */
+export function staleGraphPaths(blobs: Array<{ pathname: string; uploadedAt: Date }>, keep = GRAPHS_PER_ACCOUNT): string[] {
+  return [...blobs].sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime()).slice(keep).map((blob) => blob.pathname);
 }
 
 // A Django-size graph costs ~0.3 s to unzip and parse plus a 3 MB download, so
@@ -51,6 +64,11 @@ export async function hasStoredGraph(userId: string, repo: string): Promise<bool
 export async function saveStoredGraph(userId: string, repo: string, graph: StoredGraph): Promise<void> {
   if (cloudExecution()) {
     await put(graphPath(userId, repo), packGraph(graph), { ...privateJsonOptions, contentType: "application/gzip", allowOverwrite: true, abortSignal: AbortSignal.timeout(30_000) });
+    // Cleanup never fails the save that triggered it.
+    await list({ prefix: graphPrefix(userId), limit: 1000, abortSignal: AbortSignal.timeout(8_000) })
+      .then(({ blobs }) => staleGraphPaths(blobs))
+      .then((stale) => stale.length ? del(stale, { abortSignal: AbortSignal.timeout(8_000) }) : undefined)
+      .catch(() => {});
     return;
   }
   graph = parseStoredGraph(graph);

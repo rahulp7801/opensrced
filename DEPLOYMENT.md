@@ -19,11 +19,17 @@ The projects already contain separate generated `AUTH0_SECRET` values and the
 correct `APP_BASE_URL` for their stable origins. Do not copy the secret between
 environments. As of October 6, 2026 the production project has Auth0, a private
 Blob store (`opensrced-prod`, Production scope only) and a worker snapshot
-(`OPENSRCER_WORKER_SNAPSHOT_ID`, rebuilt October 8 from `ed8dce8`). The staging project
-still lacks Auth0 credentials, Blob and a snapshot. The Vercel Firewall rule "shared-fix lookups"
-rate-limits `/api/fixes/` and `/fix/` to 30 requests per minute per IP, since
-each anonymous lookup is an uncached Blob read (verified: the 29th request in a
-minute returns 429).
+(`OPENSRCER_WORKER_SNAPSHOT_ID`, rebuilt October 9 from `fb704b6`). The staging project
+still lacks Auth0 credentials, Blob and a snapshot. The Vercel Firewall rule "expensive routes" (Hobby allows one rate-limit
+rule) gives every route that costs Blob reads or a sandbox VM a shared budget of
+30 requests per minute per IP: `/api/fixes*`, `/fix/`, `/api/graph/*`,
+`/api/prs/verify`, `/api/prs/fix`, `/api/run/agentic`,
+`/api/crucible/run/agentic` and `/api/explore`.
+
+Worker VMs run behind egress allowlists (`lib/sandbox-egress.ts`). Verified
+October 9 from a sandbox on the agent policy: `api.github.com` answers, while
+`example.com`, `pastebin.com` and `1.1.1.1` are unreachable. If a job needs a
+new host, add it there, or that step fails with a network error.
 
 Vercel serves Next.js; isolated Vercel Sandboxes execute agent jobs. Private Blob
 stores run results, cancellation markers, organization connections, and shared

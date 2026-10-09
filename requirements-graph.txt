@@ -2,10 +2,9 @@
 #   uv pip compile requirements-graph.in --generate-hashes --python-version 3.11 --no-header -o requirements-graph.txt
 # pip enforces these hashes on its own, so a new file uploaded to a pinned
 # version (a hijacked maintainer) is refused. Python 3.11 matches the Docker image.
-
-graphifyy==0.9.69 \
-    --hash=sha256:0d6878847790207a383be9434cb81e276ab7597ab7005eddcd06e06ece3c8d61 \
-    --hash=sha256:30434707325766a7bc1b4d9d9607ddfe6dcb534ef3efd4bf5e5aa7a64318cca8
+graphifyy==0.9.73 \
+    --hash=sha256:0f976b424e7af942a9ee4c80711b67a1a4f47ef7c85e29d79293f4479476be31 \
+    --hash=sha256:ebf525ce442176710a5f9137a2b5d17244916bfbdf7150b90f446851ecd227be
     # via -r requirements-graph.in
 networkx==3.6.1 \
     --hash=sha256:26b7c357accc0c8cde558ad486283728b65b6a95d85ee1cd66bafab4c8168509 \

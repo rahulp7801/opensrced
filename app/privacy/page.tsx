@@ -38,8 +38,8 @@ const SECTIONS: { title: string; body: React.ReactNode }[] = [
       <>
         When you start a run, the issue and the relevant repository source are sent to the AI provider you configured,
         using your key. Run records, logs and code graphs are stored privately and scoped to your account; logs can
-        contain repository content but never credential values. Your newest 100 runs are kept and older ones are
-        removed automatically. Each job runs in a disposable virtual machine that is stopped when the job ends.
+        contain repository content but never credential values. Your newest 100 runs and 20 code graphs are kept
+        and older ones are removed automatically. Each job runs in a disposable virtual machine that is stopped when the job ends.
       </>
     ),
   },

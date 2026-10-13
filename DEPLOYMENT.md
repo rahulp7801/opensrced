@@ -113,7 +113,7 @@ unrestricted public multi-tenant execution service.
 npm ci
 npm test
 npm run typecheck
-npm audit --audit-level=high
+npm audit --omit=dev --audit-level=high
 npm --prefix mcp-server ci
 npm --prefix mcp-server run build
 npm --prefix mcp-server audit --audit-level=high

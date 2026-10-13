@@ -241,22 +241,36 @@ recognized prompt credentials; incomplete Gemini reviews are recorded as
 unavailable rather than clean. The open CodeQL flows are documented in
 [SECURITY.md](SECURITY.md#reviewed-external-data-flows) and remain visible.
 
-- Configure Auth0, private Blob, and worker snapshots in both Vercel projects.
-  Private-org connections also need `GITHUB_APP_SLUG`; there is no default app. Grant the App exactly: Contents read/write, Pull requests read/write, Issues read, Metadata read. Do not grant Workflows: run tokens request only these permissions, and an App without Workflows cannot be used to change CI in a connected repository.
+Done as of October 13, 2026:
+
+- Production has Auth0, a private Blob store and a worker snapshot; GitHub
+  sign-in and sign-out work on the deployed project.
+- The hosted path was driven end to end from a local server in sandbox mode
+  (`AUTH_DISABLED=1 OPENSRCER_EXECUTION=sandbox`) against a dev-only private Blob
+  store: graph builds, a preview run on a public issue (snapshot boot, worker
+  start, triage, Claude Code with the MCP tools, a provider 401 from a
+  deliberately invalid key, failure recorded, log streamed), exploration, and
+  cancellation (`killed`, VM stopped), with every VM confirmed stopped after.
+  These were repeated on each rebuilt snapshot and with the egress allowlists on.
+- `.github/workflows/uptime.yml` checks production every 30 minutes; a failed
+  run emails the repository owner.
+
+Still open:
+
+- A run with a valid provider key and a live draft PR on a controlled test
+  repository, then private-organization access. Everything else on the hosted
+  path is verified; these need a real key and the owner's GitHub account.
+- The staging project still lacks Auth0 credentials, Blob and a snapshot.
+- Private-org connections need `GITHUB_APP_SLUG`; there is no default app. Grant
+  the App exactly: Contents read/write, Pull requests read/write, Issues read,
+  Metadata read. Do not grant Workflows: run tokens request only these
+  permissions, and an App without Workflows cannot be used to change CI in a
+  connected repository.
+- Vercel dashboard: Bot Protection (Challenge), AI bots (Deny), and spend
+  alerts on Functions and Sandbox usage.
 - If the local alternative is used, exercise the CI-verified Linux image on its
   target host with the real reverse proxy and persistent volumes.
-- Verify Auth0 login/logout, GitHub token scopes, saved keys, preview, live PR,
-  cancellation, and private-org access against controlled test repositories.
 - Isolate repository code execution before enabling it for untrusted users.
-- Verify the cloud worker lifecycle with a real provider key on the deployed project.
-  On October 7, 2026 the hosted path was driven end to end from a local server in
-  sandbox mode (`AUTH_DISABLED=1 OPENSRCER_EXECUTION=sandbox`) against a dev-only
-  private Blob store: a graph build (1,618 nodes in 84 s), a preview run on a
-  public issue (snapshot boot, worker start, triage, Claude Code with the MCP
-  tools, a provider 401 from a deliberately invalid key, failure recorded, log
-  streamed), and cancellation (`killed`, VM stopped). Every VM was confirmed
-  stopped afterwards. Not yet exercised: a run with a valid key, a live draft PR,
-  and private-organization access.
 - Load-test authenticated scans and real jobs against an agreed workload and
   provider budget; health endpoint concurrency is only a smoke test.
 

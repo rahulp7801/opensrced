@@ -1,0 +1,31 @@
+name: Uptime
+
+# Production check every 30 minutes. A failed run is the alert: GitHub emails
+# the repository owner. Uses no secrets and needs no token permissions.
+# GitHub pauses scheduled workflows after 60 days without repository activity;
+# re-enable it from the Actions tab if that happens.
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/smoke-uptime.mjs
+          sparse-checkout-cone-mode: false
+      - name: Check production
+        env:
+          SMOKE_BASE_URL: https://opensrced.vercel.app
+        run: node scripts/smoke-uptime.mjs

@@ -2,14 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useCurrentUser } from "@/lib/use-current-user";
+import { useCanUseApp } from "@/lib/use-current-user";
 import { Nav } from "./nav";
 import { AuthChip } from "./auth-chip";
 import { IconClose, IconHelp } from "./icons";
 
-export function SiteHeader({ localMode = false }: { localMode?: boolean }) {
-  const { user } = useCurrentUser(localMode);
-  const signedIn = Boolean(user) || localMode;
+export function SiteHeader({ localMode = false, inviteOnly = false }: { localMode?: boolean; inviteOnly?: boolean }) {
+  // "signedIn" drives the app navigation, so it means "may use the app": during
+  // the invite-only preview a signed-in account without an invite gets none.
+  const { canUse } = useCanUseApp(localMode, inviteOnly);
+  const signedIn = canUse;
   const [helpOpen, setHelpOpen] = useState(false);
   const helpButtonRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -65,7 +67,7 @@ export function SiteHeader({ localMode = false }: { localMode?: boolean }) {
             </span>
           </Link>
 
-          {signedIn ? <Nav /> : <nav aria-label="Main navigation" className="ml-auto flex items-center gap-5 px-4 text-[13px]"><Link href="/demo" className="text-paper-dim transition-colors hover:text-paper">Demo</Link></nav>}
+          {signedIn ? <Nav /> : inviteOnly ? <span className="ml-auto" /> : <nav aria-label="Main navigation" className="ml-auto flex items-center gap-5 px-4 text-[13px]"><Link href="/demo" className="text-paper-dim transition-colors hover:text-paper">Demo</Link></nav>}
 
           {signedIn && (
             <button

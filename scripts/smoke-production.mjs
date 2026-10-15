@@ -1,7 +1,18 @@
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 const base = process.env.SMOKE_BASE_URL || 'http://localhost:3100';
-const paths = ['/', '/login', '/privacy', '/trigger', '/issues', '/dispatches', '/stats'];
+// In the invite-only preview (OPENSRCER_ACCESS=invite) the app's client shells
+// ask for sign-in instead of rendering for anonymous visitors.
+const access = await (await fetch(base + '/api/access', { signal: AbortSignal.timeout(15000) })).json();
+const shells = ['/trigger', '/issues', '/dispatches', '/stats'];
+const paths = access.inviteOnly ? ['/', '/login', '/privacy'] : ['/', '/login', '/privacy', ...shells];
+if (access.inviteOnly) {
+  for (const path of shells) {
+    const response = await fetch(base + path, { redirect: 'manual', signal: AbortSignal.timeout(15000) });
+    assert.equal(new URL(response.headers.get('location') ?? '', base).pathname, '/login', `${path} must ask for sign-in in the preview`);
+    await response.text();
+  }
+}
 const securityHeaders = {
   'content-security-policy': "frame-ancestors 'self'",
   'permissions-policy': 'camera=(), microphone=(), geolocation=()',
@@ -93,7 +104,8 @@ assert.equal(sitemap.status, 200);
 const sitemapText = await sitemap.text();
 const escapedOrigin = metadataOrigin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 assert.match(sitemapText, new RegExp(`<loc>${escapedOrigin}</loc>`));
-assert.match(sitemapText, new RegExp(`<loc>${escapedOrigin}/demo</loc>`));
+// The demo is listed only while the app is open; the preview keeps it private.
+(access.inviteOnly ? assert.doesNotMatch : assert.match)(sitemapText, new RegExp(`<loc>${escapedOrigin}/demo</loc>`));
 assert.doesNotMatch(sitemapText, /\/fix\//);
 
 const privateCruciblePage = await fetch(`${base}/crucible/orgs/smoke-test`, {

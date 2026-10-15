@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useCurrentUser } from "@/lib/use-current-user";
+import { useCanUseApp } from "@/lib/use-current-user";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { IconClose } from "@/components/icons";
@@ -36,8 +36,10 @@ const STEPS = [
 // off them avoids two banners with two buttons for the same settings page.
 const HIDDEN_ON = ["/crucible", "/login", "/", "/trigger", "/explore"];
 
-export function Onboarding({ localMode = false }: { localMode?: boolean }) {
-  const { user } = useCurrentUser(localMode);
+export function Onboarding({ localMode = false, inviteOnly = false }: { localMode?: boolean; inviteOnly?: boolean }) {
+  // `user` here means "may use the app": an account without a preview invite gets no setup prompts.
+  const { canUse } = useCanUseApp(localMode, inviteOnly);
+  const user = canUse;
   const pathname = usePathname();
   const [state, setState] = useState<OnboardingState | null>(null);
   const [dismissed, setDismissed] = useState(false);

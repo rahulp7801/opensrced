@@ -2,7 +2,7 @@
 
 import { pollJson } from "@/lib/poll-json";
 import { useEffect, useState } from "react";
-import { useCurrentUser } from "@/lib/use-current-user";
+import { useCanUseApp } from "@/lib/use-current-user";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 
@@ -10,8 +10,10 @@ import Link from "next/link";
 // history, PRs, issues, graphs, and settings remains useful without one.
 const KEY_REQUIRED_PAGES = ["/trigger", "/explore"];
 
-export function ApiKeyGate({ localMode = false }: { localMode?: boolean }) {
-  const { user } = useCurrentUser(localMode);
+export function ApiKeyGate({ localMode = false, inviteOnly = false }: { localMode?: boolean; inviteOnly?: boolean }) {
+  // `user` here means "may use the app" (see useCanUseApp).
+  const { canUse } = useCanUseApp(localMode, inviteOnly);
+  const user = canUse;
   const pathname = usePathname();
   const [hasKey, setHasKey] = useState<boolean | null>(null);
   const needsKey = KEY_REQUIRED_PAGES.some((path) => pathname === path || pathname.startsWith(path + "/"));

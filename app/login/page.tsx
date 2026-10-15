@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { authConfigured } from "@/lib/auth-config";
 import { safeReturnTo } from "@/lib/safe-return-to";
+import { inviteOnly } from "@/lib/access";
 
 export const metadata = { title: "Sign in" };
 
@@ -13,14 +14,26 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   }
   const loginHref = `/auth/login?returnTo=${encodeURIComponent(returnTo)}`;
   const canSignIn = authConfigured();
+  // Private preview: sign-in is for invited accounts, and the demo is not public.
+  const preview = inviteOnly();
 
   return (
     <div className="mx-auto grid w-full max-w-[1000px] flex-1 gap-12 px-5 py-16 sm:px-8 lg:grid-cols-[1fr_420px] lg:items-center lg:gap-20 lg:py-24">
       <section>
-        <p className="eyebrow">Connect your GitHub account</p>
-        <h1 className="display mt-6 max-w-lg text-[46px] leading-[1.02] text-paper sm:text-[60px]">Pick up where the issue leaves off.</h1>
-        <p className="mt-5 max-w-lg text-base leading-7 text-paper-dim">Browse repositories, generate a patch, and review the change before opening a draft pull request.</p>
-        <Link href="/demo" className="mt-8 inline-flex text-sm text-paper-dim hover:text-paper">Explore the demo without signing in <span aria-hidden="true" className="ml-2">&rarr;</span></Link>
+        {preview ? (
+          <>
+            <p className="eyebrow">Private preview</p>
+            <h1 className="display mt-6 max-w-lg text-[46px] leading-[1.02] text-paper sm:text-[60px]">Sign in with your invite.</h1>
+            <p className="mt-5 max-w-lg text-base leading-7 text-paper-dim">opensrcer is open to invited GitHub accounts while it&apos;s in preview. It opens to everyone soon.</p>
+          </>
+        ) : (
+          <>
+            <p className="eyebrow">Connect your GitHub account</p>
+            <h1 className="display mt-6 max-w-lg text-[46px] leading-[1.02] text-paper sm:text-[60px]">Pick up where the issue leaves off.</h1>
+            <p className="mt-5 max-w-lg text-base leading-7 text-paper-dim">Browse repositories, generate a patch, and review the change before opening a draft pull request.</p>
+            <Link href="/demo" className="mt-8 inline-flex text-sm text-paper-dim hover:text-paper">Explore the demo without signing in <span aria-hidden="true" className="ml-2">&rarr;</span></Link>
+          </>
+        )}
       </section>
 
       <section className="rounded-lg border border-border bg-surface p-6 sm:p-8" aria-labelledby="sign-in-heading">
@@ -38,7 +51,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           </a>
         ) : (
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link href="/demo" className="inline-flex min-h-12 items-center rounded-md bg-signal px-5 py-3 text-sm font-medium text-ink hover:bg-signal-soft">Explore the demo</Link>
+            {!preview && <Link href="/demo" className="inline-flex min-h-12 items-center rounded-md bg-signal px-5 py-3 text-sm font-medium text-ink hover:bg-signal-soft">Explore the demo</Link>}
             <a href="/api/health" className="inline-flex min-h-12 items-center rounded-md border border-border px-5 py-3 text-sm text-paper-dim hover:border-border-strong hover:text-paper">Service status</a>
           </div>
         )}

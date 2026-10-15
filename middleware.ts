@@ -14,6 +14,7 @@
 //
 // Escape hatch: AUTH_DISABLED=1 skips the gating (local dev without Auth0).
 
+import { hasAccess, inviteOnly } from "@/lib/access";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
@@ -32,6 +33,8 @@ const PUBLIC_PATHS = new Set([
   "/api/health",
   // Login page — renders before the user has a session.
   "/login",
+  // Whether the signed-in account has access; answers anonymous callers too.
+  "/api/access",
   // What the app stores; must be readable before signing in.
   "/privacy",
   // Public crawler metadata must not be redirected through authentication.
@@ -95,6 +98,26 @@ const UNCONFIGURED_PUBLIC_PATHS = new Set([
 ]);
 const UNCONFIGURED_PUBLIC_PREFIXES = ["/fix/", "/api/fixes/"];
 
+// Invite-only preview (OPENSRCER_ACCESS=invite, see lib/access.ts): only these
+// stay open to everyone. The app's client shells, the demo and settings leave
+// the public list, and a signed-in account also needs an invite. Shared fix
+// links keep working so invited users can still share results.
+const PREVIEW_PUBLIC_PATHS = new Set([
+  "/",
+  "/login",
+  "/privacy",
+  "/robots.txt",
+  "/sitemap.xml",
+  "/opengraph-image",
+  "/apple-icon",
+  "/api/access",
+  "/api/crucible/github/webhook",
+  "/api/crucible/github/install-callback",
+  "/fix",
+  "/api/fixes",
+]);
+const PREVIEW_PUBLIC_PREFIXES = ["/fix/", "/api/fixes/"];
+
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 /** A browser write from another origin. SameSite=Lax already keeps the session
@@ -126,10 +149,24 @@ function loopbackHost(req: NextRequest): boolean {
 }
 
 function isPublic(pathname: string): boolean {
+  if (inviteOnly()) {
+    return PREVIEW_PUBLIC_PATHS.has(pathname) || PREVIEW_PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+  }
   return (
     PUBLIC_PATHS.has(pathname) ||
     PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
   );
+}
+
+/** A signed-in account without an invite: APIs refuse, pages go to the
+ *  preview page, which explains that access is by invitation for now. */
+function notInvited(req: NextRequest, pathname: string, authRes: NextResponse): NextResponse {
+  const response = pathname.startsWith("/api/")
+    ? NextResponse.json({ error: "opensrcer is invite-only for now." }, { status: 403, headers: { "Cache-Control": "no-store" } })
+    : NextResponse.redirect(new URL("/?access=invite-only", req.url));
+  // Keep any session-refresh cookies the SDK set on this request.
+  for (const cookie of authRes.cookies.getAll()) response.cookies.set(cookie);
+  return response;
 }
 
 export async function middleware(req: NextRequest) {
@@ -242,7 +279,9 @@ export async function middleware(req: NextRequest) {
   if (pathname === "/login" && !AUTH_DISABLED) {
     const session = await auth0.getSession(req);
     if (session?.user) {
-      return NextResponse.redirect(new URL("/discover", req.url));
+      return hasAccess(session.user.sub)
+        ? NextResponse.redirect(new URL("/discover", req.url))
+        : notInvited(req, pathname, authRes);
     }
     return authRes;
   }
@@ -250,7 +289,7 @@ export async function middleware(req: NextRequest) {
   if (isPublic(pathname)) return authRes;
 
   const session = await auth0.getSession(req);
-  if (session?.user) return authRes;
+  if (session?.user) return hasAccess(session.user.sub) ? authRes : notInvited(req, pathname, authRes);
 
   // API routes get 401 JSON; pages get redirected to login.
   if (pathname.startsWith("/api/")) {

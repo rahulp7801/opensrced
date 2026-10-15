@@ -133,6 +133,29 @@ jobs:
           SMOKE_BASE_URL=http://localhost:3101 node scripts/smoke-unconfigured.mjs
           SMOKE_BASE_URL=http://localhost:3101 node scripts/smoke-unconfigured-browser.mjs
 
+      # Last: it rebuilds, because the landing page and layout fix the access
+      # mode at build time. Anonymous, not-invited and invited sessions must
+      # each reach exactly what lib/access.ts allows.
+      - name: Invite-only preview admits only invited accounts
+        env:
+          AUTH0_SECRET: ci-build-only-not-a-real-secret
+          AUTH0_DOMAIN: example.us.auth0.com
+          AUTH0_CLIENT_ID: ci
+          AUTH0_CLIENT_SECRET: ci
+          OPENSRCER_ACCESS: invite
+          OPENSRCER_INVITED_GITHUB_IDS: "4242"
+        run: |
+          APP_BASE_URL=http://localhost:3000 npm run build
+          APP_BASE_URL=http://localhost:3102 npm start -- --port 3102 > "$RUNNER_TEMP/opensrcer-invite.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://localhost:3102/api/health > /dev/null; then break; fi
+            sleep 1
+          done
+          SMOKE_BASE_URL=http://localhost:3102 node scripts/smoke-invite.mjs
+          SMOKE_BASE_URL=http://localhost:3102 node scripts/smoke-production.mjs
+
   graph:
     runs-on: ubuntu-latest
     steps:

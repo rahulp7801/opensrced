@@ -241,6 +241,20 @@ recognized prompt credentials; incomplete Gemini reviews are recorded as
 unavailable rather than clean. The open CodeQL flows are documented in
 [SECURITY.md](SECURITY.md#reviewed-external-data-flows) and remain visible.
 
+### Private preview
+
+Production runs as an invite-only preview (`OPENSRCER_ACCESS=invite`, see
+`lib/access.ts`). The public sees a short "coming soon" page, the privacy page,
+sign-in and shared fix links; the app, the demo and every API need a signed-in
+GitHub account whose numeric id is in `OPENSRCER_INVITED_GITHUB_IDS`. Anyone
+else who signs in is sent back to the preview page with an "invite-only" note.
+
+- Invite someone: add their id (`gh api users/<login> --jq .id`) to
+  `OPENSRCER_INVITED_GITHUB_IDS` (comma-separated) and redeploy.
+- Open to everyone: remove `OPENSRCER_ACCESS` and redeploy; the full landing
+  page and demo return.
+- `scripts/smoke-invite.mjs` (also in CI) checks all three kinds of visitor.
+
 Done as of October 13, 2026:
 
 - Production has Auth0, a private Blob store and a worker snapshot; GitHub

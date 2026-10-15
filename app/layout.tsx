@@ -10,6 +10,7 @@ import { Onboarding } from "@/components/onboarding";
 import { ToastProvider } from "@/components/toast";
 import { Auth0Provider } from "@auth0/nextjs-auth0";
 import { siteUrl } from "@/lib/site-url";
+import { inviteOnly as inviteOnlyMode } from "@/lib/access";
 
 // Geist for everything readable (headlines are the same face, heavier and
 // tighter), Geist Mono for code, logs, and identifiers.
@@ -46,6 +47,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const localMode = process.env.AUTH_DISABLED === "1" && process.env.NODE_ENV !== "production";
+  const inviteOnly = inviteOnlyMode();
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       <body
@@ -67,15 +69,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               {/* Header + section tabs pin together, so neither has to hardcode
                   the other's height. */}
               <div className="sticky top-0 z-30">
-                <SiteHeader localMode={localMode} />
+                <SiteHeader localMode={localMode} inviteOnly={inviteOnly} />
                 <SectionNav localMode={localMode} />
               </div>
-              <ApiKeyGate localMode={localMode} />
-              <Onboarding localMode={localMode} />
+              <ApiKeyGate localMode={localMode} inviteOnly={inviteOnly} />
+              <Onboarding localMode={localMode} inviteOnly={inviteOnly} />
               {/* A flex column, so a page that wants to fill the window can say flex-1
                   instead of guessing how tall the chrome above it is. */}
               <main id="main-content" className="flex flex-1 flex-col"><SessionGate allowAnonymous={localMode}>{children}</SessionGate></main>
-              <SiteFooter />
+              <SiteFooter inviteOnly={inviteOnly} />
             </div>
           </ToastProvider>
         </Auth0Provider>

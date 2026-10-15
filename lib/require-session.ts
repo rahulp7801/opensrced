@@ -10,6 +10,7 @@
 // a deterministic 503 if that flag reaches production, before any route runs.
 
 import { auth0 } from "@/lib/auth0";
+import { hasAccess } from "@/lib/access";
 
 /** True only when auth is disabled AND we're not in production. */
 export function authDisabled(): boolean {
@@ -26,7 +27,9 @@ export async function requireSession(): Promise<Response | null> {
   if (authDisabled()) return null;
   try {
     const session = await auth0.getSession();
-    if (session?.user) return null;
+    // In the invite-only preview a signed-in account also needs an invite;
+    // middleware says so first, this keeps the rule if middleware is bypassed.
+    if (session?.user) return hasAccess(session.user.sub) ? null : Response.json({ error: "opensrcer is invite-only for now." }, { status: 403 });
   } catch {
     // No request context or a malformed session cookie — treat as anonymous.
   }
@@ -44,7 +47,9 @@ export async function sessionUserId(): Promise<string | null> {
   if (authDisabled()) return "local-dev";
   try {
     const session = await auth0.getSession();
-    return session?.user?.sub ?? null;
+    const sub = session?.user?.sub ?? null;
+    // An account without an invite owns nothing during the private preview.
+    return sub && hasAccess(sub) ? sub : null;
   } catch {
     return null;
   }

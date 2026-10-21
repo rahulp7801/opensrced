@@ -96,6 +96,19 @@ describe("buildPrContent", () => {
     assert.match(body, /restores the trailing token/);
   });
 
+  test("keeps a multi-paragraph PR body whole, up to the dispatcher footer", () => {
+    const log = [
+      "## PR title", "fix: trim edge dashes", "",
+      "## PR body", "Fix `slugify` so runs collapse.", "", "**Root cause**", "", "No `+` quantifier.",
+      "", "### Test plan", "", "- npm test", "", "Fixes #1",
+      "[agentic-dispatcher] total_cost_usd=0.19",
+    ].join("\n");
+    const { title, body } = buildPrContent(1, "d_x", log, SAMPLE_DIFF);
+    assert.equal(title, "fix: trim edge dashes");
+    assert.match(body, /^Fix `slugify`[\s\S]*Root cause[\s\S]*### Test plan[\s\S]*Fixes #1$/);
+    assert.doesNotMatch(body, /agentic-dispatcher/);
+  });
+
   test("injects a close keyword when the body omits one", () => {
     const log = [
       "## PR body",

@@ -67,11 +67,40 @@ export type ApplyOpts = {
   deepen?: () => Promise<boolean>;
 };
 
-/** Repair the two things LLMs most often get wrong about diff framing:
- *  missing `a/` / `b/` path prefixes, and a missing trailing newline
- *  (which `git apply` rejects outright with "corrupt patch"). */
+/** Rewrite every hunk header's line counts from the hunk body. Models
+ *  miscount them, and in a multi-file diff without `diff --git` separators a
+ *  wrong count (or `git apply --recount`) reads the next file's `---` header
+ *  as a removed line, so the whole patch fails and only the direct-edit
+ *  fallback is left. A hunk ends at the next `@@`, `diff --git`, or
+ *  `---`/`+++` header pair; blank lines inside it are empty context lines. */
+function recountHunks(diff: string): string {
+  const lines = diff.split("\n");
+  const endsHunk = (i: number) =>
+    lines[i].startsWith("@@ ") || lines[i].startsWith("diff --git ") ||
+    (lines[i].startsWith("--- ") && (lines[i + 1] ?? "").startsWith("+++ "));
+  for (let i = 0; i < lines.length; i++) {
+    const header = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)$/.exec(lines[i]);
+    if (!header) continue;
+    let oldCount = 0, newCount = 0, blanks = 0;
+    for (let j = i + 1; j < lines.length && !endsHunk(j); j++) {
+      const c = lines[j][0];
+      // Blank lines count only once a later line shows they sit inside the hunk.
+      if (c === undefined) { blanks++; continue; }
+      if (c !== " " && c !== "-" && c !== "+" && c !== "\\") break;
+      oldCount += blanks; newCount += blanks; blanks = 0;
+      if (c === " " || c === "-") oldCount++;
+      if (c === " " || c === "+") newCount++;
+    }
+    lines[i] = `@@ -${header[1]},${oldCount} +${header[2]},${newCount} @@${header[3]}`;
+  }
+  return lines.join("\n");
+}
+
+/** Repair what LLMs most often get wrong about diff framing: missing
+ *  `a/` / `b/` path prefixes, miscounted hunk headers, and a missing trailing
+ *  newline (which `git apply` rejects outright with "corrupt patch"). */
 export function normalizeDiff(raw: string): string {
-  let diff = raw;
+  let diff = recountHunks(raw);
 
   diff = diff.replace(
     /^--- ([^/\n][^\n]*)/gm,
@@ -148,7 +177,9 @@ export async function applyDiff(
   }
   const errors: string[] = [];
 
-  const base = ["-C", dir, "apply", "--index", "--recount", "--whitespace=nowarn"];
+  // No --recount: normalizeDiff already recounted, and git's own recount
+  // runs a hunk on into the next file when `diff --git` lines are missing.
+  const base = ["-C", dir, "apply", "--index", "--whitespace=nowarn"];
   const gitTiers: Array<{ name: string; args: string[]; threeWay?: boolean }> = [
     { name: "git apply (strict)", args: [...base, patchPath] },
     { name: "git apply --ignore-whitespace", args: [...base, "--ignore-whitespace", patchPath] },
@@ -200,6 +231,12 @@ export async function applyDiff(
 
   // Last resort: treat the block as "replace these lines with those" and
   // edit the file directly. Handles output that never was a unified diff.
+  // It pools every -/+ line into one file, so a multi-file diff would be
+  // spliced into its first file and reported as applied to all of them.
+  if (files.length > 1) {
+    errors.push("direct edit: skipped for a multi-file diff");
+    return { ok: false, errors };
+  }
   try {
     const edited = await tryDirectEdit(dir, normalized);
     if (edited) {

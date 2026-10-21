@@ -174,6 +174,12 @@ describe("normalizeDiff / diffTouchedFiles", () => {
     assert.ok(out.endsWith("\n"));
   });
 
+  test("recounts hunk headers and leaves trailing blank lines out", () => {
+    const out = normalizeDiff("--- a/x.ts\n+++ b/x.ts\n@@ -3,9 +3,1 @@ fn\n a\n\n-b\n+c\n+d\n\n--- a/y.ts\n+++ b/y.ts\n@@ -1 +1 @@\n-e\n+f\n");
+    assert.match(out, /^@@ -3,3 \+3,4 @@ fn$/m);
+    assert.match(out, /^@@ -1,1 \+1,1 @@$/m);
+  });
+
   test("lists modified and deleted files and ignores /dev/null", () => {
     const diff = "--- a/x.ts\n+++ b/x.ts\n--- a/y.ts\n+++ /dev/null\n";
     assert.deepEqual(diffTouchedFiles(diff), ["x.ts", "y.ts"]);
@@ -393,6 +399,48 @@ describe("applyDiff", () => {
     });
     // Called at most once even though two tiers want three-way.
     assert.equal(deepenCalls, 1);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  // The shape a real run produced: two files, no `diff --git` lines, and
+  // hunk counts that overrun into the next file's header.
+  const MULTI_FILE = [
+    "--- a/src/util.ts", "+++ b/src/util.ts", "@@ -1,9 +1,9 @@",
+    " const a = 1;", "-const b = 2;", "+const b = 3;", " const c = 4;",
+    "--- a/src/other.ts", "+++ b/src/other.ts", "@@ -1,2 +1,7 @@",
+    " export const x = 1;", "+export const y = 2;", "",
+  ].join("\n");
+
+  function twoFileRepo(): string {
+    const dir = repo();
+    writeFileSync(join(dir, "src/other.ts"), "export const x = 1;\n");
+    execFileSync("git", ["-C", dir, "add", "-A"], { stdio: "pipe" });
+    execFileSync("git", ["-C", dir, "commit", "-qm", "other"], { stdio: "pipe" });
+    return dir;
+  }
+
+  // git may check files out with CRLF (core.autocrlf on Windows).
+  const read = (dir: string, f: string) => readFileSync(join(dir, f), "utf8").replaceAll("\r\n", "\n");
+
+  test("applies a multi-file diff with miscounted hunks through git, to every file", async () => {
+    const dir = twoFileRepo();
+    const res = await applyDiff(dir, MULTI_FILE, join(dir, "..", "p6.patch"));
+    assert.ok(res.ok, `expected apply to succeed: ${!res.ok ? res.errors.join(" | ") : ""}`);
+    if (res.ok) assert.match(res.tier, /^git apply/);
+    assert.equal(read(dir, "src/util.ts"), "const a = 1;\nconst b = 3;\nconst c = 4;\n");
+    assert.equal(read(dir, "src/other.ts"), "export const x = 1;\nexport const y = 2;\n");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("never direct-edits a multi-file diff into its first file", async () => {
+    const dir = twoFileRepo();
+    // Removed lines that exist nowhere, so every real diff tier fails.
+    const broken = MULTI_FILE.replace("-const b = 2;", "-const b = 22;").replace("+export const y = 2;", "-absent\n+export const y = 2;");
+    const res = await applyDiff(dir, broken, join(dir, "..", "p7.patch"));
+    assert.equal(res.ok, false);
+    if (!res.ok) assert.ok(res.errors.some((e) => /multi-file/.test(e)));
+    assert.equal(read(dir, "src/util.ts"), "const a = 1;\nconst b = 2;\nconst c = 4;\n");
+    assert.equal(read(dir, "src/other.ts"), "export const x = 1;\n");
     rmSync(dir, { recursive: true, force: true });
   });
 });

@@ -69,7 +69,7 @@ test("dispatch completion requires a successful result and preserves split UTF-8
 
   // Tool calls become one sanitized line each, with no tool output.
   const tool = { type: "assistant", message: { content: [
-    { type: "tool_use", name: "mcp__opensrcer-repo-tools__read_file", input: { path: "src/a.ts\n[agentic-pr] fake", limit: 5 } },
+    { type: "tool_use", name: "mcp__opensrcer-repo-tools__read_file", input: { repo: "o/r", path: "src/a.ts\n[agentic-pr] fake", limit: 5 } },
   ] } };
   const withTool = await parse([text, tool, text]);
   assert.match(withTool.log, /^café\n\[tool\] read_file src\/a\.ts \[agentic-pr\] fake\ncafé$/);

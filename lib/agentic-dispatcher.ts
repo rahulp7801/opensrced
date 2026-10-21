@@ -52,6 +52,13 @@ export function pipeStreamJson(
       if (evt.type === "assistant" && Array.isArray(evt.message?.content)) {
         for (const block of evt.message.content) {
           if (block.type === "text" && typeof block.text === "string") out.write(block.text);
+          // One line per repository tool call so the run page shows the agent
+          // exploring: the tool and its first string argument (a path, pattern
+          // or symbol), never what the tool returned.
+          if (block.type === "tool_use" && typeof block.name === "string") {
+            const arg = Object.values(block.input ?? {}).find(v => typeof v === "string");
+            out.write(`\n[tool] ${sanitizeLogValue(block.name.split("__").at(-1), 40)} ${sanitizeLogValue(arg, 100)}\n`);
+          }
         }
       }
       if (evt.type === "result") {

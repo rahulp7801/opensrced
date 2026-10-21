@@ -674,10 +674,10 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
 function extractSection(log: string, headingAlt: string): string | null {
   // headingAlt is a regex alternation like 'Diagnosis|Analysis'.
   // Section ends at the next ## heading, a fenced block, the dispatcher
-  // separator lines, or end-of-string. Not `$`: under the `m` flag it
+  // separator or tool-call lines, or end-of-string. Not `$`: under the `m` flag it
   // matches every line end, which cut each section to its first line.
   const re = new RegExp(
-    `^##\\s+(?:${headingAlt})\\s*\\n([\\s\\S]+?)(?=\\n##\\s|\\n\\[agentic-dispatcher\\]|\\n\\[agentic-pr\\]|\\n\`\`\`(?:diff|patch)|(?![\\s\\S]))`,
+    `^##\\s+(?:${headingAlt})\\s*\\n([\\s\\S]+?)(?=\\n##\\s|\\n\\[agentic-dispatcher\\]|\\n\\[agentic-pr\\]|\\n\\[tool\\]|\\n\`\`\`(?:diff|patch)|(?![\\s\\S]))`,
     "im",
   );
   return re.exec(log)?.[1].trim() ?? null;

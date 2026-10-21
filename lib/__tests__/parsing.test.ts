@@ -107,6 +107,9 @@ describe("buildPrContent", () => {
     assert.equal(title, "fix: trim edge dashes");
     assert.match(body, /^Fix `slugify`[\s\S]*Root cause[\s\S]*### Test plan[\s\S]*Fixes #1$/);
     assert.doesNotMatch(body, /agentic-dispatcher/);
+    // A tool call logged after the body ends it too.
+    const withTool = buildPrContent(1, "d_x", log.replace("[agentic-dispatcher]", "[tool] read_file src/a.ts\n[agentic-dispatcher]"), SAMPLE_DIFF);
+    assert.doesNotMatch(withTool.body, /\[tool\]/);
   });
 
   test("injects a close keyword when the body omits one", () => {

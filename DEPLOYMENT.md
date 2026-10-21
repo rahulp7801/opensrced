@@ -19,7 +19,7 @@ The projects already contain separate generated `AUTH0_SECRET` values and the
 correct `APP_BASE_URL` for their stable origins. Do not copy the secret between
 environments. As of October 6, 2026 the production project has Auth0, a private
 Blob store (`opensrced-prod`, Production scope only) and a worker snapshot
-(`OPENSRCER_WORKER_SNAPSHOT_ID`, rebuilt October 13 from `e1592fe`). The staging project
+(`OPENSRCER_WORKER_SNAPSHOT_ID`, rebuilt October 20 from `74fcb4c`). The staging project
 still lacks Auth0 credentials, Blob and a snapshot. The Vercel Firewall rule "expensive routes" (Hobby allows one rate-limit
 rule) gives every route that costs Blob reads or a sandbox VM a shared budget of
 30 requests per minute per IP: `/api/fixes*`, `/fix/`, `/api/graph/*`,

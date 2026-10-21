@@ -6,6 +6,7 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
+import { hasAccess } from "@/lib/access";
 import { STATE_COOKIE } from "@/lib/crucible/constants";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ export async function GET() {
   }
   const session = await auth0.getSession();
   const user = session?.user;
-  if (!user?.sub) {
+  if (!user?.sub || !hasAccess(user.sub)) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 

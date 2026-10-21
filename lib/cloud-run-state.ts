@@ -68,7 +68,10 @@ export function validCloudRun(value: unknown, owner: string, id: string): value 
     (run.ended_at === undefined || (typeof run.ended_at === "string" && Number.isFinite(Date.parse(run.ended_at)))) &&
     typeof run.status === "string" && RUN_STATUSES.has(run.status) &&
     (run.pr_status === undefined || PR_STATUSES.has(run.pr_status)) &&
-    (run.pr_url === undefined || (typeof run.pr_url === "string" && /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/[1-9]\d*$/.test(run.pr_url))) &&
+    // The PR must be on the run's own repository (fork PRs are opened upstream),
+    // so a rewritten record cannot point the "View PR" link anywhere else.
+    (run.pr_url === undefined || (typeof run.pr_url === "string" && /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/[1-9]\d*$/.test(run.pr_url) &&
+      run.pr_url.toLowerCase().startsWith(`${run.repo_url!.toLowerCase()}/pull/`))) &&
     (run.pr_failure_reason === undefined || (typeof run.pr_failure_reason === "string" && run.pr_failure_reason.length <= 500)) &&
     (run.tests === undefined || TEST_STATUSES.has(run.tests)) &&
     (run.stats === undefined || validDispatchStats(run.stats)) &&

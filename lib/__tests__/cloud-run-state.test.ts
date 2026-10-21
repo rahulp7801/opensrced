@@ -104,6 +104,7 @@ test("hosted run records are bound to their owner, id, sandbox, and bounded log 
     log_size: 8,
   } satisfies CloudRun;
   assert.equal(validCloudRun(run, "alice", id), true);
+  assert.equal(validCloudRun({ ...run, pr_url: "https://github.com/Acme/App/pull/7" }, "alice", id), true);
   const summary = cloudRunSummary(run);
   assert.equal(validCloudRunSummary(summary, "alice", id), true);
   assert.equal("log" in summary, false);
@@ -121,6 +122,9 @@ test("hosted run records are bound to their owner, id, sandbox, and bounded log 
     { log: "x".repeat(250_001), log_size: 250_001 },
     { issue_number: -1 },
     { pr_url: "javascript:alert(1)" },
+    // A PR link must point at the run's own repository.
+    { pr_url: "https://github.com/evil/app/pull/1" },
+    { pr_url: "https://github.com/acme/app-evil/pull/1" },
     // A worker cannot keep its run (and its slot) alive past the id's lifetime.
     { expires_at: 1767225600000 + 2 * 60 * 60_000 },
     { pr_failure_reason: "x".repeat(501) },

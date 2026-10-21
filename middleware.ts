@@ -247,6 +247,11 @@ export async function middleware(req: NextRequest) {
   if (pathname.startsWith("/me/") || pathname.startsWith("/my-org/")) {
     return new NextResponse(null, { status: 404 });
   }
+  // Likewise the SDK's MFA, passwordless, passkey, backchannel and token
+  // endpoints: only these four are used, and the rest skip the origin check.
+  if (pathname.startsWith("/auth/") && !["/auth/login", "/auth/logout", "/auth/callback", "/auth/profile"].includes(pathname)) {
+    return new NextResponse(null, { status: 404 });
+  }
 
   // Logout is a GET the SDK serves, so any site could embed it (an <img> or a
   // hidden iframe) to sign a visitor out and wipe their saved provider keys.
@@ -261,6 +266,10 @@ export async function middleware(req: NextRequest) {
   //    holds any Set-Cookie the refresh produced — carry it forward.
   const authRes = await auth0.middleware(req);
   if (pathname === "/auth/logout") authRes.cookies.delete("opensrcer-keys");
+  // API responses are per-user. Route handlers that set nothing would get
+  // Vercel's `public, max-age=0` default, which lets browsers keep logs and
+  // diffs in their disk cache; handlers that set their own header still win.
+  if (pathname.startsWith("/api/")) authRes.headers.set("Cache-Control", "private, no-store");
 
   // The SDK owns /auth/* entirely (login, logout, callback, profile).
   // Returning early also keeps the gate below from redirecting the login
@@ -293,7 +302,7 @@ export async function middleware(req: NextRequest) {
 
   // API routes get 401 JSON; pages get redirected to login.
   if (pathname.startsWith("/api/")) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401, headers: { "Cache-Control": "no-store" } });
   }
 
   const loginUrl = new URL("/login", req.url);

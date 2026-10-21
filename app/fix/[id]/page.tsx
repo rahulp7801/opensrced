@@ -26,7 +26,7 @@ export default function SharedFixPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`/api/fixes/${id}`, {
+    fetch(`/api/fixes/${encodeURIComponent(id)}`, {
       signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]),
     })
       .then((r) => (r.ok ? r.json() : r.json().then((e) => Promise.reject(e.error))))

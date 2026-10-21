@@ -5,6 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
+import { hasAccess } from "@/lib/access";
 import { mappingForRequest } from "@/lib/crucible/tokens";
 import { listInstallationRepos } from "@/lib/crucible/advisories";
 
@@ -15,7 +16,8 @@ export async function GET(
   { params }: { params: Promise<{ org: string }> },
 ) {
   const session = await auth0.getSession();
-  const sub = session?.user?.sub;
+  // Invite rule enforced here too, not only in middleware.
+  const sub = hasAccess(session?.user?.sub) ? session?.user?.sub : undefined;
   if (!sub) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
   const { org } = await params;

@@ -27,6 +27,7 @@ import { verifyOrgAdmin } from "@/lib/crucible/org-admin";
 import { STATE_COOKIE } from "@/lib/crucible/constants";
 import { getGitHubTokenFromSession } from "@/lib/github-token";
 import { auth0 } from "@/lib/auth0";
+import { hasAccess } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -81,7 +82,7 @@ export async function GET(req: NextRequest) {
   }
 
   const MAX_AGE_MS = 10 * 60 * 1000;
-  if (!Number.isFinite(parsed.ts) || Date.now() - parsed.ts > MAX_AGE_MS) {
+  if (!Number.isFinite(parsed.ts) || Date.now() - parsed.ts > MAX_AGE_MS || parsed.ts > Date.now() + 60_000) {
     return redirectToCrucible(req, "state_expired");
   }
 
@@ -89,7 +90,7 @@ export async function GET(req: NextRequest) {
   // a stolen/replayed cookie could bind an org to an account the current
   // browser is no longer logged into.
   const session = await auth0.getSession();
-  if (!session?.user?.sub || session.user.sub !== parsed.sub) {
+  if (!session?.user?.sub || session.user.sub !== parsed.sub || !hasAccess(session.user.sub)) {
     return redirectToCrucible(req, "session_mismatch");
   }
 

@@ -287,7 +287,7 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
   // steps below can branch on it.
   const isCrucible = Boolean(args.orgCtx || args.installationToken);
   let ghUser: string | null = null;
-  const pushRemote = isCrucible ? "origin" : "fork";
+  let pushRemote = isCrucible ? "origin" : "fork";
 
   // Crucible pushes authenticate with a one-shot header rather than a
   // tokenized origin URL. The old approach wrote the installation token
@@ -316,26 +316,32 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
       return { ok: false, reason: "gh api user failed with the session's GitHub token" };
     }
 
-    // 1. Ensure a fork exists on the user's account.
-    try {
-      await run(
-        ghBin(),
-        ["repo", "fork", args.repoFull],
-        { env, timeout: 30_000 },
-      );
-    } catch (e) {
-      return {
-        ok: false,
-        reason: `gh repo fork failed: ${e instanceof Error ? e.message : String(e)}`,
-      };
-    }
+    // 1. Ensure a fork exists on the user's account. GitHub refuses to fork
+    //    a repository into the account that owns it, so the owner's branch
+    //    goes straight to origin instead.
+    if (ghUser.toLowerCase() === owner.toLowerCase()) {
+      pushRemote = "origin";
+    } else {
+      try {
+        await run(
+          ghBin(),
+          ["repo", "fork", args.repoFull],
+          { env, timeout: 30_000 },
+        );
+      } catch (e) {
+        return {
+          ok: false,
+          reason: `gh repo fork failed: ${e instanceof Error ? e.message : String(e)}`,
+        };
+      }
 
-    // 2. In the shared shallow clone, ensure a `fork` remote.
-    const forkUrl = `https://github.com/${ghUser}/${name}.git`;
-    try {
-      await run("git", ["-C", clone, "remote", "set-url", "fork", forkUrl], { env });
-    } catch {
-      await run("git", ["-C", clone, "remote", "add", "fork", forkUrl], { env });
+      // 2. In the shared shallow clone, ensure a `fork` remote.
+      const forkUrl = `https://github.com/${ghUser}/${name}.git`;
+      try {
+        await run("git", ["-C", clone, "remote", "set-url", "fork", forkUrl], { env });
+      } catch {
+        await run("git", ["-C", clone, "remote", "add", "fork", forkUrl], { env });
+      }
     }
   }
 

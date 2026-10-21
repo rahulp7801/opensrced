@@ -51,6 +51,8 @@ export default async function SettingsPage({
     ? connectErrorMessage(params.connect_error)
     : null;
   const orgs = user?.sub ? await listOrgsFor(user.sub) : [];
+  // The connect route answers 503 without a GitHub App, so only offer it when one is set up.
+  const canConnectOrgs = !localMode && Boolean(process.env.GITHUB_APP_SLUG);
 
   return (
     <div className="mx-auto w-full max-w-[1100px] px-5 py-10 sm:px-8">
@@ -74,7 +76,9 @@ export default async function SettingsPage({
           title="GitHub access"
           description={localMode
             ? "Local development can inspect public repositories without a hosted account."
-            : "Connect an organization only when you need to scan its private repositories."}
+            : canConnectOrgs
+              ? "Connect an organization only when you need to scan its private repositories."
+              : "Public repositories work with your GitHub sign-in. Organization connections are not available on this deployment."}
         >
           <div className="flex flex-wrap items-center justify-between gap-4 rounded-md border border-border-soft bg-surface/40 px-4 py-3">
             <div>
@@ -83,7 +87,7 @@ export default async function SettingsPage({
                 {localMode ? "Local workspace" : user?.name || user?.email || "GitHub account"}
               </p>
             </div>
-            {!localMode && (
+            {canConnectOrgs && (
               <a
                 href="/api/crucible/connect"
                 className="inline-flex min-h-11 items-center rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-paper transition hover:bg-surface-2"

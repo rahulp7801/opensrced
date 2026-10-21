@@ -70,7 +70,7 @@ const SECTIONS: { title: string; body: React.ReactNode }[] = [
         signs you out. It does not delete past run history or code graphs. You can also revoke opensrcer&apos;s GitHub
         access at any time from GitHub&apos;s application settings. To have your stored runs and graphs deleted,
         contact the maintainer through the{" "}
-        <a className="text-signal hover:underline" href="https://github.com/rahulp7801/opensrced" target="_blank" rel="noreferrer">
+        <a className="text-signal underline underline-offset-2 hover:decoration-2" href="https://github.com/rahulp7801/opensrced" target="_blank" rel="noreferrer">
           opensrcer repository
         </a>
         .

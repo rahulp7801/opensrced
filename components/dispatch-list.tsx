@@ -254,12 +254,22 @@ export function DispatchList() {
               <li
                 key={d.id}
                 className={cn(
-                  "border-b border-border-soft last:border-0 cursor-pointer transition-colors",
+                  "border-b border-border-soft last:border-0 transition-colors",
                   selected === d.id ? "bg-surface-2/80" : "hover:bg-surface-2/40",
                 )}
-                onClick={() => pick(d.id)}
               >
-                <div className="px-4 py-3">
+                {/* A real link, so keyboard and screen-reader users can open a run;
+                    a plain click still selects in place without navigating. */}
+                <a
+                  href={`/dispatches?dispatch=${encodeURIComponent(d.id)}`}
+                  onClick={(e) => {
+                    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                    e.preventDefault();
+                    pick(d.id);
+                  }}
+                  aria-current={selected === d.id ? "true" : undefined}
+                  className="block px-4 py-3 focus-visible:outline-offset-[-3px]"
+                >
                   <div className="flex items-center gap-2">
                     <StatusDot tone={toneFor(d.status)} />
                     <span className="text-[12px] text-paper truncate">
@@ -343,7 +353,7 @@ export function DispatchList() {
                   <div className="mt-0.5 mono-label text-paper-faint tabular-nums truncate">
                     {d.id}
                   </div>
-                </div>
+                </a>
               </li>
             ))}
           </ul>
@@ -658,7 +668,7 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
           </button>
         </div>
       )}
-      <pre ref={logRef} onScroll={onScroll} className="term h-[50vh] overflow-auto rounded-none p-4 text-[11.5px] leading-relaxed font-mono whitespace-pre-wrap">
+      <pre ref={logRef} onScroll={onScroll} tabIndex={0} aria-label="Run log" className="term h-[50vh] overflow-auto rounded-none p-4 text-[11.5px] leading-relaxed font-mono whitespace-pre-wrap">
         {search.length >= 2 ? renderLog() : rawMode ? <AnsiLog text={log} /> : (clean || "(log empty — waiting for first write)")}
       </pre>
     </div>
@@ -1147,7 +1157,7 @@ function SplitDiffView({ body }: { body: string }) {
   const hunks = useMemo(() => parseSplitHunks(body), [body]);
 
   return (
-    <div className="max-h-[50vh] overflow-auto">
+    <div tabIndex={0} role="region" aria-label="Patch" className="max-h-[50vh] overflow-auto">
       {hunks.map((h, hi) => (
         <div key={hi}>
           <div className="px-4 py-1.5 text-xs text-paper-muted bg-surface/30 border-b border-border-soft font-mono">

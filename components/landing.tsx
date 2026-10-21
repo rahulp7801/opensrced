@@ -30,6 +30,10 @@ const RUN_STEPS = [
   ["Review", "checks passed"],
 ] as const;
 
+// Opacity of a not-yet-highlighted line. 0.5 keeps the dimmed display text at 3:1 or better
+// (WCAG large text) on both backgrounds; lower values fail contrast.
+const DIM = 0.5;
+
 const STORY = ["Find the right issue.", "Understand the code.", "Review every line."] as const;
 
 const GUARANTEES = [
@@ -116,7 +120,7 @@ export function Landing({ primary, secondary }: { primary: Cta; secondary: Cta }
         const restore = rewind();
         gsap.set("[data-story-panel]", { autoAlpha: 0 });
         gsap.set("[data-story-panel='0']", { autoAlpha: 1 });
-        gsap.set("[data-story-word]", { opacity: 0.18 });
+        gsap.set("[data-story-word]", { opacity: DIM });
         gsap.set("[data-story-word='0']", { opacity: 1 });
         gsap.set("[data-select]", { autoAlpha: 0, scale: 0.97 });
         gsap.set("[data-node]", { scale: 0, transformOrigin: "50% 50%" });
@@ -133,7 +137,7 @@ export function Landing({ primary, secondary }: { primary: Cta; secondary: Cta }
         const swap = (from: number, to: number, at: number) =>
           tl.to(`[data-story-panel='${from}']`, { autoAlpha: 0, y: -28, duration: 0.35, ease: "power2.in" }, at)
             .fromTo(`[data-story-panel='${to}']`, { autoAlpha: 0, y: 28 }, { autoAlpha: 1, y: 0, duration: 0.4, ease: "power2.out" }, at + 0.3)
-            .to(`[data-story-word='${from}']`, { opacity: 0.18, duration: 0.5 }, at)
+            .to(`[data-story-word='${from}']`, { opacity: DIM, duration: 0.5 }, at)
             .to(`[data-story-word='${to}']`, { opacity: 1, duration: 0.5 }, at + 0.2);
 
         const tl = gsap.timeline({
@@ -178,7 +182,7 @@ export function Landing({ primary, secondary }: { primary: Cta; secondary: Cta }
         gsap.to("[data-hero-shot]", { scale: 1.05, ease: "none", scrollTrigger: hero });
 
         // Guarantees: the headline brightens word by word, the three promises rise in.
-        gsap.fromTo("[data-hl-word]", { opacity: 0.18 }, {
+        gsap.fromTo("[data-hl-word]", { opacity: DIM }, {
           opacity: 1, stagger: 0.4, ease: "none",
           scrollTrigger: { trigger: "[data-guarantees]", start: "top 75%", end: "top 25%", scrub: true },
         });
@@ -450,7 +454,7 @@ function StoryReview() {
           <span className="font-mono text-[13px] text-paper">src/query.ts</span>
           <span data-review-tag className="tag" data-tone="ok">checks passed</span>
         </div>
-        <div className="overflow-x-auto whitespace-pre py-3 font-mono text-[13px] leading-7 text-paper-dim">
+        <div tabIndex={0} role="region" aria-label="Example diff" className="overflow-x-auto whitespace-pre py-3 font-mono text-[13px] leading-7 text-paper-dim">
           <div className="px-5">{"export function search(q: string) {"}</div>
           {/* The added line: its tint sweeps in, then the text types over it. */}
           <div className="relative px-5 text-[#1b5e2f]">

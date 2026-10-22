@@ -7,7 +7,7 @@ import { StatusChip, StatusDot } from "./status-dot";
 import { IconExternal, IconTrigger } from "./icons";
 import { pollJson } from "@/lib/poll-json";
 import { cn, formatRelative } from "@/lib/utils";
-import { parseSplitHunks, type DiffRow } from "@/lib/diff-view";
+import { extractFirstDiff, parseSplitHunks, type DiffRow } from "@/lib/diff-view";
 import { findGitHubPullUrl } from "@/lib/github-pull-url";
 
 type PrStatus = "opened" | "failed" | "pending" | "tests_passed" | "tests_failed" | "none";
@@ -40,6 +40,7 @@ export function DispatchList() {
   const [items, setItems] = useState<Dispatch[] | null>(null);
   const [selected, setSelected] = useState<string | null>(initialDispatch);
   const [detail, setDetail] = useState<DispatchWithLog | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">("unsupported");
   const logRef = useRef<HTMLPreElement>(null);
   // Dispatches we have already raised a desktop notification for.
@@ -142,15 +143,23 @@ export function DispatchList() {
     if (!selected) return;
     let offset = 0;
     setDetail(null);
+    setDetailError(null);
     return pollJson<DispatchWithLog & { log_size?: number; log_reset?: boolean }>(
       () => `/api/dispatches/${selected}?since=${offset}`,
-      ({ data }) => {
-        if (!data) return;
+      ({ data, error, status }) => {
+        if (!data) {
+          setDetailError(status === 404 ? "This run no longer exists, or it belongs to another account." : error);
+          return;
+        }
+        setDetailError(null);
+        const chunk = typeof data.log === "string" ? data.log : "";
         offset = data.log_size ?? 0;
         setDetail((prev) => {
-          if (data.log_reset || !prev || prev.id !== data.id) return data;
-          return { ...data, log: prev.log + data.log };
+          if (data.log_reset || !prev || prev.id !== data.id) return { ...data, log: chunk };
+          return { ...data, log: prev.log + chunk };
         });
+        // A finished run whose log has been read to the end has nothing more to show.
+        return !(data.status !== "running" && data.pr_status !== "pending" && chunk === "");
       }, 1500,
     );
   }, [selected]);
@@ -441,6 +450,10 @@ export function DispatchList() {
             {/* Log */}
             <LogViewer log={detail.log} isRunning={detail.status === "running"} logRef={logRef} onScroll={onLogScroll} />
           </div>
+        ) : selected && detailError ? (
+          <div role="alert" className="rounded-2xl border border-alert/40 bg-alert/5 p-10 text-center text-[12px] text-alert">
+            {detailError}
+          </div>
         ) : (
           <div className="rounded-2xl border border-border-soft bg-surface p-10 text-center text-[12px] text-paper-muted">
             Select a run to view its log.
@@ -729,7 +742,7 @@ function ExportButton({ dispatch }: { dispatch: DispatchWithLog }) {
   function download() {
     const repo = dispatchTarget(dispatch);
     const prInfo = extractPrInfo(dispatch.pr_url);
-    const diff = extractFirstDiff(dispatch.log);
+    const diff = diffStats(dispatch.log);
     const costMatch = /total_cost_usd=([\d.]+)/.exec(dispatch.log);
     const cost = costMatch ? parseFloat(costMatch[1]) : null;
 
@@ -854,25 +867,18 @@ function stripAnsi(s: string) {
 
 type DiffStats = { files: string[]; additions: number; deletions: number; body: string };
 
-// Pull the first fenced ```diff / ```patch block out of the log, also
-// tolerating a bare ``` block that starts with '--- a/'. Same shape as
-// lib/agentic-pr.ts::extractFirstDiff but lives client-side.
-function extractFirstDiff(log: string): DiffStats | null {
-  if (!log) return null;
-  const fenced = /```(?:diff|patch|)\s*\n([\s\S]*?)```/g;
-  for (const m of log.matchAll(fenced)) {
-    const body = m[1];
-    if (!/^--- a\//m.test(body) || !/^\+\+\+ b\//m.test(body)) continue;
-    const files = [...body.matchAll(/^\+\+\+ b\/(\S+)/gm)].map((x) => x[1]);
-    let adds = 0, dels = 0;
-    for (const line of body.split(/\r?\n/)) {
-      if (line.startsWith("+++ ") || line.startsWith("--- ")) continue;
-      if (line.startsWith("+")) adds++;
-      else if (line.startsWith("-")) dels++;
-    }
-    return { files, additions: adds, deletions: dels, body };
+// The same extraction the worker applies (lib/diff-view.ts), plus counts.
+function diffStats(log: string): DiffStats | null {
+  const body = log ? extractFirstDiff(log) : null;
+  if (!body) return null;
+  const files = [...body.matchAll(/^\+\+\+ (?:b\/)?(\S+)/gm)].map((x) => x[1]).filter((f) => f !== "/dev/null");
+  let adds = 0, dels = 0;
+  for (const line of body.split(/\r?\n/)) {
+    if (line.startsWith("+++ ") || line.startsWith("--- ")) continue;
+    if (line.startsWith("+")) adds++;
+    else if (line.startsWith("-")) dels++;
   }
-  return null;
+  return { files, additions: adds, deletions: dels, body };
 }
 
 // Lightweight markdown→JSX for Claude's summary sections. Handles bold,
@@ -979,8 +985,30 @@ function extractLogSection(log: string, headingAlt: string): string | null {
 function DiffPreviewFromLog({ log, prOpened, prUrl, dryRun }: { log: string; prOpened: boolean; prUrl?: string; dryRun: boolean }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const openerRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
-  const diff = extractFirstDiff(log);
+  // A real modal: focus moves in, Tab stays in, Escape closes, focus returns to the opener.
+  useEffect(() => {
+    if (!modalOpen) return;
+    const dialog = dialogRef.current;
+    dialog?.querySelector<HTMLElement>("button")?.focus();
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") { setModalOpen(false); return; }
+      if (event.key !== "Tab" || !dialog) return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>("a[href], button:not([disabled]), [tabindex=\"0\"]"));
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    const opener = openerRef.current;
+    return () => { window.removeEventListener("keydown", onKeyDown); opener?.focus(); };
+  }, [modalOpen]);
+
+  const diff = diffStats(log);
   if (!diff) return null;
 
   const diagnosis = extractLogSection(log, "Diagnosis|Analysis|Root cause|Problem");
@@ -1001,6 +1029,7 @@ function DiffPreviewFromLog({ log, prOpened, prUrl, dryRun }: { log: string; prO
       {/* Inline summary bar — click to open modal */}
       <div className="border-t border-border bg-surface/40">
         <button
+          ref={openerRef}
           onClick={() => setModalOpen(true)}
           className="w-full px-4 py-3.5 flex items-center gap-3 text-left hover:bg-surface-2/40 transition-colors"
         >
@@ -1019,7 +1048,7 @@ function DiffPreviewFromLog({ log, prOpened, prUrl, dryRun }: { log: string; prO
       {/* Full-screen modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-ink/90 backdrop-blur-sm overflow-y-auto py-8 px-4">
-          <div className="rounded-2xl w-full max-w-4xl border border-border-soft bg-ink">
+          <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Proposed patch" className="rounded-2xl w-full max-w-4xl border border-border-soft bg-ink">
             {/* Modal header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <div>
@@ -1036,6 +1065,7 @@ function DiffPreviewFromLog({ log, prOpened, prUrl, dryRun }: { log: string; prO
                 onClick={() => setModalOpen(false)}
                 className="text-paper-muted hover:text-paper text-[18px] px-2"
                 title="Close"
+                aria-label="Close patch"
               >
                 ×
               </button>

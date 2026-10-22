@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -17,7 +17,7 @@ type SubmitState =
 function friendlyError(msg: string): string {
   const lower = msg.toLowerCase();
   if (lower.includes("econnrefused") || lower.includes("fetch failed")) return "Could not reach the server. Check your connection and try again.";
-  if (lower.includes("401") || lower.includes("unauthenticated") || lower.includes("not authenticated")) return "Your session expired. Please log in again.";
+  if (lower.includes("unauthenticated") || lower.includes("not authenticated")) return "Your session expired. Please log in again.";
   if (lower.includes("api key")) return "Add your Anthropic API key in Settings before starting a run.";
   if (lower.includes("rate limit")) return "Rate limit hit. Wait a minute and try again.";
   if (lower.includes("repo_url")) return "Please enter a valid GitHub repository URL.";
@@ -32,6 +32,13 @@ export function TriggerForm() {
   const [dryRun, setDryRun] = useState(true);
   const [notes, setNotes] = useState("");
   const [state, setState] = useState<SubmitState>({ kind: "idle" });
+  // A run started here can finish starting after the user has moved on;
+  // only navigate if this form is still on screen.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   // Pre-fill from URL params (e.g. ?repo=owner/name&issue=123&try=1)
   useEffect(() => {
@@ -72,6 +79,7 @@ export function TriggerForm() {
         queued_at?: string;
         mode?: string;
       } | null;
+      if (res.status === 401) throw new Error("Your session expired. Sign in again to start a run.");
       if (!res.ok) throw new Error(data?.message ?? data?.error ?? `The server could not start this run (${res.status}).`);
       if (!data || typeof data.dispatch_id !== "string" || !data.dispatch_id.trim()) {
         throw new Error("The server returned an invalid run response. Please try again.");
@@ -84,6 +92,10 @@ export function TriggerForm() {
         mode: data.mode ?? (dryRun ? "dry-run" : "live"),
         dispatch_id: dispatchId,
       });
+      if (!mounted.current) {
+        toast("Run started. Open Runs to watch it.", "ok");
+        return;
+      }
       toast("Run started — opening the live view...", "ok");
       setRepoUrl("");
       setNotes("");
@@ -92,6 +104,7 @@ export function TriggerForm() {
     } catch (err) {
       const msg = err instanceof Error && err.name === "TimeoutError"
         ? "Starting the run timed out. Please try again."
+        : err instanceof TypeError ? "Could not reach the server. Check your connection and try again."
         : err instanceof Error ? err.message : String(err);
       setState({ kind: "err", message: friendlyError(msg) });
       toast(friendlyError(msg), "alert");

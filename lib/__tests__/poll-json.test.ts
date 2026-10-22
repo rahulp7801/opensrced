@@ -24,9 +24,9 @@ test("cleanup aborts a request and a remount starts immediately", async (t) => {
     return new Promise((_resolve, reject) => opts.signal!.addEventListener("abort", () => reject(new Error("aborted"))));
   });
   let results = 0;
-  const first = pollJson("/stats", () => results++);
+  const first = pollJson("/stats", () => { results++; });
   first();
-  const second = pollJson("/stats", () => results++);
+  const second = pollJson("/stats", () => { results++; });
   assert.equal(signals.length, 2);
   assert.equal(signals[0].aborted, true);
   second();
@@ -69,4 +69,31 @@ test("incremental log polling uses the completed response offset", async (t) => 
     }, 1);
   });
   assert.deepEqual(urls, ["/logs?since=0", "/logs?since=123"]);
+});
+
+test("polling stops when the receiver says so, and on 404; bad bodies get a readable error", async (t) => {
+  let calls = 0;
+  let reply: () => Response = () => Response.json({ done: true });
+  t.mock.method(globalThis, "fetch", async () => { calls++; return reply(); });
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
+
+  const stopA = pollJson<{ done: boolean }>("/run", ({ data }) => !data?.done, 1);
+  await settle();
+  assert.equal(calls, 1, "a receiver returning false ends polling");
+  stopA();
+
+  calls = 0;
+  reply = () => Response.json({ error: "missing" }, { status: 404 });
+  const seen: Array<number | null> = [];
+  const stopB = pollJson("/run", ({ status }) => { seen.push(status); }, 1);
+  await settle();
+  assert.deepEqual(seen, [404], "404 is reported once, then polling stops");
+  stopB();
+
+  reply = () => new Response("<!doctype html>", { status: 200 });
+  const errors: string[] = [];
+  const stopC = pollJson("/run", ({ error }) => { if (error) errors.push(error); return false; });
+  await settle();
+  assert.deepEqual(errors, ["The server returned an invalid response. Please try again."]);
+  stopC();
 });

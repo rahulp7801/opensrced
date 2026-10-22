@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/toast";
 
 type KeyStatus = { anthropic: boolean; gemini: boolean; maxSpendUsd: number };
@@ -25,6 +25,9 @@ export function ApiKeysForm() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const { toast } = useToast();
+  // A slow first load must not undo what the user already chose or saved.
+  const budgetTouched = useRef(false);
+  const saved = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -34,8 +37,8 @@ export function ApiKeysForm() {
         return r.json();
       })
       .then((d: KeyStatus) => {
-        setStatus(d);
-        if (d.maxSpendUsd) setMaxSpend(d.maxSpendUsd);
+        if (!saved.current) setStatus(d);
+        if (d.maxSpendUsd && !budgetTouched.current) setMaxSpend(d.maxSpendUsd);
       })
       .catch((error) => {
         if (!controller.signal.aborted) setMessage({ text: error instanceof Error && error.name !== "TimeoutError" ? error.message : "Settings took too long to load. Refresh and try again.", ok: false });
@@ -58,8 +61,9 @@ export function ApiKeysForm() {
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(15_000),
       });
-      const data = (await res.json()) as KeyStatus & { error?: string };
-      if (!res.ok) throw new Error(data.error ?? "Could not save settings.");
+      const data = (await res.json().catch(() => ({}))) as KeyStatus & { error?: string };
+      if (!res.ok) throw new Error(data.error ?? `Could not save settings (${res.status}).`);
+      saved.current = true;
       setStatus(data);
       setAnthropicInput("");
       setGeminiInput("");
@@ -85,8 +89,9 @@ export function ApiKeysForm() {
         body: JSON.stringify({ [key]: "" }),
         signal: AbortSignal.timeout(15_000),
       });
-      const data = (await res.json()) as KeyStatus & { error?: string };
-      if (!res.ok) throw new Error(data.error ?? "Could not save settings.");
+      const data = (await res.json().catch(() => ({}))) as KeyStatus & { error?: string };
+      if (!res.ok) throw new Error(data.error ?? `Could not save settings (${res.status}).`);
+      saved.current = true;
       setStatus(data);
       setMessage({ text: `${key} key cleared.`, ok: true });
       toast(`${key} key cleared`, "signal");
@@ -238,7 +243,7 @@ export function ApiKeysForm() {
             <button
               key={opt.value}
               type="button"
-              onClick={() => setMaxSpend(opt.value)}
+              onClick={() => { budgetTouched.current = true; setMaxSpend(opt.value); }}
               aria-pressed={maxSpend === opt.value}
               className={`text-sm min-h-11 rounded-md px-3 py-2 border transition ${
                 maxSpend === opt.value

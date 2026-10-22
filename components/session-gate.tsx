@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { useUser } from "@auth0/nextjs-auth0";
 import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -12,13 +12,35 @@ export function SessionGate({ children, allowAnonymous = false }: { children: Re
 }
 
 function SignedIn({ children }: { children: ReactNode }) {
-  const { user, isLoading } = useUser();
+  const { user, error, isLoading } = useUser();
   const path = usePathname();
   const params = useSearchParams();
+  // Once this page has had a user, a later check that fails or comes back empty
+  // (the library re-checks on focus) must not unmount it and lose typed work.
+  const hadUser = useRef(false);
+  if (user) hadUser.current = true;
 
-  if (user) return children;
   const returnTo = path + (params.size ? `?${params.toString()}` : "");
+  if (hadUser.current) {
+    // The same element shape whether or not the banner shows: returning bare
+    // `children` in one case and a fragment in the other would remount the
+    // page and lose its state anyway.
+    return (
+      <>
+        {!user && (
+          <div className="mx-auto w-full max-w-[1200px] px-5 pt-4 sm:px-8">
+            <p role="alert" className="rounded-md border border-alert/40 bg-alert/10 px-4 py-3 text-sm text-alert">
+              {error ? "Could not confirm your sign-in." : "Your session has ended."} What you entered on this page is kept.{" "}
+              <a href={`/auth/login?returnTo=${encodeURIComponent(returnTo)}`} className="font-medium underline underline-offset-2">Sign in again</a>
+            </p>
+          </div>
+        )}
+        {children}
+      </>
+    );
+  }
   if (isLoading) return <SessionLoading returnTo={returnTo} />;
+  if (error) return <SessionLoading returnTo={returnTo} failed />;
   return (
     <section className="m-auto w-full max-w-lg px-6 py-20">
       <h1 className="display text-[40px] leading-[1.05] text-paper">Sign in to continue</h1>
@@ -29,8 +51,8 @@ function SignedIn({ children }: { children: ReactNode }) {
   );
 }
 
-function SessionLoading({ returnTo }: { returnTo: string }) {
-  const [timedOut, setTimedOut] = useState(false);
+function SessionLoading({ returnTo, failed = false }: { returnTo: string; failed?: boolean }) {
+  const [timedOut, setTimedOut] = useState(failed);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setTimedOut(true), 10_000);
@@ -40,7 +62,7 @@ function SessionLoading({ returnTo }: { returnTo: string }) {
   if (timedOut) {
     return (
       <section className="m-auto w-full max-w-lg px-6 py-20" role="alert">
-        <h1 className="display text-[40px] leading-[1.05] text-paper">Sign-in check took too long</h1>
+        <h1 className="display text-[40px] leading-[1.05] text-paper">{failed ? "Could not check sign-in" : "Sign-in check took too long"}</h1>
         <p className="mt-4 text-sm leading-6 text-paper-muted">
           The authentication service did not respond. Reload this page or start a fresh GitHub sign-in.
         </p>

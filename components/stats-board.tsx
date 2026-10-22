@@ -80,8 +80,8 @@ export function StatsBoard() {
       {data.dispatchWindow && <p className="text-[12px] text-paper-muted">Run, patch, PR, and spend figures cover your latest {data.dispatchWindow} runs. Scan counts cover your recorded history.</p>}
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border-soft bg-border-soft lg:grid-cols-5">
         <Counter label="runs" value={data.dispatches} tone="info" sub={data.dispatchWindow ? "recent runs" : "your history"} />
-        <Counter label="patches" value={data.patchesGenerated} tone="signal" sub={`${Math.round(data.successRate * 100)}% success rate`} />
-        <Counter label="PRs opened" value={data.prsCreated} tone="ok" sub={`${Math.round(data.prRate * 100)}% of runs`} />
+        <Counter label="patches" value={data.patchesGenerated} tone="signal" sub={`${Math.round((Number(data.successRate) || 0) * 100)}% success rate`} />
+        <Counter label="PRs opened" value={data.prsCreated} tone="ok" sub={`${Math.round((Number(data.prRate) || 0) * 100)}% of runs`} />
         <Counter label="recorded spend" value={data.totalCostUsd} tone="signal" format="currency" sub="Anthropic API" />
         <Counter className="col-span-2 lg:col-span-1" label="scans" value={data.scans} tone="paper" sub={`${data.discoverRuns} via Discover`} />
       </div>
@@ -205,11 +205,14 @@ function Counter({
     signal: "bg-signal",
     info: "bg-info",
   }[tone];
-  const display = format === "currency" ? `$${value.toFixed(2)}` : String(value);
+  const n = Number.isFinite(value) ? value : 0;
+  const display = format === "currency" ? `$${n.toFixed(2)}` : String(n);
+  // Long figures step down a size rather than being clipped by the tile ("$14.82" is 6 characters).
+  const size = display.length <= 4 ? "text-[52px]" : display.length <= 7 ? "text-[38px]" : "text-[28px]";
   return (
-    <div className={cn("relative flex flex-col gap-2 bg-surface p-6", className)}>
+    <div className={cn("relative flex min-w-0 flex-col gap-2 bg-surface p-6", className)}>
       <div className="mono-label flex items-center gap-2 text-paper-muted"><span aria-hidden className={cn("size-1.5 rounded-full", dot)} />{label}</div>
-      <div className="display num-tabular text-[52px] leading-none text-paper">{display}</div>
+      <div className={cn("display num-tabular break-all leading-none text-paper", size)}>{display}</div>
       {sub && <div className="mt-1 text-[12px] text-paper-dim">{sub}</div>}
     </div>
   );
@@ -224,7 +227,7 @@ function ActivityKindChip({ kind }: { kind: "scan" | "discover" | "dispatch" }) 
     discover: { label: "discover", cls: "info" },
     dispatch: { label: "run", cls: "signal" },
   };
-  const c = cfg[kind];
+  const c = cfg[kind] ?? cfg.scan; // a kind added on the server later must not break the page
   return (
     <span className="tag w-[88px] justify-start" data-tone={c.cls || undefined}>
       {c.label}

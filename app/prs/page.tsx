@@ -483,7 +483,7 @@ export default function PRsPage() {
                   <span className="text-paper-faint">
                     Showing {page * PAGE_SIZE + 1}-{Math.min((page + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
                   </span>
-                  <div className="flex items-center gap-1">
+                  <div className="flex flex-wrap items-center gap-1">
                     <button
                       onClick={() => setPage(Math.max(0, page - 1))}
                       disabled={page === 0}

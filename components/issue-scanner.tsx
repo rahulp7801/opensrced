@@ -52,6 +52,9 @@ export function IssueScanner() {
   const [scan, setScan] = useState<Scan | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // A failed Preview/Solve on a row far down the list must still be seen.
+  const errRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (err) errRef.current?.scrollIntoView({ block: "nearest" }); }, [err]);
   const [filter, setFilter] = useState<"all" | "solvable">("solvable");
   const [age, setAge] = useState<"recent" | "any">("recent");
   const [beginner, setBeginner] = useState<"any" | "good-first">("any");
@@ -233,7 +236,7 @@ export function IssueScanner() {
       )}
 
       {err && (
-        <div className="rounded-xl mt-3 border border-alert/40 bg-alert/5 p-3 text-[12px] text-alert">
+        <div ref={errRef} role="alert" className="rounded-xl mt-3 border border-alert/40 bg-alert/5 p-3 text-[12px] text-alert">
           {err}
         </div>
       )}

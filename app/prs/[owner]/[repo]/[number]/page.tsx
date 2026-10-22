@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
+import { readJson, requestErrorMessage } from "@/lib/fetch-json";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
 import { parseSplitHunks, parseUnifiedRows, type UnifiedKind } from "@/lib/diff-view";
@@ -210,6 +211,8 @@ export default function PrDetailPage() {
   const commentsAbort = useRef<AbortController | null>(null);
   useEffect(() => () => { abortRef.current?.abort(); commentsAbort.current?.abort(); }, [repoFull, prNumber]);
   const fixRef = useRef<HTMLDivElement>(null);
+  // One share request at a time: each click would otherwise create another share record.
+  const sharing = useRef(false);
   const commentRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
   // Derived
@@ -237,8 +240,11 @@ export default function PrDetailPage() {
     if (!silent) { setLoading(true); setError(null); }
     try {
       const r = await fetch(`/api/prs/review?repo=${encodeURIComponent(repoFull)}&pr=${prNumber}`, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]) });
-      if (!r.ok) { const e = await r.json(); throw new Error(e.error); }
-      const data: { pr: PrInfo; comments: ReviewComment[] } = await r.json();
+      const data = await readJson<{ pr: PrInfo; comments: ReviewComment[] }>(r);
+      // A wrong shape is a server fault to report, not something to render blank.
+      if (!data || typeof data.pr !== "object" || data.pr === null || !Array.isArray(data.comments)) {
+        throw new Error("The server returned an invalid response. Please try again.");
+      }
       if (controller.signal.aborted) return;
       setPr(data.pr);
 
@@ -251,7 +257,7 @@ export default function PrDetailPage() {
       setComments(data.comments);
       lastCommentCount.current = data.comments.length;
     } catch (err) {
-      if (!silent && !controller.signal.aborted) setError(err instanceof Error ? err.message : String(err));
+      if (!silent && !controller.signal.aborted) setError(requestErrorMessage(err));
     } finally {
       if (!silent && !controller.signal.aborted) setLoading(false);
     }
@@ -344,6 +350,8 @@ export default function PrDetailPage() {
       // Don't trigger shortcuts when typing in inputs
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      // Nor behind an open modal: its content is all the user can act on.
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
 
       switch (e.key) {
         case "j":
@@ -408,11 +416,11 @@ export default function PrDetailPage() {
     setDiffError("");
     try {
       const response = await fetch(`/api/prs/diff?repo=${encodeURIComponent(repoFull)}&pr=${prNumber}`, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]) });
-      const data = await response.json();
-      if (!response.ok || data.error || typeof data.diff !== "string") throw new Error(data.error || "Failed to load diff");
+      const data = await readJson<{ diff?: unknown }>(response);
+      if (!data || typeof data.diff !== "string") throw new Error("The server returned an invalid response. Please try again.");
       if (diffRequest.current === controller) setPrDiff(data.diff);
     } catch (error) {
-      if (diffRequest.current === controller) setDiffError(error instanceof Error ? error.message : "Failed to load diff");
+      if (diffRequest.current === controller) setDiffError(requestErrorMessage(error));
     } finally {
       if (diffRequest.current === controller) {
         diffRequest.current = null;
@@ -689,7 +697,8 @@ export default function PrDetailPage() {
           type: comment.type,
         }),
       });
-      const data = await res.json();
+      // readJson turns 401, server errors and unreadable bodies into a message worth showing.
+      const data = await readJson<{ ok?: boolean }>(res).catch((error: unknown) => ({ ok: false, message: requestErrorMessage(error) }));
       if (data.ok) {
         setReplyStates((prev) => new Map(prev).set(comment.id, { commentId: comment.id, status: "sent" }));
         setShowReplyFor(null);
@@ -698,7 +707,7 @@ export default function PrDetailPage() {
         toast("Reply posted successfully", "ok");
       } else {
         setReplyStates((prev) => new Map(prev).set(comment.id, { commentId: comment.id, status: "error" }));
-        toast("Failed to post reply", "alert");
+        toast("message" in data && data.message ? `Reply not posted: ${data.message}` : "Failed to post reply", "alert");
       }
     } catch {
       setReplyStates((prev) => new Map(prev).set(comment.id, { commentId: comment.id, status: "error" }));
@@ -1390,6 +1399,8 @@ export default function PrDetailPage() {
                   </button>
                   <button
                     onClick={async () => {
+                      if (sharing.current) return;
+                      sharing.current = true;
                       let shareLink: string | null = null;
                       try {
                         const diff = extractDiff(fixState.response);
@@ -1422,6 +1433,8 @@ export default function PrDetailPage() {
                             : error instanceof Error ? error.message : "Failed to create share link",
                           "alert",
                         );
+                      } finally {
+                        sharing.current = false;
                       }
                     }}
                     className="rounded-full text-xs text-signal border border-signal/30 hover:bg-signal/10 px-2 py-0.5 transition"
@@ -1785,7 +1798,18 @@ function DiffPreview({ diff }: { diff: string }) {
       if (event.key === "Escape") {
         setPoppedOut(false);
         requestAnimationFrame(() => popOutButtonRef.current?.focus());
+        return;
       }
+      // Keep Tab inside the dialog.
+      const dialog = closeButtonRef.current?.closest<HTMLElement>('[role="dialog"]');
+      if (event.key !== "Tab" || !dialog) return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex="0"]'));
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!dialog.contains(document.activeElement)) { event.preventDefault(); first.focus(); }
+      else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);

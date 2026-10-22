@@ -29,14 +29,20 @@ export default function SharedFixPage() {
     fetch(`/api/fixes/${encodeURIComponent(id)}`, {
       signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]),
     })
-      .then((r) => (r.ok ? r.json() : r.json().then((e) => Promise.reject(e.error))))
+      .then((r) => {
+        if (r.ok) return r.json();
+        // Only a 404 means the link is dead; anything else is the server, and worth a retry.
+        throw new Error(r.status === 404
+          ? "This shared fix link may have expired or been deleted."
+          : `Could not load this fix right now (${r.status}). Try again in a moment.`);
+      })
       .then(setFix)
       .catch((err) => {
         if (!controller.signal.aborted) {
-          setError(err instanceof Error && err.name === "TimeoutError"
-            ? "Loading this fix timed out."
-            : err === "Fix not found" ? "This shared fix link may have expired or been deleted."
-            : typeof err === "string" ? err : "Fix not found");
+          setError(err instanceof Error && err.name === "TimeoutError" ? "Loading this fix timed out."
+            : err instanceof SyntaxError ? "The server returned an invalid response. Try again in a moment."
+            : err instanceof TypeError ? "Network connection lost. Check your connection and try again."
+            : err instanceof Error ? err.message : "Could not load this fix.");
         }
       })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });

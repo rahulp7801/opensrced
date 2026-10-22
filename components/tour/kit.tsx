@@ -61,6 +61,9 @@ export type Interact = {
   press: () => void;
   /** Jump to a chapter by id (the app's menus). */
   open: (chapterId: string) => void;
+  /** True once if the visitor's last action came from inside the stage, so the
+   *  next button asked for should take focus. */
+  claimFocus: () => boolean;
 };
 export const InteractContext = createContext<Interact | null>(null);
 
@@ -84,8 +87,10 @@ export function Press({ at, children, className, label }: { at: number | null; c
   const waiting = ix !== null && at !== null && ix.waitingAt === at;
   // The button the visitor is asked for must be in sight, even in a pane that has scrolled past it.
   useEffect(() => {
-    if (waiting) ref.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [waiting]);
+    if (!waiting) return;
+    ref.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    if (ix?.claimFocus()) ref.current?.focus({ preventScroll: true });
+  }, [waiting, ix]);
   const pressing = !waiting && at !== null && t >= at - 450 && t < at + 350;
   const cls = cn(
     "relative inline-flex select-none items-center justify-center transition-[transform,box-shadow] duration-200 motion-reduce:transition-none",

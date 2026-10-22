@@ -49,6 +49,9 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
   const waitingRef = useRef<Waiting | null>(null);
   // Clicks already made in the current chapter, as "chapter:at".
   const done = useRef(new Set<string>());
+  // Set when the visitor acts from inside the stage: the next button asked for takes focus.
+  const refocus = useRef(false);
+  const nextRef = useRef<HTMLButtonElement>(null);
   const tRef = useRef(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -135,11 +138,20 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
     seek(STARTS[Math.min(CHAPTERS.length - 1, Math.max(0, i))]);
   }, [seek]);
 
+  /** A keyboard visitor working inside the stage keeps their place: the button they used
+   *  is about to disappear, so focus waits on the stage and moves to the next button asked for. */
+  const holdFocus = useCallback(() => {
+    const stage = stageRef.current;
+    refocus.current = Boolean(stage?.contains(document.activeElement));
+    if (refocus.current) stage?.focus({ preventScroll: true });
+  }, []);
+
   /** Do what the click-through tour is waiting for: the click, or the next chapter. */
   const step = useCallback(() => {
     const w = waitingRef.current;
     if (!w) return;
     started.current = true;
+    holdFocus();
     if (w.kind === "press") {
       done.current.add(`${chapterAt(tRef.current)}:${w.at}`);
       setWaiting(null);
@@ -147,7 +159,7 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
       goTo(chapterAt(tRef.current) + 1);
     }
     setPlaying(true);
-  }, [goTo, setWaiting]);
+  }, [goTo, setWaiting, holdFocus]);
 
   const togglePlay = useCallback(() => {
     started.current = true;
@@ -183,10 +195,23 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
     open: (id) => {
       const i = CHAPTERS.findIndex((c) => c.id === id);
       if (i < 0) return;
+      holdFocus();
       goTo(i);
       setPlaying(true);
     },
-  }, [mode, waiting, step, goTo, setWaiting]);
+    claimFocus: () => {
+      const claimed = refocus.current;
+      refocus.current = false;
+      return claimed;
+    },
+  }, [mode, waiting, step, goTo, setWaiting, holdFocus]);
+
+  useEffect(() => {
+    if (waiting?.kind === "next" && refocus.current) {
+      refocus.current = false;
+      nextRef.current?.focus({ preventScroll: true });
+    }
+  }, [waiting]);
 
   const previous = useCallback(() => {
     const i = chapterAt(tRef.current);
@@ -245,8 +270,9 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
           aria-hidden={mode === "watch" ? true : undefined}
           role={mode === "try" ? "region" : undefined}
           aria-label={mode === "try" ? "The opensrcer app (demo)" : undefined}
+          tabIndex={mode === "try" ? -1 : undefined}
           className={cn(
-            "relative overflow-hidden rounded-[20px] border border-border-soft bg-surface shadow-[0_2px_4px_rgb(0_0_0/0.03),0_40px_100px_-30px_rgb(0_0_0/0.22)] sm:rounded-[26px]",
+            "relative overflow-hidden rounded-[20px] outline-none border border-border-soft bg-surface shadow-[0_2px_4px_rgb(0_0_0/0.03),0_40px_100px_-30px_rgb(0_0_0/0.22)] sm:rounded-[26px]",
             fullscreen ? "min-h-0 flex-1" : "h-[560px] sm:h-[600px] lg:h-[620px]",
           )}
         >
@@ -258,7 +284,7 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
             </TimeContext.Provider>
           </InteractContext.Provider>
           {waiting?.kind === "next" && nextChapter && (
-            <button type="button" onClick={step} className="absolute bottom-4 right-4 z-10 inline-flex min-h-10 animate-fade-rise items-center gap-2 rounded-full bg-signal px-4 text-[13.5px] font-medium text-white shadow-[0_8px_24px_-6px_rgb(0_86_173/0.55)] transition hover:brightness-110 motion-reduce:animate-none">
+            <button ref={nextRef} type="button" onClick={step} className="absolute bottom-4 right-4 z-10 inline-flex min-h-10 animate-fade-rise items-center gap-2 rounded-full bg-signal px-4 text-[13.5px] font-medium text-white shadow-[0_8px_24px_-6px_rgb(0_86_173/0.55)] transition hover:brightness-110 motion-reduce:animate-none">
               Next: {nextChapter.label} <ArrowRight aria-hidden size={15} weight="bold" />
             </button>
           )}

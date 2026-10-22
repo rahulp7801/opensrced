@@ -22,9 +22,14 @@ export function PreviewLanding() {
       <Suspense fallback={null}>
         <InviteNotice />
       </Suspense>
-      <Link href="/login" className="animate-fade-rise mt-8 text-[17px] text-signal hover:underline" style={{ animationDelay: "320ms" }}>
-        Have an invite? Sign in
-      </Link>
+      <div className="animate-fade-rise mt-9 flex flex-wrap items-center justify-center gap-x-8 gap-y-4" style={{ animationDelay: "320ms" }}>
+        <Link href="/demo" className="btn-primary min-h-11 px-6 text-[17px] transition-[background-color,transform] duration-150 active:scale-[0.97]">
+          Watch the product tour
+        </Link>
+        <Link href="/login" className="text-[17px] text-signal hover:underline">
+          Have an invite? Sign in
+        </Link>
+      </div>
     </section>
   );
 }

@@ -1,0 +1,222 @@
+"use client";
+
+// Building blocks for the product tour. Every chapter view is a pure function
+// of its local time `t` (ms), read from TimeContext, so play, pause, seek and
+// replay are exact: nothing here keeps its own timers or state.
+
+import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
+import { cn } from "@/lib/utils";
+import { Mark } from "@/components/header";
+
+export const TimeContext = createContext(0);
+
+/** Local time in the current chapter, in ms. */
+export function useT(): number {
+  return useContext(TimeContext);
+}
+
+/** 0 before `from`, 1 after `to`, linear in between. */
+export function progress(t: number, from: number, to: number): number {
+  if (to <= from) return t >= to ? 1 : 0;
+  return Math.min(1, Math.max(0, (t - from) / (to - from)));
+}
+
+/** Fades and lifts its children into place once local time passes `at`. */
+export function Reveal({ at, children, className, as: Tag = "div" }: { at: number; children: ReactNode; className?: string; as?: "div" | "li" | "span" | "tr" }) {
+  const shown = useT() >= at;
+  return (
+    <Tag
+      aria-hidden={shown ? undefined : true}
+      className={cn("transition-[opacity,transform] duration-500 ease-out motion-reduce:transition-none", shown ? "opacity-100 translate-y-0" : "pointer-events-none translate-y-1.5 opacity-0", className)}
+    >
+      {children}
+    </Tag>
+  );
+}
+
+/** Text typed out from `at` at `cps` characters a second, with a caret while typing. */
+export function Typed({ text, at, cps = 28, className }: { text: string; at: number; cps?: number; className?: string }) {
+  const t = useT();
+  const shown = Math.max(0, Math.min(text.length, Math.floor(((t - at) / 1000) * cps)));
+  const typing = t >= at && shown < text.length;
+  return (
+    <span className={className}>
+      {text.slice(0, shown)}
+      {typing && <span aria-hidden className="ml-px inline-block h-[1em] w-px translate-y-[0.15em] bg-current" />}
+    </span>
+  );
+}
+
+/** A mock button that lights up as the tour "clicks" it at `at`. */
+export function Press({ at, children, className }: { at: number | null; children: ReactNode; className?: string }) {
+  const t = useT();
+  const pressing = at !== null && t >= at - 450 && t < at + 350;
+  return (
+    <span
+      className={cn(
+        "relative inline-flex select-none items-center justify-center transition-[transform,box-shadow] duration-200 motion-reduce:transition-none",
+        pressing && "scale-[0.96] shadow-[0_0_0_4px_rgb(0_86_173/0.28)]",
+        className,
+      )}
+    >
+      {children}
+      {pressing && <span aria-hidden className="pointer-events-none absolute inset-0 animate-ping rounded-[inherit] bg-signal/20 motion-reduce:animate-none" />}
+    </span>
+  );
+}
+
+/** A number counting from `from` to `to` between `at` and `at + duration`. */
+export function Count({ from = 0, to, at, duration = 1200, format = (n) => String(Math.round(n)) }: { from?: number; to: number; at: number; duration?: number; format?: (n: number) => string }) {
+  const p = progress(useT(), at, at + duration);
+  const eased = 1 - Math.pow(1 - p, 3);
+  return <>{format(from + (to - from) * eased)}</>;
+}
+
+/** Keeps a scrolling pane pinned to its newest line as lines arrive. */
+export function useFollow(dep: number) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.scrollTop = ref.current.scrollHeight;
+  }, [dep]);
+  return ref;
+}
+
+/** Scrolls a pane from top to bottom as local time goes from `from` to `to`,
+ *  like a presenter scrolling through a long page. */
+export function useAutoScroll(from: number, to: number) {
+  return useScrollFraction(progress(useT(), from, to));
+}
+
+/** Holds a pane at scroll position `p` (0 = top, 1 = bottom). */
+export function useScrollFraction(p: number) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (el) el.scrollTop = p * Math.max(0, el.scrollHeight - el.clientHeight);
+  }, [p]);
+  return ref;
+}
+
+const SECTIONS = ["Find", "Fix", "Ship", "Explore"] as const;
+export type Section = (typeof SECTIONS)[number];
+
+const SUBTABS: Record<Section, string[]> = {
+  Find: ["Browse repos", "Issues", "Your repos"],
+  Fix: ["New run", "Runs"],
+  Ship: ["Pull requests", "Impact"],
+  Explore: [],
+};
+
+/** The opensrcer app, drawn in markup: browser chrome, the signed-in header
+ *  with its four sections, the section's sub-tabs, then the page. */
+export function AppWindow({ path, section, tab, children, label, host = "opensrced.vercel.app" }: { path: string; section?: Section | "none"; tab?: string; children: ReactNode; label?: string; host?: string }) {
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex items-center gap-2 border-b border-border-soft bg-ink-2 px-3 py-2 sm:px-4">
+        <span aria-hidden className="flex gap-1.5">
+          <span className="size-2.5 rounded-full bg-[#ff5f57]" />
+          <span className="size-2.5 rounded-full bg-[#febc2e]" />
+          <span className="size-2.5 rounded-full bg-[#28c840]" />
+        </span>
+        <span className="mx-auto min-w-0 truncate rounded-md bg-surface-2 px-3 py-0.5 text-center font-mono text-[11px] text-paper-muted sm:min-w-[50%]">
+          {host}{path}
+        </span>
+        {label && <span className="hidden shrink-0 text-[11px] text-paper-faint sm:inline">{label}</span>}
+      </div>
+      {section && (
+        <>
+          <div className="flex items-center gap-1 border-b border-border-soft bg-surface px-3 py-2 sm:px-4">
+            <span className="flex items-center gap-1.5 pr-2 text-[13px] font-semibold text-paper"><Mark /><span className="hidden sm:inline">opensrcer</span></span>
+            <span className="mx-auto flex gap-0.5 sm:gap-2">
+              {SECTIONS.map((s) => (
+                <span key={s} className={cn("rounded-md px-1.5 py-0.5 text-[12px] sm:px-2.5", s === section ? "font-medium text-paper" : "text-paper-muted")}>{s}</span>
+              ))}
+            </span>
+            <span aria-hidden className="grid size-6 place-items-center rounded-full bg-paper text-[11px] font-semibold text-surface">R</span>
+          </div>
+          {section !== "none" && SUBTABS[section].length > 0 && (
+            <div className="flex items-center gap-2 overflow-hidden border-b border-border-soft bg-surface px-3 py-1.5 sm:px-4">
+              <span className="text-[13px] font-semibold text-paper">{section}</span>
+              {SUBTABS[section].map((s) => (
+                <span key={s} className={cn("whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11.5px]", s === tab ? "bg-surface-3 font-medium text-paper" : "text-paper-muted")}>{s}</span>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+      <div className="relative min-h-0 flex-1 overflow-hidden bg-ink">{children}</div>
+    </div>
+  );
+}
+
+/** Page heading as the real PageHeading draws it, scaled to the window. */
+export function PageHead({ title, description }: { title: string; description?: string }) {
+  return (
+    <div className="mb-4">
+      <h3 className="display text-[22px] leading-tight text-paper sm:text-[26px]">{title}</h3>
+      {description && <p className="mt-1 max-w-[60ch] text-[12px] leading-5 text-paper-muted">{description}</p>}
+    </div>
+  );
+}
+
+/** Scope badge colours, as on Discover and the issue scanner. */
+export const SCOPE_TONE: Record<string, "ok" | "signal" | "info" | "alert"> = { doc: "ok", leaf: "signal", cross: "info", "new file": "info", refactor: "alert" };
+export const SEVERITY_TONE: Record<string, "muted" | "info" | "signal" | "alert"> = { low: "muted", medium: "info", high: "signal", critical: "alert" };
+
+export function Pips({ value }: { value: number }) {
+  const tone = value >= 4 ? "bg-signal" : value === 3 ? "bg-info" : "bg-paper-dim";
+  return (
+    <span className="inline-flex items-center gap-1" aria-label={`complexity ${value} of 5`}>
+      {[1, 2, 3, 4, 5].map((i) => <span key={i} className={cn("h-1.5 w-2.5 rounded-sm", i <= value ? tone : "bg-surface-3")} />)}
+      <span className="ml-0.5 font-mono text-[10.5px] text-paper-muted">{value}/5</span>
+    </span>
+  );
+}
+
+/** Inline `code` and **bold** in tour copy. */
+export function Inline({ text }: { text: string }) {
+  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g);
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.startsWith("`") ? <code key={i} className="rounded bg-surface-3 px-1 font-mono text-[0.92em] text-paper">{part.slice(1, -1)}</code>
+          : part.startsWith("**") ? <strong key={i} className="font-semibold text-paper">{part.slice(2, -2)}</strong>
+          : part,
+      )}
+    </>
+  );
+}
+
+/** A log line coloured the way the real log viewer reads. */
+export function LogLine({ text }: { text: string }) {
+  const cls = text.startsWith("[tool]") ? "text-[#64d2ff]"
+    : text.startsWith("[agentic-pr] opened") ? "font-semibold text-[#30d158]"
+    : text.startsWith("[gitleaks] status=clean") ? "text-[#30d158]"
+    : text.startsWith("[crucible-tests]") ? "text-[#ffd60a]"
+    : text.startsWith("[") ? "text-[#8e8e93]"
+    : text.startsWith("## ") ? "font-semibold text-white"
+    : text.startsWith("+") && !text.startsWith("+++") ? "text-[#30d158]"
+    : text.startsWith("-") && !text.startsWith("---") ? "text-[#ff6961]"
+    : "text-[#e8e8ed]";
+  return <div className={cn("whitespace-pre-wrap break-words", cls)}>{text || " "}</div>;
+}
+
+export type Caption = { at: number; text: string };
+
+export const ACTS = ["Start", "Find", "Fix", "Ship", "Teams", "Trust"] as const;
+export type Act = (typeof ACTS)[number];
+
+export type Chapter = {
+  id: string;
+  /** The part of the story it belongs to; the chapter rail groups by it. */
+  act: Act;
+  /** Short name on the chapter rail. */
+  label: string;
+  /** Heading above the captions. */
+  title: string;
+  duration: number;
+  captions: Caption[];
+  /** Shown on the stage: what is real and what is example data. */
+  source: string;
+  View: () => ReactNode;
+};

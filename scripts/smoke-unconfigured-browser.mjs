@@ -50,7 +50,7 @@ try {
       }
 
       await page.getByRole('link', { name: 'Explore the demo', exact: true }).click();
-      await page.getByRole('tab', { name: 'Bug fix run', exact: true }).waitFor();
+      await page.getByRole('navigation', { name: 'Tour chapters' }).waitFor();
       assert.equal(new URL(page.url()).pathname, '/demo', 'unavailable sign-in must offer a working demo');
       assert.deepEqual(errors, [], `client errors after demo navigation ${width}`);
       assert.deepEqual(authRequests, [], 'unavailable authentication must not trigger login/logout requests');

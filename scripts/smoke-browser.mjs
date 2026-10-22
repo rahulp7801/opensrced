@@ -73,25 +73,33 @@ try {
         assert.equal(await main.getByText(/HTTP 401|Retrying/).count(), 0);
       }
       if (path === '/demo') {
+        // The product tour: reduced motion means it waits for Play instead of autoplaying.
         await page.waitForLoadState('load');
-        for (const [name, key] of [['Codebase explorer', 'explore'], ['Security scan', 'security'], ['Private repo flow', 'crucible'], ['Bug fix run', 'dispatch']]) {
-          const tab = page.getByRole('tab', { name, exact: true });
-          await tab.click();
-          await page.waitForFunction(tabKey => document.getElementById(`demo-tab-${tabKey}`)?.getAttribute('aria-selected') === 'true', key);
-          const action = main.getByRole('button', { name: name === 'Security scan' ? /Start scan/ : name === 'Private repo flow' ? /Connect GitHub Org/ : /Start walkthrough/ });
-          await action.waitFor();
-          assert.equal(await tab.getAttribute('aria-selected'), 'true');
-          if (name === 'Private repo flow') {
-            await action.click();
-            await main.getByRole('button', { name: /Install & Authorize/ }).click();
-            await main.getByText('acme-corp connected', { exact: true }).waitFor();
-          }
-        }
-        await page.getByRole('tab', { name: 'Bug fix run', exact: true }).focus();
+        const tour = main.locator('section[aria-label="Product tour"]');
+        const play = tour.getByRole('button', { name: 'Play', exact: true });
+        await play.waitFor();
+        const chapters = tour.locator('nav[aria-label="Tour chapters"] button');
+        assert.equal(await chapters.count(), 21, 'every chapter is listed');
+        const position = tour.getByRole('slider', { name: 'Tour position' });
+        await chapters.filter({ hasText: 'Watch it run' }).click();
+        await tour.getByText('Watch the agent work').first().waitFor();
+        assert.equal(await chapters.filter({ hasText: 'Watch it run' }).getAttribute('aria-current'), 'step');
+        const before = Number(await position.inputValue());
+        await play.click();
+        await tour.getByRole('button', { name: 'Pause', exact: true }).waitFor();
+        await page.waitForTimeout(1200);
+        await tour.getByRole('button', { name: 'Pause', exact: true }).click();
+        assert.ok(Number(await position.inputValue()) > before, 'playing advances the tour');
+        await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
         await page.keyboard.press('ArrowRight');
-        await page.locator('#demo-explore').getByRole('button', { name: /Start walkthrough/ }).waitFor();
-        assert.equal(await page.getByRole('tab', { name: 'Codebase explorer', exact: true }).getAttribute('aria-selected'), 'true');
-        assert.equal(await page.getByRole('tablist').evaluate(element => element.scrollWidth > element.clientWidth), false, 'demo tabs must all fit without horizontal scrolling');
+        await tour.getByText('Review every line').first().waitFor();
+        await position.fill(await position.getAttribute('max'));
+        await tour.getByRole('button', { name: 'Replay the tour', exact: true }).waitFor();
+        // textContent: the transcript sits in a collapsed <details>, which innerText skips.
+        const transcript = await main.locator('details').textContent() ?? '';
+        for (const title of ['What opensrcer does', 'Watch the agent work', 'A draft pull request, in your name', 'Safe by default']) {
+          assert.ok(transcript.includes(title), `the transcript covers "${title}"`);
+        }
       }
       await assertUsableControls(page, `${width} ${path}`);
       await assertNoSeriousAccessibilityViolations(page, `${width} ${path}`);

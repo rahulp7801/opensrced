@@ -104,8 +104,8 @@ assert.equal(sitemap.status, 200);
 const sitemapText = await sitemap.text();
 const escapedOrigin = metadataOrigin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 assert.match(sitemapText, new RegExp(`<loc>${escapedOrigin}</loc>`));
-// The demo is listed only while the app is open; the preview keeps it private.
-(access.inviteOnly ? assert.doesNotMatch : assert.match)(sitemapText, new RegExp(`<loc>${escapedOrigin}/demo</loc>`));
+// The product tour is public in every mode.
+assert.match(sitemapText, new RegExp(`<loc>${escapedOrigin}/demo</loc>`));
 assert.doesNotMatch(sitemapText, /\/fix\//);
 
 const privateCruciblePage = await fetch(`${base}/crucible/orgs/smoke-test`, {

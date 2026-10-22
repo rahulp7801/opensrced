@@ -67,7 +67,7 @@ export function SiteHeader({ localMode = false, inviteOnly = false }: { localMod
             </span>
           </Link>
 
-          {signedIn ? <Nav /> : inviteOnly ? <span className="ml-auto" /> : <nav aria-label="Main navigation" className="ml-auto flex items-center gap-5 px-4 text-[13px]"><Link href="/demo" className="text-paper-dim transition-colors hover:text-paper">Demo</Link></nav>}
+          {signedIn ? <Nav /> : <nav aria-label="Main navigation" className="ml-auto flex items-center gap-5 px-4 text-[13px]"><Link href="/demo" className="text-paper-dim transition-colors hover:text-paper">Demo</Link></nav>}
 
           {signedIn && (
             <button
@@ -155,7 +155,7 @@ function HelpSection({ title, children }: { title: string; children: React.React
 }
 
 /** A branch leaving the trunk: an issue becoming a pull request. */
-function Mark() {
+export function Mark() {
   return (
     <svg
       width="22"

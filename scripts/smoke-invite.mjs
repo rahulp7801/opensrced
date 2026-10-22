@@ -37,19 +37,21 @@ assert.equal(home.status, 200);
 assert.match(home.text, /Coming soon/);
 assert.match(home.text, /Pull requests out\./);
 assert.doesNotMatch(home.text, /One place for the whole contribution/, 'the full landing page stays private');
-for (const path of ['/login', '/privacy']) assert.equal((await request(path)).status, 200, path);
-for (const path of ['/demo', '/discover', '/issues', '/dispatches', '/crucible', '/graph', '/prs/acme/app/1']) {
+for (const path of ['/login', '/privacy', '/demo']) assert.equal((await request(path)).status, 200, path);
+assert.match(home.text, /href="\/demo"/, 'the teaser links to the product tour');
+for (const path of ['/discover', '/issues', '/dispatches', '/crucible', '/graph', '/prs/acme/app/1']) {
   const r = await request(path);
   assert.ok([302, 303, 307].includes(r.status) && new URL(r.location, base).pathname === '/login', `${path} must ask for sign-in, got ${r.status} ${r.location}`);
 }
 assert.equal((await request('/api/dispatches')).status, 401);
 assert.deepEqual(JSON.parse((await request('/api/access')).text), { inviteOnly: true, signedIn: false, invited: false });
 const sitemap = await request('/sitemap.xml');
-assert.doesNotMatch(sitemap.text, /\/demo</, 'the sitemap must not advertise the demo');
+assert.match(sitemap.text, /\/demo</, 'the public product tour is in the sitemap');
 
 // Signed in without an invite: told it is invite-only, and owns nothing.
 assert.deepEqual(JSON.parse((await request('/api/access', outsider)).text), { inviteOnly: true, signedIn: true, invited: false });
-for (const path of ['/discover', '/demo', '/crucible', '/login']) {
+assert.equal((await request('/demo', outsider)).status, 200, 'the product tour is public to everyone');
+for (const path of ['/discover', '/crucible', '/login']) {
   assert.ok(redirectsTo(await request(path, outsider), '/?access=invite-only'), `${path} must send an outsider to the preview page`);
 }
 for (const path of ['/api/dispatches', '/api/settings/keys', '/api/activity', '/api/prs']) {

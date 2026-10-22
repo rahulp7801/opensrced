@@ -7,7 +7,7 @@ import { sanitizeRepoId, sanitizePrNumber } from "@/lib/sanitize";
 import { sessionUserId } from "@/lib/require-session";
 
 
-import { githubApi } from "@/lib/github-api";
+import { githubApi, errorStatus } from "@/lib/github-api";
 import { resolveRepositoryToken } from "@/lib/crucible/tokens";
 
 export const dynamic = "force-dynamic";
@@ -31,9 +31,11 @@ export async function POST(req: NextRequest) {
     pr_number: raw.pr_number ? sanitizePrNumber(raw.pr_number) : null,
     comment_id: raw.comment_id,
     body: typeof raw.body === "string" ? raw.body.trim() : null,
-    type: raw.type === "review" ? "review" as const : "issue" as const,
+    // An unknown type must not quietly become a public top-level comment.
+    type: raw.type === "review" ? "review" as const : raw.type === undefined || raw.type === "issue" ? "issue" as const : null,
   };
 
+  if (!body.type) return Response.json({ error: "type must be \"review\" or \"issue\"" }, { status: 400 });
   if (!body.repo || !body.body || body.body.length > 20_000 || !body.pr_number || (body.type === "review" && (!Number.isSafeInteger(body.comment_id) || body.comment_id! < 1))) {
     return Response.json(
       { error: "Missing repo, pr_number, or body" },
@@ -57,7 +59,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     return Response.json(
       { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
+      { status: errorStatus(err) },
     );
   }
 }

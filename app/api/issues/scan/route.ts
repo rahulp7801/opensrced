@@ -7,6 +7,7 @@ import { parseRunTarget } from "@/lib/run-target";
 
 export const maxDuration = 60;
 
+import { errorStatus } from "@/lib/github-api";
 function parseRepo(url: string): { owner: string; repo: string } | null {
   try {
     const target = parseRunTarget(url);
@@ -57,7 +58,7 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
+      { status: errorStatus(err) },
     );
   }
 }

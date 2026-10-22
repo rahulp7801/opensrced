@@ -62,7 +62,8 @@ export async function POST(req: NextRequest) {
     repo: raw.repo ? sanitizeRepoId(raw.repo) : null,
   };
 
-  if (!body.diff) {
+  // Text without a file header or hunk is not a diff; every check would trivially pass.
+  if (!body.diff || !/^\+\+\+ /m.test(body.diff) || !/^@@ /m.test(body.diff)) {
     return Response.json({ error: "Missing diff" }, { status: 400 });
   }
 
@@ -200,7 +201,8 @@ export async function POST(req: NextRequest) {
     const diffFiles = [...diff.matchAll(/^\+\+\+ (?:b\/)?(\S+)/gm)]
       .map((m) => m[1].toLowerCase());
 
-    if (diffFiles.some((f) => f.includes(commentFile) || commentFile.includes(f))) {
+    // Whole path segments only: "a" must not match "src/a.ts".
+    if (diffFiles.some((f) => f === commentFile || f.endsWith(`/${commentFile}`) || commentFile.endsWith(`/${f}`))) {
       checks.push({
         name: "Review alignment",
         status: "pass",

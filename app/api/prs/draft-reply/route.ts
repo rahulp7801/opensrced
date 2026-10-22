@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     file_path: raw.file_path ? sanitizeFilePath(raw.file_path) : null,
   };
 
-  if (!body.comment_body) {
+  if (!body.comment_body?.trim()) {
     return Response.json({ error: "Missing comment_body" }, { status: 400 });
   }
 

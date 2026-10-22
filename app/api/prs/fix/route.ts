@@ -62,11 +62,16 @@ export async function POST(req: NextRequest) {
     mode: raw.mode ?? "quick",
   };
 
-  if (!body.repo || !body.pr_number || !body.comment_body || !body.branch) {
+  if (!body.repo || !body.pr_number || !body.comment_body?.trim() || !body.branch) {
     return Response.json(
       { error: "Missing required fields" },
       { status: 400 },
     );
+  }
+  // An unknown mode or an unusable file path used to fall through to the
+  // costlier deep fix without saying so.
+  if ((body.mode !== "quick" && body.mode !== "deep") || (raw.file_path && !body.file_path)) {
+    return Response.json({ error: "mode must be \"quick\" or \"deep\", and file_path must be a path inside the repository." }, { status: 400 });
   }
 
   const anthropicKey = await resolveAnthropicKey();

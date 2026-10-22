@@ -6,7 +6,7 @@ import { sanitizeRepoId, sanitizePrNumber } from "@/lib/sanitize";
 import { sessionUserId } from "@/lib/require-session";
 
 
-import { githubApi } from "@/lib/github-api";
+import { githubApi, errorStatus } from "@/lib/github-api";
 import { resolveRepositoryToken } from "@/lib/crucible/tokens";
 
 export const maxDuration = 180;
@@ -120,7 +120,7 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     return Response.json(
       { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
+      { status: errorStatus(err) },
     );
   }
 }

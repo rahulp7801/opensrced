@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { githubApi, githubGraphql, githubResponse } from "../github-api";
+import { errorStatus, githubApi, githubGraphql, GitHubApiError, githubResponse } from "../github-api";
 import { sanitizePrNumber } from "../sanitize";
 import { listIssues } from "../issues";
 import { discover } from "../discover";
@@ -35,6 +35,19 @@ test("GitHub requests use caller credentials, a deadline, and reject redirects",
   for (const path of ["//evil.example", "/repos/acme/app#@evil.example", "/repos/acme/app\n//evil.example", `/${"a".repeat(8_001)}`]) {
     await assert.rejects(githubApi(path), /Invalid/);
   }
+});
+
+test("routes answer GitHub failures with a status that names whose problem it is", async (t) => {
+  let status = 401;
+  t.mock.method(globalThis, "fetch", async () => Response.json({}, { status }));
+  for (const [upstream, expected] of [[401, 401], [404, 404], [403, 502], [429, 502], [500, 502]] as const) {
+    status = upstream;
+    const err = await githubApi("/repos/acme/app", "t").then(() => null, (e: unknown) => e);
+    assert.ok(err instanceof GitHubApiError);
+    assert.equal(errorStatus(err), expected, `upstream ${upstream}`);
+  }
+  assert.equal(errorStatus(new Error("our own bug")), 500);
+  assert.equal(errorStatus("not even an error"), 500);
 });
 
 test("GitHub failures are not reported as successful empty issue scans", async (t) => {

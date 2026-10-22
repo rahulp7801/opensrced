@@ -19,8 +19,9 @@ export function inviteOnly(): boolean {
  *  Entries may be bare ids or full `github|<id>` subjects. Exported for tests. */
 export function invitedGithubIds(raw = process.env.OPENSRCER_INVITED_GITHUB_IDS ?? ""): Set<string> {
   return new Set(
-    raw.split(/[\s,]+/)
-      .map((entry) => entry.trim().replace(/^github\|/, ""))
+    // Tolerate how a value gets pasted into a dashboard: quotes, ";" separators, zero padding.
+    raw.split(/[\s,;]+/)
+      .map((entry) => entry.trim().replace(/^["']|["']$/g, "").replace(/^github\|/, "").replace(/^0+(?=\d)/, ""))
       .filter((entry) => /^\d+$/.test(entry)),
   );
 }

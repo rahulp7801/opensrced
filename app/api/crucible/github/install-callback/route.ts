@@ -51,10 +51,12 @@ function nonceMatches(a: string, b: string): boolean {
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
-  const installationId = Number(url.searchParams.get("installation_id"));
+  // Plain decimal only: Number() would also take "1e3", "0x10" and unsafe integers.
+  const rawInstallationId = url.searchParams.get("installation_id") ?? "";
+  const installationId = /^[1-9]\d{0,15}$/.test(rawInstallationId) ? Number(rawInstallationId) : NaN;
   const stateParam = url.searchParams.get("state") || "";
 
-  if (!Number.isInteger(installationId) || installationId <= 0) {
+  if (!Number.isSafeInteger(installationId)) {
     return redirectToCrucible(req, "missing_installation_id");
   }
 

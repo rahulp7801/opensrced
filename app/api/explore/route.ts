@@ -62,12 +62,18 @@ export async function POST(req: NextRequest) {
     github_org?: string;
   };
 
-  if (!body || typeof body.repo_url !== "string" || typeof body.query !== "string" || !body.query.trim() || (body.budget !== undefined && (typeof body.budget !== "number" || !Number.isFinite(body.budget))) || (body.github_org !== undefined && typeof body.github_org !== "string")) {
+  // The query is checked after sanitizing: control characters alone are not a question.
+  if (!body || typeof body.repo_url !== "string" || typeof body.query !== "string" || !sanitizeForPrompt(body.query).trim() || (body.budget !== undefined && (typeof body.budget !== "number" || !Number.isFinite(body.budget))) || (body.github_org !== undefined && typeof body.github_org !== "string")) {
     return new Response(
       JSON.stringify({ error: "Missing repo_url or query" }),
       { status: 400, headers: { "Content-Type": "application/json" } },
     );
   }
+
+  // Parse the target before environment and key checks so a bad URL says so.
+  let repoFull: string;
+  try { repoFull = parseRunTarget(body.repo_url).repo; }
+  catch { return Response.json({ error: "Invalid repository URL" }, { status: 400 }); }
 
   if (!cloudExecution() && !existsSync(MCP_CONFIG)) {
     return new Response(
@@ -83,10 +89,6 @@ export async function POST(req: NextRequest) {
       { status: 400, headers: { "Content-Type": "application/json" } },
     );
   }
-
-  let repoFull: string;
-  try { repoFull = parseRunTarget(body.repo_url).repo; }
-  catch { return Response.json({ error: "Invalid repository URL" }, { status: 400 }); }
 
   const prompt = buildExplorePrompt(repoFull, body.query);
 

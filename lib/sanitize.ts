@@ -6,13 +6,15 @@
  * Strips control characters and common prompt injection patterns.
  */
 export function sanitizeForPrompt(input: string): string {
-  return input
+  const cleaned = input
+    // CRLF and lone CR become newlines, so the collapse below sees them
+    .replace(/\r\n?/g, "\n")
     // Strip null bytes and other control chars (except newline/tab)
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
     // Collapse excessive whitespace
-    .replace(/\n{4,}/g, "\n\n\n")
-    // Cap length — no prompt should need more than 5000 chars of user input
-    .slice(0, 5000);
+    .replace(/\n{4,}/g, "\n\n\n");
+  // Cap length — no prompt should need more than 5000 chars of user input
+  return capCodePoints(cleaned, 5000);
 }
 
 /**
@@ -21,11 +23,17 @@ export function sanitizeForPrompt(input: string): string {
  */
 export function sanitizeRepoId(input: unknown): string | null {
   if (typeof input !== "string") return null;
-  const match = /^(?:(?:https:\/\/)?github\.com\/)?([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\/?$/.exec(input.trim());
-  if (!match) return null;
-  const owner = sanitizeGitHubName(match[1]);
+  const match = /^(?:(?:https?:\/\/)?(?:www\.)?github\.com\/)?([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\/?$/i.exec(input.trim());
+  if (!match || !validGitHubOwner(match[1])) return null;
   const name = sanitizeGitHubName(match[2]);
-  return owner && name ? owner + "/" + name : null;
+  return name ? match[1] + "/" + name : null;
+}
+
+/** GitHub user and organization logins: letters, digits and hyphens (underscores
+ *  for managed users), not starting with a hyphen, at most 39 characters. No dots,
+ *  so a pasted `gitlab.com/x` or `github.com/x` is never read as an owner. */
+export function validGitHubOwner(owner: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9_-]{0,38}$/.test(owner);
 }
 
 /**
@@ -97,12 +105,20 @@ export function sanitizeCommitMessage(input: string): string {
 
 /** Keep one untrusted value from forging additional structured log lines. */
 export function sanitizeLogValue(input: unknown, maxLength = 500): string {
-  return String(input ?? "")
-    .replace(/[\x00-\x1F\x7F]/g, " ")
+  // Also C1 controls, Unicode line/paragraph separators (line breaks to JS
+  // regexes) and bidi overrides (which reorder how a log line reads).
+  const flat = String(input ?? "")
+    .replace(/[\p{Cc}\p{Zl}\p{Zp}\p{Bidi_Control}]/gu, " ")
     .replace(/\s{2,}/g, " ")
-    .trim()
-    .slice(0, maxLength)
     .trim();
+  return capCodePoints(flat, maxLength).trim();
+}
+
+/** The first `max` characters of `s` without cutting an emoji or other surrogate pair in half. */
+function capCodePoints(s: string, max: number): string {
+  if (s.length <= max) return s;
+  const cut = s.slice(0, max);
+  return /[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut;
 }
 
 /**
@@ -121,7 +137,7 @@ export function sanitizePrNumber(input: string | number): number | null {
 export function sanitizeBranchName(input: string): string | null {
   const trimmed = input.trim();
   // Git branch names: no spaces, no .., no special control chars
-  if (/[\s~^:?*\[\]\\]/.test(trimmed) || trimmed.includes("..")) return null;
+  if (/[\s~^:?*\[\]\\\x00-\x1f\x7f]/.test(trimmed) || trimmed.includes("..")) return null;
   if (trimmed.length === 0 || trimmed.length > 200 || trimmed.startsWith("-") || trimmed.startsWith("/") || trimmed.endsWith("/") || trimmed.endsWith(".") || trimmed.includes("//") || trimmed.includes("@{") || trimmed === "@" || trimmed.split("/").some(part => part.startsWith(".") || part.endsWith(".lock"))) return null;
   return trimmed;
 }

@@ -35,9 +35,22 @@ export async function githubResponse(
       : response.status === 403 || response.status === 429 ? "GitHub denied this request or its rate limit was reached. Try again later."
       : response.status === 404 ? "GitHub repository was not found or is not accessible."
       : `GitHub request failed (${response.status}).`;
-    throw new Error(message);
+    throw new GitHubApiError(message, response.status);
   }
   return response;
+}
+
+/** A GitHub API failure with a fixed, credential-free message and the upstream status. */
+export class GitHubApiError extends Error {
+  constructor(message: string, readonly status: number) { super(message); }
+}
+
+/** HTTP status for a route to answer with after `err`: an expired GitHub session is
+ *  the caller's to fix (401), a missing repo is 404, other GitHub failures are an
+ *  upstream problem (502), and anything else is ours (500). */
+export function errorStatus(err: unknown): number {
+  if (!(err instanceof GitHubApiError)) return 500;
+  return err.status === 401 ? 401 : err.status === 404 ? 404 : 502;
 }
 
 export async function githubApi<T>(path: string, token?: string | null, body?: unknown, signal?: AbortSignal): Promise<T> {

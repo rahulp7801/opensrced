@@ -3,6 +3,7 @@ import { discover } from "@/lib/discover";
 import { recordDiscoverRun } from "@/lib/stats";
 import { sessionUserId } from "@/lib/require-session";
 import { resolveGitHubToken } from "@/lib/github-token";
+import { errorStatus } from "@/lib/github-api";
 
 export const maxDuration = 60;
 
@@ -28,6 +29,10 @@ export async function GET(req: NextRequest) {
     if (numeric.some((value) => value !== undefined && (!Number.isFinite(value) || value < 0))) {
       return NextResponse.json({ error: "Search limits must be finite non-negative numbers." }, { status: 400 });
     }
+    // Out-of-range values used to surface as 500s (an invalid date, an over-long API path).
+    if ((maxRepoAgeDays ?? 0) > 36_500 || (language?.length ?? 0) > 40) {
+      return NextResponse.json({ error: "Repository age is limited to 100 years and language names to 40 characters." }, { status: 400 });
+    }
     const result = await discover({
       minStars,
       maxStars,
@@ -46,7 +51,7 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
+      { status: errorStatus(err) },
     );
   }
 }

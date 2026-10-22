@@ -6,7 +6,7 @@ import { sessionUserId } from "@/lib/require-session";
 import { sanitizeRepoId, sanitizePrNumber } from "@/lib/sanitize";
 
 
-import { githubText } from "@/lib/github-api";
+import { githubText, errorStatus } from "@/lib/github-api";
 import { resolveRepositoryToken } from "@/lib/crucible/tokens";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     return Response.json(
       { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
+      { status: errorStatus(err) },
     );
   }
 }

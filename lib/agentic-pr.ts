@@ -757,7 +757,19 @@ export function buildPrContent(
     body = parts.join("\n\n");
   }
 
-  return { title, body };
+  return { title: neutralizeMentions(title), body: neutralizeMentions(body) };
+}
+
+/** Model-written PR text is posted under the user's account, so an @mention in
+ *  it (planted by a hostile issue, say) would ping people the user never chose
+ *  to. A zero-width space after the @ keeps it readable but unlinked. Code spans
+ *  and fenced blocks are left alone: GitHub doesn't link mentions there, and
+ *  decorators like `@pytest.fixture` must survive copy and paste. */
+export function neutralizeMentions(text: string): string {
+  return text
+    .split(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)/g)
+    .map((part, i) => (i % 2 ? part : part.replace(/(^|[^\w@])@(?=[A-Za-z0-9])/g, "$1@​")))
+    .join("");
 }
 
 // ── Gemini self-review ────────────────────────────────────────────────

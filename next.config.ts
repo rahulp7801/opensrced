@@ -11,6 +11,9 @@ const scriptSource = process.env.NODE_ENV === "production"
 const config: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // The app never uses next/image, so the optimizer endpoint (/_next/image) is
+  // pure attack surface (GHSA-2464-fhr4-w9xw): unoptimized turns it off (404).
+  images: { unoptimized: true },
   async headers() {
     return [{
       // Config headers replace a route's own header of the same name, so the

@@ -11,11 +11,40 @@
  *  worker, which applies it, and the run page, which shows it, so the two can
  *  never disagree. The closing fence must sit on its own line with the same
  *  number of backticks: a diff that adds a ``` code block (its lines start with
- *  `+` or a space) is not cut short. */
+ *  `+` or a space) is not cut short.
+ *
+ *  A line scan rather than one backreference regex: the log holds model output
+ *  a hostile issue can steer, and thousands of unclosed fences made the regex
+ *  take quadratic time. This stays linear. */
 export function extractFirstDiff(log: string): string | null {
-  for (const m of log.matchAll(/(`{3,})[^`\n]*\n([\s\S]*?)\n\1[ \t]*(?=\r?\n|$)/g)) {
-    const body = m[2].replace(/\r$/, "");
+  const lines = log.split("\n");
+  // Lines that can close a fence, by fence: only backticks, then spaces.
+  const closers = new Map<string, number[]>();
+  lines.forEach((line, i) => {
+    const m = /^(`{3,})[ \t]*\r?$/.exec(line);
+    if (!m) return;
+    const list = closers.get(m[1]);
+    if (list) list.push(i); else closers.set(m[1], [i]);
+  });
+  const next = new Map<string, number>(); // per fence, the first closer not yet passed
+  for (let i = 0; i < lines.length; i++) {
+    // An opener ends with its last run of backticks; the info string after it has none.
+    const line = lines[i];
+    const end = line.lastIndexOf("`");
+    if (end < 0) continue;
+    let start = end;
+    while (start > 0 && line[start - 1] === "`") start--;
+    if (end - start < 2) continue;
+    const fence = line.slice(start, end + 1);
+    const list = closers.get(fence) ?? [];
+    let k = next.get(fence) ?? 0;
+    while (k < list.length && list[k] <= i) k++;
+    next.set(fence, k);
+    if (k === list.length) continue;
+    const close = list[k];
+    const body = lines.slice(i + 1, close).join("\n").replace(/\r$/, "");
     if (/^--- \S/m.test(body) && /^\+\+\+ \S/m.test(body)) return body + "\n";
+    i = close;
   }
   return null;
 }

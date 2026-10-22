@@ -91,7 +91,8 @@ export function generateFollowUps(query: string, response: string): string[] {
   };
 
   // Symbols the answer actually named — "-> foo", "* foo", "<- foo".
-  const symbols = (response.match(/(?:^|\n)\s*(?:\*|->|<-)\s+(\w[\w.]*(?:\(\))?)/g) ?? [])
+  // [ \t], not \s: a \s run crosses newlines, and on a reply of many blank lines that is quadratic.
+  const symbols = (response.match(/(?:^|\n)[ \t]*(?:\*|->|<-)[ \t]+(\w[\w.]*(?:\(\))?)/g) ?? [])
     .map((m) => m.replace(/^\s*(?:\*|->|<-)\s+/, "").trim())
     .filter((s) => s.length > 2 && s.length < 40);
 
@@ -109,7 +110,7 @@ export function generateFollowUps(query: string, response: string): string[] {
   if (q === "stats" || q === "statistics" || q === "overview") {
     out.push("god nodes");
     // Explain the busiest module the stats output listed, if it listed one.
-    const mod = response.match(/^\s+(\S+\/\S+):/m);
+    const mod = response.match(/^[ \t]+(\S+\/\S+):/m);
     out.push(mod ? `explain ${mod[1]}` : "explain src");
     return out.slice(0, 3);
   }

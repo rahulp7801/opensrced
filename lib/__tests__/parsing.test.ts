@@ -77,6 +77,19 @@ describe("extractFirstDiff", () => {
     const newFile = "--- /dev/null\n+++ b/src/new.ts\n@@ -0,0 +1 @@\n+export const x = 1;\n";
     assert.equal(extractFirstDiff("```diff\n" + newFile + "```"), newFile);
   });
+
+  test("an opener in mid-line and a longer fence both work, and a shorter fence does not close", () => {
+    assert.equal(extractFirstDiff("Here it is: ```diff\n" + SAMPLE_DIFF + "```"), SAMPLE_DIFF);
+    assert.equal(extractFirstDiff("````diff\n" + SAMPLE_DIFF + "```\n````"), SAMPLE_DIFF + "```\n");
+  });
+
+  test("stays fast on a hostile log of thousands of unclosed fences", () => {
+    for (const junk of ["````x\n".repeat(40_000), "`".repeat(5_000) + "x".repeat(200_000) + "\n"]) {
+      const started = Date.now();
+      assert.equal(extractFirstDiff(junk + "```diff\n" + SAMPLE_DIFF + "```"), SAMPLE_DIFF);
+      assert.ok(Date.now() - started < 1000, `took ${Date.now() - started} ms`);
+    }
+  });
 });
 
 describe("buildPrContent", () => {
@@ -110,6 +123,22 @@ describe("buildPrContent", () => {
     // A tool call logged after the body ends it too.
     const withTool = buildPrContent(1, "d_x", log.replace("[agentic-dispatcher]", "[tool] read_file src/a.ts\n[agentic-dispatcher]"), SAMPLE_DIFF);
     assert.doesNotMatch(withTool.body, /\[tool\]/);
+  });
+
+  test("unlinks @mentions in prose but leaves code and email addresses alone", () => {
+    const log = [
+      "## PR title", "fix: thanks @octocat", "",
+      "## PR body",
+      "Thanks @maintainer and @acme/core. Mail a@b.co. Use `@pytest.fixture` here.",
+      "```py", "@decorator", "def f(): pass", "```",
+      "Fixes #3",
+    ].join("\n");
+    const { title, body } = buildPrContent(3, "d_x", log, SAMPLE_DIFF);
+    assert.equal(title, "fix: thanks @​octocat");
+    assert.match(body, /Thanks @​maintainer and @​acme\/core\./);
+    assert.match(body, / a@b\.co\./);
+    assert.match(body, /`@pytest\.fixture`/);
+    assert.match(body, /\n@decorator\n/);
   });
 
   test("injects a close keyword when the body omits one", () => {

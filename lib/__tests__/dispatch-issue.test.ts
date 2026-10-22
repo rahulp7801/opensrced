@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { agenticChildEnv, fetchIssue, pipeStreamJson, RunTargetError } from "../agentic-dispatcher";
+import { agenticChildEnv, fetchIssue, findOpenRunPr, pipeStreamJson, RunTargetError } from "../agentic-dispatcher";
 import { PassThrough } from "node:stream";
 import { once } from "node:events";
 
@@ -20,10 +20,11 @@ test("agentic subprocess receives only its own provider credential", () => {
 test("dispatches authorize the issue before reading cached source or starting a model", async (t) => {
   let status = 404;
   let pull = false;
+  let state = "open";
   t.mock.method(globalThis, "fetch", async (url: string, options: RequestInit) => {
     assert.equal(url, "https://api.github.com/repos/acme/app/issues/1");
     assert.equal(new Headers(options.headers).get("Authorization"), "Bearer test-user-token");
-    return Response.json(status === 200 ? { ...(pull ? { pull_request: {} } : {}), title: "Fix typo", body: "Correct README", labels: [{ name: "docs" }], html_url: "https://github.com/acme/app/issues/1" } : {}, { status });
+    return Response.json(status === 200 ? { ...(pull ? { pull_request: {} } : {}), state, title: "Fix typo", body: "Correct README", labels: [{ name: "docs" }], html_url: "https://github.com/acme/app/issues/1" } : {}, { status });
   });
   // Run-target failures are user-facing (routes answer 400, not 503).
   await assert.rejects(fetchIssue("acme/app", 1, "test-user-token"), (error: Error) =>
@@ -37,6 +38,10 @@ test("dispatches authorize the issue before reading cached source or starting a 
   await assert.rejects(fetchIssue("acme/app", 1, "test-user-token"), (error: Error) =>
     error instanceof RunTargetError && /pull request, not an issue/.test(error.message));
   pull = false;
+  state = "closed";
+  await assert.rejects(fetchIssue("acme/app", 1, "test-user-token"), (error: Error) =>
+    error instanceof RunTargetError && /issue is closed/.test(error.message));
+  state = "open";
   const issue = await fetchIssue("acme/app", 1, "test-user-token");
   assert.equal(issue.title, "Fix typo");
   assert.match(issue.formatted, /untrusted="true"/);
@@ -73,4 +78,22 @@ test("dispatch completion requires a successful result and preserves split UTF-8
   ] } };
   const withTool = await parse([text, tool, text]);
   assert.match(withTool.log, /^café\n\[tool\] read_file src\/a\.ts \[agentic-pr\] fake\ncafé$/);
+});
+
+test("a live run finds the caller's own open PR for the same issue, and only that", async (t) => {
+  let status = 200;
+  t.mock.method(globalThis, "fetch", async (url: string) => {
+    assert.equal(url, "https://api.github.com/repos/acme/app/pulls?state=open&per_page=100");
+    return Response.json(status === 200 ? [
+      { html_url: "https://github.com/acme/app/pull/12", head: { ref: "opensrcer/issue-12-abc", user: { login: "Alice" } } },
+      { html_url: "https://github.com/acme/app/pull/7", head: { ref: "opensrcer/issue-1-def", user: { login: "bob" } } },
+      { html_url: "https://github.com/acme/app/pull/8", head: { ref: "fix/issue-1", user: { login: "alice" } } },
+      { html_url: "https://github.com/acme/app/pull/9", head: { ref: "opensrcer/issue-1-ghi", user: null } },
+    ] : {}, { status });
+  });
+  assert.equal(await findOpenRunPr("acme/app", 12, "alice", "t"), "https://github.com/acme/app/pull/12");
+  // issue-1 must not match issue-12, another user's run, or a hand-made branch.
+  assert.equal(await findOpenRunPr("acme/app", 1, "alice", "t"), null);
+  status = 403;
+  await assert.rejects(findOpenRunPr("acme/app", 1, "alice", "t"), (error: Error) => error instanceof RunTargetError);
 });

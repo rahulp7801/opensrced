@@ -28,7 +28,9 @@ export function findGitHubPullUrl(text: string): GitHubPullUrl | null {
     const start = text.indexOf(prefix, cursor);
     if (start < 0) return null;
     let end = start + prefix.length;
-    while (end < text.length && text.charCodeAt(end) > 32 && !"<>\"'".includes(text[end])) end++;
+    // A PR URL is short; capping the scan keeps a log full of prefixes linear.
+    const limit = Math.min(text.length, start + 300);
+    while (end < limit && text.charCodeAt(end) > 32 && !"<>\"'".includes(text[end])) end++;
     const parsed = parseGitHubPullUrl(text.slice(start, end));
     if (parsed) return parsed;
     cursor = start + prefix.length;

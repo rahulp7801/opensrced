@@ -6,6 +6,20 @@
 // thing about what changed. Pure input → output, so it gets tests
 // (lib/__tests__).
 
+/** The first fenced block in a run log that holds a unified diff, with a
+ *  trailing newline (git apply refuses input without one). Shared by the
+ *  worker, which applies it, and the run page, which shows it, so the two can
+ *  never disagree. The closing fence must sit on its own line with the same
+ *  number of backticks: a diff that adds a ``` code block (its lines start with
+ *  `+` or a space) is not cut short. */
+export function extractFirstDiff(log: string): string | null {
+  for (const m of log.matchAll(/(`{3,})[^`\n]*\n([\s\S]*?)\n\1[ \t]*(?=\r?\n|$)/g)) {
+    const body = m[2].replace(/\r$/, "");
+    if (/^--- \S/m.test(body) && /^\+\+\+ \S/m.test(body)) return body + "\n";
+  }
+  return null;
+}
+
 /** What a single line of a unified diff is. */
 export type UnifiedKind = "meta" | "hunk" | "add" | "del" | "context";
 
@@ -36,7 +50,8 @@ export type SplitHunk = {
  */
 export function parseUnifiedRows(body: string): UnifiedRow[] {
   const rows: UnifiedRow[] = [];
-  const lines = body.split(/\r?\n/);
+  // The newline that ends the last line does not start another (blank) one.
+  const lines = body.replace(/\r?\n$/, "").split(/\r?\n/);
   let inHunk = false;
 
   for (let i = 0; i < lines.length; i++) {
@@ -100,6 +115,7 @@ export function parseUnifiedRows(body: string): UnifiedRow[] {
 export function parseSplitHunks(body: string): SplitHunk[] {
   const hunks: SplitHunk[] = [];
   let file = "";
+  let minusName = "";
   let before: DiffRow[] = [];
   let after: DiffRow[] = [];
 
@@ -121,9 +137,13 @@ export function parseSplitHunks(body: string): SplitHunk[] {
     switch (row.kind) {
       case "meta":
         // Only two metadata lines name a file, and neither reaches a pane.
-        if (row.text.startsWith("+++ ")) {
+        if (row.text.startsWith("--- ")) {
+          minusName = row.text.slice(4).split("\t")[0].replace(/^a\//, "");
+        } else if (row.text.startsWith("+++ ")) {
           flush();
-          file = row.text.slice(4).replace(/^b\//, "");
+          // A deleted file is named by its old path; a tab starts a timestamp.
+          const name = row.text.slice(4).split("\t")[0];
+          file = name === "/dev/null" ? minusName : name.replace(/^b\//, "");
         } else if (row.text.startsWith("diff --git ")) {
           flush();
           // Fallback name, for a file section with no `+++` line of its own.

@@ -288,10 +288,20 @@ describe("enrichWithPrStatus", () => {
   test("an opened PR wins over every other marker", () => {
     // A crucible run that passed tests AND opened a PR shows both.
     const d = enrichWithPrStatus(
-      withLog("[crucible-tests] status=passed\nopened draft PR: https://github.com/o/n/pull/12\n"),
+      withLog("[crucible-tests] status=passed\n[agentic-pr] opened draft PR: https://github.com/o/n/pull/12\n"),
     );
     assert.equal(d.pr_status, "opened");
     assert.equal(d.tests, "passed");
+  });
+
+  test("PR links and marker text in the agent's prose are not results", () => {
+    // A dry run whose diagnosis cites an upstream PR and quotes a marker.
+    const prose = enrichWithPrStatus(withLog("Regressed in https://github.com/o/n/pull/1234 — see also [crucible-tests] status=passed\n"));
+    assert.equal(prose.pr_status, undefined);
+    assert.equal(prose.tests, undefined);
+    // The PR step's own line, but for another repository.
+    const elsewhere = enrichWithPrStatus(withLog("[agentic-pr] opened draft PR: https://github.com/evil/n/pull/1\n[agentic-pr] skipped: diff did not apply\n"));
+    assert.equal(elsewhere.pr_status, "failed");
   });
 
   test("gitleaks outranks a test failure", () => {
@@ -332,7 +342,7 @@ describe("enrichWithPrStatus", () => {
   });
 
   test("finds terminal markers without loading a large model transcript", () => {
-    const d = enrichWithPrStatus(withLog(`header\n${"model output\n".repeat(100_000)}[crucible-tests] status=passed\nopened draft PR: https://github.com/o/n/pull/12\n`));
+    const d = enrichWithPrStatus(withLog(`header\n${"model output\n".repeat(100_000)}[crucible-tests] status=passed\n[agentic-pr] opened draft PR: https://github.com/o/n/pull/12\n`));
     assert.equal(d.pr_status, "opened");
     assert.equal(d.tests, "passed");
   });
@@ -532,6 +542,76 @@ describe("dispatch ownership", () => {
     for (const bad of ["../../package", "d_../x", "", "x_123", "d_" + "a".repeat(65)]) {
       assert.equal(isValidDispatchId(bad), false, `expected ${JSON.stringify(bad)} to be rejected`);
     }
+  });
+});
+
+describe("applyDiff never reports success for a wrong result", () => {
+  // Found by the edge-case sweep: each of these used to come back ok:true with damaged code.
+  function repoWith(name: string, content: string): string {
+    const dir = mkdtempSync(join(tmpdir(), "opensrcer-edge-"));
+    const git = (...args: string[]) => execFileSync("git", ["-C", dir, ...args], { stdio: "pipe" });
+    git("init", "-q");
+    git("config", "user.email", "t@t.t");
+    git("config", "user.name", "t");
+    git("config", "core.autocrlf", "false");
+    writeFileSync(join(dir, name), content);
+    git("add", "-A");
+    git("commit", "-qm", "init");
+    return dir;
+  }
+
+  test("keeps the code between two hunks that only direct edit can place", async () => {
+    const dir = repoWith("a.ts", "const alpha = 1;\nkeep1\nkeep2\nkeep3\nconst omega = 2;\ntail\n");
+    const diff = "--- a/a.ts\n+++ b/a.ts\n@@ ... @@\n-const alpha = 1;\n+const alpha = 10;\n@@ ... @@\n-const omega = 2;\n+const omega = 20;\n";
+    const res = await applyDiff(dir, diff, join(dir, "..", "e1.patch"));
+    assert.ok(res.ok);
+    assert.equal(readFileSync(join(dir, "a.ts"), "utf8"), "const alpha = 10;\nkeep1\nkeep2\nkeep3\nconst omega = 20;\ntail\n");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("edits whole lines, and refuses a line that matches in two places", async () => {
+    const dir = repoWith("m.py", "import os.path\nimport os\nx = 1\n");
+    const once = await applyDiff(dir, "--- a/m.py\n+++ b/m.py\n@@ ... @@\n-import os\n+import sys\n", join(dir, "..", "e2.patch"));
+    assert.ok(once.ok);
+    assert.equal(readFileSync(join(dir, "m.py"), "utf8"), "import os.path\nimport sys\nx = 1\n");
+    const dup = repoWith("d.txt", "same\nother\nsame\n");
+    const twice = await applyDiff(dup, "--- a/d.txt\n+++ b/d.txt\n@@ ... @@\n-same\n+changed\n", join(dup, "..", "e3.patch"));
+    assert.equal(twice.ok, false);
+    assert.equal(readFileSync(join(dup, "d.txt"), "utf8"), "same\nother\nsame\n");
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(dup, { recursive: true, force: true });
+  });
+
+  test("a patch that only half matches leaves the tree untouched", async () => {
+    const lines = Array.from({ length: 12 }, (_, i) => `line${i + 1}`);
+    const dir = repoWith("x.txt", lines.join("\n") + "\n");
+    // Hunk 1 matches; hunk 2's removed line exists nowhere.
+    const diff = "--- a/x.txt\n+++ b/x.txt\n@@ -1,2 +1,3 @@\n line1\n+import x;\n line2\n@@ -10,1 +11,1 @@\n-    line10 that is not there\n+    LINE10\n";
+    const res = await applyDiff(dir, diff, join(dir, "..", "e4.patch"));
+    assert.equal(res.ok, false);
+    assert.equal(readFileSync(join(dir, "x.txt"), "utf8"), lines.join("\n") + "\n");
+    assert.equal(execFileSync("git", ["-C", dir, "status", "--porcelain"], { encoding: "utf8" }), "");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("an LF diff on a CRLF file keeps the file CRLF", async () => {
+    const dir = repoWith("w.txt", "alpha\r\nbeta\r\ngamma\r\n");
+    const res = await applyDiff(dir, "--- a/w.txt\n+++ b/w.txt\n@@ -1,3 +1,3 @@\n alpha\n-beta\n+BETA\n gamma\n", join(dir, "..", "e5.patch"));
+    assert.ok(res.ok, !res.ok ? res.errors.join(" | ") : "");
+    assert.equal(readFileSync(join(dir, "w.txt"), "utf8"), "alpha\r\nBETA\r\ngamma\r\n");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("a diff that adds a fenced code block is extracted whole", () => {
+    const log = "Fix:\n```diff\n--- a/README.md\n+++ b/README.md\n@@ -1,2 +1,5 @@\n Install it:\n+```bash\n+npm install tool\n+```\n \n```\nDone.";
+    assert.equal(extractFirstDiff(log), "--- a/README.md\n+++ b/README.md\n@@ -1,2 +1,5 @@\n Install it:\n+```bash\n+npm install tool\n+```\n \n");
+  });
+
+  test("a PR body keeps its own ## headings, and only this issue's close keyword counts", () => {
+    const log = "## PR title\nfix: x\n\n## PR body\nIntro paragraph that is long enough.\n\n## Root cause\nWhy.\n\n## Test plan\nnpm test. Fixes #7\n[agentic-dispatcher] total_cost_usd=0.1";
+    const { body } = buildPrContent(42, "d", log, SAMPLE_DIFF);
+    assert.match(body, /## Root cause\nWhy\.\n\n## Test plan/);
+    assert.match(body, /^Fixes #42\n/);
   });
 });
 

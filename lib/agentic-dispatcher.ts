@@ -113,12 +113,14 @@ export async function fetchIssue(
   // A missing issue or denied token must never turn into a speculative solve.
   let parsed: {
     title: string; body: string | null; labels: Array<{ name: string }>;
-    html_url: string; pull_request?: unknown;
+    html_url: string; pull_request?: unknown; state?: string;
   };
   // lib/github-api.ts maps every failure to a fixed, credential-free message.
   try { parsed = await githubApi(`/repos/${repoFull}/issues/${issueNumber}`, token); }
   catch (error) { throw new RunTargetError(error instanceof Error ? error.message : "GitHub request failed."); }
   if (parsed.pull_request) throw new RunTargetError("This target is a pull request, not an issue.");
+  // A closed issue is fixed or declined already; a run would spend the budget on a PR nobody wants.
+  if (parsed.state === "closed") throw new RunTargetError("This issue is closed. Reopen it on GitHub to run it.");
   // Everything below this line is attacker-controlled: anyone can file an
   // issue, pick its title, and write its body. It gets interpolated into
   // the prompt of an agent with tools, so it is sanitized (control chars
@@ -149,6 +151,23 @@ export async function fetchIssue(
     `</issue-report>`,
   ].join("\n");
   return { title, body, formatted };
+}
+
+/** URL of the caller's open opensrcer PR for this issue, or null. Live runs push
+ *  `opensrcer/issue-<n>-<id>` branches, so a second live run would open a duplicate. */
+export async function findOpenRunPr(
+  repoFull: string,
+  issueNumber: number,
+  login: string,
+  token: string,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  // ponytail: first 100 open PRs only; page through them if busy repos let duplicates slip by.
+  let pulls: Array<{ html_url: string; head?: { ref?: string; user?: { login?: string } | null } }>;
+  try { pulls = await githubApi(`/repos/${repoFull}/pulls?state=open&per_page=100`, token, undefined, signal); }
+  catch (error) { throw new RunTargetError(error instanceof Error ? error.message : "GitHub request failed."); }
+  const prefix = `opensrcer/issue-${issueNumber}-`;
+  return pulls.find((p) => p.head?.ref?.startsWith(prefix) && p.head.user?.login?.toLowerCase() === login.toLowerCase())?.html_url ?? null;
 }
 
 export type FindingInput = {

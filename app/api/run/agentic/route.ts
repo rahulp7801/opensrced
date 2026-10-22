@@ -1,6 +1,6 @@
 import { readJsonBody } from "@/lib/request-body";
 import { NextRequest, NextResponse } from "next/server";
-import { RunTargetError, startAgenticDispatch } from "@/lib/agentic-dispatcher";
+import { findOpenRunPr, RunTargetError, startAgenticDispatch } from "@/lib/agentic-dispatcher";
 import { resolveCommitAuthor, resolveGitHubToken, type CommitAuthor } from "@/lib/github-token";
 import { resolveAnthropicKey, resolveGeminiKey, resolveMaxSpendUsd } from "@/lib/api-keys";
 import { sessionUserId } from "@/lib/require-session";
@@ -21,25 +21,29 @@ export async function POST(req: NextRequest) {
 
   const body = (await readJsonBody<Record<string, unknown>>(req)) ?? {};
   const repo_url = typeof body.repo_url === "string" ? body.repo_url : undefined;
+  let target: ReturnType<typeof parseRunTarget>;
+  try {
+    target = parseRunTarget(repo_url);
+  } catch {
+    return NextResponse.json({ status: "error", message: "Invalid GitHub repository URL" }, { status: 400 });
+  }
+  const canonicalRepoUrl = `https://github.com/${target.repo}`;
+  // An issue URL carries its own number; a different explicit number is a mistake, not a choice.
+  if (body.issue_number !== undefined && target.issue !== undefined && body.issue_number !== target.issue) {
+    return NextResponse.json({ status: "error", message: `The URL points at issue #${target.issue} but issue_number is ${String(body.issue_number)}.` }, { status: 400 });
+  }
   const issue_number: number | undefined =
-    typeof body?.issue_number === "number" ? body.issue_number : undefined;
+    typeof body.issue_number === "number" ? body.issue_number : body.issue_number === undefined ? target.issue : undefined;
 
-  if (typeof repo_url !== "string" || !Number.isSafeInteger(issue_number) || !issue_number || issue_number < 1) {
+  if (!Number.isSafeInteger(issue_number) || !issue_number || issue_number < 1) {
     return NextResponse.json(
-      { status: "error", message: "Missing required fields: repo_url, issue_number" },
+      { status: "error", message: "issue_number must be a positive whole number, or use an issue URL." },
       { status: 400 },
     );
   }
-
-  let canonicalRepoUrl: string;
-  try {
-    canonicalRepoUrl = `https://github.com/${parseRunTarget(repo_url).repo}`;
-  } catch {
-    return NextResponse.json({ message: "Invalid GitHub repository URL" }, { status: 400 });
-  }
   if ((body.dry_run !== undefined && typeof body.dry_run !== "boolean") ||
       (body.notes !== undefined && (typeof body.notes !== "string" || body.notes.length > 5000))) {
-    return NextResponse.json({ message: "Invalid dry_run or notes" }, { status: 400 });
+    return NextResponse.json({ status: "error", message: "Invalid dry_run or notes" }, { status: 400 });
   }
 
   // Resolve the logged-in user's GitHub token from their Auth0 session so
@@ -67,6 +71,10 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    if (author && token) {
+      const existing = await findOpenRunPr(parseRunTarget(canonicalRepoUrl).repo, issue_number, author.login, token, req.signal);
+      if (existing) throw new RunTargetError(`You already have an open pull request for this issue: ${existing}. Close it before starting another live run.`);
+    }
     const geminiKey = (await resolveGeminiKey()) ?? undefined;
     const maxSpendUsd = await resolveMaxSpendUsd();
     const start = cloudExecution() ? startCloudRun : startAgenticDispatch;

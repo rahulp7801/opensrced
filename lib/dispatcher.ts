@@ -254,13 +254,18 @@ export function enrichWithPrStatus(input: Dispatch): Dispatch {
     // shows both markers in the log. Surface the opened PR as the
     // terminal state, annotated with `tests_passed` only when the
     // PR isn't yet opened.
-    const prOpened = Boolean(findGitHubPullUrl(text));
-    const testsPassed = /\[crucible-tests\] status=passed/.test(text);
-    const testsFailed = /\[crucible-tests\] status=(?:failed|error)/.test(text);
-    const gitleaksFailed = /\[gitleaks\] status=leaks_found/.test(text);
+    // Markers count only at the start of a line, and "opened" only from the
+    // PR step's own line for this run's repository: the agent's prose may cite
+    // other PRs or quote marker text.
+    const openedLine = /^\[agentic-pr\] opened draft PR: (\S+)/m.exec(text);
+    const opened = openedLine ? findGitHubPullUrl(openedLine[1]) : null;
+    const prOpened = Boolean(opened && `https://github.com/${opened.repoFull}`.toLowerCase() === d.repo_url?.toLowerCase());
+    const testsPassed = /^\[crucible-tests\] status=passed/m.test(text);
+    const testsFailed = /^\[crucible-tests\] status=(?:failed|error)/m.test(text);
+    const gitleaksFailed = /^\[gitleaks\] status=leaks_found/m.test(text);
 
     // Independent of pr_status: a PR can be opened AND unverified.
-    const testsM = /\[crucible-tests\] status=(passed|failed|error|skipped|not_run)/.exec(text);
+    const testsM = /^\[crucible-tests\] status=(passed|failed|error|skipped|not_run)/m.exec(text);
     const tests: Dispatch["tests"] | undefined = testsM
       ? testsM[1] === "error"
         ? "failed"
@@ -279,13 +284,13 @@ export function enrichWithPrStatus(input: Dispatch): Dispatch {
       const reason = reasonM ? reasonM[1].trim().slice(0, 500) : "sandbox tests failed";
       return { ...d, pr_status: "tests_failed", pr_failure_reason: reason };
     }
-    const skipM = /\[agentic-pr\] skipped:\s*([^\n]+(?:\n(?![\[\n])[^\n]+)*)/.exec(text);
+    const skipM = /^\[agentic-pr\] skipped:\s*([^\n]+(?:\n(?![\[\n])[^\n]+)*)/m.exec(text);
     if (skipM) {
       const reason = skipM[1].replace(/\s+/g, " ").trim().slice(0, 500);
       return { ...d, pr_status: "failed", pr_failure_reason: reason };
     }
     if (testsPassed) return { ...d, pr_status: "tests_passed" };
-    if (/\[agentic-pr\] starting auto-PR/.test(text)) {
+    if (/^\[agentic-pr\] starting auto-PR/m.test(text)) {
       return { ...d, pr_status: "pending" };
     }
   } catch {
@@ -353,8 +358,9 @@ export function cancelDispatch(
   }
 
   // Fallback: look up the PID from the registry and taskkill it (useful if
-  // the child-process handle was lost to an HMR reload).
-  if (d?.pid && process.platform === "win32") {
+  // the child-process handle was lost to an HMR reload). Only for a run still
+  // marked running: a finished run's PID may already belong to another process.
+  if (d.status === "running" && d.pid && process.platform === "win32") {
     try {
       execFileSync("taskkill", ["/F", "/T", "/PID", String(d.pid)], {
         stdio: "pipe",

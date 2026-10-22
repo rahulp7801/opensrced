@@ -24,7 +24,7 @@
 
 import { execFile } from "node:child_process";
 import { existsSync, lstatSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 import { childEnv } from "./child-env";
 import { promisify } from "node:util";
@@ -73,16 +73,31 @@ export type ApplyOpts = {
  *  as a removed line, so the whole patch fails and only the direct-edit
  *  fallback is left. A hunk ends at the next `@@`, `diff --git`, or
  *  `---`/`+++` header pair; blank lines inside it are empty context lines. */
+/** A `---`/`+++` file-header pair at line i. It must be followed by a hunk, so a
+ *  removed `-- x` line next to an added `++ y` line (SQL or Lua comments) is not
+ *  mistaken for a new file. */
+function headerPairAt(lines: string[], i: number): boolean {
+  return lines[i].startsWith("--- ") && (lines[i + 1] ?? "").startsWith("+++ ") && (lines[i + 2] ?? "").startsWith("@@");
+}
+
+/** Line i starts something other than a hunk body line. */
+function endsHunk(lines: string[], i: number): boolean {
+  return lines[i].startsWith("@@") || lines[i].startsWith("diff --git ") || headerPairAt(lines, i);
+}
+
+/** The repo-relative name a `+++` line (or, for a deletion, its `---` line) names. */
+function headerFile(minus: string, plus: string): string {
+  const name = (line: string) => line.slice(4).split("\t")[0].trimEnd().replace(/^[ab]\//, "");
+  return plus === "+++ /dev/null" || plus.startsWith("+++ /dev/null\t") ? name(minus) : name(plus);
+}
+
 function recountHunks(diff: string): string {
   const lines = diff.split("\n");
-  const endsHunk = (i: number) =>
-    lines[i].startsWith("@@ ") || lines[i].startsWith("diff --git ") ||
-    (lines[i].startsWith("--- ") && (lines[i + 1] ?? "").startsWith("+++ "));
   for (let i = 0; i < lines.length; i++) {
     const header = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)$/.exec(lines[i]);
     if (!header) continue;
     let oldCount = 0, newCount = 0, blanks = 0;
-    for (let j = i + 1; j < lines.length && !endsHunk(j); j++) {
+    for (let j = i + 1; j < lines.length && !endsHunk(lines, j); j++) {
       const c = lines[j][0];
       // Blank lines count only once a later line shows they sit inside the hunk.
       if (c === undefined) { blanks++; continue; }
@@ -100,7 +115,8 @@ function recountHunks(diff: string): string {
  *  `a/` / `b/` path prefixes, miscounted hunk headers, and a missing trailing
  *  newline (which `git apply` rejects outright with "corrupt patch"). */
 export function normalizeDiff(raw: string): string {
-  let diff = recountHunks(raw);
+  // LF throughout; files that use CRLF get it back per file in matchLineEndings.
+  let diff = recountHunks(raw.replace(/\r\n/g, "\n"));
 
   diff = diff.replace(
     /^--- ([^/\n][^\n]*)/gm,
@@ -169,12 +185,11 @@ export async function applyDiff(
 ): Promise<ApplyResult> {
   const env = opts.env;
   const normalized = normalizeDiff(diff);
-  await writeFile(patchPath, normalized, { mode: 0o600 });
-
   const files = diffTouchedFiles(normalized);
   if (files.some(file => !containedPath(dir, file)) || hasUnsafeMode(normalized) || hasRenameOrCopy(normalized)) {
     return { ok: false, errors: ["Patch contains an unsafe path, Git metadata, or a symbolic link."] };
   }
+  await writeFile(patchPath, await matchLineEndings(dir, normalized, files), { mode: 0o600 });
   const errors: string[] = [];
 
   // No --recount: normalizeDiff already recounted, and git's own recount
@@ -207,6 +222,8 @@ export async function applyDiff(
       return { ok: true, tier: tier.name, files };
     } catch (e) {
       errors.push(`${tier.name}: ${msg(e)}`);
+      // A failed 3-way apply leaves conflict markers and unmerged index entries.
+      if (tier.threeWay) await restore(dir, files, env);
     }
   }
 
@@ -215,8 +232,17 @@ export async function applyDiff(
   // number. Only -p1: normalizeDiff gives every header an a/ or b/ prefix,
   // and -p0 would write a path other than the one checked above.
   for (const strip of ["-p1"]) {
+    const patchArgs = [strip, "--batch", "--forward", "--fuzz=3", "--no-backup-if-mismatch", "-i", patchPath];
     try {
-      await run("patch", [strip, "--batch", "--forward", "--fuzz=3", "--no-backup-if-mismatch", "-i", patchPath], {
+      // Dry run first: a real run writes every hunk that matches and leaves the
+      // rest in .rej files, and later tiers would then edit a half-patched file.
+      await run("patch", ["--dry-run", ...patchArgs], { cwd: dir, env });
+    } catch (e) {
+      errors.push(`patch ${strip}: ${msg(e)}`);
+      continue;
+    }
+    try {
+      await run("patch", patchArgs, {
         cwd: dir,
         env,
       });
@@ -226,19 +252,18 @@ export async function applyDiff(
       return { ok: true, tier: `patch ${strip} --fuzz=3`, files };
     } catch (e) {
       errors.push(`patch ${strip}: ${msg(e)}`);
+      await restore(dir, files, env);
     }
   }
 
-  // Last resort: treat the block as "replace these lines with those" and
-  // edit the file directly. Handles output that never was a unified diff.
-  // It pools every -/+ line into one file, so a multi-file diff would be
-  // spliced into its first file and reported as applied to all of them.
+  // Last resort: edit the file directly, hunk by hunk (see tryDirectEdit).
+  // Single-file only; a multi-file diff that git and patch refuse is refused.
   if (files.length > 1) {
     errors.push("direct edit: skipped for a multi-file diff");
     return { ok: false, errors };
   }
   try {
-    const edited = await tryDirectEdit(dir, normalized);
+    const edited = await tryDirectEdit(dir, normalized, files);
     if (edited) {
       await stage(dir, files, env);
       return { ok: true, tier: "direct edit", files };
@@ -265,130 +290,126 @@ async function stage(dir: string, files: string[], env?: NodeJS.ProcessEnv) {
   }
 }
 
+// ── Line endings and rollback ─────────────────────────────────────────
+
+/** Models write LF. For a file the repo stores with CRLF, give that file's
+ *  hunk lines a CR so context matches and added lines keep the file's style. */
+async function matchLineEndings(dir: string, diff: string, files: string[]): Promise<string> {
+  const crlf = new Set<string>();
+  for (const f of files) {
+    const abs = containedPath(dir, f);
+    if (abs && existsSync(abs) && (await readFile(abs, "utf8")).includes("\r\n")) crlf.add(f);
+  }
+  if (!crlf.size) return diff;
+  const lines = diff.split("\n");
+  let file: string | null = null;
+  let inHunk = false;
+  for (let i = 0; i < lines.length; i++) {
+    if (headerPairAt(lines, i)) { file = headerFile(lines[i], lines[i + 1]); inHunk = false; i++; continue; }
+    if (lines[i].startsWith("diff --git ")) { inHunk = false; continue; }
+    if (lines[i].startsWith("@@")) { inHunk = true; continue; }
+    if (!inHunk || !file || !crlf.has(file) || i === lines.length - 1) continue;
+    if (lines[i] === "") lines[i] = " \r"; // a blank context line
+    else if (/^[ +-]/.test(lines[i])) lines[i] += "\r";
+  }
+  return lines.join("\n");
+}
+
+/** Put the touched files back to HEAD after a tier that can fail half-way. */
+async function restore(dir: string, files: string[], env?: NodeJS.ProcessEnv) {
+  for (const f of files) {
+    const abs = containedPath(dir, f);
+    if (!abs) continue;
+    const inHead = await run("git", ["-C", dir, "cat-file", "-e", `HEAD:${f}`], { env }).then(() => true, () => false);
+    if (inHead) {
+      await run("git", ["-C", dir, "checkout", "-q", "HEAD", "--", f], { env }).catch(() => {});
+    } else {
+      await run("git", ["-C", dir, "rm", "-q", "-f", "--cached", "--ignore-unmatch", "--", f], { env }).catch(() => {});
+      await rm(abs, { force: true }).catch(() => {});
+    }
+  }
+}
+
 // ── Direct file edit fallback ─────────────────────────────────────────
-// When the payload isn't a valid unified diff, parse it as removed/added
-// line pairs and splice them into the target file. Four escalating match
-// strategies, exact first.
+// For hunks git and patch both refuse (placeholder `@@ ... @@` headers, a
+// lost header line). Each hunk's context and removed lines must match exactly
+// one place in the file, exactly or ignoring indentation, and every hunk must
+// match or nothing is written. Anything looser silently edits the wrong code.
 
-async function tryDirectEdit(dir: string, rawDiff: string): Promise<boolean> {
-  // Find the target file — try multiple patterns.
-  let filePath: string | null = null;
-  const filePatterns = [
-    /^\+\+\+ (?:b\/)?(\S+)/m,
-    /^--- (?:a\/)?(\S+)/m,
-    /^diff --git a\/(\S+)/m,
-    // Claude sometimes just mentions the file path in text before the diff
-    /(?:in|file|modify|change)\s+[`"']?([^\s`"']+\.\w{1,5})[`"']?/im,
-  ];
-  let absPath: string | null = null;
-  for (const pat of filePatterns) {
-    const m = rawDiff.match(pat);
-    if (m && m[1] !== "/dev/null") {
-      const candidate = m[1].replace(/^[ab]\//, "");
-      // Containment check before existsSync, not after: a path that escapes
-      // the worktree must never be probed, let alone written.
-      const abs = containedPath(dir, candidate);
-      if (abs && existsSync(abs)) {
-        filePath = candidate;
-        absPath = abs;
-        break;
-      }
+/** The body lines of each hunk (a header pair with no `@@` after it is one
+ *  implicit hunk), or null when any hunk is malformed: skipping that hunk and
+ *  applying the rest would report a partial change as a whole one. */
+function hunkBodies(diff: string): string[][] | null {
+  const lines = diff.split("\n");
+  const hunks: string[][] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const implicit = lines[i].startsWith("--- ") && (lines[i + 1] ?? "").startsWith("+++ ") && !(lines[i + 2] ?? "").startsWith("@@");
+    if (!lines[i].startsWith("@@") && !implicit) continue;
+    let j = implicit ? i + 2 : i + 1;
+    const body: string[] = [];
+    for (; j < lines.length && !endsHunk(lines, j); j++) {
+      const c = lines[j][0];
+      if (c === "\\") continue;
+      if (c !== undefined && c !== " " && c !== "-" && c !== "+") return null;
+      body.push(lines[j]);
     }
+    while (body.length && body[body.length - 1] === "") body.pop();
+    if (!body.length) return null;
+    hunks.push(body);
+    i = j - 1;
   }
-  if (!filePath || !absPath) return false;
+  return hunks;
+}
 
-  let content: string;
-  try {
-    content = await readFile(absPath, "utf8");
-  } catch {
-    return false;
-  }
-
-  const removals: string[] = [];
-  const additions: string[] = [];
-  for (const line of rawDiff.split("\n")) {
-    if (line.startsWith("-") && !line.startsWith("---") && !line.startsWith("--")) {
-      removals.push(line.slice(1));
-    } else if (line.startsWith("+") && !line.startsWith("+++") && !line.startsWith("++")) {
-      additions.push(line.slice(1));
+/** `lines` with one hunk applied, or null unless its old side matches exactly one place. */
+function applyHunk(lines: string[], body: string[]): string[] | null {
+  const oldSide = body.filter((l) => l[0] !== "+").map((l) => l.slice(1));
+  if (!oldSide.length || oldSide.every((l) => !l.trim())) return null;
+  const matches = (same: (a: string, b: string) => boolean) => {
+    const at: number[] = [];
+    for (let i = 0; i + oldSide.length <= lines.length; i++) {
+      if (oldSide.every((l, k) => same(lines[i + k], l))) at.push(i);
     }
-  }
-  if (removals.length === 0 && additions.length === 0) return false;
-
-  // 1. Exact block match.
-  const oldBlock = removals.join("\n");
-  const newBlock = additions.join("\n");
-  if (oldBlock && content.includes(oldBlock)) {
-    const updated = content.replace(oldBlock, newBlock);
-    if (updated !== content) {
-      await writeFile(absPath, updated);
-      return true;
+    return at;
+  };
+  let at = matches((a, b) => a === b);
+  const loose = at.length !== 1;
+  if (loose) at = matches((a, b) => a.trim() === b.trim());
+  if (at.length !== 1) return null;
+  const start = at[0];
+  const baseIndent = lines[start].match(/^\s*/)?.[0] ?? "";
+  const replacement: string[] = [];
+  let k = 0; // position on the old side
+  for (const l of body) {
+    if (l[0] === "-") { k++; continue; }
+    if (l[0] === "+") {
+      const text = l.slice(1);
+      replacement.push(loose && text.trim() && !/^\s/.test(text) ? baseIndent + text : text);
+      continue;
     }
+    replacement.push(lines[start + k]); // context keeps the file's own text
+    k++;
   }
+  return [...lines.slice(0, start), ...replacement, ...lines.slice(start + oldSide.length)];
+}
 
-  const contentLines = content.split("\n");
-
-  // 2. Trimmed block match — same lines, different indentation.
-  const trimmedRemovals = removals.map((l) => l.trim());
-  if (trimmedRemovals.length > 0 && trimmedRemovals[0]) {
-    for (let i = 0; i <= contentLines.length - removals.length; i++) {
-      let match = true;
-      for (let j = 0; j < trimmedRemovals.length; j++) {
-        if (contentLines[i + j].trim() !== trimmedRemovals[j]) {
-          match = false;
-          break;
-        }
-      }
-      if (match) {
-        const baseIndent = contentLines[i].match(/^(\s*)/)?.[1] ?? "";
-        const newLines = additions.map((l) => {
-          const trimmed = l.trimStart();
-          const origIndent = l.match(/^(\s*)/)?.[1] ?? "";
-          return origIndent || trimmed === "" ? l : baseIndent + trimmed;
-        });
-        contentLines.splice(i, removals.length, ...newLines);
-        await writeFile(absPath, contentLines.join("\n"));
-        return true;
-      }
-    }
+async function tryDirectEdit(dir: string, diff: string, files: string[]): Promise<boolean> {
+  const abs = files.length === 1 ? containedPath(dir, files[0]) : null;
+  if (!abs || !existsSync(abs)) return false;
+  const content = await readFile(abs, "utf8");
+  const eol = content.includes("\r\n") ? "\r\n" : "\n";
+  let lines: string[] | null = content.split(/\r?\n/);
+  // Creating or deleting a file is all-or-nothing; a line-level fallback would
+  // turn a partly listed deletion into a partial edit.
+  if (/^(?:---|\+\+\+) \/dev\/null/m.test(diff)) return false;
+  const hunks = hunkBodies(diff);
+  if (!hunks?.length) return false;
+  for (const body of hunks) {
+    lines = applyHunk(lines, body);
+    if (!lines) return false;
   }
-
-  // 3. Single-line fuzzy replacement.
-  if (removals.length === 1 && additions.length === 1) {
-    const oldTrimmed = removals[0].trim();
-    if (oldTrimmed.length > 5) {
-      for (let i = 0; i < contentLines.length; i++) {
-        if (contentLines[i].trim() === oldTrimmed) {
-          const indent = contentLines[i].match(/^(\s*)/)?.[1] ?? "";
-          contentLines[i] = indent + additions[0].trim();
-          await writeFile(absPath, contentLines.join("\n"));
-          return true;
-        }
-      }
-    }
-  }
-
-  // 4. Multi-line fuzzy — anchor on the first and last removed lines.
-  if (removals.length >= 2) {
-    const firstTrimmed = removals[0].trim();
-    const lastTrimmed = removals[removals.length - 1].trim();
-    if (firstTrimmed.length > 5 && lastTrimmed.length > 5) {
-      for (let i = 0; i < contentLines.length; i++) {
-        if (contentLines[i].trim() !== firstTrimmed) continue;
-        for (let j = i + 1; j < Math.min(i + removals.length + 5, contentLines.length); j++) {
-          if (contentLines[j].trim() !== lastTrimmed) continue;
-          const indent = contentLines[i].match(/^(\s*)/)?.[1] ?? "";
-          const newLines = additions.map((l) => {
-            const trimmed = l.trimStart();
-            return trimmed === "" ? "" : indent + trimmed;
-          });
-          contentLines.splice(i, j - i + 1, ...newLines);
-          await writeFile(absPath, contentLines.join("\n"));
-          return true;
-        }
-      }
-    }
-  }
-
-  return false;
+  const updated = lines.join(eol);
+  if (updated === content) return false;
+  await writeFile(abs, updated);
+  return true;
 }

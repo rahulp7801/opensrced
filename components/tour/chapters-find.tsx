@@ -186,7 +186,7 @@ function FindView() {
                     <th className="hidden w-[78px] px-2 py-1.5 font-medium md:table-cell">severity</th>
                     <th className="hidden w-[92px] px-2 py-1.5 font-medium lg:table-cell">complexity</th>
                     <th className="hidden w-[60px] px-2 py-1.5 font-medium md:table-cell">est.</th>
-                    <th className="w-[72px] px-2 py-1.5" />
+                    <th className="w-[72px] px-2 py-1.5"><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody>

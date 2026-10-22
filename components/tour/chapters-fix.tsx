@@ -169,7 +169,7 @@ function ReviewView() {
     <AppWindow path={`/dispatches?dispatch=${RUN.id}`} section="Fix" tab="Runs">
       {!open ? (
         <div className="p-4">
-          <Press at={1100} className="flex w-full items-center gap-3 rounded-xl border border-border-soft bg-surface px-4 py-3 text-left text-[12.5px]">
+          <Press at={1100} label="Review patch" className="flex w-full items-center gap-3 rounded-xl border border-border-soft bg-surface px-4 py-3 text-left text-[12.5px]">
             <span className="font-medium text-paper">Review patch</span>
             <span className="text-paper-muted">{PATCH_STATS.files} files</span>
             <span className="text-ok">+{PATCH_STATS.additions}</span>

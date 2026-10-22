@@ -1,20 +1,27 @@
 "use client";
 
-// The product tour player: a self-running walkthrough of the whole product,
-// with captions, chapters, scrubbing, speed and a fullscreen presenter mode.
+// The product tour player: a walkthrough of the whole product, with captions,
+// chapters, scrubbing, speed and a fullscreen presenter mode. Two modes:
+// "Click through" (the default) pauses at every scripted click for the visitor
+// to make it, and the mock app's menus navigate; "Watch" plays on its own
+// (/demo?watch opens straight into it).
 //
 // One clock drives everything. Tour time `t` advances by real elapsed time
 // times the playback speed; each chapter view renders its frame from its local
 // time (components/tour/kit.tsx), so pausing, seeking and replaying are exact.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowCounterClockwise, CornersIn, CornersOut, Pause, Play, SkipBack, SkipForward } from "@phosphor-icons/react";
+import { ArrowCounterClockwise, ArrowRight, CornersIn, CornersOut, HandPointing, Pause, Play, SkipBack, SkipForward } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { CHAPTERS, STARTS, TOTAL } from "./chapters";
-import { ACTS, TimeContext } from "./kit";
+import { ACTS, InteractContext, TimeContext, type Interact } from "./kit";
 
 const SPEEDS = [1, 1.5, 2] as const;
+
+type Mode = "try" | "watch";
+/** What a click-through tour is paused on: a scripted click, or the end of a chapter. */
+type Waiting = { kind: "press"; at: number; label: string } | { kind: "next" };
 const TICK_MS = 50;
 
 function clock(ms: number): string {
@@ -34,6 +41,14 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
   const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(1);
   const [fullscreen, setFullscreen] = useState(false);
   const [canFullscreen, setCanFullscreen] = useState(false);
+  const [mode, setMode] = useState<Mode>("try");
+  const [waiting, setWaitingState] = useState<Waiting | null>(null);
+  // Refs mirror mode and waiting for the clock, which must stop the moment a
+  // click comes due, before React gets round to re-rendering.
+  const modeRef = useRef<Mode>("try");
+  const waitingRef = useRef<Waiting | null>(null);
+  // Clicks already made in the current chapter, as "chapter:at".
+  const done = useRef(new Set<string>());
   const tRef = useRef(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -44,12 +59,21 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
   const local = t - STARTS[index];
   const caption = [...chapter.captions].reverse().find((c) => local >= c.at) ?? chapter.captions[0];
   const ended = t >= TOTAL;
+  const nextChapter = CHAPTERS[index + 1];
+
+  const setWaiting = useCallback((w: Waiting | null) => {
+    waitingRef.current = w;
+    setWaitingState(w);
+  }, []);
 
   const seek = useCallback((next: number) => {
     const clamped = Math.min(TOTAL, Math.max(0, next));
     tRef.current = clamped;
     setT(clamped);
-  }, []);
+    // Moving through the tour starts its clicks afresh.
+    done.current.clear();
+    setWaiting(null);
+  }, [setWaiting]);
 
   // The clock. Time is measured, not counted in ticks, so a slow frame never
   // slows the tour down; it only skips ahead a little.
@@ -58,14 +82,22 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
     let last = performance.now();
     const id = window.setInterval(() => {
       const now = performance.now();
-      const next = Math.min(TOTAL, tRef.current + (now - last) * speed);
+      let next = Math.min(TOTAL, tRef.current + (now - last) * speed);
       last = now;
+      if (waitingRef.current) return;
+      // Click-through mode holds the last frame of each chapter until the visitor moves on.
+      const i = chapterAt(tRef.current);
+      if (modeRef.current === "try" && i + 1 < CHAPTERS.length && next >= STARTS[i + 1] - 1) {
+        next = STARTS[i + 1] - 1;
+        setWaiting({ kind: "next" });
+        setPlaying(false);
+      }
       tRef.current = next;
       setT(next);
       if (next >= TOTAL) setPlaying(false);
     }, TICK_MS);
     return () => window.clearInterval(id);
-  }, [playing, speed]);
+  }, [playing, speed, setWaiting]);
 
   // Start once the stage is first in view, unless the visitor prefers reduced
   // motion: then the tour waits for Play.
@@ -98,16 +130,63 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
     return () => document.removeEventListener("fullscreenchange", sync);
   }, []);
 
-  const togglePlay = useCallback(() => {
-    started.current = true;
-    if (tRef.current >= TOTAL) seek(0);
-    setPlaying((p) => !p || tRef.current >= TOTAL);
-  }, [seek]);
-
   const goTo = useCallback((i: number) => {
     started.current = true;
     seek(STARTS[Math.min(CHAPTERS.length - 1, Math.max(0, i))]);
   }, [seek]);
+
+  /** Do what the click-through tour is waiting for: the click, or the next chapter. */
+  const step = useCallback(() => {
+    const w = waitingRef.current;
+    if (!w) return;
+    started.current = true;
+    if (w.kind === "press") {
+      done.current.add(`${chapterAt(tRef.current)}:${w.at}`);
+      setWaiting(null);
+    } else {
+      goTo(chapterAt(tRef.current) + 1);
+    }
+    setPlaying(true);
+  }, [goTo, setWaiting]);
+
+  const togglePlay = useCallback(() => {
+    started.current = true;
+    if (waitingRef.current) return step();
+    if (tRef.current >= TOTAL) seek(0);
+    setPlaying((p) => !p || tRef.current >= TOTAL);
+  }, [seek, step]);
+
+  const changeMode = useCallback((m: Mode) => {
+    modeRef.current = m;
+    setMode(m);
+    done.current.clear();
+    // Watching picks up from wherever the visitor stopped.
+    if (m === "watch" && waitingRef.current) {
+      setWaiting(null);
+      setPlaying(true);
+    }
+  }, [setWaiting]);
+
+  // /demo?watch opens in Watch mode, for presenting.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("watch")) changeMode("watch");
+  }, [changeMode]);
+
+  const interact = useMemo<Interact | null>(() => mode !== "try" ? null : {
+    waitingAt: waiting?.kind === "press" ? waiting.at : null,
+    reach: (at, label) => {
+      if (modeRef.current !== "try" || waitingRef.current || done.current.has(`${chapterAt(tRef.current)}:${at}`)) return;
+      setWaiting({ kind: "press", at, label });
+      setPlaying(false);
+    },
+    press: step,
+    open: (id) => {
+      const i = CHAPTERS.findIndex((c) => c.id === id);
+      if (i < 0) return;
+      goTo(i);
+      setPlaying(true);
+    },
+  }, [mode, waiting, step, goTo, setWaiting]);
 
   const previous = useCallback(() => {
     const i = chapterAt(tRef.current);
@@ -146,20 +225,43 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
   return (
     <div ref={rootRef} className={cn("bg-ink", fullscreen && "flex h-screen flex-col overflow-hidden p-4 sm:p-6")}>
       <section aria-label="Product tour" className={cn("mx-auto w-full", fullscreen ? "flex min-h-0 max-w-none flex-1 flex-col" : "max-w-[1180px]")}>
-        {/* The stage: a picture of the app. Screen readers get the captions below, which narrate it. */}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <p className="text-[13px] text-paper-muted">
+            {mode === "try" ? "Your turn at every step: click the highlighted button, or use the app's menus to jump around." : "Sit back: the tour plays on its own."}
+          </p>
+          <div role="group" aria-label="Tour mode" className="inline-flex shrink-0 rounded-full border border-border bg-surface p-0.5 text-[13px]">
+            {([["try", "Click through"], ["watch", "Watch"]] as const).map(([m, name]) => (
+              <button key={m} type="button" aria-pressed={mode === m} onClick={() => changeMode(m)} className={cn("min-h-8 rounded-full px-3.5 transition", mode === m ? "bg-paper font-medium text-surface" : "text-paper-dim hover:text-paper")}>
+                {name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* The stage: the app, drawn. While watching it is a picture, and screen readers get the
+            captions below, which narrate it; in click-through mode it is the visitor's to use. */}
         <div
           ref={stageRef}
-          aria-hidden
+          aria-hidden={mode === "watch" ? true : undefined}
+          role={mode === "try" ? "region" : undefined}
+          aria-label={mode === "try" ? "The opensrcer app (demo)" : undefined}
           className={cn(
             "relative overflow-hidden rounded-[20px] border border-border-soft bg-surface shadow-[0_2px_4px_rgb(0_0_0/0.03),0_40px_100px_-30px_rgb(0_0_0/0.22)] sm:rounded-[26px]",
             fullscreen ? "min-h-0 flex-1" : "h-[560px] sm:h-[600px] lg:h-[620px]",
           )}
         >
-          <TimeContext.Provider value={local}>
-            <div key={chapter.id} className="h-full animate-fade-rise motion-reduce:animate-none">
-              <View />
-            </div>
-          </TimeContext.Provider>
+          <InteractContext.Provider value={interact}>
+            <TimeContext.Provider value={local}>
+              <div key={chapter.id} className="h-full animate-fade-rise motion-reduce:animate-none">
+                <View />
+              </div>
+            </TimeContext.Provider>
+          </InteractContext.Provider>
+          {waiting?.kind === "next" && nextChapter && (
+            <button type="button" onClick={step} className="absolute bottom-4 right-4 z-10 inline-flex min-h-10 animate-fade-rise items-center gap-2 rounded-full bg-signal px-4 text-[13.5px] font-medium text-white shadow-[0_8px_24px_-6px_rgb(0_86_173/0.55)] transition hover:brightness-110 motion-reduce:animate-none">
+              Next: {nextChapter.label} <ArrowRight aria-hidden size={15} weight="bold" />
+            </button>
+          )}
         </div>
 
         {/* Captions */}
@@ -171,13 +273,18 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
           <p key={caption.text} aria-live="polite" className={cn("mt-1.5 max-w-[68ch] animate-fade-rise text-[17px] leading-[1.45] text-paper motion-reduce:animate-none sm:text-[19px]", fullscreen && "max-w-none text-[22px] sm:text-[26px]")}>
             {caption.text}
           </p>
+          <p aria-live="polite" className="mt-2 flex min-h-6 items-center gap-2 text-[14px] font-medium text-signal">
+            {waiting && <HandPointing aria-hidden size={17} weight="fill" className="shrink-0" />}
+            {waiting?.kind === "press" && <span>Your turn: click <strong className="font-semibold">“{waiting.label}”</strong></span>}
+            {waiting?.kind === "next" && nextChapter && <span>Next up: <strong className="font-semibold">{nextChapter.title}</strong></span>}
+          </p>
         </div>
 
         {/* Controls */}
         <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-3 rounded-2xl border border-border-soft bg-surface px-2 py-2 sm:px-3">
           <button type="button" onClick={previous} aria-label="Previous chapter" title="Previous chapter (←)" className={controlBtn}><SkipBack aria-hidden size={18} weight="fill" /></button>
-          <button type="button" onClick={togglePlay} aria-label={ended ? "Replay the tour" : playing ? "Pause" : "Play"} title={ended ? "Replay" : playing ? "Pause (Space)" : "Play (Space)"} className={cn(controlBtn, "size-11 bg-paper text-surface hover:bg-paper-2")}>
-            {ended ? <ArrowCounterClockwise aria-hidden size={18} weight="bold" /> : playing ? <Pause aria-hidden size={18} weight="fill" /> : <Play aria-hidden size={18} weight="fill" />}
+          <button type="button" onClick={togglePlay} aria-label={waiting ? "Continue" : ended ? "Replay the tour" : playing ? "Pause" : "Play"} title={waiting ? "Continue (Space)" : ended ? "Replay" : playing ? "Pause (Space)" : "Play (Space)"} className={cn(controlBtn, "size-11 bg-paper text-surface hover:bg-paper-2")}>
+            {waiting ? <ArrowRight aria-hidden size={18} weight="bold" /> : ended ? <ArrowCounterClockwise aria-hidden size={18} weight="bold" /> : playing ? <Pause aria-hidden size={18} weight="fill" /> : <Play aria-hidden size={18} weight="fill" />}
           </button>
           <button type="button" onClick={next} disabled={index === CHAPTERS.length - 1} aria-label="Next chapter" title="Next chapter (→)" className={cn(controlBtn, "disabled:opacity-35")}><SkipForward aria-hidden size={18} weight="fill" /></button>
           <label className="flex min-w-[160px] flex-1 items-center gap-3 px-1">
@@ -237,7 +344,7 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
             ))}
           </div>
           <p className="mt-3 text-[12px] text-paper-muted">
-            Keyboard: <kbd className="font-mono">Space</kbd> play or pause · <kbd className="font-mono">←</kbd> <kbd className="font-mono">→</kbd> chapters{canFullscreen ? <> · <kbd className="font-mono">F</kbd> presenter mode</> : null}
+            Keyboard: <kbd className="font-mono">Space</kbd> {mode === "try" ? "play, pause or continue" : "play or pause"} · <kbd className="font-mono">←</kbd> <kbd className="font-mono">→</kbd> chapters{canFullscreen ? <> · <kbd className="font-mono">F</kbd> presenter mode</> : null}
           </p>
         </nav>
       </section>

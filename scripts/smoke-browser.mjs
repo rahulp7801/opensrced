@@ -93,6 +93,23 @@ try {
         await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
         await page.keyboard.press('ArrowRight');
         await tour.getByText('Review every line').first().waitFor();
+        // Click-through mode (the default): the tour stops for the visitor's click, and the app's menus navigate.
+        const stage = tour.getByRole('region', { name: 'The opensrcer app (demo)' });
+        await chapters.filter({ hasText: 'Get set up' }).click();
+        await tour.getByRole('button', { name: 'Play', exact: true }).click();
+        await tour.getByText('Your turn: click “Sign in with GitHub”').waitFor({ timeout: 15_000 });
+        const waitingAt = Number(await position.inputValue());
+        await page.waitForTimeout(600);
+        assert.equal(Number(await position.inputValue()), waitingAt, 'the tour waits for the click');
+        await stage.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click();
+        await tour.getByText('Your turn:').waitFor({ state: 'detached' });
+        await page.waitForTimeout(600);
+        assert.ok(Number(await position.inputValue()) > waitingAt, 'the click carries the tour on');
+        await chapters.filter({ hasText: 'Browse repos' }).click();
+        await stage.getByRole('button', { name: 'Fix', exact: true }).click();
+        assert.equal(await chapters.filter({ hasText: 'Start a run' }).getAttribute('aria-current'), 'step', 'the app menus navigate');
+        await tour.getByRole('button', { name: 'Watch', exact: true }).click();
+        assert.equal(await tour.getByRole('region', { name: 'The opensrcer app (demo)' }).count(), 0, 'watch mode turns the stage back into a picture');
         await position.fill(await position.getAttribute('max'));
         await tour.getByRole('button', { name: 'Replay the tour', exact: true }).waitFor();
         // textContent: the transcript sits in a collapsed <details>, which innerText skips.

@@ -4,7 +4,7 @@ import { inviteOnly } from "@/lib/access";
 
 export const metadata: Metadata = {
   title: "Product tour",
-  description: "A six-minute, self-running tour of opensrcer: find an issue, watch an agent fix it, review the patch, and ship a draft pull request.",
+  description: "Click through opensrcer yourself, or watch a six-minute tour: find an issue, watch an agent fix it, review the patch, and ship a draft pull request.",
 };
 
 export default function DemoPage() {
@@ -14,7 +14,7 @@ export default function DemoPage() {
         <p className="eyebrow">Product tour</p>
         <h1 className="display mt-4 text-[40px] leading-[1.02] text-paper sm:text-[60px]">Watch an issue become a pull request.</h1>
         <p className="mt-4 max-w-[60ch] text-[17px] leading-[1.5] text-paper-muted sm:text-[19px]">
-          A six-minute walkthrough of everything opensrcer does, built around a real run. It plays on its own; pause, skip or step through at any point. Nothing here calls an API or needs an account.
+          Everything opensrcer does, built around a real run. Click through it yourself, or switch to Watch and it plays on its own in about six minutes. Nothing here calls an API or needs an account.
         </p>
       </header>
       <ProductTour inviteOnly={inviteOnly()} />

@@ -3,8 +3,12 @@
 // Building blocks for the product tour. Every chapter view is a pure function
 // of its local time `t` (ms), read from TimeContext, so play, pause, seek and
 // replay are exact: nothing here keeps its own timers or state.
+//
+// In click-through mode (InteractContext) the same views become the visitor's
+// to drive: each scripted click pauses the tour until they make it themselves,
+// and the app's menus jump to the matching part of the tour.
 
-import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, type ReactNode, type Ref } from "react";
 import { cn } from "@/lib/utils";
 import { Mark } from "@/components/header";
 
@@ -47,21 +51,53 @@ export function Typed({ text, at, cps = 28, className }: { text: string; at: num
   );
 }
 
-/** A mock button that lights up as the tour "clicks" it at `at`. */
-export function Press({ at, children, className }: { at: number | null; children: ReactNode; className?: string }) {
+/** Click-through mode, provided by the player; null while the tour just plays. */
+export type Interact = {
+  /** The scripted click the tour is paused on, by its `at` in the chapter view. */
+  waitingAt: number | null;
+  /** A Press calls this as its click comes due; the player pauses on it unless already done. */
+  reach: (at: number, label: string) => void;
+  /** The visitor made the click: carry on. */
+  press: () => void;
+  /** Jump to a chapter by id (the app's menus). */
+  open: (chapterId: string) => void;
+};
+export const InteractContext = createContext<Interact | null>(null);
+
+/** How long before its click a Press asks to pause, in view time: before the
+ *  press animation starts (at - 450), with room for one slow clock tick. */
+const REACH_MS = 600;
+
+/** A mock button that lights up as the tour "clicks" it at `at`. In
+ *  click-through mode it becomes a real button the visitor has to press.
+ *  `label` names it when its text is more than a button label. */
+export function Press({ at, children, className, label }: { at: number | null; children: ReactNode; className?: string; label?: string }) {
   const t = useT();
-  const pressing = at !== null && t >= at - 450 && t < at + 350;
-  return (
-    <span
-      className={cn(
-        "relative inline-flex select-none items-center justify-center transition-[transform,box-shadow] duration-200 motion-reduce:transition-none",
-        pressing && "scale-[0.96] shadow-[0_0_0_4px_rgb(0_86_173/0.28)]",
-        className,
-      )}
-    >
-      {children}
-      {pressing && <span aria-hidden className="pointer-events-none absolute inset-0 animate-ping rounded-[inherit] bg-signal/20 motion-reduce:animate-none" />}
-    </span>
+  const ix = useContext(InteractContext);
+  const ref = useRef<HTMLElement>(null);
+  const due = ix !== null && at !== null && t >= at - REACH_MS && t < at;
+  useEffect(() => {
+    // A button the layout hides (on a phone, say) can't be asked for: the tour clicks it itself.
+    const shown = (ref.current?.getClientRects().length ?? 0) > 0;
+    if (due && at !== null && shown) ix?.reach(at, label ?? ref.current?.textContent?.trim() ?? "");
+  }, [due, at, ix, label]);
+  const waiting = ix !== null && at !== null && ix.waitingAt === at;
+  // The button the visitor is asked for must be in sight, even in a pane that has scrolled past it.
+  useEffect(() => {
+    if (waiting) ref.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [waiting]);
+  const pressing = !waiting && at !== null && t >= at - 450 && t < at + 350;
+  const cls = cn(
+    "relative inline-flex select-none items-center justify-center transition-[transform,box-shadow] duration-200 motion-reduce:transition-none",
+    pressing && "scale-[0.96] shadow-[0_0_0_4px_rgb(0_86_173/0.28)]",
+    waiting && "cursor-pointer shadow-[0_0_0_2px_var(--color-surface),0_0_0_4px_var(--color-signal)] hover:brightness-95",
+    className,
+  );
+  const halo = (pressing || waiting) && <span aria-hidden className="pointer-events-none absolute inset-0 animate-ping rounded-[inherit] bg-signal/20 motion-reduce:animate-none" />;
+  return waiting && ix ? (
+    <button ref={ref as Ref<HTMLButtonElement>} type="button" onClick={ix.press} aria-label={label} className={cls}>{children}{halo}</button>
+  ) : (
+    <span ref={ref} className={cls}>{children}{halo}</span>
   );
 }
 
@@ -107,6 +143,27 @@ const SUBTABS: Record<Section, string[]> = {
   Explore: [],
 };
 
+/** In click-through mode, where each menu item of the mock app goes: the
+ *  chapter that shows that page. Items not listed here stay inert. */
+const MENU_TARGETS: Record<string, string> = {
+  Find: "find", "Browse repos": "find", Issues: "suggested",
+  Fix: "newrun", "New run": "newrun", Runs: "run",
+  Ship: "respond", "Pull requests": "respond", Impact: "impact",
+  Explore: "understand", Settings: "setup",
+};
+
+/** A menu item of the mock app: a real link-like button in click-through mode. */
+function MenuItem({ name, className, children }: { name: string; className: string; children?: ReactNode }) {
+  const ix = useContext(InteractContext);
+  const target = MENU_TARGETS[name];
+  if (!ix || !target) return <span aria-hidden={children ? true : undefined} className={className}>{children ?? name}</span>;
+  return (
+    <button type="button" onClick={() => ix.open(target)} aria-label={children ? name : undefined} className={cn(className, "cursor-pointer transition-colors hover:bg-surface-3 hover:text-paper")}>
+      {children ?? name}
+    </button>
+  );
+}
+
 /** The opensrcer app, drawn in markup: browser chrome, the signed-in header
  *  with its four sections, the section's sub-tabs, then the page. */
 export function AppWindow({ path, section, tab, children, label, host = "opensrced.vercel.app" }: { path: string; section?: Section | "none"; tab?: string; children: ReactNode; label?: string; host?: string }) {
@@ -129,16 +186,16 @@ export function AppWindow({ path, section, tab, children, label, host = "opensrc
             <span className="flex items-center gap-1.5 pr-2 text-[13px] font-semibold text-paper"><Mark /><span className="hidden sm:inline">opensrcer</span></span>
             <span className="mx-auto flex gap-0.5 sm:gap-2">
               {SECTIONS.map((s) => (
-                <span key={s} className={cn("rounded-md px-1.5 py-0.5 text-[12px] sm:px-2.5", s === section ? "font-medium text-paper" : "text-paper-muted")}>{s}</span>
+                <MenuItem key={s} name={s} className={cn("inline-flex min-h-6 items-center rounded-md px-1.5 text-[12px] sm:px-2.5", s === section ? "font-medium text-paper" : "text-paper-muted")} />
               ))}
             </span>
-            <span aria-hidden className="grid size-6 place-items-center rounded-full bg-paper text-[11px] font-semibold text-surface">R</span>
+            <MenuItem name="Settings" className="grid size-6 place-items-center rounded-full bg-paper text-[11px] font-semibold text-surface hover:!bg-paper-2 hover:!text-surface">R</MenuItem>
           </div>
           {section !== "none" && SUBTABS[section].length > 0 && (
             <div className="flex items-center gap-2 overflow-hidden border-b border-border-soft bg-surface px-3 py-1.5 sm:px-4">
               <span className="text-[13px] font-semibold text-paper">{section}</span>
               {SUBTABS[section].map((s) => (
-                <span key={s} className={cn("whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11.5px]", s === tab ? "bg-surface-3 font-medium text-paper" : "text-paper-muted")}>{s}</span>
+                <MenuItem key={s} name={s} className={cn("inline-flex min-h-6 items-center whitespace-nowrap rounded-full px-2.5 text-[11.5px]", s === tab ? "bg-surface-3 font-medium text-paper" : "text-paper-muted")} />
               ))}
             </div>
           )}
@@ -153,7 +210,7 @@ export function AppWindow({ path, section, tab, children, label, host = "opensrc
 export function PageHead({ title, description }: { title: string; description?: string }) {
   return (
     <div className="mb-4">
-      <h3 className="display text-[22px] leading-tight text-paper sm:text-[26px]">{title}</h3>
+      <h2 className="display text-[22px] leading-tight text-paper sm:text-[26px]">{title}</h2>
       {description && <p className="mt-1 max-w-[60ch] text-[12px] leading-5 text-paper-muted">{description}</p>}
     </div>
   );

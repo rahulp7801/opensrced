@@ -12,7 +12,9 @@ import { getCloudRun, listCloudRunSummaries } from "./cloud-runs";
 import { runPath, runPreviewPath, runPublishLockPath, runSummaryPath, cloudRunSummary, type CloudRun } from "./cloud-run-state";
 import { PUSH_EGRESS } from "./sandbox-egress";
 import { assertWorkerProtocol } from "./worker-protocol";
-import { assertPublishable, liveGuards, PublishError, type PublishInput, type StoredPreview } from "./publish";
+import { assertPublishable, followupGuards, followupPushTarget, liveGuards, PublishError, type PublishInput, type StoredPreview } from "./publish";
+import { cloudPush } from "./cloud-push";
+import { testOutcome } from "./verify";
 import type { PrPreview } from "./pr-preview";
 import { parseRunTarget } from "./run-target";
 
@@ -71,6 +73,7 @@ async function writeRecord(owner: string, run: CloudRun) {
 export async function publishCloudRun(
   input: PublishInput & { signal: AbortSignal },
   job: typeof runPublishJob = runPublishJob,
+  push: typeof cloudPush = cloudPush,
 ): Promise<{ url: string; tests: string }> {
   const run = await getCloudRun(input.viewerId, input.id);
   if (!run) throw new PublishError(404, "not found");
@@ -78,8 +81,13 @@ export async function publishCloudRun(
   if (!input.token || !input.author) throw new PublishError(401, "Sign in with GitHub again: the PR is opened from your account.");
   const repo = parseRunTarget(run.repo_url).repo;
   const issue = run.issue_number ?? 0;
-  const history = await listCloudRunSummaries(input.viewerId, 50);
-  await liveGuards({ repoFull: repo, issue, token: input.token, login: input.author.login, preview: stored.preview, publishedAt: history.map((r) => r.published_at) });
+  // A follow-up updates the user's own PR: AI-policy check only, and the
+  // branch comes from GitHub now, not from the (worker-written) record.
+  const followup = run.followup_pr ? (followupGuards(stored.preview), await followupPushTarget(run.followup_pr, input.token, input.author.login)) : null;
+  if (!followup) {
+    const history = await listCloudRunSummaries(input.viewerId, 50);
+    await liveGuards({ repoFull: repo, issue, token: input.token, login: input.author.login, preview: stored.preview, publishedAt: history.map((r) => r.published_at) });
+  }
 
   // One publish per run, across function instances: the lock blob is created
   // without overwrite, so a second click finds it and stops.
@@ -89,6 +97,21 @@ export async function publishCloudRun(
     throw new PublishError(409, "Publishing already started for this run.");
   }
   const note = `\n[publish] confirmed by the owner at ${new Date().toISOString()}\n`;
+  if (followup) {
+    const tests = testOutcome(stored.preview.executed ? stored.preview.verification : null);
+    let message: string;
+    try {
+      message = String((await push({ repo: followup.repo, branch: followup.branch, diff: stored.diff, commit_message: stored.preview.commit_message, author: input.author }, input.token, input.signal, input.viewerId)).message ?? "Pushed");
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "The isolated push failed.";
+      await writeRecord(input.viewerId, { ...run, pr_status: "failed", pr_failure_reason: reason.slice(0, 500), ...withLog(run, note) }).catch(() => {});
+      await del(runPublishLockPath(input.viewerId, input.id), { abortSignal: AbortSignal.timeout(15_000) }).catch(() => {});
+      throw new PublishError(502, reason.slice(0, 500));
+    }
+    // No published_at: a follow-up commit is not a new PR for the daily cap.
+    await writeRecord(input.viewerId, { ...run, pr_status: "opened", pr_url: followup.url, tests, ...withLog(run, `${note}[publish] ${message} (follow-up to ${followup.url})\n`) });
+    return { url: followup.url, tests };
+  }
   const result = await job({ repo, issueNumber: issue, dispatchId: run.id, findingId: run.finding_id, stored, author: input.author }, input.token, input.signal, input.viewerId)
     .catch((error): PublishJobResult => ({ ok: false, reason: error instanceof PublishError ? error.message : "The publish worker failed." }));
   if (!result.ok) {

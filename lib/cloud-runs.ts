@@ -30,7 +30,9 @@ import {
 import { cloudRunLease, cloudRunLeaseIsStarting } from "./cloud-leases";
 import { cloudWorkerJobJson } from "./cloud-worker-job";
 import { assertWorkerProtocol } from "./worker-protocol";
-import { AGENT_EGRESS, SUBSCRIPTION_AGENT_EGRESS } from "./sandbox-egress";
+import { AGENT_EGRESS, SUBSCRIPTION_AGENT_EGRESS, agentEgressWithExec } from "./sandbox-egress";
+import { execSandboxName, startExecVm, workerExecEnv } from "./cloud-exec";
+import { hostedExecLimits } from "./limits";
 import { SIGN_IN_CODE_PATH, validSignInCode } from "./hosted-sign-in";
 
 const TTL = 45 * 60_000;
@@ -56,6 +58,14 @@ async function stopSandbox(name: string): Promise<boolean> {
     }
   }
   return false;
+}
+
+/** Stop both of a run's VMs: the agent VM and, for hosted exec runs, its exec
+ *  VM. A run without an exec VM finds none (404 counts as stopped). True
+ *  only when neither can still be running. */
+async function stopRunSandboxes(name: string): Promise<boolean> {
+  const [agent, exec] = await Promise.all([stopSandbox(name), stopSandbox(execSandboxName(name))]);
+  return agent && exec;
 }
 
 async function writeSummary(path: string, run: CloudRun) {
@@ -161,7 +171,7 @@ export async function reserveCapacity(path: string, expires: number): Promise<st
     }
     // A finished run's VM idles (billed) until its 40-minute timeout unless
     // someone polls the run. Reusing its slot is the moment to stop it.
-    if (finishedRunId) await stopSandbox(finishedRunId.replaceAll("_", "-"));
+    if (finishedRunId) await stopRunSandboxes(finishedRunId.replaceAll("_", "-"));
     return key;
   }
   throw new CapacityError("All three agent slots are busy. Try again when a run finishes.");
@@ -183,6 +193,7 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
     mode: "agentic", dry_run: opts.dryRun === true, started_at: new Date().toISOString(), status: "running",
     log_path: "", sandbox_name: id.replaceAll("_", "-"), expires_at: Date.now() + TTL,
     log: "Preparing isolated agent worker...\n", log_size: 35, tests: "not_run",
+    ...(opts.followupPr ? { followup_pr: opts.followupPr } : {}),
   };
   run.log_size = Buffer.byteLength(run.log);
   const leaseKey = await reserveCapacity(path, run.expires_at);
@@ -190,7 +201,14 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
     await writeRun(path, run);
     await writeSummary(summaryPath, run);
     // A subscription run also needs Anthropic's sign-in token exchange.
-    const networkPolicy = opts.provider === "claude-subscription" ? SUBSCRIPTION_AGENT_EGRESS : AGENT_EGRESS;
+    const baseEgress = opts.provider === "claude-subscription" ? SUBSCRIPTION_AGENT_EGRESS : AGENT_EGRESS;
+    // Hosted exec (issue runs only; findings keep the text-diff path, as
+    // locally): the credential-free exec VM first, so the agent VM's egress
+    // can name its exact host. Same lifetime as the agent VM.
+    const execVm = hostedExecLimits().enabled && !finding
+      ? await startExecVm(execSandboxName(run.sandbox_name), snapshotId, WORKER_TIMEOUT_MS)
+      : null;
+    const networkPolicy = execVm ? agentEgressWithExec(baseEgress, execVm.host) : baseEgress;
     const sandbox = await Sandbox.create({ name: run.sandbox_name, source: { type: "snapshot", snapshotId }, networkPolicy,
       persistent: false, timeout: WORKER_TIMEOUT_MS, signal: AbortSignal.timeout(60_000) });
     await assertWorkerProtocol(sandbox);
@@ -213,6 +231,8 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
         OPENSRCER_PREVIEW_UPLOAD_TOKEN: previewUploadToken,
         OPENSRCER_RUN_TESTS: "off",
         OPENSRCER_AGENTIC_TIMEOUT_MS: String(30 * 60_000),
+        // Exec VM capability and the hosted time caps (they replace the line above).
+        ...(execVm ? workerExecEnv(execVm) : {}),
       } });
     // Retention never controls whether the already-started worker succeeds.
     // Delete a bounded batch after launch so storage converges toward the
@@ -220,7 +240,7 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
     await pruneCloudRunHistory(opts.auth0UserId).catch(() => {});
     return run;
   } catch (error) {
-    await stopSandbox(run.sandbox_name);
+    await stopRunSandboxes(run.sandbox_name);
     const log = "Could not start the isolated worker. Please retry.\n";
     const failedRun = { ...run, status: "failed" as const, ended_at: new Date().toISOString(), log, log_size: Buffer.byteLength(log) };
     await Promise.allSettled([writeRun(path, failedRun), writeSummary(summaryPath, failedRun)]);
@@ -244,7 +264,7 @@ export async function getCloudRun(owner: string, id: string): Promise<CloudRun |
   // A finished worker exits, but its VM stays up (and billed) until the
   // 40-minute timeout; nothing inside it can stop it. Stop it on first sight.
   // ponytail: runs nobody polls idle until timeout; a sweeper would close that.
-  if (!runIsActive(effective) && !run.sandbox_stopped && await stopSandbox(run.sandbox_name)) {
+  if (!runIsActive(effective) && !run.sandbox_stopped && await stopRunSandboxes(run.sandbox_name)) {
     await writeRun(runPath(owner, id), { ...run, sandbox_stopped: true }).catch(() => {});
   }
   return effective;
@@ -360,7 +380,7 @@ export async function cancelCloudRun(owner: string, id: string): Promise<boolean
     addCloudRunCancellation(value, { id, cancelled_at: cancelledAt })).catch(() => { indexSaved = false; });
   // The durable tombstone has already cancelled the run. If the VM cannot be
   // confirmed stopped it may still finish and publish, so say so in the log.
-  const stopped = await stopSandbox(run.sandbox_name);
+  const stopped = await stopRunSandboxes(run.sandbox_name);
   const note = stopped ? "" : "\nCancelled, but the worker could not be confirmed stopped. It ends within 40 minutes and may still open a draft PR.\n";
   const cancelled = { ...cancelledCloudRunState(run, cancelledAt), sandbox_stopped: stopped,
     log: run.log + note, log_size: run.log_size + Buffer.byteLength(note) };

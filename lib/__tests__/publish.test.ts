@@ -83,3 +83,63 @@ test("publish gate: an already published or running run cannot be published agai
     await assert.rejects(checkPublishable({ id: running, viewerId: "owner", confirmed: true }), /no reviewed preview/);
   } finally { cleanupRunning(); }
 });
+
+// ── Follow-up runs: one commit on the user's own PR, never a new PR ──────
+
+const PR = "https://github.com/o/r/pull/12";
+const ghPr = { state: "open", merged: false, author: "me" };
+function stubGitHub() {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: string | URL) => {
+    const p = new URL(String(input)).pathname;
+    const json = (v: unknown) => new Response(JSON.stringify(v), { status: 200, headers: { "content-type": "application/json" } });
+    if (p.endsWith("/pulls/12")) return json({ state: ghPr.state, merged: ghPr.merged, mergeable_state: "clean", user: { login: ghPr.author }, body: "Fixes #7", head: { sha: "c".repeat(40), ref: "opensrcer/issue-7-x", repo: { full_name: "me/r" } }, base: { ref: "main" } });
+    if (p.endsWith("/check-runs")) return json({ check_runs: [] });
+    if (p.endsWith("/status")) return json({ statuses: [] });
+    if (/\/comments$|\/reviews$/.test(p)) return json([]);
+    throw new Error(`unexpected GitHub call ${p}`);
+  }) as typeof fetch;
+  return () => { globalThis.fetch = realFetch; };
+}
+
+test("follow-up publish pushes exactly the reviewed patch to the PR branch, once confirmed", async () => {
+  const id = `d_test_followup_${process.pid}`;
+  const cleanup = await fixture(id, { followup_pr: PR });
+  const restore = stubGitHub();
+  const pushes: Array<{ repo: string; branch: string; diff: string; commit_message: string }> = [];
+  const push = async (input: { repo: string; branch: string; diff: string; commit_message: string }) => { pushes.push(input); return { ok: true, commit: "abc12345", message: "Pushed commit abc12345 to me/r/opensrcer/issue-7-x" }; };
+  try {
+    await assert.rejects(publishDispatch({ id, viewerId: "owner", confirmed: false, token: "t", author: { login: "me", id: 1 } }, push), (e: PublishError) => e.status === 400);
+    assert.equal(pushes.length, 0, "nothing is pushed without the confirmation");
+    const result = await publishDispatch({ id, viewerId: "owner", confirmed: true, token: "t", author: { login: "me", id: 1 } }, push);
+    assert.deepEqual(result, { ok: true, url: PR, tests: "passed" });
+    assert.equal(pushes.length, 1);
+    assert.equal(pushes[0].repo, "me/r");
+    assert.equal(pushes[0].branch, "opensrcer/issue-7-x");
+    assert.equal(pushes[0].diff, DIFF);
+    assert.equal(pushes[0].commit_message, "[Bugfix] fix x\n\nAssisted-by: claude-sonnet-5 via opensrcer");
+    const after = read(id);
+    assert.equal(after?.pr_status, "opened");
+    assert.equal(after?.pr_url, PR);
+    assert.equal(after?.published_at, undefined, "a follow-up commit does not spend the daily new-PR cap");
+  } finally { cleanup(); restore(); }
+});
+
+test("follow-up publish refuses a closed PR, someone else's PR, and records a failed push", async () => {
+  const id = `d_test_followup_fail_${process.pid}`;
+  const cleanup = await fixture(id, { followup_pr: PR });
+  const restore = stubGitHub();
+  const author = { login: "me", id: 1 };
+  try {
+    ghPr.state = "closed";
+    await assert.rejects(publishDispatch({ id, viewerId: "owner", confirmed: true, token: "t", author }, async () => { throw new Error("must not push"); }), (e: PublishError) => e.status === 409);
+    ghPr.state = "open";
+    ghPr.author = "someone-else";
+    await assert.rejects(publishDispatch({ id, viewerId: "owner", confirmed: true, token: "t", author }, async () => { throw new Error("must not push"); }), (e: PublishError) => e.status === 403);
+    ghPr.author = "me";
+    assert.equal(read(id)?.pr_status, "awaiting_review", "refusals change nothing");
+    await assert.rejects(publishDispatch({ id, viewerId: "owner", confirmed: true, token: "t", author }, async () => { throw new Error("The patch could not be applied."); }), (e: PublishError) => e.status === 502);
+    assert.equal(read(id)?.pr_status, "failed");
+    assert.match(read(id)?.pr_failure_reason ?? "", /could not be applied/);
+  } finally { cleanup(); restore(); ghPr.state = "open"; ghPr.author = "me"; }
+});

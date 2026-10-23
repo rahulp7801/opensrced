@@ -13,6 +13,13 @@ import { listAll, patch, read } from "./dispatch-store";
 import { forgetFinished } from "./dispatcher";
 import { readPreview, type PrPreview } from "./pr-preview";
 import { sanitizeLogValue } from "./sanitize";
+import { parseGitHubPullUrl } from "./github-pull-url";
+import { fetchSnapshot } from "./pr-lifecycle";
+import { pushPrPatch } from "./pr-push";
+import { testOutcome } from "./verify";
+
+/** What a successful publish returns: the PR (new, or updated by a follow-up). */
+export type Published = { ok: true; url: string; tests: "passed" | "failed" | "skipped" | "not_run" };
 
 export const CONFIRMATION = "I've read this change and can explain it to reviewers.";
 
@@ -74,6 +81,28 @@ export async function liveGuards(opts: {
   if (today >= caps.daily) throw new PublishError(429, `Daily limit reached: ${today} PR(s) published in the last 24 hours (limit ${caps.daily}).`);
 }
 
+/** Where a published follow-up goes (runs with `followup_pr`): the PR's
+ *  branch, re-read from GitHub now, never from a run record. Refuses a PR that
+ *  is closed or not the publisher's own. Exported for hosted publishing. */
+export async function followupPushTarget(prUrl: string, token: string, login: string): Promise<{ repo: string; branch: string; url: string }> {
+  const target = parseGitHubPullUrl(prUrl);
+  if (!target) throw new PublishError(409, "This follow-up names no valid pull request.");
+  let snapshot: Awaited<ReturnType<typeof fetchSnapshot>>;
+  try { snapshot = await fetchSnapshot({ repo: target.repoFull, number: target.prNumber }, token); }
+  catch { throw new PublishError(503, "Could not read the pull request from GitHub. Try again."); }
+  if (snapshot.state !== "open" || snapshot.merged) throw new PublishError(409, "The pull request is no longer open; nothing was pushed.");
+  if (snapshot.author.toLowerCase() !== login.toLowerCase()) throw new PublishError(403, "Follow-ups are pushed only to your own pull requests.");
+  if (!snapshot.head_repo) throw new PublishError(409, "The pull request's branch no longer exists.");
+  return { repo: snapshot.head_repo, branch: snapshot.head_ref, url: target.url };
+}
+
+/** Follow-ups skip the new-PR guards (caps, competing PRs: the PR is the
+ *  user's own) but keep the repository's AI-policy refusal. */
+export function followupGuards(preview: PrPreview): void {
+  const ban = preview.profile ? aiBanReason(preview.profile) : null;
+  if (ban) throw new PublishError(409, `Refused: ${ban}.`);
+}
+
 const DISPATCH_DIR = () => join(process.cwd(), ".dispatches");
 
 /** Local run lookup plus the shared checks. Exported for tests. */
@@ -85,9 +114,11 @@ export async function checkPublishable(input: Pick<PublishInput, "id" | "viewerI
   return { record, stored };
 }
 
-export async function publishDispatch(input: PublishInput): Promise<PrResult & { ok: true }> {
+/** `push` is replaceable in tests (follow-up runs only). */
+export async function publishDispatch(input: PublishInput, push: typeof pushPrPatch = pushPrPatch): Promise<Published> {
   const { record, stored } = await checkPublishable(input);
   if (!input.token || !input.author) throw new PublishError(401, "Sign in with GitHub again: the PR is opened from your account.");
+  if (record.followup_pr) return publishLocalFollowup({ ...input, token: input.token, author: input.author }, record, stored, push);
   const repoFull = record.repo_url.replace(/^https:\/\/github\.com\//, "");
   const issue = record.issue_number ?? 0;
   await liveGuards({ repoFull, issue, token: input.token, login: input.author.login, preview: stored.preview, publishedAt: listAll(input.viewerId).map((r) => r.published_at) });
@@ -114,4 +145,33 @@ export async function publishDispatch(input: PublishInput): Promise<PrResult & {
   await appendFile(logPath, `[agentic-pr] opened draft PR: ${sanitizeLogValue(result.url)}\n`).catch(() => {});
   patch(input.id, { pr_status: "opened", pr_url: result.url, tests: result.tests, published_at: new Date().toISOString() });
   return result;
+}
+
+/** A follow-up run's publish: one commit with exactly the reviewed patch,
+ *  pushed to the user's own open PR branch (a normal push, so a branch that
+ *  moved meanwhile rejects it). No new PR; published_at stays unset so the
+ *  daily new-PR cap is not spent. */
+async function publishLocalFollowup(
+  input: PublishInput & { token: string; author: { login: string; id: number } },
+  record: NonNullable<ReturnType<typeof read>>,
+  stored: StoredPreview,
+  push: typeof pushPrPatch,
+): Promise<Published> {
+  followupGuards(stored.preview);
+  const target = await followupPushTarget(record.followup_pr!, input.token, input.author.login);
+  patch(input.id, { pr_status: "pending" });
+  forgetFinished(input.id);
+  await appendFile(record.log_path, `\n[publish] confirmed by the owner at ${new Date().toISOString()}: "${CONFIRMATION}"\n`).catch(() => {});
+  try {
+    const pushed = await push({ repo: target.repo, branch: target.branch, diff: stored.diff, commit_message: stored.preview.commit_message, author: input.author }, input.token);
+    await appendFile(record.log_path, `[publish] ${sanitizeLogValue(pushed.message)} (follow-up to ${target.url})\n`).catch(() => {});
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    await appendFile(record.log_path, `[publish] failed: ${sanitizeLogValue(reason)}\n`).catch(() => {});
+    patch(input.id, { pr_status: "failed", pr_failure_reason: reason.slice(0, 500) });
+    throw new PublishError(502, reason.slice(0, 500));
+  }
+  const tests = testOutcome(stored.preview.executed ? stored.preview.verification : null);
+  patch(input.id, { pr_status: "opened", pr_url: target.url, tests });
+  return { ok: true, url: target.url, tests };
 }

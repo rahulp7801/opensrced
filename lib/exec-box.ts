@@ -205,7 +205,9 @@ function redactToken(message: string, token: string): string {
   return message.split(token).join("[redacted]");
 }
 
-async function waitHealthy(box: ExecBox): Promise<void> {
+/** Poll /health until the box answers (about 10 s). Exported for the hosted
+ *  exec VM (lib/cloud-exec.ts). */
+export async function waitHealthy(box: Pick<ExecBox, "url" | "token">): Promise<void> {
   let last = "";
   for (let i = 0; i < 40; i++) {
     try {
@@ -236,6 +238,9 @@ export function boxRequest<T = Record<string, unknown>>(
       method,
       headers: {
         Authorization: `Bearer ${box.token}`,
+        // The hosted port route buffers responses it may compress; ask for
+        // none so /run heartbeats stream (lib/cloud-exec.ts).
+        "Accept-Encoding": "identity",
         ...(payload ? { "Content-Type": "application/json", "Content-Length": payload.length } : {}),
         ...(stream ? { "Content-Type": "application/gzip" } : {}),
       },
@@ -252,7 +257,8 @@ export function boxRequest<T = Record<string, unknown>>(
         let parsed: Record<string, unknown>;
         try { parsed = JSON.parse(Buffer.concat(chunks).toString("utf8")); }
         catch { reject(new ExecBoxError(`box returned non-JSON (HTTP ${res.statusCode})`, res.statusCode)); return; }
-        if (res.statusCode !== 200) reject(new ExecBoxError(String(parsed.error ?? `HTTP ${res.statusCode}`), res.statusCode));
+        // A streamed answer (/run) reports a late failure as 200 + {error}.
+        if (res.statusCode !== 200 || typeof parsed.error === "string") reject(new ExecBoxError(String(parsed.error ?? `HTTP ${res.statusCode}`), res.statusCode));
         else resolve(parsed as T);
       });
       res.on("error", reject);

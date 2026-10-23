@@ -60,7 +60,11 @@ export type LifecycleState = {
   /** Comments waiting for a reply the user drafts and posts on the PR page. */
   pending_replies: Array<{ id: number; author: string; url: string; body: string }>;
   last_polled_at?: string;
+  /** The newest events (bounded), for the PR page. Older state files lack it. */
+  recent?: Array<LifecycleEvent & { at: string }>;
 };
+
+const RECENT_EVENTS = 30;
 
 export function initialState(pr: PrRef): LifecycleState {
   return { pr, followups: false, seen_comment_ids: [], ci_notified: {}, pending_replies: [] };
@@ -74,8 +78,15 @@ export function ciVerdict(checks: CheckResult[]): "failed" | "passed" | "pending
   return "passed";
 }
 
-/** New events since `state`, and the state after recording them. Pure. */
-export function computeEvents(snap: PrSnapshot, state: LifecycleState): { events: LifecycleEvent[]; next: LifecycleState } {
+/** New events since `state`, and the state after recording them (also in
+ *  `next.recent`, newest last, bounded). Pure apart from the clock. */
+export function computeEvents(snap: PrSnapshot, state: LifecycleState, now = new Date().toISOString()): { events: LifecycleEvent[]; next: LifecycleState } {
+  const result = detectEvents(snap, state);
+  result.next.recent = [...(state.recent ?? []), ...result.events.map((e) => ({ ...e, at: now }))].slice(-RECENT_EVENTS);
+  return result;
+}
+
+function detectEvents(snap: PrSnapshot, state: LifecycleState): { events: LifecycleEvent[]; next: LifecycleState } {
   const events: LifecycleEvent[] = [];
   const next: LifecycleState = { ...state, seen_comment_ids: [...state.seen_comment_ids], ci_notified: { ...state.ci_notified }, pending_replies: [...state.pending_replies] };
   if (snap.merged || snap.state === "closed") {
@@ -236,4 +247,18 @@ export function followupTask(events: LifecycleEvent[]): string | null {
     if (e.kind === "comment" && (e.changes_requested || e.path)) parts.push(`A reviewer (${e.author}) commented${e.path ? ` on ${e.path}${e.line ? `:${e.line}` : ""}` : ""}:\n<review-comment untrusted="true">\n${e.body.slice(0, 3000)}\n</review-comment>`);
   }
   return parts.length ? parts.join("\n\n") : null;
+}
+
+/** The issue a PR says it fixes ("Fixes #12"), or 0. */
+export function linkedIssue(body: string): number {
+  return Number(/(?:fix(?:es|ed)?|close[sd]?|resolve[sd]?)\s+#(\d+)/i.exec(body)?.[1] ?? 0);
+}
+
+/** The recorded events a follow-up of `kind` acts on: the CI failures on the
+ *  PR's current head, or the review comments that ask for a change.
+ *  ponytail: every recorded review comment counts; nothing marks one addressed. */
+export function followupEvents(kind: "ci" | "review", recent: LifecycleState["recent"], headSha: string): LifecycleEvent[] {
+  return (recent ?? []).filter((e) => kind === "ci"
+    ? e.kind === "ci_failed" && e.head_sha === headSha
+    : e.kind === "comment" && (e.changes_requested || Boolean(e.path)) && !/\[bot\]$/i.test(e.author));
 }

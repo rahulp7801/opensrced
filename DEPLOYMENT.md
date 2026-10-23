@@ -67,8 +67,26 @@ path has passed compilation and automated checks but has not been provisioned
 or exercised with live user credentials. Agent runs, exploration, deep fixes, graph generation, and patch pushes use
 isolated workers. Quick fixes, replies, and graph questions use bounded API
 requests. Activity, PR history, and graph storage are scoped to their owners. Do not treat deployment alone as release
-acceptance. Repository test execution remains off inside workers because tests
-could access user credentials supplied to the agent.
+acceptance. Repository code never runs inside the agent worker, because it
+could read the user credentials supplied to the agent.
+
+### Hosted exec VM (`OPENSRCER_HOSTED_EXEC=1`, off by default)
+
+With the gate on, every issue run gets a second, credential-free Sandbox VM
+(`<run VM name>-exec`, `lib/cloud-exec.ts`) where the agent edits files and
+runs the repository's installs and tests, and where the host re-runs them on
+the final patch (with the fail-before check) before the preview is frozen.
+The exec VM holds only its own bearer token: no GitHub token, provider key or
+Blob token. It exposes port 7070 on its `*.vercel.run` route; the agent VM's
+egress gains exactly that host. The exec VM's egress is package registries and
+git hosts only (`EXEC_EGRESS` in `lib/sandbox-egress.ts`). Both VMs share the
+run's capacity slot, the same 40-minute lifetime, and every stop path
+(cancel, first read after finish, slot reclaim, failed start). With the gate
+off, hosted runs keep the unverified text-diff path. Needs a snapshot built
+from this release (protocol 7). Time caps, all inside the 40-minute VM:
+`OPENSRCER_HOSTED_EXEC_SETUP_MS` (install before the agent, default 8 min),
+`OPENSRCER_HOSTED_EXEC_AGENT_MS` (agent wall clock and command budget, 20 min),
+`OPENSRCER_HOSTED_EXEC_CMD_TIMEOUT_MS` (one command, 5 min).
 
 ## How runs are paid for
 
@@ -85,7 +103,7 @@ opt-in fallback (Settings → How runs are paid for). See `lib/run-payment.ts`.
 - **Hosted (Vercel)**: `OPENSRCER_HOSTED_SUBSCRIPTION=1` lets a user sign in to
   Claude inside their own run's worker VM through Anthropic's sign-in page; the
   login lives only in that VM and is discarded with it; opensrcer never reads or stores it. Off by default; it needs a worker
-  snapshot built from this release (protocol 6) and Anthropic's Commercial
+  snapshot built from this release (protocol 7) and Anthropic's Commercial
   Terms. ChatGPT plans are not offered hosted (OpenAI requires approval for
   remotely hosted apps).
 - Subscription runs are capped by `--max-turns` (`OPENSRCER_AGENTIC_MAX_TURNS`,

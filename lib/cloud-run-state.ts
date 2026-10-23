@@ -75,6 +75,9 @@ export function validCloudRun(value: unknown, owner: string, id: string): value 
     // so a rewritten record cannot point the "View PR" link anywhere else.
     (run.pr_url === undefined || (typeof run.pr_url === "string" && /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/[1-9]\d*$/.test(run.pr_url) &&
       run.pr_url.toLowerCase().startsWith(`${run.repo_url!.toLowerCase()}/pull/`))) &&
+    // Same rule for the PR a follow-up run updates.
+    (run.followup_pr === undefined || (typeof run.followup_pr === "string" && /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/[1-9]\d*$/.test(run.followup_pr) &&
+      run.followup_pr.toLowerCase().startsWith(`${run.repo_url!.toLowerCase()}/pull/`))) &&
     (run.pr_failure_reason === undefined || (typeof run.pr_failure_reason === "string" && run.pr_failure_reason.length <= 500)) &&
     (run.tests === undefined || TEST_STATUSES.has(run.tests)) &&
     (run.stats === undefined || validDispatchStats(run.stats)) &&

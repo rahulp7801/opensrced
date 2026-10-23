@@ -28,6 +28,8 @@ export type FinishInput = {
   provider?: string;
   /** Produced by the scripted stand-in agent: never publishable. */
   standIn?: boolean;
+  /** A follow-up on the user's own PR: that PR is not a competing one. */
+  followup?: boolean;
 };
 
 /** Build and store the preview. Returns null when there is nothing to
@@ -55,7 +57,7 @@ export async function finishRun(input: FinishInput): Promise<PrPreview | null> {
     const ban = aiBanReason(input.profile);
     if (ban) blockers.push(ban);
   }
-  if (input.issueNumber > 0) {
+  if (input.issueNumber > 0 && !input.followup) {
     try {
       const competing = competingPrReason(await openPrsForIssue(input.repoFull, input.issueNumber, input.token));
       if (competing) blockers.push(competing);

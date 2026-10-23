@@ -38,3 +38,26 @@ test('box tools forward the bearer token and surface box errors', async () => {
     server.close();
   }
 });
+
+test('a streamed /run (headers first, whitespace heartbeats, then JSON) is read, asks for no compression, and a late error surfaces', async () => {
+  const seen = [];
+  const server = http.createServer((req, res) => {
+    seen.push(req.headers['accept-encoding']);
+    const first = seen.length === 1;
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.write(' ');
+    setTimeout(() => res.write('   '), 20);
+    setTimeout(() => res.end(first
+      ? JSON.stringify({ exit_code: 0, timed_out: false, duration_ms: 40, output: 'ok', budget_left_ms: 1000 })
+      : JSON.stringify({ error: 'spawn failed' })), 40);
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const cfg = { url: `http://127.0.0.1:${server.address().port}`, token: 't' };
+  try {
+    assert.match(await boxRunCommand(cfg, { command: 'true' }), /exit=0/);
+    assert.equal(seen[0], 'identity');
+    await assert.rejects(boxRunCommand(cfg, { command: 'true' }), /spawn failed/);
+  } finally {
+    server.close();
+  }
+});

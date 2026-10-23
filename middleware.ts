@@ -66,6 +66,9 @@ const PUBLIC_PATHS = new Set([
   // sign in. Its server-rendered organization descendants are protected.
   "/crucible",
   "/demo",
+  // The stage demo and its speaker notes: the same simulated tour, for presenting.
+  "/demo/stage",
+  "/demo/stage/notes",
   // Public shared fix viewer + the single-fix read API behind it. The
   // enumeration endpoint that used to live at GET /api/fixes is gone — it
   // listed the most recent shares to anyone who asked, which made the
@@ -96,6 +99,9 @@ const UNCONFIGURED_PUBLIC_PATHS = new Set([
   "/demo/opengraph-image",
   "/apple-icon",
   "/demo",
+  // The stage demo and its speaker notes: the same simulated tour, for presenting.
+  "/demo/stage",
+  "/demo/stage/notes",
   "/fix",
   "/api/fixes",
 ]);
@@ -116,6 +122,9 @@ const PREVIEW_PUBLIC_PATHS = new Set([
   "/demo/opengraph-image",
   "/apple-icon",
   "/demo",
+  // The stage demo and its speaker notes: the same simulated tour, for presenting.
+  "/demo/stage",
+  "/demo/stage/notes",
   "/api/access",
   "/api/crucible/github/webhook",
   "/api/crucible/github/install-callback",

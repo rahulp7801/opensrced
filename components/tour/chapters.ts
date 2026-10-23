@@ -16,9 +16,9 @@ import { control, outro, trust } from "./chapters-trust";
 export const TOUR_PACE = 1.5;
 
 /** Plays a chapter `pace` times slower: its view, its captions and its length
- *  stretch together, so a chapter written tight can be given room to read. */
-function paced(chapter: Chapter, pace: number): Chapter {
-  pace *= TOUR_PACE;
+ *  stretch together, so a chapter written tight can be given room to read.
+ *  The tour adds TOUR_PACE on top (paced, below); the stage demo uses this as is. */
+export function pacedBy(chapter: Chapter, pace: number): Chapter {
   if (pace === 1) return chapter;
   const Inner = chapter.View;
   function View() {
@@ -32,6 +32,8 @@ function paced(chapter: Chapter, pace: number): Chapter {
     View,
   };
 }
+
+const paced = (chapter: Chapter, pace: number) => pacedBy(chapter, pace * TOUR_PACE);
 
 export const CHAPTERS: Chapter[] = [
   paced(intro, 1.5),

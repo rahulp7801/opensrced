@@ -630,24 +630,26 @@ export const understand: Chapter = {
 
 // The questions asked on the Explore screen, in order. Graph commands are free;
 // a plain-English question uses the AI provider and shows its cost.
+// Each pressAt comes after its question has finished typing (typeAt + length at
+// the typing speed), so a click-through stop never lands mid-word.
 const QUERIES = [
   {
-    q: "impact truncate", typeAt: 5400, pressAt: 6700, showAt: 6900, cost: "$0.0000", ai: false,
+    q: "impact truncate", typeAt: 5400, pressAt: 7100, showAt: 7300, cost: "$0.0000", ai: false,
     body: (
       <pre className="mt-1.5 font-mono text-[10.5px] leading-[1.6] text-paper-dim">{"IMPACT truncate\n  defined  src/truncate.ts:12\n"}<span className="text-info">{"  ← src/index.ts (re-export)\n  ← test/text.test.ts (tests)\n"}</span><span className="text-ok">RISK: LOW</span>{" — 2 dependents"}</pre>
     ),
   },
   {
-    q: "trace truncate", typeAt: 8600, pressAt: 9700, showAt: 9900, cost: "$0.0000", ai: false,
+    q: "trace truncate", typeAt: 8600, pressAt: 10200, showAt: 10400, cost: "$0.0000", ai: false,
     body: (
       <pre className="mt-1.5 font-mono text-[10.5px] leading-[1.6] text-paper-dim">{"TRACE truncate\n"}<span className="text-info">{"  src/index.ts       → truncate"}</span><span className="text-signal">{"  [re-exports]\n"}</span><span className="text-info">{"  test/text.test.ts  → truncate"}</span><span className="text-signal">{"  [calls]\n"}</span><span className="text-info">{"  truncate           → TruncateOptions"}</span><span className="text-signal">{"  [uses]"}</span></pre>
     ),
   },
   {
-    q: "Why does truncate return 13 characters?", typeAt: 12000, pressAt: 13600, showAt: 13800, cost: "$0.0031", ai: true,
+    q: "Why does truncate return 13 characters?", typeAt: 12000, pressAt: 14100, showAt: 14300, cost: "$0.0031", ai: true,
     body: (
       <p className="mt-1.5 text-[11.5px] leading-5 text-paper-dim">
-        <Typed at={14000} cps={70} text={"It slices max characters and then appends the ellipsis (src/truncate.ts:15), so the result is max + 1 long. TruncateOptions.ellipsis says the ellipsis counts toward max (src/truncate.ts:2)."} />
+        <Typed at={14500} cps={70} text={"It slices max characters and then appends the ellipsis (src/truncate.ts:15), so the result is max + 1 long. TruncateOptions.ellipsis says the ellipsis counts toward max (src/truncate.ts:2)."} />
       </p>
     ),
   },

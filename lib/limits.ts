@@ -29,6 +29,13 @@ export function cloneLimits() {
   };
 }
 
+/** How long the agent CLI waits for the repository tools' MCP server to
+ *  connect. Its cold start was ~36-62 s on a slow local disk and timed out at
+ *  120 s under load; a run that still starts without tools fails (zero-tool guard). */
+export function mcpConnectTimeoutMs(): number {
+  return num("OPENSRCER_MCP_CONNECT_TIMEOUT_MS", 5 * 60_000);
+}
+
 /** Agent run caps. Dollars bind on API-key runs; turns and wall clock bind
  *  on every run, including subscription-authenticated ones. */
 export function agentLimits(kind: "fast" | "full" | "exec") {

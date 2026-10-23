@@ -24,6 +24,7 @@ import { childEnv } from "./child-env";
 import { ALLOWED_TOOLS, isolationArgs } from "./claude-tools";
 import { CLAUDE_AGENT_MODEL } from "./models";
 import { cloudExecution } from "./cloud-run-state";
+import { mcpConnectTimeoutMs } from "./limits";
 
 export const AGENT_PROVIDERS = ["claude-subscription", "codex-subscription", "anthropic-key"] as const;
 export type AgentProvider = (typeof AGENT_PROVIDERS)[number];
@@ -181,8 +182,8 @@ export function buildAgentInvocation(input: AgentInvocationInput): AgentInvocati
       // our server's cold start (~36 s on a slow disk) outlasts the default
       // timeout: the model then starts with no repo tools. Wait for it.
       MCP_CONNECTION_NONBLOCKING: "0",
-      MCP_TIMEOUT: "120000",
-      MCP_CONNECT_TIMEOUT_MS: "120000",
+      MCP_TIMEOUT: String(mcpConnectTimeoutMs()),
+      MCP_CONNECT_TIMEOUT_MS: String(mcpConnectTimeoutMs()),
     });
     for (const key of CLAUDE_CREDENTIAL_VARS) if (!(key === "ANTHROPIC_API_KEY" && !subscription)) delete env[key];
 
@@ -267,7 +268,7 @@ function codexInvocation(
     // which enabled_tools limits to our read-only list: the counterpart of
     // Claude's --allowed-tools. Without it a run gets no repo access at all.
     "-c", `${prefix}.default_tools_approval_mode=${toml("approve")}`,
-    "-c", `${prefix}.startup_timeout_sec=120`,
+    "-c", `${prefix}.startup_timeout_sec=${Math.ceil(mcpConnectTimeoutMs() / 1000)}`,
     // Exec-box commands (installs, test runs) outlast the default tool timeout.
     ...(inject.MCP_TOOL_TIMEOUT ? ["-c", `${prefix}.tool_timeout_sec=${Math.ceil(Number(inject.MCP_TOOL_TIMEOUT) / 1000)}`] : []),
     ...(input.model ? ["--model", input.model] : []),

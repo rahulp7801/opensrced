@@ -156,7 +156,7 @@ export function TriggerForm() {
                 !dryRun ? "bg-signal/10 text-signal" : "text-paper-muted hover:text-paper",
               )}
             >
-              live (opens PR)
+              live (PR after review)
             </button>
           </div>
         </Row>

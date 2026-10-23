@@ -336,7 +336,7 @@ function NewRunView() {
               <p className="text-[12px] font-medium text-paper">Mode</p>
               <div className="mt-1 inline-flex overflow-hidden rounded-lg border border-border text-[12px]">
                 <span className={cn("px-3 py-1.5", !live ? "bg-info/10 text-info" : "text-paper-muted")}>preview</span>
-                <Press at={5200} className={cn("rounded-none border-l border-border px-3 py-1.5", live ? "bg-signal/10 text-signal" : "text-paper-muted")}>live (opens PR)</Press>
+                <Press at={5200} className={cn("rounded-none border-l border-border px-3 py-1.5", live ? "bg-signal/10 text-signal" : "text-paper-muted")}>live (PR after review)</Press>
               </div>
             </div>
             <div>

@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { StatusChip } from "@/components/status-dot";
 import { AppWindow, Pips, Press, Reveal, SCOPE_TONE, SEVERITY_TONE, Typed, progress, useFollow, useT, type Caption, type Chapter } from "./kit";
 import { CodeGraph, LIGHTS } from "./graph";
-import { DEMO_REPO } from "./data";
+import { DEMO_REPO, RUN } from "./data";
 
 /** A chapter with speaker notes added for the stage, merged in time order. */
 export function withNotes(chapter: Chapter, notes: Caption[]): Chapter {
@@ -281,8 +281,8 @@ export const stageExplore: Chapter = {
   duration: LAST.end,
   source: "Example session on the real demo repository",
   captions: [
-    { at: 0, text: "An unfamiliar repository is the next wall a beginner hits. Explore builds a map of it, parsed straight from the source, no AI involved: files, functions and the calls between them." },
-    { at: BUILT_AT, text: "And then you just ask, in plain English. No grep, no knowing where to look." },
+    { at: 0, text: "An unfamiliar repository is the next wall a beginner hits. With Claude Code you'd clone it, install it and start reading. Here nothing is cloned or installed: Explore builds a map of it, parsed straight from the source, no AI involved." },
+    { at: BUILT_AT, text: "Then ask about it in plain English, still without having cloned anything. No grep, no knowing where to look, and every answer shows what it cost." },
     { at: FIRST.turns[0].typeAt, text: `The big picture first: “${FIRST.turns[0].prompt}” The answer is built from the repository's own graph, cites the files it's based on, and shows what it cost.` },
     { at: FIRST.turns[1].typeAt, text: `The question you'd normally answer by grepping around: “${FIRST.turns[1].prompt}”` },
     { at: SELECT_AT, text: "Same thing on the map: click truncate() and its connections stand out. One file, its options type, and one test." },
@@ -310,7 +310,7 @@ export function stageNotes(base: { find: Chapter; choose: Chapter; newRun: Chapt
       { at: 0, text: "Paste the issue link. Notes steer the agent: keep the public API, add tests." },
     ]),
     run: withNotes(base.run, [
-      { at: 0, text: "The agent runs read-only in a throwaway machine, so a hostile repository can never touch your laptop. There's a hard spend cap, a timeout, and one run at a time per account." },
+      { at: 0, text: "One click on the issue started this run; there was nothing to set up. The agent runs read-only in a throwaway machine, so a hostile repository can never touch your laptop. There's a hard spend cap, a timeout, and one run at a time per account." },
       { at: 9000, text: "It's told to read the contribution guide and PR template and match the project's conventions, keep the diff minimal, and stop and say so rather than guess when it can't find the root cause." },
       { at: 20000, text: "Before anything is published, the patch gets a secret scan. And it's honest: the log says tests weren't run, so the patch is marked unverified. You review it." },
     ]),
@@ -337,4 +337,105 @@ export function stageNotes(base: { find: Chapter; choose: Chapter; newRun: Chapt
       { at: 17500, text: "Coming to the hosted site (not shipped yet): running the project's tests there, and signing in with your Claude or ChatGPT subscription." },
     ]),
   };
+}
+
+// ── Opening: the same contribution, by hand and with opensrcer ──────────────
+
+// What a first contribution asks of you with a coding agent alone, and with opensrcer.
+const BY_HAND = [
+  "Find an issue nobody else is working on",
+  "Check it isn't already fixed in a pull request",
+  "Read CONTRIBUTING and the PR template",
+  "Install the tools, clone, install dependencies",
+  "Fork, add a remote, create a branch",
+  "Fix it",
+  "Commit with the right name and email",
+  "Push and open a pull request",
+  "Write a description that closes the issue",
+];
+const GUIDED = ["Pick an issue that's ready", "Review the patch", "Publish a draft pull request"];
+const GUIDED_AT = 600 + BY_HAND.length * 450 + 700;
+
+function CompareView() {
+  return (
+    <div className="grid h-full grid-cols-[1.25fr_1fr] gap-6 bg-ink p-10">
+      <Reveal at={150} className="flex flex-col rounded-[24px] border border-border-soft bg-surface p-7">
+        <p className="text-[13px] font-semibold uppercase tracking-[0.08em] text-paper-muted">Contributing with Claude Code</p>
+        <ol className="mt-4 space-y-2.5">
+          {BY_HAND.map((step, i) => (
+            <Reveal as="li" key={step} at={600 + i * 450} className="flex items-baseline gap-3 text-[17px] text-paper-dim">
+              <span className="w-5 shrink-0 text-right font-mono text-[13px] text-paper-faint">{i + 1}</span>
+              <span>{step}{step === "Fix it" && <span className="ml-2 rounded-full bg-surface-3 px-2 py-0.5 text-[12px] text-paper-muted">Claude Code helps here</span>}</span>
+            </Reveal>
+          ))}
+        </ol>
+      </Reveal>
+      <Reveal at={GUIDED_AT} className="flex flex-col justify-center rounded-[24px] bg-signal p-8 text-white shadow-[0_30px_80px_-30px_rgb(0_86_173/0.6)]">
+        <p className="text-[13px] font-semibold uppercase tracking-[0.08em] text-white/75">With opensrcer</p>
+        <ol className="mt-5 space-y-5">
+          {GUIDED.map((step, i) => (
+            <Reveal as="li" key={step} at={GUIDED_AT + 400 + i * 600} className="flex items-center gap-4 text-[26px] font-semibold leading-tight tracking-[-0.02em]">
+              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-white/15 font-mono text-[16px]">{i + 1}</span>{step}
+            </Reveal>
+          ))}
+        </ol>
+      </Reveal>
+    </div>
+  );
+}
+
+export const stageCompare: Chapter = {
+  id: "compare",
+  act: "Start",
+  label: "By hand, or guided",
+  title: "Your first contribution, two ways",
+  duration: GUIDED_AT + 400 + GUIDED.length * 600 + 1500,
+  source: "What a first contribution asks of you",
+  captions: [
+    { at: 0, text: "Claude Code is a great power tool, for people who already know how to contribute. Here's what a first contribution actually asks of you." },
+    { at: 600 + 5 * 450, text: "Only one of these nine steps is writing the fix. The rest is open-source etiquette and GitHub mechanics, and that's where beginners get stuck or get it wrong." },
+    { at: GUIDED_AT, text: "opensrcer is the guided path: pick an issue that's ready, review the patch, publish a draft pull request. Everything else on that list is done for you, or checked for you. Let me show you." },
+  ],
+  View: CompareView,
+};
+
+// ── Ship: what it did on GitHub, as the real pull request shows it ──────────
+
+// PR #6 on rahulp7801/opensrcer-demo, as GitHub reports it (gh pr view 6). No fork:
+// the demo repository is the user's own; on someone else's, it forks first.
+const PR_FACTS: Array<[string, string]> = [
+  ["Branch", RUN.branch],
+  ["Into", "main"],
+  ["Commit author", "76501505+rahulp7801@users.noreply.github.com"],
+  ["Status", "Draft, opened by rahulp7801"],
+  ["Closes", "#2 (“Fixes #2” in the description)"],
+];
+
+// The card makes way before the notes reach the PR's AI-assistance section, which it would cover.
+const FACTS_AT = 2200;
+const FACTS_GONE_AT = 6600;
+
+/** The pull request screen with the GitHub steps it took, read off the PR itself. */
+export function withPrFacts(chapter: Chapter): Chapter {
+  const Inner = chapter.View;
+  function View() {
+    const t = useT();
+    return (
+      <div className="relative h-full">
+        <Inner />
+        {t < FACTS_GONE_AT + 400 && <div style={{ opacity: 1 - progress(t, FACTS_GONE_AT, FACTS_GONE_AT + 400) }}><Reveal at={FACTS_AT} className="absolute bottom-5 right-5 z-10 w-[400px] rounded-2xl border border-border-soft bg-surface/95 p-4 shadow-[0_20px_50px_-20px_rgb(0_0_0/0.35)] backdrop-blur">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-signal">What it did on GitHub</p>
+          <dl className="mt-2 space-y-1.5">
+            {PR_FACTS.map(([k, v], i) => (
+              <Reveal key={k} at={FACTS_AT + 300 + i * 450} className="grid grid-cols-[110px_minmax(0,1fr)] gap-2 text-[12.5px]">
+                <dt className="text-paper-muted">{k}</dt>
+                <dd className="break-all font-mono text-[11.5px] text-paper">{v}</dd>
+              </Reveal>
+            ))}
+          </dl>
+        </Reveal></div>}
+      </div>
+    );
+  }
+  return { ...chapter, View };
 }

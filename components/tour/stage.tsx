@@ -18,7 +18,7 @@ import { pacedBy } from "./chapters";
 import { choose, find } from "./chapters-find";
 import { newRun, pr, review, run } from "./chapters-fix";
 import { reply, respond } from "./chapters-ship";
-import { stageExplore, stageNotes, stageScan } from "./stage-views";
+import { stageCompare, stageExplore, stageNotes, stageScan, withPrFacts } from "./stage-views";
 
 /** How much slower than written the stage plays its animations. The presenter
  *  sets the pace between steps; this only stretches what plays by itself. */
@@ -31,10 +31,10 @@ const S = stageNotes({ find, choose, newRun, run, review, pr, respond, reply });
 
 /** The four phases, and the one line each one is about (shown in the notes). */
 const PHASES: Phase[] = [
-  { name: "Find", say: "Finding an issue that's actually open to a newcomer: the step Claude Code assumes you've already done.", chapters: [S.find, stageScan, S.choose] },
-  { name: "Understand", say: "Ask an unfamiliar codebase anything, in plain English, before you touch it.", chapters: [stageExplore] },
-  { name: "Fix", say: "An agent writes a small patch in the project's style, in a throwaway machine, and you review every line.", chapters: [S.newRun, S.run, S.review] },
-  { name: "Ship", say: "A draft pull request in your name, and help with the follow-ups. You're the author throughout.", chapters: [S.pr, S.respond, S.reply] },
+  { name: "Find", say: "Why not just Claude Code: finding an issue that's actually open to a newcomer is the step it assumes you've already done.", chapters: [stageCompare, S.find, stageScan, S.choose] },
+  { name: "Understand", say: "Understand a repository you haven't cloned: a map of it, and plain-English answers about it.", chapters: [stageExplore] },
+  { name: "Fix", say: "One click starts an agent in a throwaway machine; you read the patch and decide whether to publish.", chapters: [S.run, S.review] },
+  { name: "Ship", say: "A draft pull request in your name, every GitHub step done right, and help with the follow-ups.", chapters: [withPrFacts(S.pr), S.respond, S.reply] },
 ];
 
 const STEPS = PHASES.flatMap((phase, p) => phase.chapters.map((c) => ({ phase: p, chapter: pacedBy(c, STAGE_PACE) })));
@@ -261,20 +261,22 @@ export function StageDemo() {
               </div>
             </TimeContext.Provider>
           </InteractContext.Provider>
-          {waiting?.kind === "next" && !ended && (
-            // No words: a quiet arrow says the presenter can move on.
-            <button type="button" onClick={forward} aria-label="Next step" className="absolute bottom-5 right-5 z-10 grid size-11 animate-pulse place-items-center rounded-full bg-signal text-white shadow-[0_8px_24px_-6px_rgb(0_86_173/0.55)] motion-reduce:animate-none">
-              <ArrowRight aria-hidden size={18} weight="bold" />
-            </button>
-          )}
         </div>
       </div>
 
-      {/* Which of the four phases this is: dots, no words. */}
-      <div className="mt-3 flex shrink-0 items-center justify-center gap-2" aria-hidden>
-        {PHASES.map((p, i) => (
-          <span key={p.name} className={cn("h-1.5 rounded-full transition-all duration-500", i === step.phase ? "w-8 bg-signal" : i < step.phase ? "w-1.5 bg-signal/50" : "w-1.5 bg-border")} />
-        ))}
+      {/* Which of the four phases this is (dots, no words), and, outside the app so it
+          never covers it, a quiet arrow when the presenter can move on. */}
+      <div className="relative mt-3 flex h-11 shrink-0 items-center justify-center">
+        <div aria-hidden className="flex items-center gap-2">
+          {PHASES.map((p, i) => (
+            <span key={p.name} className={cn("h-1.5 rounded-full transition-all duration-500", i === step.phase ? "w-8 bg-signal" : i < step.phase ? "w-1.5 bg-signal/50" : "w-1.5 bg-border")} />
+          ))}
+        </div>
+        {waiting?.kind === "next" && !ended && (
+          <button type="button" onClick={forward} aria-label="Next step" className="absolute right-0 grid size-11 animate-pulse place-items-center rounded-full bg-signal text-white shadow-[0_8px_24px_-6px_rgb(0_86_173/0.55)] motion-reduce:animate-none">
+            <ArrowRight aria-hidden size={18} weight="bold" />
+          </button>
+        )}
       </div>
 
       {!started && (
@@ -331,7 +333,7 @@ export function StageNotes() {
   const s = state ? STEPS[state.step] : null;
   const chapter = s?.chapter;
   const nextStep = state ? STEPS[state.step + 1] : undefined;
-  const nextUp = !state ? "" : !state.started ? "Begin: the Find phase opens on Browse repos."
+  const nextUp = !state ? "" : !state.started ? "Begin: it opens on a first contribution by hand, next to opensrcer's three steps."
     : state.ended ? "That's the end of the demo."
     : state.waiting?.kind === "press" ? `Click “${state.waiting.label}”`
     : state.waiting?.kind === "next" ? (nextStep ? `Next: ${nextStep.chapter.title}${nextStep.phase !== s!.phase ? ` (${PHASES[nextStep.phase].name} phase)` : ""}` : "End of the demo")

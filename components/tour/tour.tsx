@@ -17,7 +17,17 @@ import { cn } from "@/lib/utils";
 import { CHAPTERS, STARTS, TOTAL } from "./chapters";
 import { ACTS, InteractContext, TimeContext, type Interact } from "./kit";
 
-const SPEEDS = [1, 1.5, 2] as const;
+const SPEEDS = [0.75, 1, 1.25, 1.5, 2] as const;
+type Speed = (typeof SPEEDS)[number];
+
+/** The stage is drawn at this size and scaled to the room it has, like a slide,
+ *  so it stays crisp and readable from a laptop to a projector. Narrower than
+ *  MIN_SCALED_WIDTH (phones, small tablets) it lays out responsively instead. */
+const DESIGN = { width: 1180, height: 620 };
+const MIN_SCALED_WIDTH = 900;
+/** Filling a short window would shrink the slide; below this scale the page
+ *  keeps the stage at full size and scrolls instead. */
+const MIN_FILL_SCALE = 0.95;
 
 type Mode = "try" | "watch";
 /** What a click-through tour is paused on: a scripted click, or the end of a chapter. */
@@ -38,7 +48,11 @@ function chapterAt(t: number): number {
 export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
   const [t, setT] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(1);
+  const [speed, setSpeed] = useState<Speed>(1);
+  // Zoom for the stage's design canvas; null while it lays out responsively.
+  const [scale, setScale] = useState<number | null>(null);
+  // Height that fills the window below the page title, on screens big enough to present from.
+  const [fillHeight, setFillHeight] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [canFullscreen, setCanFullscreen] = useState(false);
   const [mode, setMode] = useState<Mode>("try");
@@ -54,7 +68,9 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
   const nextRef = useRef<HTMLButtonElement>(null);
   const tRef = useRef(0);
   const rootRef = useRef<HTMLDivElement>(null);
-  const stageRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null); // the room the stage has
+  const canvasRef = useRef<HTMLDivElement>(null); // the app window drawn in it
+  const screenRef = useRef<HTMLDivElement>(null); // stage, captions and controls
   const started = useRef(false);
 
   const index = chapterAt(t);
@@ -141,9 +157,9 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
   /** A keyboard visitor working inside the stage keeps their place: the button they used
    *  is about to disappear, so focus waits on the stage and moves to the next button asked for. */
   const holdFocus = useCallback(() => {
-    const stage = stageRef.current;
-    refocus.current = Boolean(stage?.contains(document.activeElement));
-    if (refocus.current) stage?.focus({ preventScroll: true });
+    const canvas = canvasRef.current;
+    refocus.current = Boolean(canvas?.contains(document.activeElement));
+    if (refocus.current) canvas?.focus({ preventScroll: true });
   }, []);
 
   /** Do what the click-through tour is waiting for: the click, or the next chapter. */
@@ -179,10 +195,46 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
     }
   }, [setWaiting]);
 
-  // /demo?watch opens in Watch mode, for presenting.
+  // /demo?watch opens in Watch mode and ?speed=0.75 (any listed speed) sets the
+  // starting speed, so a presenter can bookmark exactly the tour they want.
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).has("watch")) changeMode("watch");
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("watch")) changeMode("watch");
+    const asked = Number(params.get("speed"));
+    const listed = SPEEDS.find((s) => s === asked);
+    if (listed) setSpeed(listed);
   }, [changeMode]);
+
+  // Fill the window below the page title when the slide would still be near full
+  // size there. The captions and controls take the same height in either layout,
+  // so what is left for the stage is measured, not guessed.
+  useEffect(() => {
+    const measure = () => {
+      const screen = screenRef.current;
+      const stage = stageRef.current;
+      if (!screen || !stage) return;
+      const top = screen.getBoundingClientRect().top + window.scrollY;
+      const height = Math.floor(window.innerHeight - top - 12);
+      const room = height - (screen.offsetHeight - stage.offsetHeight);
+      setFillHeight(window.innerWidth >= 1024 && room / DESIGN.height >= MIN_FILL_SCALE ? height : null);
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+
+  // Scale the design canvas to the stage's room, whatever decides that room
+  // (the window, full screen, or the fixed height on smaller screens).
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setScale(width >= MIN_SCALED_WIDTH ? Math.min(width / DESIGN.width, height / DESIGN.height) : null);
+    });
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, []);
 
   const interact = useMemo<Interact | null>(() => mode !== "try" ? null : {
     waitingAt: waiting?.kind === "press" ? waiting.at : null,
@@ -247,92 +299,124 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
   const View = chapter.View;
   const controlBtn = "grid size-10 shrink-0 place-items-center rounded-full text-paper transition hover:bg-surface-3 active:scale-95";
 
+  // In fill and full-screen layouts the stage takes whatever height is left, so
+  // the caption box keeps a fixed height: a longer caption must not resize the slide.
+  const framed = fullscreen || fillHeight !== null;
+
   return (
     <div ref={rootRef} className={cn("bg-ink", fullscreen && "flex h-screen flex-col overflow-hidden p-4 sm:p-6")}>
-      <section aria-label="Product tour" className={cn("mx-auto w-full", fullscreen ? "flex min-h-0 max-w-none flex-1 flex-col" : "max-w-[1180px]")}>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <p className="text-[13px] text-paper-muted">
-            {mode === "try" ? "Your turn at every step: click the highlighted button, or use the app's menus to jump around." : "Sit back: the tour plays on its own."}
-          </p>
-          <div role="group" aria-label="Tour mode" className="inline-flex shrink-0 rounded-full border border-border bg-surface p-0.5 text-[13px]">
-            {([["try", "Click through"], ["watch", "Watch"]] as const).map(([m, name]) => (
-              <button key={m} type="button" aria-pressed={mode === m} onClick={() => changeMode(m)} className={cn("min-h-8 rounded-full px-3.5 transition", mode === m ? "bg-paper font-medium text-surface" : "text-paper-dim hover:text-paper")}>
-                {name}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* The stage: the app, drawn. While watching it is a picture, and screen readers get the
-            captions below, which narrate it; in click-through mode it is the visitor's to use. */}
-        <div
-          ref={stageRef}
-          aria-hidden={mode === "watch" ? true : undefined}
-          role={mode === "try" ? "region" : undefined}
-          aria-label={mode === "try" ? "The opensrcer app (demo)" : undefined}
-          tabIndex={mode === "try" ? -1 : undefined}
-          className={cn(
-            "relative overflow-hidden rounded-[20px] outline-none border border-border-soft bg-surface shadow-[0_2px_4px_rgb(0_0_0/0.03),0_40px_100px_-30px_rgb(0_0_0/0.22)] sm:rounded-[26px]",
-            fullscreen ? "min-h-0 flex-1" : "h-[560px] sm:h-[600px] lg:h-[620px]",
-          )}
-        >
-          <InteractContext.Provider value={interact}>
-            <TimeContext.Provider value={local}>
-              <div key={chapter.id} className="h-full animate-fade-rise motion-reduce:animate-none">
-                <View />
+      <section aria-label="Product tour" className={cn("mx-auto w-full", fullscreen && "flex min-h-0 flex-1 flex-col")}>
+        <div ref={screenRef} className={cn(framed && "flex min-h-0 flex-col", fullscreen && "flex-1")} style={!fullscreen && fillHeight ? { height: fillHeight } : undefined}>
+          <div className={cn("mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2", fullscreen && "hidden")}>
+            <p className="text-[13px] text-paper-muted">
+              {mode === "try" ? "Your turn at every step: click the highlighted button, or use the app's menus to jump around." : "Sit back: the tour plays on its own."}
+            </p>
+            <div className="flex shrink-0 items-center gap-2">
+              <div role="group" aria-label="Tour mode" className="inline-flex rounded-full border border-border bg-surface p-0.5 text-[13px]">
+                {([["try", "Click through"], ["watch", "Watch"]] as const).map(([m, name]) => (
+                  <button key={m} type="button" aria-pressed={mode === m} onClick={() => changeMode(m)} className={cn("min-h-8 rounded-full px-3.5 transition", mode === m ? "bg-paper font-medium text-surface" : "text-paper-dim hover:text-paper")}>
+                    {name}
+                  </button>
+                ))}
               </div>
-            </TimeContext.Provider>
-          </InteractContext.Provider>
-          {waiting?.kind === "next" && nextChapter && (
-            <button ref={nextRef} type="button" onClick={step} className="absolute bottom-4 right-4 z-10 inline-flex min-h-10 animate-fade-rise items-center gap-2 rounded-full bg-signal px-4 text-[13.5px] font-medium text-white shadow-[0_8px_24px_-6px_rgb(0_86_173/0.55)] transition hover:brightness-110 motion-reduce:animate-none">
-              Next: {nextChapter.label} <ArrowRight aria-hidden size={15} weight="bold" />
-            </button>
-          )}
-        </div>
+              {canFullscreen && (
+                <button type="button" onClick={toggleFullscreen} title={fullscreen ? "Exit full screen (F)" : "Present full screen (F)"} className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-border bg-surface px-3.5 text-[13px] font-medium text-paper transition hover:border-border-strong">
+                  {fullscreen ? <CornersIn aria-hidden size={16} weight="bold" /> : <CornersOut aria-hidden size={16} weight="bold" />}
+                  {fullscreen ? <>Exit presenter mode</> : <>Presenter mode<span className="sr-only"> (full screen)</span></>}
+                </button>
+              )}
+            </div>
+          </div>
 
-        {/* Captions */}
-        <div className={cn("mt-5 min-h-[92px] px-1 sm:min-h-[84px]", fullscreen && "mt-4 min-h-[110px]")}>
-          <p className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[12px]">
-            <span className="font-semibold text-signal">{String(index + 1).padStart(2, "0")} · {chapter.title}</span>
-            <span className="text-paper-muted">{chapter.source}</span>
-          </p>
-          <p key={caption.text} aria-live="polite" className={cn("mt-1.5 max-w-[68ch] animate-fade-rise text-[17px] leading-[1.45] text-paper motion-reduce:animate-none sm:text-[19px]", fullscreen && "max-w-none text-[22px] sm:text-[26px]")}>
-            {caption.text}
-          </p>
-          <p aria-live="polite" className="mt-2 flex min-h-6 items-center gap-2 text-[14px] font-medium text-signal">
-            {waiting && <HandPointing aria-hidden size={17} weight="fill" className="shrink-0" />}
-            {waiting?.kind === "press" && <span>Your turn: click <strong className="font-semibold">“{waiting.label}”</strong></span>}
-            {waiting?.kind === "next" && nextChapter && <span>Next up: <strong className="font-semibold">{nextChapter.title}</strong></span>}
-          </p>
-        </div>
+          {/* The stage: the app, drawn on a fixed-size canvas scaled to fit. While watching it is
+              a picture, and screen readers get the captions below, which narrate it; in
+              click-through mode it is the visitor's to use. */}
+          <div ref={stageRef} className={cn("relative flex items-center justify-center", framed ? "min-h-0 flex-1" : "h-[560px] sm:h-[600px] lg:h-[620px]")}>
+            <div
+              ref={canvasRef}
+              aria-hidden={mode === "watch" ? true : undefined}
+              role={mode === "try" ? "region" : undefined}
+              aria-label={mode === "try" ? "The opensrcer app (demo)" : undefined}
+              tabIndex={mode === "try" ? -1 : undefined}
+              style={scale ? { width: DESIGN.width, height: DESIGN.height, zoom: scale } : undefined}
+              className={cn(
+                "relative shrink-0 overflow-hidden rounded-[20px] border border-border-soft bg-surface shadow-[0_2px_4px_rgb(0_0_0/0.03),0_40px_100px_-30px_rgb(0_0_0/0.22)] outline-none sm:rounded-[26px]",
+                !scale && "h-full w-full",
+              )}
+            >
+              <InteractContext.Provider value={interact}>
+                <TimeContext.Provider value={local}>
+                  <div key={chapter.id} className="h-full animate-fade-rise motion-reduce:animate-none">
+                    <View />
+                  </div>
+                </TimeContext.Provider>
+              </InteractContext.Provider>
+              {waiting?.kind === "next" && nextChapter && (
+                <button ref={nextRef} type="button" onClick={step} className="absolute bottom-4 right-4 z-10 inline-flex min-h-10 animate-fade-rise items-center gap-2 rounded-full bg-signal px-4 text-[13.5px] font-medium text-white shadow-[0_8px_24px_-6px_rgb(0_86_173/0.55)] transition hover:brightness-110 motion-reduce:animate-none">
+                  Next: {nextChapter.label} <ArrowRight aria-hidden size={15} weight="bold" />
+                </button>
+              )}
+            </div>
+          </div>
 
-        {/* Controls */}
-        <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-3 rounded-2xl border border-border-soft bg-surface px-2 py-2 sm:px-3">
-          <button type="button" onClick={previous} aria-label="Previous chapter" title="Previous chapter (←)" className={controlBtn}><SkipBack aria-hidden size={18} weight="fill" /></button>
-          <button type="button" onClick={togglePlay} aria-label={waiting ? "Continue" : ended ? "Replay the tour" : playing ? "Pause" : "Play"} title={waiting ? "Continue (Space)" : ended ? "Replay" : playing ? "Pause (Space)" : "Play (Space)"} className={cn(controlBtn, "size-11 bg-paper text-surface hover:bg-paper-2")}>
-            {waiting ? <ArrowRight aria-hidden size={18} weight="bold" /> : ended ? <ArrowCounterClockwise aria-hidden size={18} weight="bold" /> : playing ? <Pause aria-hidden size={18} weight="fill" /> : <Play aria-hidden size={18} weight="fill" />}
-          </button>
-          <button type="button" onClick={next} disabled={index === CHAPTERS.length - 1} aria-label="Next chapter" title="Next chapter (→)" className={cn(controlBtn, "disabled:opacity-35")}><SkipForward aria-hidden size={18} weight="fill" /></button>
-          <label className="flex min-w-[160px] flex-1 items-center gap-3 px-1">
-            <span className="sr-only">Tour position</span>
-            <input
-              type="range"
-              min={0}
-              max={TOTAL}
-              step={250}
-              value={Math.round(t)}
-              onChange={(e) => { started.current = true; seek(Number(e.target.value)); }}
-              aria-valuetext={`${clock(t)} of ${clock(TOTAL)}, ${chapter.title}`}
-              className="h-6 w-full cursor-pointer accent-[var(--color-signal)]"
-            />
-            <span className="w-[86px] shrink-0 text-right font-mono text-[12px] tabular-nums text-paper-muted">{clock(t)} / {clock(TOTAL)}</span>
-          </label>
-          <button type="button" onClick={() => setSpeed((s) => SPEEDS[(SPEEDS.indexOf(s) + 1) % SPEEDS.length])} aria-label={`Playback speed ${speed} times`} title="Playback speed" className="h-10 min-w-12 rounded-full px-3 font-mono text-[12.5px] font-semibold text-paper transition hover:bg-surface-3">{speed}×</button>
-          {canFullscreen && (
-            <button type="button" onClick={toggleFullscreen} aria-label={fullscreen ? "Exit presenter mode" : "Presenter mode (full screen)"} title={fullscreen ? "Exit full screen (F)" : "Presenter mode (F)"} className={controlBtn}>
-              {fullscreen ? <CornersIn aria-hidden size={18} weight="bold" /> : <CornersOut aria-hidden size={18} weight="bold" />}
+          {/* Captions */}
+          <div className={cn("mt-4 px-1", fullscreen ? "h-[124px] shrink-0 overflow-hidden [@media(min-height:900px)]:h-[150px]" : "min-h-[92px] sm:min-h-[84px] lg:h-[132px] lg:shrink-0 lg:overflow-hidden")}>
+            <p className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[12px]">
+              <span className="font-semibold text-signal">{String(index + 1).padStart(2, "0")} · {chapter.title}</span>
+              <span className="text-paper-muted">{chapter.source}</span>
+            </p>
+            <p key={caption.text} aria-live="polite" className={cn("mt-1.5 max-w-[68ch] animate-fade-rise text-[17px] leading-[1.45] text-paper motion-reduce:animate-none sm:text-[19px]", fullscreen && "max-w-none text-[22px] sm:text-[26px]")}>
+              {caption.text}
+            </p>
+            <p aria-live="polite" className="mt-2 flex min-h-6 items-center gap-2 text-[14px] font-medium text-signal">
+              {waiting && <HandPointing aria-hidden size={17} weight="fill" className="shrink-0" />}
+              {waiting?.kind === "press" && <span>Your turn: click <strong className="font-semibold">“{waiting.label}”</strong></span>}
+              {waiting?.kind === "next" && nextChapter && <span>Next up: <strong className="font-semibold">{nextChapter.title}</strong></span>}
+            </p>
+          </div>
+
+          {/* Controls */}
+          <div className="mt-2 flex shrink-0 flex-wrap items-center gap-x-2 gap-y-3 rounded-2xl border border-border-soft bg-surface px-2 py-2 sm:px-3">
+            <button type="button" onClick={previous} aria-label="Previous chapter" title="Previous chapter (←)" className={controlBtn}><SkipBack aria-hidden size={18} weight="fill" /></button>
+            <button type="button" onClick={togglePlay} aria-label={waiting ? "Continue" : ended ? "Replay the tour" : playing ? "Pause" : "Play"} title={waiting ? "Continue (Space)" : ended ? "Replay" : playing ? "Pause (Space)" : "Play (Space)"} className={cn(controlBtn, "size-11 bg-paper text-surface hover:bg-paper-2")}>
+              {waiting ? <ArrowRight aria-hidden size={18} weight="bold" /> : ended ? <ArrowCounterClockwise aria-hidden size={18} weight="bold" /> : playing ? <Pause aria-hidden size={18} weight="fill" /> : <Play aria-hidden size={18} weight="fill" />}
             </button>
-          )}
+            <button type="button" onClick={next} disabled={index === CHAPTERS.length - 1} aria-label="Next chapter" title="Next chapter (→)" className={cn(controlBtn, "disabled:opacity-35")}><SkipForward aria-hidden size={18} weight="fill" /></button>
+            {fullscreen && (
+              <select aria-label="Chapter" value={index} onChange={(e) => goTo(Number(e.target.value))} className="h-10 max-w-[230px] rounded-full border border-border bg-surface px-3 text-[13px] text-paper">
+                {CHAPTERS.map((c, i) => <option key={c.id} value={i}>{String(i + 1).padStart(2, "0")} · {c.label}</option>)}
+              </select>
+            )}
+            <label className="flex min-w-[160px] flex-1 items-center gap-3 px-1">
+              <span className="sr-only">Tour position</span>
+              <input
+                type="range"
+                min={0}
+                max={TOTAL}
+                step={250}
+                value={Math.round(t)}
+                onChange={(e) => { started.current = true; seek(Number(e.target.value)); }}
+                aria-valuetext={`${clock(t)} of ${clock(TOTAL)}, ${chapter.title}`}
+                className="h-6 w-full cursor-pointer accent-[var(--color-signal)]"
+              />
+              <span className="w-[86px] shrink-0 text-right font-mono text-[12px] tabular-nums text-paper-muted">{clock(t)} / {clock(TOTAL)}</span>
+            </label>
+            <button type="button" onClick={() => setSpeed((s) => SPEEDS[(SPEEDS.indexOf(s) + 1) % SPEEDS.length])} aria-label={`Playback speed ${speed} times`} title="Playback speed" className="h-10 min-w-14 rounded-full px-3 font-mono text-[12.5px] font-semibold text-paper transition hover:bg-surface-3">{speed}×</button>
+            {fullscreen && (
+              <>
+                <div role="group" aria-label="Tour mode" className="inline-flex rounded-full border border-border bg-surface p-0.5 text-[13px]">
+                  {([["try", "Click through"], ["watch", "Watch"]] as const).map(([m, name]) => (
+                    <button key={m} type="button" aria-pressed={mode === m} onClick={() => changeMode(m)} className={cn("min-h-8 rounded-full px-3.5 transition", mode === m ? "bg-paper font-medium text-surface" : "text-paper-dim hover:text-paper")}>
+                      {name}
+                    </button>
+                  ))}
+                </div>
+                <button type="button" onClick={toggleFullscreen} title="Exit full screen (F)" className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-border bg-surface px-3.5 text-[13px] font-medium text-paper transition hover:border-border-strong">
+                  <CornersIn aria-hidden size={16} weight="bold" />Exit presenter mode
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Chapters */}

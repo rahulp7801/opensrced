@@ -1,4 +1,4 @@
-// The tour's running order: six acts, about six minutes. The main story
+// The tour's running order: six acts. The main story
 // follows one real issue (find it, understand it, run it, review it, ship it);
 // the rest of each act shows the remaining features.
 
@@ -9,9 +9,16 @@ import { failure, history, newRun, pr, review, run } from "./chapters-fix";
 import { impact, orgs, reply, respond, secure, share } from "./chapters-ship";
 import { control, outro, trust } from "./chapters-trust";
 
+/** How much slower than written the whole tour plays. Chapters are scripted
+ *  tight; on a stage, and for people learning the product, every caption needs
+ *  room to be read and every step room to be seen. 1 = as written (about six
+ *  minutes), 1.5 = about nine and a half. Viewers can still speed it up. */
+export const TOUR_PACE = 1.5;
+
 /** Plays a chapter `pace` times slower: its view, its captions and its length
  *  stretch together, so a chapter written tight can be given room to read. */
 function paced(chapter: Chapter, pace: number): Chapter {
+  pace *= TOUR_PACE;
   if (pace === 1) return chapter;
   const Inner = chapter.View;
   function View() {
@@ -28,25 +35,25 @@ function paced(chapter: Chapter, pace: number): Chapter {
 
 export const CHAPTERS: Chapter[] = [
   paced(intro, 1.5),
-  setup,
+  paced(setup, 1),
   paced(find, 1.4),
-  suggested,
+  paced(suggested, 1),
   paced(choose, 1.3),
   paced(understand, 1.3),
-  newRun,
+  paced(newRun, 1),
   paced(run, 1.3),
   paced(review, 1.4),
-  failure,
-  history,
+  paced(failure, 1),
+  paced(history, 1),
   paced(pr, 1.25),
   paced(respond, 1.4),
-  reply,
-  share,
+  paced(reply, 1),
+  paced(share, 1),
   paced(impact, 1.3),
   paced(orgs, 1.2),
   paced(secure, 1.2),
   paced(trust, 1.5),
-  control,
+  paced(control, 1),
   paced(outro, 1.3),
 ];
 

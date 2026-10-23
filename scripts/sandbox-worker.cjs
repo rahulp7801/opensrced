@@ -5,14 +5,17 @@ const { startAgenticDispatch, startFindingDispatch, RunTargetError } = require('
 const store = require('../.worker-build/lib/dispatch-store');
 const { readLogTail } = require('../.worker-build/lib/dispatcher');
 const { cloudRunSummary, dispatchStatsFromLog, WORKER_TIMEOUT_MS } = require('../.worker-build/lib/cloud-run-state');
+const { readPreview } = require('../.worker-build/lib/pr-preview');
 
 async function main() {
-  const { run, path, summaryPath, opts, finding } = JSON.parse(process.env.OPENSRCER_JOB);
+  const { run, path, summaryPath, previewPath, opts, finding } = JSON.parse(process.env.OPENSRCER_JOB);
   const uploadToken = process.env.OPENSRCER_UPLOAD_TOKEN;
   const summaryUploadToken = process.env.OPENSRCER_SUMMARY_UPLOAD_TOKEN;
+  const previewUploadToken = process.env.OPENSRCER_PREVIEW_UPLOAD_TOKEN;
   delete process.env.OPENSRCER_JOB;
   delete process.env.OPENSRCER_UPLOAD_TOKEN;
   delete process.env.OPENSRCER_SUMMARY_UPLOAD_TOKEN;
+  delete process.env.OPENSRCER_PREVIEW_UPLOAD_TOKEN;
   let previous = '';
   let previousSummary = '';
   let lastRecord = run;
@@ -52,6 +55,15 @@ async function main() {
       const log = readLogTail(dispatch.id);
       const update = { ...run, ...record, id: run.id, log_path: '', log: log.chunk, log_size: log.size,
         stats: dispatchStatsFromLog(log.chunk, lastRecord.stats) };
+      if (record.status !== 'running' && record.has_preview && previewPath && previewUploadToken) {
+        // The publish gate's frozen preview, uploaded before the final record
+        // so the run page never shows "ready for review" without it.
+        const stored = await readPreview(require('node:path').join(process.cwd(), '.dispatches', dispatch.id));
+        if (stored) {
+          await put(previewPath, JSON.stringify({ ...stored.preview, diff: stored.diff }), { access: 'private', token: previewUploadToken,
+            contentType: 'application/json', abortSignal: AbortSignal.timeout(15000) });
+        }
+      }
       await publish(update);
       if (record.status !== 'running' && record.pr_status !== 'pending') return;
     }

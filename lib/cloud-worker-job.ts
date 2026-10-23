@@ -8,11 +8,13 @@ export function cloudWorkerJobJson(
   summaryPath: string,
   opts: StartAgenticOpts,
   finding?: FindingInput,
+  previewPath?: string,
 ): string {
   return JSON.stringify({
     run,
     path,
     summaryPath,
+    previewPath,
     finding,
     opts: {
       dryRun: opts.dryRun,

@@ -18,6 +18,8 @@ import {
   runCancellationPath,
   runIsActive,
   runPath,
+  runPreviewPath,
+  runPublishLockPath,
   runSummaryPath,
   runSummaryPrefix,
   staleCloudRunIds,
@@ -71,6 +73,8 @@ async function pruneCloudRunHistory(owner: string): Promise<void> {
     runPath(owner, id),
     runSummaryPath(owner, id),
     runCancellationPath(owner, id),
+    runPreviewPath(owner, id),
+    runPublishLockPath(owner, id),
   ]), { abortSignal: AbortSignal.timeout(8_000) });
 }
 
@@ -189,17 +193,21 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
     await assertWorkerProtocol(sandbox);
     const tokenOptions = { allowedContentTypes: ["application/json"],
       validUntil: run.expires_at, allowOverwrite: true, addRandomSuffix: false, cacheControlMaxAge: 60 };
-    const [uploadToken, summaryUploadToken] = await Promise.all([
+    const previewPath = runPreviewPath(opts.auth0UserId, id);
+    const [uploadToken, summaryUploadToken, previewUploadToken] = await Promise.all([
       generateClientTokenFromReadWriteToken({ ...tokenOptions, pathname: path, maximumSizeInBytes: 600_000 }),
       generateClientTokenFromReadWriteToken({ ...tokenOptions, pathname: summaryPath, maximumSizeInBytes: 20_000 }),
+      // The publish-gate preview (patch + PR text): one file, this run only.
+      generateClientTokenFromReadWriteToken({ ...tokenOptions, pathname: previewPath, maximumSizeInBytes: 1_000_000 }),
     ]);
     // Only this run's upload capability and user-supplied provider credentials
     // enter the VM. Never pass AUTH0_SECRET, the Blob store token, or OIDC.
     await sandbox.runCommand({ cmd: "node", args: ["scripts/sandbox-worker.cjs"], cwd: "/vercel/sandbox",
       detached: true, signal: AbortSignal.timeout(15_000), env: {
-        OPENSRCER_JOB: cloudWorkerJobJson(run, path, summaryPath, opts, finding),
+        OPENSRCER_JOB: cloudWorkerJobJson(run, path, summaryPath, opts, finding, previewPath),
         OPENSRCER_UPLOAD_TOKEN: uploadToken,
         OPENSRCER_SUMMARY_UPLOAD_TOKEN: summaryUploadToken,
+        OPENSRCER_PREVIEW_UPLOAD_TOKEN: previewUploadToken,
         OPENSRCER_RUN_TESTS: "off",
         OPENSRCER_AGENTIC_TIMEOUT_MS: String(30 * 60_000),
       } });

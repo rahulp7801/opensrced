@@ -16,6 +16,8 @@ export function ApiKeyGate({ localMode = false, inviteOnly = false }: { localMod
   const user = canUse;
   const pathname = usePathname();
   const [hasKey, setHasKey] = useState<boolean | null>(null);
+  // Hosted deployments offer only the API key; don't point people at a sign-in they can't use.
+  const [subscriptions, setSubscriptions] = useState(false);
   const needsKey = KEY_REQUIRED_PAGES.some((path) => pathname === path || pathname.startsWith(path + "/"));
 
   useEffect(() => {
@@ -25,7 +27,10 @@ export function ApiKeyGate({ localMode = false, inviteOnly = false }: { localMod
     function check() {
       stop?.();
       // `ready`: some payment method the user allowed can start a run now.
-      stop = pollJson<{ anthropic?: boolean; ready?: boolean }>("/api/settings/keys", ({ data }) => setHasKey(data ? Boolean(data.ready ?? data.anthropic) : null));
+      stop = pollJson<{ anthropic?: boolean; ready?: boolean; offered?: string[] }>("/api/settings/keys", ({ data }) => {
+        setHasKey(data ? Boolean(data.ready ?? data.anthropic) : null);
+        setSubscriptions(Boolean(data?.offered?.some((p) => p !== "anthropic-key")));
+      });
     }
     check();
     window.addEventListener("opensrcer-keys-updated", check);
@@ -38,9 +43,11 @@ export function ApiKeyGate({ localMode = false, inviteOnly = false }: { localMod
 
   return (
     <aside aria-label="Provider setup" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-b border-signal/40 bg-signal/5 px-4 py-2.5 text-[12px]">
-      <span className="font-medium text-signal">Choose how runs are paid for</span>
+      <span className="font-medium text-signal">{subscriptions ? "Choose how runs are paid for" : "Anthropic key required"}</span>
       <span className="hidden text-paper-muted md:inline">
-        Sign in with your Claude subscription, or add an API key, to start an AI run.
+        {subscriptions
+          ? "Sign in with your Claude or ChatGPT subscription, or add an API key, to start an AI run."
+          : "Add your Anthropic key to start an AI run. Gemini review is optional."}
       </span>
       <Link
         href="/crucible"

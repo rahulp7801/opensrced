@@ -349,7 +349,7 @@ function buildLeafPrompt(
 
 /** Prompt for runs with an exec box: the agent edits files and runs the
  *  repository's own tests, and the patch is the box's `git diff`. */
-export function buildExecPrompt(repoFull: string, issueNumber: number, issueBody: string, profileNotes = ""): string {
+export function buildExecPrompt(repoFull: string, issueNumber: number, issueBody: string, profileNotes = "", minutes?: number): string {
   return [
     `You are fixing issue #${issueNumber} in the GitHub repository \`${repoFull}\`. Work like a careful human contributor: reproduce the bug, fix it, verify the fix.`,
     ``,
@@ -372,10 +372,11 @@ export function buildExecPrompt(repoFull: string, issueNumber: number, issueBody
     ``,
     `1. Read the contribution guide (CONTRIBUTING*, the PR template under .github/) and note the test, lint and commit conventions.`,
     `2. Find the root cause.`,
-    `3. Reproduce first: add or extend a test in the repository's own test layout that captures the bug, run it, and see it FAIL.`,
+    `3. Add or extend a test in the repository's own test layout that captures the bug.`,
     `4. Fix it with the smallest change. Do not refactor surrounding code.`,
-    `5. Run the targeted tests and see them pass. Run the repository's linters/formatters on the files you changed and fix what they flag.`,
+    `5. Set up the narrowest environment that can run that test, run it, and see it pass. Run the repository's linters/formatters on the files you changed and fix what they flag. (The host separately re-runs your test with the fix reverted to confirm it reproduces the bug.)`,
     `6. Run \`git diff\` and review it: that diff is exactly what will be proposed.`,
+    ...(minutes ? [``, `You have about ${minutes} minutes of wall-clock time in total, then the run is stopped and unfinished work is lost. Get the test and the fix written before any long install. Installing a large project (torch, a full monorepo) can take most of that time: install only what the targeted test imports, prefer prebuilt wheels and caches, and if setup cannot finish, stop and say so; the patch is still reviewed, marked unverified.`] : []),
     ``,
     `Stop without editing, and say why, if the fix needs C++/CUDA/GPU-only code paths, would touch more than 5 files, or you cannot find the root cause with confidence. If you cannot get the tests to run, say plainly what blocked you; the run is then reported as unverified.`,
     profileNotes ? `\n## Notes for this repository\n\n${profileNotes}\n` : ``,
@@ -646,9 +647,17 @@ async function spawnDispatch(
       throw error;
     }
   }
+  // The fast path skips the contribution guide. Not when the repository has
+  // rules the PR must follow (DCO, a PR template, agent rules, an AI policy).
+  const guideMatters = Boolean(profile && (profile.dco || profile.prTemplate || profile.agentInstructions || profile.aiPolicy.stance !== "unknown"));
+  const useFastPath = fastPath && !guideMatters;
+  if (fastPath && !useFastPath) out.write("[triage] fast path off: this repository has contribution rules the PR must follow\n");
+  const issueNo = target.kind === "issue" ? target.issueNumber : 0;
   const basePrompt = exec && prepared.issueFormatted
-    ? buildExecPrompt(repoFull, target.kind === "issue" ? target.issueNumber : 0, prepared.issueFormatted, profilePromptNotes(exec.profile))
-    : prepared.prompt;
+    ? buildExecPrompt(repoFull, issueNo, prepared.issueFormatted, profilePromptNotes(exec.profile), Math.floor(agentLimits("exec").timeoutMs / 60_000))
+    : !useFastPath && fastPath && prepared.issueFormatted && profile
+      ? `${buildPrompt(repoFull, issueNo, prepared.issueFormatted)}\n\n## Notes for this repository\n\n${profilePromptNotes(profile)}`
+      : prepared.prompt;
   const prompt = basePrompt + (opts.notes ? `\nUser guidance:\n${sanitizeForPrompt(opts.notes)}` : "");
 
   // Runaway guard rails (lib/limits.ts):
@@ -658,7 +667,7 @@ async function spawnDispatch(
   //   --max-turns — the cap that also binds on subscription runs.
   //   wall-clock timeout — the setTimeout below kills the whole process tree
   //     if Claude is still alive after N minutes.
-  const limits = agentLimits(exec ? "exec" : fastPath ? "fast" : "full");
+  const limits = agentLimits(exec ? "exec" : useFastPath ? "fast" : "full");
   const budgetUsd = opts.maxSpendUsd ?? limits.budgetUsd;
   const timeoutMs = limits.timeoutMs;
 

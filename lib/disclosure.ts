@@ -38,7 +38,7 @@ export function aiDisclosureMarkdown(input: DisclosureInput): string {
     "",
     `This change was drafted with [opensrcer](https://github.com/rahulp7801/opensrced), an AI coding tool, at the request of the PR author, who reviewed the diff and the test evidence before opening this PR and is responsible for it.`,
     "",
-    `- Model: ${input.model} (${input.provider}), driven through Claude Code with repository-scoped tools.`,
+    `- Model: ${input.model} (${input.provider}), driven through ${input.provider === "OpenAI" ? "the Codex CLI" : "Claude Code"} with repository-scoped tools.`,
     `- Verification: ${verifiedLine(input)}`,
   ].join("\n");
 }

@@ -266,10 +266,9 @@ const FIX_LOG = [
   { at: 0.4, text: "## Diagnosis" },
   { at: 0.46, text: "path-matcher 2.1.0 arrives through router-core; 2.1.4 fixes the backtracking." },
   { at: 0.58, text: "+  \"overrides\": { \"path-matcher\": \"^2.1.4\" }" },
-  { at: 0.71, text: "[gitleaks] status=clean" },
-  { at: 0.73, text: "[gitleaks] findings=0" },
-  { at: 0.86, text: "[agentic-pr] authenticated with the organization installation (this repository only)" },
-  { at: 0.95, text: "[agentic-pr] opened draft PR: #31" },
+  // Runs end at review (lib/run-finish.ts); the PR opens only when the user publishes.
+  { at: 0.74, text: "[preview] ready for review: \"fix(deps): override path-matcher to ^2.1.4\" (1 file(s), sign-off=false, verification=not run)" },
+  { at: 0.86, text: "[preview] nothing has been published; review the patch and evidence, then use Publish on the run page" },
 ];
 
 function SecureView() {
@@ -307,9 +306,9 @@ function SecureView() {
                 <p className="truncate text-[13px] font-medium text-paper">{FINDINGS[0].summary}</p>
                 <p className="text-[11px] text-paper-muted">{repo} · {FINDINGS[0].pkg}</p>
               </div>
-              {f >= 0.95 ? <StatusChip tone="ok">PR opened</StatusChip> : <StatusChip tone="signal">live</StatusChip>}
+              {f >= 0.9 ? <StatusChip tone="ok">ready for review</StatusChip> : <StatusChip tone="signal">live</StatusChip>}
             </div>
-            {f >= 0.95 && <p className="border-b border-ok/30 bg-ok/5 px-3 py-1.5 text-[12px] font-medium text-ok">Draft PR #31 opened — review required</p>}
+            {f >= 0.9 && <p className="border-b border-ok/30 bg-ok/5 px-3 py-1.5 text-[12px] font-medium text-ok">Ready for review · publish opens the draft PR</p>}
             <div className="term h-[220px] overflow-hidden rounded-none px-3 py-2.5 font-mono text-[10.5px] leading-[1.6]">
               {FIX_LOG.filter((l) => l.at <= f).map((l) => <LogLine key={l.text} text={l.text} />)}
             </div>
@@ -330,7 +329,7 @@ export const secure: Chapter = {
   captions: [
     { at: 0, text: "Security advisories and Dependabot alerts for a private repository, sorted by severity." },
     { at: 4400, text: "Pick a finding and the agent traces where the vulnerable package comes from, then patches the dependency." },
-    { at: 9400, text: "The pull request is opened with the organization's short-lived installation token, scoped to this one repository." },
+    { at: 9400, text: "It stops at review like every run. When you publish, the pull request is opened with the organization's short-lived installation token, scoped to this one repository." },
   ],
   View: SecureView,
 };

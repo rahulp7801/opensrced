@@ -11,7 +11,7 @@ import { RUN } from "./data";
 
 // ── 12. Guardrails ────────────────────────────────────────────────────────
 
-const FLOW = ["Your issue", "Isolated machine", "Read-only agent", "Secret scan", "Draft PR"];
+const FLOW = ["Your issue", "Isolated machine", "Read-only agent", "Your review", "Secret scan", "Draft PR"];
 
 const GUARANTEES = [
   { title: "A fresh machine for every run", text: "Each run gets its own virtual machine, stopped when the run ends." },
@@ -19,7 +19,7 @@ const GUARANTEES = [
   { title: "Read-only while it explores", text: "The agent can read the code, never run it, until it proposes a patch." },
   { title: "A hard spend limit", text: "Every run stops at your budget, whatever it's in the middle of." },
   { title: "Scanned before it's pushed", text: "A secret scan runs on the patch before anything leaves the machine." },
-  { title: "Draft pull requests only", text: "Opened in your name. Nothing merges on its own." },
+  { title: "Draft pull requests only", text: "Opened in your name only after you confirm you've read it, saying plainly that AI helped. Nothing merges on its own." },
   { title: "Your keys stay yours", text: "Kept in an encrypted cookie in your browser, sent only to your provider and the worker running your job." },
 ];
 
@@ -65,7 +65,7 @@ export const trust: Chapter = {
     { at: 0, text: "Nothing ships without you. Every run is fenced in before it starts." },
     { at: 2600, text: "Each run gets its own virtual machine, with a short network allowlist, and it's stopped when the run ends." },
     { at: 5600, text: "The agent can read the code but never run it, and it stops at your spend cap." },
-    { at: 8600, text: "Patches are scanned for secrets before they're pushed, and pull requests are only ever drafts, opened in your name." },
+    { at: 8600, text: "Nothing is published until you've reviewed it and confirmed. Then the patch is scanned for secrets, and the pull request is only ever a draft, opened in your name, saying plainly that AI helped." },
     { at: 11600, text: "Your AI key stays in an encrypted cookie in your browser, sent only to your provider and the worker running your job." },
   ],
   View: TrustView,

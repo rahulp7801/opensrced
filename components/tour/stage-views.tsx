@@ -315,11 +315,13 @@ export function stageNotes(base: { find: Chapter; choose: Chapter; newRun: Chapt
       { at: 20000, text: "Before anything is published, the patch gets a secret scan. And it's honest: the log says tests weren't run, so the patch is marked unverified. You review it." },
     ]),
     review: withNotes(base.review, [
-      { at: 0, text: "This is where the maintainers' worry about AI pull requests comes in. In preview, nothing is published. In live mode the pull request opens as a draft that can't be merged until you mark it ready." },
+      { at: 0, text: "This is where the maintainers' worry about AI pull requests is answered. Nothing is published until you've read the patch and confirmed you can explain it to reviewers." },
+      { at: 18400, text: "It's a draft that can't be merged until you mark it ready. And it refuses to publish at all if someone else already has a pull request open on the issue, or if the project bans AI contributions." },
     ]),
     pr: withNotes(base.pr, [
       { at: 0, text: "Every GitHub step a beginner gets wrong is handled: it forks, branches, and commits under your private noreply email. It picks the base branch from where past PRs were actually merged, falling back to the default branch." },
       { at: 5000, text: "The pull request is always a draft, you are its author, and its description closes the issue. It refuses closed issues and won't open a second PR for the same one. @mentions are disabled, so its text can't ping strangers." },
+      { at: 6200, text: "And it discloses itself: an AI assistance section says who asked, which model, and exactly what was or wasn't tested. On projects that require a sign-off on every commit, it adds yours." },
     ]),
     respond: ship(base.respond, [
       { at: 0, text: "When a maintainer comments, it comes back to one inbox, with the file and line." },
@@ -331,7 +333,8 @@ export function stageNotes(base: { find: Chapter; choose: Chapter; newRun: Chapt
       { at: 0, text: "Not every comment needs code. For a question, it can draft an answer." },
       { at: 5600, text: "It's a draft. You edit it, you send it: you stay the one talking to the maintainer." },
       { at: 15000, text: "Built so maintainers can trust it: a person is the author, it steers you to issues that are open to contribution, reads each project's contribution guide, and stays small and draft-first." },
-      { at: 17000, text: "Coming (not shipped yet): an AI-assisted disclosure in every PR, respecting each project's AI-contribution policy, running the project's tests as evidence, a publish gate where you read it before it's published, flagging issues that already have someone else's open PR, caps on open PRs per repo, and using your Claude or ChatGPT subscription." },
+      { at: 16000, text: "Run it on your own machine and it goes further: the agent edits the code and runs the project's own tests in a container that holds none of your keys, and the pull request shows the exact commands and that the new test fails without the fix. On a real React bug, its fix matched the one the maintainers merged. It runs on your own Claude or ChatGPT subscription, so no API bill." },
+      { at: 17500, text: "Coming to the hosted site (not shipped yet): running the project's tests there, and signing in with your Claude or ChatGPT subscription." },
     ]),
   };
 }

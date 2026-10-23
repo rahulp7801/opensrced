@@ -35,11 +35,12 @@ workflow. Release acceptance and outstanding gates are tracked in
 
 | Workflow | Capabilities |
 | --- | --- |
-| Discover | Search public repositories, score issues, and narrow work by scope. |
+| Discover | Search public repositories, score issues, and narrow work by scope. Issues that already have someone's open PR, and projects that ban AI contributions, are flagged. |
 | Explore | Inspect repository code with read-only tools and codebase graphs. |
-| Fix | Generate a patch in an isolated worker with a spend limit and timeout. |
-| Review | Inspect logs, diffs, review feedback, and verification status. |
-| Publish | Open a draft PR using the requesting user's GitHub identity after configured gates pass. |
+| Fix | Generate a patch in an isolated worker with a spend or turn limit and a timeout. Run locally with Docker, the agent edits the code and runs the project's own tests in a credential-free container, and the tool re-runs them on the final patch (including with the fix reverted). |
+| Review | Every run ends at a frozen preview: patch, PR text, verification evidence, and any blockers. Nothing is published automatically. |
+| Publish | After the user confirms they have read the change and can explain it, open a draft PR from their GitHub identity, with an AI-assistance disclosure and a DCO sign-off where the project requires one. |
+| Pay | Locally, runs use the user's own Claude or ChatGPT subscription first; an Anthropic API key is the opt-in fallback. Hosted runs use the user's API key. |
 
 Private organization workflows use an optional GitHub App connection. The demo
 illustrates the interface without an account, provider key, or live agent run.

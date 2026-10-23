@@ -24,6 +24,8 @@ export type FinishInput = {
   privateOrg: boolean;
   token?: string;
   model?: string;
+  /** Who served the model, for the disclosure note ("Anthropic" or "OpenAI"). */
+  provider?: string;
   /** Produced by the scripted stand-in agent: never publishable. */
   standIn?: boolean;
 };
@@ -71,7 +73,7 @@ export async function finishRun(input: FinishInput): Promise<PrPreview | null> {
   if (uncovered.length) warnings.push(`The agent listed ${cases.length} reported variant(s) but covered only ${cases.length - uncovered.length} with a test; not covered: ${uncovered.map((c) => c.variant).join("; ").slice(0, 400)}.`);
   const preview = buildPreview({
     title, body, diff, profile: input.profile, verification, executed: Boolean(input.exec),
-    model: input.model ?? CLAUDE_AGENT_MODEL, provider: "Anthropic", privateOrg: input.privateOrg,
+    model: input.model ?? CLAUDE_AGENT_MODEL, provider: input.provider ?? "Anthropic", privateOrg: input.privateOrg,
     blockers, warnings: discuss ? [`Maintainers ask for discussion first: ${discuss}. Consider posting the drafted issue comment instead of a PR.`, ...warnings] : warnings,
     draftIssueComment: discuss ? draftIssueComment(extractDiagnosis(logText), verification?.status === "verified") : undefined,
     cases,

@@ -21,7 +21,7 @@ const STAGES: Array<{ name: string; from: number; to: number; skipped?: boolean 
   { name: "explore", from: 0.05, to: 0.38 },
   { name: "patch", from: 0.4, to: 0.66 },
   { name: "test", from: 0.86, to: 0.88, skipped: true },
-  { name: "PR", from: 0.73, to: 0.94 },
+  { name: "review", from: 0.73, to: 0.94 },
 ];
 
 function Pipeline({ f }: { f: number }) {
@@ -51,7 +51,7 @@ function RunView() {
   const f = progress(t, RUN_START, RUN_END);
   const lines = RUN_LOG.filter((l) => l.at <= f);
   const done = f >= 1;
-  const opened = f >= 0.94;
+  const ready = f >= 0.94;
   const costShown = f >= 0.66;
   const seconds = Math.round(f * RUN.seconds);
   const elapsed = `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, "0")}s`;
@@ -68,7 +68,7 @@ function RunView() {
               <span className="ml-auto rounded-full border border-info/40 px-1 text-[10px] text-info">deep</span>
             </div>
             <p className="mt-1 truncate text-[11.5px] text-paper-dim">{ISSUE.title}</p>
-            <p className="mt-1 text-[11px] text-paper-muted">just now · <span className={done ? "" : "text-signal"}>{elapsed}</span> · {opened ? <span className="text-ok">PR opened <span className="text-paper-faint">· unverified</span></span> : "running"}</p>
+            <p className="mt-1 text-[11px] text-paper-muted">just now · <span className={done ? "" : "text-signal"}>{elapsed}</span> · {ready ? <span className="text-ok">ready for review <span className="text-paper-faint">· unverified</span></span> : "running"}</p>
           </div>
           {PAST_RUNS.map((r) => (
             <div key={r.number} className="border-t border-border-soft px-3 py-2.5">
@@ -93,14 +93,14 @@ function RunView() {
                 <p className="mt-0.5 truncate text-[14px] font-medium text-paper">{ISSUE.title}</p>
                 <p className="mt-0.5 text-[11px] text-paper-muted">just now · {elapsed}{costShown && <> · <span className="text-signal">${RUN.cost.toFixed(4)}</span></>}</p>
               </div>
-              {opened ? <StatusChip tone="ok">PR opened</StatusChip> : <StatusChip tone="signal">live</StatusChip>}
+              {ready ? <StatusChip tone="ok">ready for review</StatusChip> : <StatusChip tone="signal">live</StatusChip>}
             </div>
             <div className="mt-2"><Pipeline f={f} /></div>
           </div>
-          {opened && (
+          {ready && (
             <Reveal at={runAt(0.94)} className="flex items-center justify-between border-b border-ok/30 bg-ok/5 px-3 py-1.5 text-[12px] sm:px-4">
-              <span className="font-medium text-ok">PR #{RUN.pr} opened</span>
-              <span className="rounded-full border border-ok/40 px-2 py-0.5 text-[11px] text-ok">Open on GitHub ↗</span>
+              <span className="font-medium text-ok">Ready for review · nothing published yet</span>
+              <span className="rounded-full border border-ok/40 px-2 py-0.5 text-[11px] text-ok">Review patch →</span>
             </Reveal>
           )}
           <div className="term relative min-h-0 flex-1 overflow-hidden rounded-none">
@@ -121,14 +121,14 @@ export const run: Chapter = {
   label: "Watch it run",
   title: "Watch the agent work",
   duration: 28000,
-  source: "Replay of real runs on opensrcer-demo #2 · the PR #6 run took 69 s and $0.20",
+  source: "Replay of real runs on opensrcer-demo #2 · the PR #6 run took 69 s and $0.20 · ends the way runs end now: at review",
   captions: [
     { at: 0, text: "The run starts in a fresh, isolated virtual machine with a spend cap. What follows replays the real run, sped up." },
     { at: runAt(0.08), text: "The agent explores like a new contributor: it reads the code and the tests, and finds every caller before it changes anything." },
     { at: runAt(0.3), text: "Before writing anything, it notes the project's conventions. There's no contribution guide here, so it matches the style the code already uses." },
     { at: runAt(0.4), text: "It writes down what's wrong and where, then the fix as a patch." },
-    { at: runAt(0.72), text: "The patch is applied cleanly, scanned for leaked secrets, and pushed to its own branch." },
-    { at: runAt(0.93), text: "A draft pull request opens: 69 seconds and 20 cents, end to end. Repository tests aren't run here, so it's marked unverified for you to check." },
+    { at: runAt(0.72), text: "The run ends with everything frozen for review: the patch, the pull request text and the evidence. Nothing has been published." },
+    { at: runAt(0.93), text: "69 seconds and 20 cents, end to end. The hosted service can't run the project's tests, so it says so: unverified, for you to check." },
   ],
   View: RunView,
 };
@@ -206,7 +206,17 @@ function ReviewView() {
             <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-2 text-[11.5px]">
               <Press at={13200} className="rounded-full border border-border px-2.5 py-0.5 text-paper-dim">{t >= 13200 ? "Copied ✓" : "Copy diff"}</Press>
               <Press at={14300} className="hidden rounded-full border border-border px-2.5 py-0.5 text-paper-dim sm:inline-flex">Commit msg</Press>
-              <span className="ml-auto rounded-full border border-ok/40 bg-ok/10 px-2.5 py-0.5 font-medium text-ok">View PR #{RUN.pr} ↗</span>
+            </div>
+            {/* The publish gate, as components/publish-panel.tsx shows it: nothing
+                opens until the owner confirms. */}
+            <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-2 text-[11.5px]">
+              <Press at={15800} label="I've read this change" className="flex items-center gap-1.5 text-paper">
+                <span aria-hidden className={cn("grid h-3.5 w-3.5 place-items-center rounded-[3px] border text-[9px]", t >= 15800 ? "border-ok bg-ok/15 text-ok" : "border-border")}>{t >= 15800 ? "✓" : ""}</span>
+                I&apos;ve read this change and can explain it to reviewers.
+              </Press>
+              <Press at={17400} label="Publish draft PR" className={cn("ml-auto rounded-full border px-2.5 py-0.5 font-medium", t >= 15800 ? "border-ok/40 bg-ok/10 text-ok" : "border-border text-paper-faint")}>
+                {t >= 17400 ? `Draft PR #${RUN.pr} opened ↗` : "Publish draft PR"}
+              </Press>
             </div>
           </Reveal>
         </div>
@@ -220,14 +230,15 @@ export const review: Chapter = {
   act: "Fix",
   label: "Review the patch",
   title: "Review every line",
-  duration: 18000,
-  source: "Real patch · opensrcer-demo PR #6",
+  duration: 20000,
+  source: "Real patch · opensrcer-demo PR #6 · publish step as it works since October 23",
   captions: [
     { at: 0, text: "Every run ends in something you can read in full: what the agent found, what it changed, and how to test it." },
     { at: 4300, text: "The risk notes say what to double-check, including what it deliberately left alone." },
     { at: 7600, text: "The patch is shown side by side: the one broken line out, a small, commented fix in, and new tests." },
     { at: 13200, text: "Copy the diff, or a ready-made commit message, if you'd rather apply it yourself." },
-    { at: 15000, text: "A preview run stops here: no code pushed, no pull request. A live run goes one step further." },
+    { at: 15000, text: "Nothing is published until you say so. A preview stops here. For a live run, you confirm you've read it and can explain it to reviewers." },
+    { at: 17400, text: "Then it's scanned for leaked secrets and opens as a draft pull request, with exactly this patch and text." },
   ],
   View: ReviewView,
 };
@@ -287,8 +298,9 @@ export const pr: Chapter = {
   duration: 13000,
   source: "Real pull request · github.com/rahulp7801/opensrcer-demo/pull/6",
   captions: [
-    { at: 0, text: "In live mode the run opens a draft pull request from your account, with your name on the commit." },
+    { at: 0, text: "When you publish, the draft pull request opens from your account, with your name on the commit." },
     { at: 3600, text: "The description explains the root cause, what changed and how to test it, written for the maintainer who has to review it." },
+    { at: 6200, text: "And it says plainly that AI helped, who asked for it, and what was or wasn't tested. No hiding it from the maintainer." },
     { at: 8600, text: "It links the issue, so merging closes it. And it stays a draft: nothing merges until you and the maintainers decide." },
   ],
   View: PrView,

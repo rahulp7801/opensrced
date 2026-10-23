@@ -70,14 +70,12 @@ export const RUN_LOG: Array<{ at: number; text: string }> = [
   { at: 0.60, text: "```" },
   { at: 0.66, text: `[agentic-dispatcher] total_cost_usd=${0.200982.toFixed(6)}` },
   { at: 0.68, text: "[agentic-dispatcher] exited · status=succeeded · exit=0" },
-  { at: 0.73, text: "[agentic-pr] starting auto-PR" },
-  { at: 0.77, text: "[agentic-pr] diff applied via: git apply (strict)" },
-  // As the worker prints them: gitleaks on two lines, and the public flow does
-  // not run the repository's tests, so the patch is marked unverified.
-  { at: 0.81, text: "[gitleaks] status=clean" },
-  { at: 0.83, text: "[gitleaks] findings=0" },
-  { at: 0.87, text: "[crucible-tests] status=not_run reason=OPENSRCER_RUN_TESTS=off (public flow) — patch is UNVERIFIED" },
-  { at: 0.94, text: `[agentic-pr] opened draft PR: https://github.com/${DEMO_REPO}/pull/6` },
+  // A run now ends at a frozen preview, as lib/run-finish.ts prints it. Hosted
+  // runs cannot run the repository's tests, so verification is "not run"; the
+  // secret scan and the draft PR come only when the user publishes.
+  { at: 0.73, text: "[preview] ─────────────────────────────" },
+  { at: 0.80, text: `[preview] ready for review: "${RUN.prTitle}" (2 file(s), sign-off=false, verification=not run)` },
+  { at: 0.90, text: "[preview] nothing has been published; review the patch and evidence, then use Publish on the run page" },
 ];
 
 /** "What was found" and "Risk & testing", from the run (real, lightly shortened). */
@@ -148,6 +146,8 @@ export const PR_BODY: Array<{ heading?: string; text: string }> = [
   { heading: "What changed", text: "The ellipsis length now comes out of `max` up front. If the cut lands inside a word, the partial word is dropped so the result ends on the previous word boundary. `truncate(\"The quick brown fox\", 12)` now returns `\"The quick…\"` (10 characters)." },
   { heading: "Test plan", text: "`npm test`. Four new cases in `test/text.test.ts`, each also checking `result.length <= max`." },
   { text: "Fixes #2" },
+  // Added by the publish step since October 23 (lib/disclosure.ts); PR #6 itself predates it.
+  { heading: "AI assistance", text: "This change was drafted with opensrcer, an AI coding tool, at the request of the PR author, who reviewed the diff and the test evidence before opening this PR and is responsible for it. Verification: Not verified: the tool could not run code for this change; no tests were run." },
 ];
 
 // ── EXAMPLE data (illustrative, labelled on screen) ──────────────────────

@@ -889,6 +889,7 @@ async function spawnDispatch(
                 privateOrg: Boolean(opts.orgCtx || opts.installationToken), token,
                 // The model the CLI reported it ran, for the disclosure note.
                 model: result.model ?? (provider === "codex-subscription" ? "Codex (ChatGPT plan)" : undefined),
+                provider: provider === "codex-subscription" ? "OpenAI" : "Anthropic",
                 standIn: invocation.standIn,
               }).catch(async (e) => {
                 await appendFile(logPath, `\n[preview] failed: ${sanitizeLogValue(e instanceof Error ? e.message : e)}\n`).catch(() => {});

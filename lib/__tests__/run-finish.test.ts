@@ -53,6 +53,18 @@ test("fewer covered variants than listed is a warning, not a blocker", async () 
   }
 });
 
+test("a ChatGPT-plan run discloses OpenAI and Codex, not Anthropic", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "opensrcer-finish-"));
+  try {
+    writeFileSync(path.join(dir, "run.log"), LOG);
+    const preview = await finishRun({ repoFull: "o/r", issueNumber: 0, dispatchId: "d_o", dispatchDir: path.join(dir, "d_o"), logPath: path.join(dir, "run.log"), exec: null, profile: null, issueLabels: [], privateOrg: false, model: "Codex (ChatGPT plan)", provider: "OpenAI" });
+    assert.match(preview!.body, /Model: Codex \(ChatGPT plan\) \(OpenAI\), driven through the Codex CLI/);
+    assert.doesNotMatch(preview!.body, /Anthropic|Claude Code/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("finishRun returns null when there is no patch", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "opensrcer-finish-"));
   try {

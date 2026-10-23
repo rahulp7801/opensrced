@@ -84,13 +84,17 @@ opt-in fallback (Settings → How runs are paid for). See `lib/run-payment.ts`.
   runs would bill the operator's plan, which Anthropic's terms forbid.
 - **Hosted (Vercel)**: `OPENSRCER_HOSTED_SUBSCRIPTION=1` lets a user sign in to
   Claude inside their own run's worker VM through Anthropic's sign-in page; the
-  login is revoked and discarded with the VM. Off by default; it needs a worker
+  login lives only in that VM and is discarded with it; opensrcer never reads or stores it. Off by default; it needs a worker
   snapshot built from this release (protocol 6) and Anthropic's Commercial
   Terms. ChatGPT plans are not offered hosted (OpenAI requires approval for
   remotely hosted apps).
 - Subscription runs are capped by `--max-turns` (`OPENSRCER_AGENTIC_MAX_TURNS`,
-  default 40; `OPENSRCER_AGENTIC_LEAF_MAX_TURNS`, 12) plus the wall-clock
-  timeout; API-key runs keep `--max-budget-usd`.
+  default 60; `OPENSRCER_AGENTIC_LEAF_MAX_TURNS`, 15;
+  `OPENSRCER_AGENTIC_EXEC_MAX_TURNS`, 120) plus the wall-clock timeout; API-key
+  runs also keep `--max-budget-usd`.
+- The agent CLI waits up to `OPENSRCER_MCP_CONNECT_TIMEOUT_MS` (default 5 min)
+  for the repository tools to connect. A run that still starts without them
+  fails instead of answering from imagination.
 
 ## Local single-instance alternative
 

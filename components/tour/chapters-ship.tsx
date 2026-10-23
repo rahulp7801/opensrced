@@ -105,7 +105,7 @@ function WorkspacePhase() {
         </Reveal>
       )}
       {t >= 9800 && (
-        <Reveal at={9800} className="rounded-xl border border-border-soft bg-surface px-3 py-2">
+        <Reveal at={9800} spot="verify-checks" className="rounded-xl border border-border-soft bg-surface px-3 py-2">
           <p className="flex items-center justify-between text-[11.5px]"><span className="font-medium text-paper">verification checks</span>{t >= 12600 && <StatusChip tone="signal">review needed</StatusChip>}</p>
           <ul className="mt-1.5 space-y-1">
             {VERIFY_CHECKS.map((c, i) => (

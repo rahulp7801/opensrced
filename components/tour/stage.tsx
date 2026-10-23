@@ -10,12 +10,12 @@
 // animation between stops plays by itself, and each chapter's last frame holds
 // until the presenter moves on.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { ArrowRight, CaretLeft, CaretRight, CornersOut } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { InteractContext, TimeContext, type Chapter, type Interact } from "./kit";
 import { pacedBy } from "./chapters";
-import { choose, find } from "./chapters-find";
+import { choose } from "./chapters-find";
 import { newRun, pr, review, run } from "./chapters-fix";
 import { reply, respond } from "./chapters-ship";
 import { stageCompare, stageExplore, stageNotes, stageScan, withPrFacts } from "./stage-views";
@@ -27,11 +27,14 @@ export const STAGE_PACE = 1.15;
 type Phase = { name: string; say: string; chapters: Chapter[] };
 
 // The tour's screens with the stage's speaker notes (and its versions of the review screens).
-const S = stageNotes({ find, choose, newRun, run, review, pr, respond, reply });
+const S = stageNotes({ choose, newRun, run, review, pr, respond, reply });
+
+/** Clicks the tour's screens make that the stage makes by itself, to keep the talk to ~10 minutes. */
+const SKIP = new Set(["Copy diff", "Commit msg"]);
 
 /** The four phases, and the one line each one is about (shown in the notes). */
 const PHASES: Phase[] = [
-  { name: "Find", say: "Why not just Claude Code: finding an issue that's actually open to a newcomer is the step it assumes you've already done.", chapters: [stageCompare, S.find, stageScan, S.choose] },
+  { name: "Find", say: "Why not just Claude Code: finding an issue that's actually open to a newcomer is the step it assumes you've already done.", chapters: [stageCompare, stageScan, S.choose] },
   { name: "Understand", say: "Understand a repository you haven't cloned: a map of it, and plain-English answers about it.", chapters: [stageExplore] },
   { name: "Fix", say: "One click starts an agent in a throwaway machine; you read the patch and decide whether to publish.", chapters: [S.run, S.review] },
   { name: "Ship", say: "A draft pull request in your name, every GitHub step done right, and help with the follow-ups.", chapters: [withPrFacts(S.pr), S.respond, S.reply] },
@@ -72,6 +75,7 @@ export function StageDemo() {
   const history = useRef<Array<{ t: number; kind: Waiting["kind"] }>>([]); // stops passed, for Back
   const rootRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
 
   const index = stepAt(t);
   const step = STEPS[index];
@@ -231,7 +235,9 @@ export function StageDemo() {
   const interact = useMemo<Interact>(() => ({
     waitingAt: waiting?.kind === "press" ? waiting.at : null,
     reach: (at, label) => {
-      if (waitingRef.current || done.current.has(`${stepAt(tRef.current)}:${at}`)) return;
+      const key = `${stepAt(tRef.current)}:${at}`;
+      if (SKIP.has(label)) done.current.add(key);
+      if (waitingRef.current || done.current.has(key)) return;
       hurry.current = false;
       setWaiting({ kind: "press", at, label });
       play(false);
@@ -249,11 +255,16 @@ export function StageDemo() {
     claimFocus: () => false,
   }), [waiting, forward, setWaiting, play, seek]);
 
+  // The spotlight: on the button a click stop waits for, otherwise on what the current note is about.
+  const currentAt = Math.max(-1, ...step.chapter.captions.filter((c) => c.at <= local).map((c) => c.at));
+  const noteSpot = step.chapter.captions.find((c) => c.at === currentAt && c.spot)?.spot;
+  const spotOn = waiting?.kind === "press" ? "[data-waiting]" : noteSpot && !ended ? `[data-spot="${noteSpot}"]` : null;
+
   const View = step.chapter.View;
   return (
     <div ref={rootRef} role="region" aria-label="opensrcer stage demo" className="fixed inset-0 z-50 flex flex-col bg-ink p-4 sm:p-6">
       <div ref={stageRef} className="relative flex min-h-0 flex-1 items-center justify-center">
-        <div style={{ width: DESIGN.width, height: DESIGN.height, zoom: scale }} className="relative shrink-0 overflow-hidden rounded-[26px] border border-border-soft bg-surface shadow-[0_2px_4px_rgb(0_0_0/0.03),0_40px_100px_-30px_rgb(0_0_0/0.22)]">
+        <div ref={canvasRef} style={{ width: DESIGN.width, height: DESIGN.height, zoom: scale }} className="relative shrink-0 overflow-hidden rounded-[26px] border border-border-soft bg-surface shadow-[0_2px_4px_rgb(0_0_0/0.03),0_40px_100px_-30px_rgb(0_0_0/0.22)]">
           <InteractContext.Provider value={interact}>
             <TimeContext.Provider value={local}>
               <div key={step.chapter.id} className="h-full animate-fade-rise motion-reduce:animate-none">
@@ -263,6 +274,7 @@ export function StageDemo() {
           </InteractContext.Provider>
         </div>
       </div>
+      <Spotlight selector={spotOn} strong={waiting?.kind === "press"} within={canvasRef} />
 
       {/* Which of the four phases this is (dots, no words), and, outside the app so it
           never covers it, a quiet arrow when the presenter can move on. */}
@@ -273,7 +285,7 @@ export function StageDemo() {
           ))}
         </div>
         {waiting?.kind === "next" && !ended && (
-          <button type="button" onClick={forward} aria-label="Next step" className="absolute right-0 grid size-11 animate-pulse place-items-center rounded-full bg-signal text-white shadow-[0_8px_24px_-6px_rgb(0_86_173/0.55)] motion-reduce:animate-none">
+          <button type="button" onClick={forward} aria-label="Next step" className="absolute right-0 z-[70] grid size-11 animate-pulse place-items-center rounded-full bg-signal text-white shadow-[0_8px_24px_-6px_rgb(0_86_173/0.55)] motion-reduce:animate-none">
             <ArrowRight aria-hidden size={18} weight="bold" />
           </button>
         )}
@@ -288,6 +300,44 @@ export function StageDemo() {
           <span className="px-1">→ next · ← back · 1-4 jump to a phase · F full screen · N notes</span>
         </div>
       )}
+    </div>
+  );
+}
+
+const SPOT_PAD = 10; // screen px around the target
+
+/** With no pointer on stage, what's being clicked or talked about is lit: the rest of
+ *  the screen dims and a thick ring sits around the target. Drawn in screen pixels,
+ *  outside the scaled canvas, so it reads from the back of a room at any size. It
+ *  follows the target as it moves (a pane scrolling, a card fading in). */
+function Spotlight({ selector, strong, within }: { selector: string | null; strong: boolean; within: RefObject<HTMLDivElement | null> }) {
+  const [box, setBox] = useState<string | null>(null);
+  useEffect(() => {
+    const measure = () => {
+      const canvas = within.current;
+      // Every match, as one box: a run of log lines lights up together.
+      const rects = selector && canvas ? [...canvas.querySelectorAll(selector)].map((el) => el.getBoundingClientRect()).filter((b) => b.width > 0) : [];
+      if (!canvas || rects.length === 0) { setBox(null); return; }
+      const r = { left: Math.min(...rects.map((b) => b.left)), top: Math.min(...rects.map((b) => b.top)), right: Math.max(...rects.map((b) => b.right)), bottom: Math.max(...rects.map((b) => b.bottom)), width: 1 };
+      const c = canvas.getBoundingClientRect();
+      // Kept to the app window: a long list lights only the part on screen.
+      const left = Math.max(r.left, c.left) - SPOT_PAD, top = Math.max(r.top, c.top) - SPOT_PAD;
+      const right = Math.min(r.right, c.right) + SPOT_PAD, bottom = Math.min(r.bottom, c.bottom) + SPOT_PAD;
+      const next = r.width > 0 && right > left && bottom > top ? `${left}|${top}|${right - left}|${bottom - top}` : null;
+      setBox((prev) => (prev === next ? prev : next));
+    };
+    measure();
+    if (!selector) return;
+    const id = window.setInterval(measure, 100);
+    return () => window.clearInterval(id);
+  }, [selector, within]);
+  if (!box) return null;
+  const [left, top, width, height] = box.split("|").map(Number);
+  const frame = { left, top, width, height };
+  return (
+    <div aria-hidden className="pointer-events-none">
+      <div data-spotlight={strong ? "click" : "note"} className="fixed z-[60] rounded-[16px] transition-all duration-300 ease-out motion-reduce:transition-none" style={{ ...frame, boxShadow: `0 0 0 9999px rgb(0 0 0 / ${strong ? 0.62 : 0.45})` }} />
+      <div className="fixed z-[60] animate-pulse rounded-[16px] transition-all duration-300 ease-out motion-reduce:animate-none motion-reduce:transition-none" style={{ ...frame, boxShadow: "inset 0 0 0 3px #fff, 0 0 0 6px var(--color-signal), 0 0 28px 8px rgb(0 86 173 / 0.5)" }} />
     </div>
   );
 }

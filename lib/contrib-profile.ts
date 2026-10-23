@@ -201,7 +201,9 @@ export type SetupPlan = {
 };
 
 const VENV = "~/env/venv";
-const makeVenv = (python = "python3") => `[ -x ${VENV}/bin/python ] || ${python === "python3" ? `python3 -m venv ${VENV}` : `uv venv ${VENV} --python ${python}`}`;
+// uv-managed interpreters go into the env volume too (UV_PYTHON_INSTALL_DIR), or a
+// later box would find the venv pointing at a ~/.local/share/uv that is gone.
+const makeVenv = (python = "python3") => `[ -x ${VENV}/bin/python ] && ${VENV}/bin/python -c pass || ${python === "python3" ? `python3 -m venv --clear ${VENV}` : `UV_PYTHON_INSTALL_DIR=~/env/python uv venv --clear ${VENV} --python ${python}`}`;
 
 const SETUP: Record<string, SetupPlan> = {
   "vllm-project/vllm": {
@@ -209,7 +211,8 @@ const SETUP: Record<string, SetupPlan> = {
       makeVenv("3.12"),
       // Precompiled kernels + CPU torch: no compile step, no CUDA download.
       `VLLM_USE_PRECOMPILED=1 uv pip install --python ${VENV}/bin/python -e . --torch-backend=cpu`,
-      `uv pip install --python ${VENV}/bin/python pytest pytest-asyncio`,
+      // tblib: vllm's tests/conftest.py imports it (seen in a real run).
+      `uv pip install --python ${VENV}/bin/python pytest pytest-asyncio tblib`,
     ],
     hashFiles: ["pyproject.toml", "setup.py", "requirements/common.txt", "requirements/cpu.txt", "requirements/build.txt"],
     persistent: true,

@@ -40,7 +40,9 @@ export async function runSetup(box: ExecBox, plan: SetupPlan | null, key: string
   const script = [
     "set -e",
     "mkdir -p ~/env",
-    ...(marker ? [`if [ -f ${marker} ]; then echo "[opensrcer] environment ${key} already set up"; exit 0; fi`] : []),
+    // The marker alone is not enough: the environment must still work (a venv
+    // can outlive the interpreter it links to).
+    ...(marker ? [`if [ -f ${marker} ] && { [ ! -e ~/env/venv ] || ~/env/venv/bin/python -c pass; }; then echo "[opensrcer] environment ${key} already set up"; exit 0; fi`] : []),
     ...plan.commands,
     ...(marker ? [`touch ${marker}`] : []),
   ].join("\n");

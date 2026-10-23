@@ -44,6 +44,9 @@ test("other failures and garbage fail without claiming the plan is unavailable",
   assert.deepEqual((await pipe([lines.other])).state, { complete: false, failed: true, unavailable: false });
   const { state } = await pipe([lines.message]);
   assert.equal(state.complete, false, "no turn.completed means no completion");
+  const noTools = await pipe([lines.thread, lines.message, lines.done]);
+  assert.deepEqual(noTools.state, { complete: false, failed: true, unavailable: false }, "a turn without a real tool call is not a result");
+  assert.match(noTools.log, /made no repository tool calls/);
   const stdout = new PassThrough();
   const garbage = pipeCodexJson(stdout, { write: () => true });
   stdout.end("not json\n");

@@ -17,7 +17,6 @@ import { reserveSlot } from "@/lib/concurrency";
 import { CLAUDE_AGENT_MODEL } from "@/lib/models";
 import { requireSession, sessionUserId } from "@/lib/require-session";
 import { sanitizeForPrompt } from "@/lib/sanitize";
-import { childEnv } from "@/lib/child-env";
 import { READ_ONLY_CLAUDE_ARGS } from "@/lib/claude-tools";
 
 import { cloudExecution } from "@/lib/cloud-run-state";

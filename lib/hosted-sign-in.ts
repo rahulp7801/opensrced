@@ -44,7 +44,6 @@ export function validSignInState(value: unknown): value is SignInState {
 
 /** First Anthropic authorize URL in CLI output, or null. */
 export function extractSignInUrl(output: string): string | null {
-  // eslint-disable-next-line no-control-regex
   const clean = output.replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, "");
   const match = /https:\/\/(?:claude\.com\/cai|claude\.ai)\/oauth\/authorize\?[^\s"'<>]+/.exec(clean)?.[0] ?? null;
   return match && validSignInUrl(match) ? match : null;

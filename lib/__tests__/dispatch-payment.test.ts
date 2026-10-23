@@ -41,6 +41,7 @@ test("a subscription run never bills a key unless the user opted in, and never s
     const init = (apiKeySource: string) => ({ type: "system", subtype: "init", apiKeySource });
     const limit = { type: "result", is_error: true, subtype: "success", result: "Claude AI usage limit reached|1700000000" };
     const ok = { type: "result", subtype: "success", stop_reason: "end_turn", is_error: false };
+    const toolUse = { type: "assistant", message: { content: [{ type: "tool_use", name: "mcp__opensrcer-repo-tools__read_file", input: { repo: "acme/app", path: "package.json" } }] } };
     const opts = { auth0UserId: "test-owner", token: "test-user-token", dryRun: true, provider: "claude-subscription" as const, anthropicKey: "test-provider-value" };
 
     for (const keyFallback of [false, true]) {
@@ -64,14 +65,36 @@ test("a subscription run never bills a key unless the user opted in, and never s
       assert.ok(second.args.includes("--bare"));
       assert.equal(second.env.ANTHROPIC_API_KEY, "test-provider-value");
       await logHas(dispatch.id, /retrying on your Anthropic API key/);
-      await finish(second, [init("ANTHROPIC_API_KEY"), ok], 0);
+      await finish(second, [init("ANTHROPIC_API_KEY"), toolUse, ok], 0);
       assert.equal(dispatch.status, "succeeded");
       await logHas(dispatch.id, /paid by: Anthropic API key/);
     }
 
+    // An unfunded key: a named error, no retry on any other credential, not succeeded.
+    {
+      const before = workers.length;
+      const dispatch = await startFindingDispatch("acme/app", { id: "test-finding", kind: "advisory" }, { ...opts, provider: "anthropic-key", keyFallback: true });
+      await finish(workers[before], [init("ANTHROPIC_API_KEY"), { type: "result", is_error: true, subtype: "success", result: "Credit balance is too low to access the Anthropic API." }], 1);
+      assert.equal(workers.length, before + 1, "never retried on another credential");
+      assert.equal(dispatch.status, "failed");
+      await logHas(dispatch.id, /Your Anthropic API key has no credit\. Add credit or use a subscription\./);
+    }
+
+    // Repository tools that never connected: prose about tool calls is not a result.
+    {
+      const before = workers.length;
+      const dispatch = await startFindingDispatch("acme/app", { id: "test-finding", kind: "advisory" }, opts);
+      assert.equal(workers[before].env.MCP_TIMEOUT, "120000");
+      assert.equal(workers[before].env.MCP_CONNECTION_NONBLOCKING, "0");
+      await finish(workers[before], [{ ...init("none"), tools: [], mcp_servers: [{ name: "opensrcer-repo-tools", status: "failed" }] }, ok], 0);
+      assert.equal(dispatch.status, "failed");
+      await logHas(dispatch.id, /repository tools at start: failed · 0 tools/);
+      await logHas(dispatch.id, /made no repository tool calls \(tools were failed at start\)/);
+    }
+
     // The CLI says it used a key in a subscription run: stopped, never billed quietly.
     const dispatch = await startFindingDispatch("acme/app", { id: "test-finding", kind: "advisory" }, { ...opts, keyFallback: true });
-    await finish(workers.at(-1)!, [init("ANTHROPIC_API_KEY"), ok], 0);
+    await finish(workers.at(-1)!, [init("ANTHROPIC_API_KEY"), toolUse, ok], 0);
     assert.equal(dispatch.status, "failed");
     await logHas(dispatch.id, /picked up an API key or token; stopping it/);
   } finally {

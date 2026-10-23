@@ -16,6 +16,13 @@ test("provider failures are visible even when the CLI emits a result", () => {
   assert.ok(!JSON.stringify(events).includes("internal provider details"));
 });
 
+test("an unfunded API key gets a named, actionable error and nothing else from the provider text", () => {
+  const event = { type: "result", is_error: true, result: "Credit balance is too low to access the Anthropic API. Please go to Plans & Billing." };
+  assert.equal(claudeResultFailure(event, "fallback"), "Your Anthropic API key has no credit. Add credit or use a subscription.");
+  assert.deepEqual(claudeEvents(JSON.stringify(event)), [{ error: "Your Anthropic API key has no credit. Add credit or use a subscription." }]);
+  assert.equal(claudeResultFailure({ ...event, is_error: false, subtype: "success", stop_reason: "end_turn" }, "fallback"), null);
+});
+
 test("malformed and unrelated Claude events do not interrupt streaming", () => {
   for (const line of ["not json", "null", "{}", '{"type":"assistant","message":{"content":false}}']) assert.deepEqual(claudeEvents(line), []);
 });

@@ -42,7 +42,7 @@ test("only completed agent output reaches the PR hook and persists a successful 
       const dispatch = await startFindingDispatch("acme/app", { id: "test-finding", kind: "advisory", summary: "Test only" }, { auth0UserId: "test-owner", token: "test-user-token", anthropicKey: "test-provider-value" });
       lastId = dispatch.id;
       const worker = workers.at(-1)!;
-      worker.stdout.end(JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "Partial patch" }] } }) + "\n" + (result ? JSON.stringify(result) : ""));
+      worker.stdout.end(JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "mcp__opensrcer-repo-tools__read_file", input: { repo: "acme/app", path: "package.json" } }, { type: "text", text: "Partial patch" }] } }) + "\n" + (result ? JSON.stringify(result) : ""));
       await once(worker.stdout, "end");
       worker.child.emit("close", 0, null);
       const record = JSON.parse(readFileSync(join(".dispatches", `${dispatch.id}.json`), "utf8"));

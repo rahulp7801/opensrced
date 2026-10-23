@@ -60,7 +60,7 @@ async function probe(provider) {
     closed = new Promise(resolve => child.once('close', resolve));
     const init = await new Promise((resolve, reject) => {
       let buffer = '', stderr = '';
-      timer = setTimeout(() => reject(new Error('Worker initialization timed out: ' + stderr)), 60000);
+      timer = setTimeout(() => reject(new Error('Worker initialization timed out: ' + stderr)), 150000);
       child.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-1000); });
       child.once('error', reject);
       child.once('close', () => reject(new Error('Worker exited before initialization: ' + stderr)));

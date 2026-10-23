@@ -50,11 +50,21 @@ export function pipeStreamJson(
   const state = { complete: false, failed: false, unavailable: false };
   const decoder = new StringDecoder("utf8");
   let buf = "";
+  // A run whose repository tools never connected "succeeds" with prose that
+  // only describes tool calls (seen with claude 2.1.197 on a cold MCP start).
+  let mcpStatus = "connected";
+  let toolCalls = 0;
   function consume(line: string) {
     if (!line.trim()) return;
     try {
       const evt = JSON.parse(line);
       if (evt.type === "error") state.failed = true;
+      if (evt.type === "system" && evt.subtype === "init" && Array.isArray(evt.mcp_servers)) {
+        const ours = evt.mcp_servers.find((s: { name?: string }) => s?.name === "opensrcer-repo-tools");
+        mcpStatus = typeof ours?.status === "string" ? ours.status : "missing";
+        const tools = Array.isArray(evt.tools) ? evt.tools.length : 0;
+        out.write(`[agentic-dispatcher] repository tools at start: ${sanitizeLogValue(mcpStatus, 20)} · ${tools} tools\n`);
+      }
       // The CLI's own report of which credential it is using: "none" means
       // no API key or token, i.e. the subscription login.
       if (evt.type === "system" && evt.subtype === "init" && typeof evt.apiKeySource === "string") {
@@ -73,6 +83,7 @@ export function pipeStreamJson(
           // exploring: the tool and its first string argument besides the repo
           // (a path, pattern or symbol), never what the tool returned.
           if (block.type === "tool_use" && typeof block.name === "string") {
+            toolCalls++;
             const arg = Object.entries(block.input ?? {}).find(([k, v]) => k !== "repo" && typeof v === "string")?.[1];
             out.write(`\n[tool] ${sanitizeLogValue(block.name.split("__").at(-1), 40)} ${sanitizeLogValue(arg, 100)}\n`);
           }
@@ -95,6 +106,11 @@ export function pipeStreamJson(
             out.write(`\n[agentic-dispatcher] provider said: ${sanitizeLogValue(evt.result, 200)}\n`);
           }
           out.write(`\n[agentic-dispatcher] ${failure}\n`);
+        } else if (toolCalls === 0) {
+          // No real tool call means the "fix" was never grounded in the repo,
+          // whatever the prose claims. Never preview or publish it.
+          state.failed = true;
+          out.write(`\n[agentic-dispatcher] The agent made no repository tool calls (tools were ${sanitizeLogValue(mcpStatus, 20)} at start), so its output is discarded.\n`);
         } else state.complete = true;
       }
     } catch { state.failed = true; }

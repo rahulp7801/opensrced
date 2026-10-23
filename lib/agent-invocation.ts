@@ -160,6 +160,12 @@ export function buildAgentInvocation(input: AgentInvocationInput): AgentInvocati
       // claude.ai connectors load for subscription logins unless turned off.
       ENABLE_CLAUDEAI_MCP_SERVERS: "false",
       DISABLE_AUTOUPDATER: "1",
+      // In -p mode the CLI connects MCP servers without waiting by default, and
+      // our server's cold start (~36 s on a slow disk) outlasts the default
+      // timeout: the model then starts with no repo tools. Wait for it.
+      MCP_CONNECTION_NONBLOCKING: "0",
+      MCP_TIMEOUT: "120000",
+      MCP_CONNECT_TIMEOUT_MS: "120000",
     });
     for (const key of CLAUDE_CREDENTIAL_VARS) if (!(key === "ANTHROPIC_API_KEY" && !subscription)) delete env[key];
 

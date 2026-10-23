@@ -56,6 +56,7 @@ export function pipeCodexJson(
   const state = { complete: false, failed: false, unavailable: false };
   const decoder = new StringDecoder("utf8");
   let buf = "";
+  let toolCalls = 0;
   function consume(line: string) {
     if (!line.trim()) return;
     let event: { type?: string; item?: CodexItem; usage?: Record<string, unknown>; error?: { message?: string }; message?: string };
@@ -64,6 +65,7 @@ export function pipeCodexJson(
       out.write(event.item.text + "\n");
     }
     if (event.type === "item.started" && event.item?.type === "mcp_tool_call" && typeof event.item.tool === "string") {
+      toolCalls++;
       out.write(`\n[tool] ${sanitizeLogValue(event.item.tool, 40)} ${sanitizeLogValue(toolDetail(event.item.arguments), 100)}\n`);
     }
     if (event.type === "turn.completed") {
@@ -71,7 +73,11 @@ export function pipeCodexJson(
       const usage = event.usage ?? {};
       const tokens = ["input_tokens", "output_tokens"].map((k) => `${k}=${Number(usage[k]) || 0}`).join(" ");
       out.write(`\n[agentic-dispatcher] plan usage: ${tokens}\n`);
-      state.complete = true;
+      // Same rule as the Claude path: no real tool call, no result.
+      if (toolCalls === 0) {
+        state.failed = true;
+        out.write("\n[agentic-dispatcher] The agent made no repository tool calls, so its output is discarded.\n");
+      } else state.complete = true;
     }
     // A top-level `error` can be a retry notice; only turn.failed ends the
     // run. Either can say the plan is out of quota or signed out.

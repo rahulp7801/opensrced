@@ -26,10 +26,11 @@ export function progress(t: number, from: number, to: number): number {
 }
 
 /** Fades and lifts its children into place once local time passes `at`. */
-export function Reveal({ at, children, className, as: Tag = "div" }: { at: number; children: ReactNode; className?: string; as?: "div" | "li" | "span" | "tr" }) {
+export function Reveal({ at, children, className, as: Tag = "div", spot }: { at: number; children: ReactNode; className?: string; as?: "div" | "li" | "span" | "tr"; spot?: string }) {
   const shown = useT() >= at;
   return (
     <Tag
+      data-spot={spot}
       aria-hidden={shown ? undefined : true}
       className={cn("transition-[opacity,transform] duration-500 ease-out motion-reduce:transition-none", shown ? "opacity-100 translate-y-0" : "pointer-events-none translate-y-1.5 opacity-0", className)}
     >
@@ -107,7 +108,7 @@ export function Press({ at, children, className, label }: { at: number | null; c
   );
   const halo = (pressing || waiting) && <span aria-hidden className="pointer-events-none absolute inset-0 animate-ping rounded-[inherit] bg-signal/20 motion-reduce:animate-none" />;
   return waiting && ix ? (
-    <button ref={ref as Ref<HTMLButtonElement>} type="button" onClick={ix.press} aria-label={label} className={cls}>{children}{halo}</button>
+    <button ref={ref as Ref<HTMLButtonElement>} type="button" onClick={ix.press} aria-label={label} data-waiting="" className={cls}>{children}{halo}</button>
   ) : (
     <span ref={ref} className={cls} {...cursor}>{children}{halo}</span>
   );
@@ -257,7 +258,7 @@ export function Inline({ text }: { text: string }) {
 }
 
 /** A log line coloured the way the real log viewer reads. */
-export function LogLine({ text }: { text: string }) {
+export function LogLine({ text, spot }: { text: string; spot?: string }) {
   const cls = text.startsWith("[tool]") ? "text-[#64d2ff]"
     : text.startsWith("[agentic-pr] opened") ? "font-semibold text-[#30d158]"
     : text.startsWith("[gitleaks] status=clean") ? "text-[#30d158]"
@@ -267,10 +268,11 @@ export function LogLine({ text }: { text: string }) {
     : text.startsWith("+") && !text.startsWith("+++") ? "text-[#30d158]"
     : text.startsWith("-") && !text.startsWith("---") ? "text-[#ff6961]"
     : "text-[#e8e8ed]";
-  return <div className={cn("whitespace-pre-wrap break-words", cls)}>{text || " "}</div>;
+  return <div data-spot={spot} className={cn("whitespace-pre-wrap break-words", cls)}>{text || " "}</div>;
 }
 
-export type Caption = { at: number; text: string };
+/** `spot` names a `data-spot` element the stage spotlights while this note is current. */
+export type Caption = { at: number; text: string; spot?: string };
 
 export const ACTS = ["Start", "Find", "Fix", "Ship", "Teams", "Trust"] as const;
 export type Act = (typeof ACTS)[number];

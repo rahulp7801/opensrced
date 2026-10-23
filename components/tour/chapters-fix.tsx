@@ -46,6 +46,11 @@ function Pipeline({ f }: { f: number }) {
   );
 }
 
+/** Log lines the stage's notes point at: the guardrails, the read-only tools, the preview. */
+function logSpot(text: string): string | undefined {
+  return text.includes("] guardrails:") ? "log-guardrails" : text.startsWith("[tool]") ? "log-tools" : text.startsWith("[preview]") ? "log-preview" : undefined;
+}
+
 function RunView() {
   const t = useT();
   const f = progress(t, RUN_START, RUN_END);
@@ -86,7 +91,7 @@ function RunView() {
           ))}
         </div>
         <div className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-border-soft bg-surface">
-          <div className="border-b border-border px-3 py-2.5 sm:px-4">
+          <div data-spot="run-status" className="border-b border-border px-3 py-2.5 sm:px-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate text-[11.5px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[10.5px] text-info">#{ISSUE.number}</span></p>
@@ -106,7 +111,7 @@ function RunView() {
           <div className="term relative min-h-0 flex-1 overflow-hidden rounded-none">
             {!done && <span className="absolute right-3 top-2 text-[10.5px] text-[#64d2ff]">● streaming</span>}
             <div ref={logRef} className="h-full overflow-hidden px-3 py-2.5 font-mono text-[10.5px] leading-[1.6] sm:px-4 sm:text-[11px]">
-              {lines.map((l) => <LogLine key={l.at + l.text} text={l.text} />)}
+              {lines.map((l) => <LogLine key={l.at + l.text} text={l.text} spot={logSpot(l.text)} />)}
             </div>
           </div>
         </div>
@@ -128,7 +133,7 @@ export const run: Chapter = {
     { at: runAt(0.3), text: "Before writing anything, it notes the project's conventions. There's no contribution guide here, so it matches the style the code already uses." },
     { at: runAt(0.4), text: "It writes down what's wrong and where, then the fix as a patch." },
     { at: runAt(0.72), text: "The run ends with everything frozen for review: the patch, the pull request text and the evidence. Nothing has been published." },
-    { at: runAt(0.93), text: "69 seconds and 20 cents, end to end. The hosted service can't run the project's tests, so it says so: unverified, for you to check." },
+    { at: runAt(0.93), spot: "run-status", text: "69 seconds and 20 cents, end to end. The hosted service can't run the project's tests, so it says so: unverified, for you to check." },
   ],
   View: RunView,
 };
@@ -198,7 +203,7 @@ function ReviewView() {
                   {RISK.map((r) => <li key={r} className="flex gap-1.5"><span className="text-paper-faint">·</span><span><Inline text={r} /></span></li>)}
                 </ul>
               </Reveal>
-              <Reveal at={6400}>
+              <Reveal at={6400} spot="review-diff">
                 <p className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-paper-muted">Files: {PATCH.map((p) => <code key={p.file} className="rounded bg-surface-2 px-1.5 font-mono text-paper">{p.file}</code>)}</p>
                 <SplitDiff />
               </Reveal>
@@ -235,7 +240,7 @@ export const review: Chapter = {
   captions: [
     { at: 0, text: "Every run ends in something you can read in full: what the agent found, what it changed, and how to test it." },
     { at: 4300, text: "The risk notes say what to double-check, including what it deliberately left alone." },
-    { at: 7600, text: "The patch is shown side by side: the one broken line out, a small, commented fix in, and new tests." },
+    { at: 7600, spot: "review-diff", text: "The patch is shown side by side: the one broken line out, a small, commented fix in, and new tests." },
     { at: 13200, text: "Copy the diff, or a ready-made commit message, if you'd rather apply it yourself." },
     { at: 15000, text: "Nothing is published until you say so. A preview stops here. For a live run, you confirm you've read it and can explain it to reviewers." },
     { at: 17400, text: "Then it's scanned for leaked secrets and opens as a draft pull request, with exactly this patch and text." },
@@ -265,7 +270,7 @@ function PrView() {
           </div>
         </Reveal>
         <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_200px]">
-          <Reveal at={900} className="overflow-hidden rounded-lg border border-border">
+          <Reveal at={900} spot="pr-body" className="overflow-hidden rounded-lg border border-border">
             <p className="border-b border-border bg-surface-2/60 px-3 py-1.5 text-[11.5px] text-paper-muted"><span className="font-semibold text-paper">rahulp7801</span> commented just now</p>
             <div className="space-y-2.5 px-3 py-3 text-[12px] leading-[1.6] text-paper-dim">
               {PR_BODY.map((block, i) => (

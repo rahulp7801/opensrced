@@ -65,7 +65,7 @@ function ScanView() {
               </div>
             </div>
           </div>
-          <div className="divide-y divide-border-soft">
+          <div data-spot="scan-list" className="divide-y divide-border-soft">
             {rows.map((r) => {
               // Skipped issues arrive one by one after the switch to All, each with its reason.
               const at = r.reason ? SHOW_ALL_AT + 600 + skipped++ * 1200 : 0;
@@ -117,8 +117,8 @@ export const stageScan: Chapter = {
   captions: [
     { at: 0, text: "This is where beginners get stuck, and where Claude Code can't help: Claude Code starts once you already have an issue. Here, a repository's newest open issues are read and vetted for you." },
     { at: SHOW_ALL_AT, text: "Show everything it found, including what it filtered out, and why." },
-    { at: SHOW_ALL_AT + 600, text: "Assigned to someone? Skip, they're on it. Already fixed in a PR but never closed? Skip. That one alone saves maintainers a pile of duplicate PRs." },
-    { at: SHOW_ALL_AT + 4200, text: "Questions, wontfix or duplicate labels, and issues too vague to act on are skipped too, with the reason spelled out." },
+    { at: SHOW_ALL_AT + 600, spot: "scan-list", text: "Assigned to someone? Skip, they're on it. Already fixed in a PR but never closed? Skip. That one alone saves maintainers a pile of duplicate PRs." },
+    { at: SHOW_ALL_AT + 4200, spot: "scan-list", text: "Questions, wontfix or duplicate labels, and issues too vague to act on are skipped too, with the reason spelled out." },
     { at: SHOW_ALL_AT + 7200, text: "What's left is actually open to a newcomer, each with its scope, risk, complexity and a time estimate." },
     { at: SHOW_READY_AT, text: "Back to the ready ones. This is the contribution etiquette Claude Code assumes you already know." },
   ],
@@ -157,7 +157,7 @@ function AskPanel({ turns }: { turns: TimedTurn[] }) {
   const typing = turns.find((turn) => t >= turn.typeAt && t < turn.askAt + 150);
   const spent = turns.filter((turn) => t >= turn.doneAt).reduce((sum, turn) => sum + Number(turn.cost.slice(1)), 0);
   return (
-    <section aria-label="Ask in plain English" className="flex h-full min-h-0 flex-col rounded-xl border border-border-soft bg-surface">
+    <section data-spot="ask" aria-label="Ask in plain English" className="flex h-full min-h-0 flex-col rounded-xl border border-border-soft bg-surface">
       <div className="flex items-center gap-2 border-b border-border-soft px-4 py-2.5">
         <span className="grid size-7 place-items-center rounded-lg bg-signal text-white"><Sparkle aria-hidden size={15} weight="fill" /></span>
         <div className="min-w-0 flex-1">
@@ -256,7 +256,7 @@ function StageExploreView() {
         {built && (
           <div className="mt-3 grid min-h-0 flex-1 grid-cols-[57fr_43fr] gap-3">
             <div className="flex min-h-0 items-center overflow-hidden rounded-xl border border-border-soft bg-surface p-2">
-              <div className="relative aspect-[3/2] w-full">
+              <div data-spot="graph" className="relative aspect-[3/2] w-full">
                 <CodeGraph buildAt={BUILT_AT + 100} lights={[{ at: SELECT_AT + 200, light: LIGHTS.select }]} />
                 <div className="absolute" style={TRUNCATE_NODE}>
                   <Press at={SELECT_AT} label="truncate() on the graph" className="size-8 -translate-x-1/2 -translate-y-1/2 rounded-full">
@@ -283,10 +283,10 @@ export const stageExplore: Chapter = {
   captions: [
     { at: 0, text: "An unfamiliar repository is the next wall a beginner hits. With Claude Code you'd clone it, install it and start reading. Here nothing is cloned or installed: Explore builds a map of it, parsed straight from the source, no AI involved." },
     { at: BUILT_AT, text: "Then ask about it in plain English, still without having cloned anything. No grep, no knowing where to look, and every answer shows what it cost." },
-    { at: FIRST.turns[0].typeAt, text: `The big picture first: “${FIRST.turns[0].prompt}” The answer is built from the repository's own graph, cites the files it's based on, and shows what it cost.` },
-    { at: FIRST.turns[1].typeAt, text: `The question you'd normally answer by grepping around: “${FIRST.turns[1].prompt}”` },
-    { at: SELECT_AT, text: "Same thing on the map: click truncate() and its connections stand out. One file, its options type, and one test." },
-    { at: LAST.turns[0].typeAt, text: `And where your change would be tested: “${LAST.turns[0].prompt}” You know the shape of the fix before an agent writes a line.` },
+    { at: FIRST.turns[0].typeAt, spot: "ask", text: `The big picture first: “${FIRST.turns[0].prompt}” The answer is built from the repository's own graph, cites the files it's based on, and shows what it cost.` },
+    { at: FIRST.turns[1].typeAt, spot: "ask", text: `The question you'd normally answer by grepping around: “${FIRST.turns[1].prompt}”` },
+    { at: SELECT_AT, spot: "graph", text: "Same thing on the map: click truncate() and its connections stand out. One file, its options type, and one test." },
+    { at: LAST.turns[0].typeAt, spot: "ask", text: `And where your change would be tested: “${LAST.turns[0].prompt}” You know the shape of the fix before an agent writes a line.` },
   ],
   View: StageExploreView,
 };
@@ -295,13 +295,10 @@ export const stageExplore: Chapter = {
 
 /** Notes for the stage on top of the tour's narration: what sets opensrcer apart
  *  for someone new to open source, and why a maintainer can trust what it sends. */
-export function stageNotes(base: { find: Chapter; choose: Chapter; newRun: Chapter; run: Chapter; review: Chapter; pr: Chapter; respond: Chapter; reply: Chapter }) {
+export function stageNotes(base: { choose: Chapter; newRun: Chapter; run: Chapter; review: Chapter; pr: Chapter; respond: Chapter; reply: Chapter }) {
   // The review screens with the stage's own notes in place of the tour's narration.
   const ship = (chapter: Chapter, captions: Caption[]): Chapter => ({ ...chapter, captions });
   return {
-    find: withNotes(base.find, [
-      { at: 0, text: "Claude Code is a power tool for people who already know how to contribute. opensrcer is the guided path from “I want to contribute” to a clean draft pull request. And it starts before Claude Code would: finding something to work on." },
-    ]),
     choose: withNotes(base.choose, [
       { at: 0, text: "Pick one that's ready. Everything happens in the browser: nothing to install, nothing to clone, no terminal, no build tools." },
       { at: 7600, text: "Preview is the default; opening a pull request is opt-in. Nothing reaches the project until you decide it should." },
@@ -310,23 +307,23 @@ export function stageNotes(base: { find: Chapter; choose: Chapter; newRun: Chapt
       { at: 0, text: "Paste the issue link. Notes steer the agent: keep the public API, add tests." },
     ]),
     run: withNotes(base.run, [
-      { at: 0, text: "One click on the issue started this run; there was nothing to set up. The agent runs read-only in a throwaway machine, so a hostile repository can never touch your laptop. There's a hard spend cap, a timeout, and one run at a time per account." },
-      { at: 9000, text: "It's told to read the contribution guide and PR template and match the project's conventions, keep the diff minimal, and stop and say so rather than guess when it can't find the root cause." },
-      { at: 20000, text: "Before anything is published, the patch gets a secret scan. And it's honest: the log says tests weren't run, so the patch is marked unverified. You review it." },
+      { at: 0, spot: "log-guardrails", text: "One click on the issue started this run; there was nothing to set up. The agent runs read-only in a throwaway machine, so a hostile repository can never touch your laptop. There's a hard spend cap, a timeout, and one run at a time per account." },
+      { at: 9000, spot: "log-tools", text: "It's told to read the contribution guide and PR template and match the project's conventions, keep the diff minimal, and stop and say so rather than guess when it can't find the root cause." },
+      { at: 20000, spot: "log-preview", text: "And it's honest: the hosted service can't run the project's tests, so the log says verification: not run. Nothing has been published; you review it first." },
     ]),
     review: withNotes(base.review, [
       { at: 0, text: "This is where the maintainers' worry about AI pull requests is answered. Nothing is published until you've read the patch and confirmed you can explain it to reviewers." },
       { at: 18400, text: "It's a draft that can't be merged until you mark it ready. And it refuses to publish at all if someone else already has a pull request open on the issue, or if the project bans AI contributions." },
     ]),
     pr: withNotes(base.pr, [
-      { at: 0, text: "Every GitHub step a beginner gets wrong is handled: it forks, branches, and commits under your private noreply email. It picks the base branch from where past PRs were actually merged, falling back to the default branch." },
+      { at: 0, spot: "pr-facts", text: "Every GitHub step a beginner gets wrong is handled: it forks, branches, and commits under your private noreply email. It picks the base branch from where past PRs were actually merged, falling back to the default branch." },
       { at: 5000, text: "The pull request is always a draft, you are its author, and its description closes the issue. It refuses closed issues and won't open a second PR for the same one. @mentions are disabled, so its text can't ping strangers." },
-      { at: 6200, text: "And it discloses itself: an AI assistance section says who asked, which model, and exactly what was or wasn't tested. On projects that require a sign-off on every commit, it adds yours." },
+      { at: 6200, spot: "pr-body", text: "And it discloses itself: an AI assistance section says who asked, which model, and exactly what was or wasn't tested. On projects that require a sign-off on every commit, it adds yours." },
     ]),
     respond: ship(base.respond, [
       { at: 0, text: "When a maintainer comments, it comes back to one inbox, with the file and line." },
       { at: 5600, text: "Ask for a quick fix. The agent reads the file and its callers and proposes the smallest change that answers the comment." },
-      { at: 9800, text: "Before you push, the change is checked for size, secrets, syntax, and whether it touches the file the reviewer meant. It says plainly that tests weren't run." },
+      { at: 9800, spot: "verify-checks", text: "Before you push, the change is checked for size, secrets, syntax, and whether it touches the file the reviewer meant. It says plainly that tests weren't run." },
       { at: 15400, text: "You review the diff and push it to the same branch yourself. The comment is marked fixed." },
     ]),
     reply: ship(base.reply, [
@@ -365,12 +362,12 @@ function CompareView() {
           {BY_HAND.map((step, i) => (
             <Reveal as="li" key={step} at={600 + i * 450} className="flex items-baseline gap-3 text-[17px] text-paper-dim">
               <span className="w-5 shrink-0 text-right font-mono text-[13px] text-paper-faint">{i + 1}</span>
-              <span>{step}{step === "Fix it" && <span className="ml-2 rounded-full bg-surface-3 px-2 py-0.5 text-[12px] text-paper-muted">Claude Code helps here</span>}</span>
+              <span data-spot={step === "Fix it" ? "compare-fix" : undefined}>{step}{step === "Fix it" && <span className="ml-2 rounded-full bg-surface-3 px-2 py-0.5 text-[12px] text-paper-muted">Claude Code helps here</span>}</span>
             </Reveal>
           ))}
         </ol>
       </Reveal>
-      <Reveal at={GUIDED_AT} className="flex flex-col justify-center rounded-[24px] bg-signal p-8 text-white shadow-[0_30px_80px_-30px_rgb(0_86_173/0.6)]">
+      <Reveal at={GUIDED_AT} spot="compare-guided" className="flex flex-col justify-center rounded-[24px] bg-signal p-8 text-white shadow-[0_30px_80px_-30px_rgb(0_86_173/0.6)]">
         <p className="text-[13px] font-semibold uppercase tracking-[0.08em] text-white/75">With opensrcer</p>
         <ol className="mt-5 space-y-5">
           {GUIDED.map((step, i) => (
@@ -393,8 +390,8 @@ export const stageCompare: Chapter = {
   source: "What a first contribution asks of you",
   captions: [
     { at: 0, text: "Claude Code is a great power tool, for people who already know how to contribute. Here's what a first contribution actually asks of you." },
-    { at: 600 + 5 * 450, text: "Only one of these nine steps is writing the fix. The rest is open-source etiquette and GitHub mechanics, and that's where beginners get stuck or get it wrong." },
-    { at: GUIDED_AT, text: "opensrcer is the guided path: pick an issue that's ready, review the patch, publish a draft pull request. Everything else on that list is done for you, or checked for you. Let me show you." },
+    { at: 600 + 5 * 450, spot: "compare-fix", text: "Only one of these nine steps is writing the fix. The rest is open-source etiquette and GitHub mechanics, and that's where beginners get stuck or get it wrong." },
+    { at: GUIDED_AT, spot: "compare-guided", text: "opensrcer is the guided path: pick an issue that's ready, review the patch, publish a draft pull request. Everything else on that list is done for you, or checked for you. Let me show you." },
   ],
   View: CompareView,
 };
@@ -423,7 +420,7 @@ export function withPrFacts(chapter: Chapter): Chapter {
     return (
       <div className="relative h-full">
         <Inner />
-        {t < FACTS_GONE_AT + 400 && <div style={{ opacity: 1 - progress(t, FACTS_GONE_AT, FACTS_GONE_AT + 400) }}><Reveal at={FACTS_AT} className="absolute bottom-5 right-5 z-10 w-[400px] rounded-2xl border border-border-soft bg-surface/95 p-4 shadow-[0_20px_50px_-20px_rgb(0_0_0/0.35)] backdrop-blur">
+        {t < FACTS_GONE_AT + 400 && <div style={{ opacity: 1 - progress(t, FACTS_GONE_AT, FACTS_GONE_AT + 400) }}><Reveal at={FACTS_AT} spot="pr-facts" className="absolute bottom-5 right-5 z-10 w-[400px] rounded-2xl border border-border-soft bg-surface/95 p-4 shadow-[0_20px_50px_-20px_rgb(0_0_0/0.35)] backdrop-blur">
           <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-signal">What it did on GitHub</p>
           <dl className="mt-2 space-y-1.5">
             {PR_FACTS.map(([k, v], i) => (

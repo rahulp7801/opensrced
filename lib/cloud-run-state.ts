@@ -18,7 +18,7 @@ export type CloudRun = DispatchRecord & {
 export type CloudRunSummary = Omit<CloudRun, "log" | "log_size">;
 
 const RUN_STATUSES = new Set(["running", "succeeded", "failed", "killed"]);
-const PR_STATUSES = new Set(["opened", "failed", "pending", "tests_passed", "tests_failed", "none"]);
+const PR_STATUSES = new Set(["opened", "failed", "pending", "tests_passed", "tests_failed", "awaiting_review", "blocked", "none"]);
 const TEST_STATUSES = new Set(["passed", "failed", "skipped", "not_run"]);
 const MAX_STORED_LOG_BYTES = 250_000;
 const RUN_ID_RE = /^c_\d{13}_[a-f0-9]{12}$/;
@@ -174,6 +174,19 @@ export function runPath(owner: string, id: string): string {
   if (!RUN_ID_RE.test(id)) throw new Error("Invalid run id");
   // Reverse timestamps make Blob's lexical listing return newest runs first.
   return `${ownerPrefix(owner)}${9999999999999 - Number(id.split("_")[1])}-${id}.json`;
+}
+
+/** The run's frozen publish-gate preview (patch + PR text), uploaded by the
+ *  worker with its own path-scoped token. */
+export function runPreviewPath(owner: string, id: string): string {
+  if (!RUN_ID_RE.test(id)) throw new Error("Invalid run id");
+  return `${ownerPrefix(owner).slice(0, -"runs/".length)}previews/${id}.json`;
+}
+
+/** Created once per publish; a second concurrent publish finds it. */
+export function runPublishLockPath(owner: string, id: string): string {
+  if (!RUN_ID_RE.test(id)) throw new Error("Invalid run id");
+  return `${ownerPrefix(owner).slice(0, -"runs/".length)}publishing/${id}.json`;
 }
 
 export function runSummaryPath(owner: string, id: string): string {

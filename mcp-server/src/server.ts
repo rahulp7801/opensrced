@@ -23,6 +23,8 @@ import {
   readFileTool,
   repoInfo,
 } from "./tools.js";
+import { boxEditFile, boxReadFile, boxRunCommand, boxWriteFile, takeExecConfig } from "./exec-tools.js";
+import { ensureRepo } from "./repo-cache.js";
 import {
   traceFlowTool,
   impactAnalysisTool,
@@ -33,6 +35,8 @@ import {
 // server only needs GITHUB_TOKEN (clones); drop the provider key so neither
 // it nor the git processes it spawns ever hold it.
 delete process.env.ANTHROPIC_API_KEY;
+// Exec box capability, when the dispatcher started one (see exec-tools.ts).
+const exec = takeExecConfig();
 // Clones of untrusted repos must not let a committed .lfsconfig make git-lfs
 // call an arbitrary URL during checkout (see lib/child-env.ts).
 process.env.GIT_LFS_SKIP_SMUDGE = "1";
@@ -82,7 +86,9 @@ server.tool(
 
 server.tool(
   "read_file",
-  "Read a repo file with line numbers. For files over 400 KB, pass line_start/line_end (1-indexed, inclusive). Files over 2 MB require grep instead.",
+  exec
+    ? "Read a file from your workspace (including your own edits) with line numbers. Pass line_start/line_end (1-indexed, inclusive) for large files."
+    : "Read a repo file with line numbers. For files over 400 KB, pass line_start/line_end (1-indexed, inclusive). Files over 2 MB require grep instead.",
   {
     repo: repoArg,
     path: z.string().describe("Repo-relative path, e.g. 'src/lib.rs'."),
@@ -91,12 +97,72 @@ server.tool(
   },
   async (args) => {
     try {
+      if (exec) {
+        // Same repository check as every other tool, then the box's copy.
+        await ensureRepo(args.repo);
+        return textResult(await boxReadFile(exec, args));
+      }
       return textResult(await readFileTool(args));
     } catch (e) {
       return errorResult(e);
     }
   },
 );
+
+// ── Workspace tools (only with an exec box) ───────────────────────────
+// Edits and commands land in a credential-free box holding a private copy
+// of the repository. The final patch is `git diff` of that box.
+if (exec) {
+  server.tool(
+    "write_file",
+    "Create or overwrite a file in your workspace. Prefer edit_file for changes to existing files.",
+    { repo: repoArg, path: z.string().describe("Repo-relative path."), content: z.string() },
+    async (args) => {
+      try {
+        await ensureRepo(args.repo);
+        return textResult(await boxWriteFile(exec, args));
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+  server.tool(
+    "edit_file",
+    "Replace an exact string in a workspace file. old_string must match exactly once (copy it from read_file without the line-number prefix) unless replace_all is true.",
+    {
+      repo: repoArg,
+      path: z.string(),
+      old_string: z.string().min(1),
+      new_string: z.string(),
+      replace_all: z.boolean().optional(),
+    },
+    async (args) => {
+      try {
+        await ensureRepo(args.repo);
+        return textResult(await boxEditFile(exec, args));
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+  server.tool(
+    "run_command",
+    "Run a bash command at the workspace root (a Linux box with git, node/yarn, python3/venv/uv, pre-commit; no credentials). Use it to install dependencies, reproduce the bug, run targeted tests and linters. Output is truncated (head and tail kept). Each call has a timeout and all calls share a total time budget.",
+    {
+      repo: repoArg,
+      command: z.string().min(1).describe("bash -c command line, run from the repository root."),
+      timeout_s: z.number().int().min(1).max(3600).optional().describe("Per-command timeout in seconds (capped by the box)."),
+    },
+    async (args) => {
+      try {
+        await ensureRepo(args.repo);
+        return textResult(await boxRunCommand(exec, args));
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+}
 
 server.tool(
   "grep",

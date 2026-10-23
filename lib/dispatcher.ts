@@ -28,6 +28,8 @@ export type PrStatus =
   | "pending"        // auto-PR started but hasn't resolved yet
   | "tests_passed"   // crucible sandbox tests passed; PR open path proceeding
   | "tests_failed"   // crucible sandbox tests failed; PR was NOT opened
+  | "awaiting_review" // preview frozen; the user publishes it from the run page
+  | "blocked"        // preview exists but a guard forbids publishing it
   | "none";          // no auto-PR expected (dry-run, target/hunt mode, or too early)
 
 export type Dispatch = {
@@ -72,6 +74,12 @@ export type Dispatch = {
    *  here and nothing else; "skipped" is a repo with no recognized test
    *  suite, "not_run" is us choosing not to execute it. */
   tests?: "passed" | "failed" | "skipped" | "not_run";
+  /** Security findings: the CVE/GHSA id the branch is named after. */
+  finding_id?: string;
+  /** A publish-gate preview (.dispatches/<id>/preview.json) exists. */
+  has_preview?: boolean;
+  /** When the user published the preview as a PR. */
+  published_at?: string;
 };
 
 // In-memory registry. Surviving logs are reconstructed from disk on read.
@@ -375,6 +383,12 @@ export function cancelDispatch(
   return { ok: false, message: `No running process found for dispatch ${id}` };
 }
 
+/** Drop a finished run's in-memory record so its sidecar, which the publish
+ *  gate updates later, is what lists and detail views show. */
+export function forgetFinished(id: string): void {
+  if (registry.get(id)?.status !== "running") registry.delete(id);
+}
+
 export function listDispatches(viewerId: string | null, limit = Number.POSITIVE_INFINITY): Dispatch[] {
   const cappedLimit = Number.isFinite(limit) ? Math.max(0, Math.trunc(limit)) : Number.POSITIVE_INFINITY;
   if (cappedLimit === 0) return [];
@@ -419,6 +433,12 @@ export function getDispatch(id: string, viewerId: string | null): Dispatch | und
 
   const found = ((): Dispatch | undefined => {
     const fromRegistry = registry.get(id);
+    // A finished run's sidecar is newer than its registry entry: the
+    // publish gate updates the sidecar (pr_status, pr_url) after the fact.
+    if (fromRegistry && fromRegistry.status !== "running") {
+      const finished = readSidecar(id);
+      if (finished && completeDispatch(finished) && finished.pr_status) return finished;
+    }
     if (fromRegistry) {
       return fromRegistry.pr_status ? fromRegistry : enrichWithPrStatus(fromRegistry);
     }

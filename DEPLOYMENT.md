@@ -129,6 +129,18 @@ without the web server's secrets or filesystem. Such runs must remain unverified
 in the UI. The current container is suitable for controlled staging, not an
 unrestricted public multi-tenant execution service.
 
+Agentic runs can instead execute in an **exec box** (`OPENSRCER_EXEC`, default
+`auto`): a throwaway Docker container from `opensrcer-exec:2` (build it once with
+`docker build -t opensrcer-exec:2 -f scripts/exec-image.Dockerfile scripts`), non-root,
+no capabilities, loopback-only port, no host mounts besides the read-only
+`scripts/exec-server.cjs`, and no credential in its environment. The agent edits
+files and runs the repository's own tests there; the host re-runs the declared
+checks on the final patch before a run can be published. Without a Docker daemon,
+`auto` logs that the run is unverified and uses the text-diff path; `host` is an
+explicit single-user opt-in that is not an isolation boundary. Runs never publish
+on their own: a run ends at a preview, and the owner publishes it from the run
+page after confirming. Knobs are listed in `lib/limits.ts`.
+
 ## Repeatable checks
 
 ```sh

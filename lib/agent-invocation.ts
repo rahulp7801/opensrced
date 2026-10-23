@@ -21,7 +21,9 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { childEnv } from "./child-env";
-import { ALLOWED_TOOLS, READ_ONLY_CLAUDE_ARGS } from "./claude-tools";
+import { ALLOWED_TOOLS, isolationArgs } from "./claude-tools";
+import { CLAUDE_AGENT_MODEL } from "./models";
+import { cloudExecution } from "./cloud-run-state";
 
 export const AGENT_PROVIDERS = ["claude-subscription", "codex-subscription", "anthropic-key"] as const;
 export type AgentProvider = (typeof AGENT_PROVIDERS)[number];
@@ -74,10 +76,21 @@ export type AgentInvocation = {
   output: "claude-stream-json" | "codex-jsonl";
   /** Remove the per-run directory. Safe to call more than once. */
   cleanup: () => void;
+  /** A scripted stand-in replaces the model (tests/ops only); its output is never publishable. */
+  standIn: boolean;
 };
 
-/** The provider needs something the caller did not supply. */
-export class AgentInvocationError extends Error {}
+/** The provider needs something the caller did not supply. A RangeError, as
+ *  the contrib branch's callers expect for invalid invocation inputs. */
+export class AgentInvocationError extends RangeError {}
+
+/** The stand-in agent override was set where it must never run. */
+export class StandInAgentError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StandInAgentError";
+  }
+}
 
 // Variables that would make the Claude CLI authenticate with something other
 // than the credential this run is meant to use. Precedence puts every one of
@@ -132,10 +145,14 @@ export function buildAgentInvocation(input: AgentInvocationInput): AgentInvocati
   const anthropicKey = input.anthropicKey ?? input.inject?.ANTHROPIC_API_KEY;
   const provider: AgentProvider = input.provider ?? (anthropicKey ? "anthropic-key" : "claude-subscription");
   if (!AGENT_PROVIDERS.includes(provider)) throw new AgentInvocationError(`Unknown provider: ${String(provider)}`);
-  if (provider === "anthropic-key" && !anthropicKey) throw new AgentInvocationError("An Anthropic API key is required for an API-key run.");
+  if (provider === "anthropic-key" && !anthropicKey) throw new AgentInvocationError("An API-key run needs the user's key (anthropicKey or ANTHROPIC_API_KEY).");
   if (input.budgetUsd !== undefined && (!Number.isFinite(input.budgetUsd) || input.budgetUsd <= 0)) throw new RangeError("budgetUsd must be a positive number");
   if (input.maxTurns !== undefined && (!Number.isSafeInteger(input.maxTurns) || input.maxTurns < 1)) throw new RangeError("maxTurns must be a positive integer");
   if (provider === "claude-subscription" && input.maxTurns === undefined) throw new AgentInvocationError("A subscription run needs a turn cap (maxTurns).");
+  const standIn = provider !== "codex-subscription" && Boolean(process.env.OPENSRCER_AGENT_BIN);
+  if (standIn && (process.env.NODE_ENV === "production" || cloudExecution())) {
+    throw new StandInAgentError("OPENSRCER_AGENT_BIN (the scripted stand-in agent) is set in a production or hosted deployment; unset it.");
+  }
   const tools = input.tools ?? ALLOWED_TOOLS;
   const servers = resolveMcpServers(input.mcpConfig);
 
@@ -169,10 +186,9 @@ export function buildAgentInvocation(input: AgentInvocationInput): AgentInvocati
     });
     for (const key of CLAUDE_CREDENTIAL_VARS) if (!(key === "ANTHROPIC_API_KEY" && !subscription)) delete env[key];
 
-    // READ_ONLY_CLAUDE_ARGS with this run's tool list; --bare only with a key.
-    const isolation = READ_ONLY_CLAUDE_ARGS
-      .filter((arg) => !(subscription && arg === "--bare"))
-      .map((arg, i, all) => (all[i - 1] === "--allowed-tools" ? tools.join(",") : arg));
+    // --bare skips OAuth/keychain auth, so only API-key runs use it. The
+    // isolation flags hold either way.
+    const isolation = [...(subscription ? [] : ["--bare"]), ...isolationArgs(tools)];
     // A plan run has no per-token cost, so only turns (and the caller's wall
     // clock) cap it; a key run keeps its dollar cap and gets the turn twin.
     const caps: Array<[string, string]> = [
@@ -188,14 +204,18 @@ export function buildAgentInvocation(input: AgentInvocationInput): AgentInvocati
       "--no-session-persistence",
       "--output-format", "stream-json",
       "--verbose",
-      ...(input.model ? ["--model", input.model] : []),
+      "--model", input.model ?? CLAUDE_AGENT_MODEL,
       ...caps.flat(),
     ];
+    // OPENSRCER_AGENT_BIN/_ARGS: operator-only override for end-to-end checks
+    // with a scripted stand-in (scripts/smoke-exec-agent.mjs). Refused in
+    // production and hosted mode above, never silently ignored.
+    const pre = standIn ? (process.env.OPENSRCER_AGENT_ARGS ?? "").split(/\s+/).filter(Boolean) : [];
     return {
-      provider, bin: process.env.CLAUDE_BIN || "claude", args, env, cwd,
+      provider, bin: standIn ? process.env.OPENSRCER_AGENT_BIN! : process.env.CLAUDE_BIN || "claude", args: [...pre, ...args], env, cwd,
       capMode: subscription ? "turns" : "budget",
       capLabel: caps.map(([flag, value]) => `${flag}=${value}`).join(" ") || "wall-clock timeout only",
-      output: "claude-stream-json", cleanup,
+      output: "claude-stream-json", cleanup, standIn,
     };
   } catch (error) {
     cleanup();
@@ -248,12 +268,14 @@ function codexInvocation(
     // Claude's --allowed-tools. Without it a run gets no repo access at all.
     "-c", `${prefix}.default_tools_approval_mode=${toml("approve")}`,
     "-c", `${prefix}.startup_timeout_sec=120`,
+    // Exec-box commands (installs, test runs) outlast the default tool timeout.
+    ...(inject.MCP_TOOL_TIMEOUT ? ["-c", `${prefix}.tool_timeout_sec=${Math.ceil(Number(inject.MCP_TOOL_TIMEOUT) / 1000)}`] : []),
     ...(input.model ? ["--model", input.model] : []),
     input.prompt,
   ];
   return {
     provider: "codex-subscription", bin: process.env.OPENSRCER_CODEX_BIN || "codex", args, env, cwd,
     // Codex has no turn or spend flag; the caller's wall-clock timeout is the cap.
-    capMode: "timeout", capLabel: "wall-clock timeout only", output: "codex-jsonl", cleanup,
+    capMode: "timeout", capLabel: "wall-clock timeout only", output: "codex-jsonl", cleanup, standIn: false,
   };
 }

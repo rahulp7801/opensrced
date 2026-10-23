@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { childEnv } from "./child-env";
 import { gitAuthArgs } from "./git-auth";
+import { graphLimits } from "./limits";
 import type { GraphData, GraphEdge, GraphNode } from "./graph";
 
 const exec = promisify(execFile);
@@ -127,7 +128,7 @@ export async function buildGraphWorker(repo: string, token: string | null, signa
     progress("Parsing source and building graph...");
     // Isolated Python import mode prevents a repository's graphify.py from
     // shadowing the installed package. No provider or GitHub key enters Python.
-    await exec(process.env.OPENSRCER_GRAPH_PYTHON || "python", ["-I", "-m", "graphify", "update", "."], { cwd: source, env, signal, timeout: 240_000, maxBuffer: 1_000_000, windowsHide: true });
+    await exec(process.env.OPENSRCER_GRAPH_PYTHON || "python", ["-I", "-m", "graphify", "update", "."], { cwd: source, env, signal, timeout: graphLimits().timeoutMs, maxBuffer: 1_000_000, windowsHide: true });
     const jsonPath = join(output, "graph.json");
     const htmlPath = join(output, "graph.html");
     const graph = compactGraph(JSON.parse(await readLimited(jsonPath, RAW_GRAPH_MAX_BYTES)) as GraphData);

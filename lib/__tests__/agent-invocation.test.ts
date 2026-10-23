@@ -1,10 +1,11 @@
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AgentInvocationError, buildAgentInvocation, resolveMcpServers, type AgentInvocationInput } from "../agent-invocation";
-import { ALLOWED_TOOLS } from "../claude-tools";
+import { AgentInvocationError, buildAgentInvocation, resolveMcpServers, StandInAgentError, type AgentInvocationInput } from "../agent-invocation";
+import { ALLOWED_TOOLS, EXEC_TOOLS } from "../claude-tools";
+import { CLAUDE_AGENT_MODEL } from "../models";
 
 function withConfig(run: (config: string) => void) {
   const dir = mkdtempSync(join(tmpdir(), "opensrcer-invocation-test-"));
@@ -180,4 +181,102 @@ test("invalid inputs fail with a named error", () => {
     assert.throws(() => buildAgentInvocation(input(config, { provider: "codex-subscription" })), AgentInvocationError);
     assert.throws(() => resolveMcpServers(join(dir, "missing.json")));
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+// ── Tests from the contrib-engine branch (merged). They share one real MCP
+// config, since the builder resolves it, and clean up every run directory.
+const CONFIG_DIR = mkdtempSync(join(tmpdir(), "opensrcer-invocation-test-"));
+const CONFIG = join(CONFIG_DIR, ".mcp.json");
+writeFileSync(CONFIG, JSON.stringify({ mcpServers: { "opensrcer-repo-tools": { command: "node", args: ["./mcp-server/dist/server.js"] } } }));
+const made: Array<{ cleanup: () => void }> = [];
+const build = (input: AgentInvocationInput) => { const run = buildAgentInvocation(input); made.push(run); return run; };
+after(() => {
+  for (const run of made) run.cleanup();
+  rmSync(CONFIG_DIR, { recursive: true, force: true });
+});
+const flag = (args: string[], name: string) => args[args.indexOf(name) + 1];
+
+
+test("isolation flags hold for key runs (--bare) and subscription runs (no --bare)", () => {
+  const key = build({ prompt: "p", mcpConfig: CONFIG, maxTurns: 5, budgetUsd: 2, inject: { ANTHROPIC_API_KEY: "sk-ant-test" } });
+  const plan = build({ prompt: "p", mcpConfig: CONFIG, maxTurns: 5, budgetUsd: 2 });
+  assert.equal(key.provider, "anthropic-key");
+  assert.equal(plan.provider, "claude-subscription");
+  assert.ok(key.args.includes("--bare"));
+  assert.ok(!plan.args.includes("--bare"), "--bare would ignore the subscription login");
+  assert.ok(plan.args.includes("--disable-slash-commands"));
+  for (const { bin, args } of [key, plan]) {
+    assert.equal(bin, "claude");
+    assert.equal(flag(args, "--setting-sources"), "");
+    assert.equal(flag(args, "--tools"), "");
+    assert.ok(args.includes("--strict-mcp-config"));
+    assert.equal(flag(args, "--allowed-tools"), ALLOWED_TOOLS.join(","));
+    assert.equal(flag(args, "--model"), CLAUDE_AGENT_MODEL);
+    assert.equal(flag(args, "--max-turns"), "5");
+  }
+  assert.equal(key.env.ANTHROPIC_API_KEY, "sk-ant-test");
+  // Regression: a non-blocking MCP connect left real runs with zero tools.
+  for (const { env } of [key, plan]) assert.equal(env.MCP_CONNECTION_NONBLOCKING, "0");
+  assert.equal(flag(key.args, "--max-budget-usd"), "2");
+  assert.ok(!plan.args.includes("--max-budget-usd"), "a plan run has no per-token cost to cap");
+  assert.equal(plan.capLabel, "--max-turns=5");
+});
+
+test("subscription runs never carry a credential and always carry a turn cap", () => {
+  const saved = process.env.ANTHROPIC_AUTH_TOKEN;
+  try {
+    const plan = build({ provider: "claude-subscription", prompt: "p", mcpConfig: CONFIG, maxTurns: 60, inject: { ANTHROPIC_API_KEY: "sk-ant-x", ANTHROPIC_AUTH_TOKEN: "tok" } });
+    assert.equal(plan.env.ANTHROPIC_API_KEY, undefined);
+    assert.equal(plan.env.ANTHROPIC_AUTH_TOKEN, undefined);
+  } finally {
+    if (saved !== undefined) process.env.ANTHROPIC_AUTH_TOKEN = saved;
+  }
+  assert.throws(() => build({ provider: "claude-subscription", prompt: "p", mcpConfig: CONFIG }), /turn cap/);
+  assert.throws(() => build({ provider: "anthropic-key", prompt: "p", mcpConfig: CONFIG, maxTurns: 1 }), /ANTHROPIC_API_KEY/);
+});
+
+test("caps and tools are validated", () => {
+  const { args } = build({ prompt: "p", mcpConfig: CONFIG, tools: [...ALLOWED_TOOLS, ...EXEC_TOOLS], maxTurns: 80, inject: { ANTHROPIC_API_KEY: "k" } });
+  assert.match(flag(args, "--allowed-tools"), /run_command/);
+  assert.throws(() => build({ prompt: "p", mcpConfig: CONFIG, budgetUsd: 0, maxTurns: 1 }), RangeError);
+  assert.throws(() => build({ prompt: "p", mcpConfig: CONFIG, maxTurns: 1.5 }), RangeError);
+});
+
+test("the stand-in agent is refused in production and hosted mode, and flagged otherwise", () => {
+  const keys = ["OPENSRCER_AGENT_BIN", "OPENSRCER_AGENT_ARGS", "NODE_ENV", "VERCEL", "OPENSRCER_EXECUTION"] as const;
+  const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  const env = process.env as Record<string, string | undefined>;
+  const reset = () => { for (const k of keys) { if (saved[k] === undefined) delete env[k]; else env[k] = saved[k]; } };
+  try {
+    for (const k of keys) delete env[k];
+    env.OPENSRCER_AGENT_BIN = "/usr/bin/node";
+    env.OPENSRCER_AGENT_ARGS = "scripts/smoke-exec-agent.mjs";
+    const inv = build({ prompt: "p", mcpConfig: CONFIG, maxTurns: 1 });
+    assert.equal(inv.standIn, true);
+    assert.equal(inv.bin, "/usr/bin/node");
+    assert.equal(inv.args[0], "scripts/smoke-exec-agent.mjs");
+    env.NODE_ENV = "production";
+    assert.throws(() => build({ prompt: "p", mcpConfig: CONFIG, maxTurns: 1 }), StandInAgentError);
+    delete env.NODE_ENV;
+    env.VERCEL = "1";
+    assert.throws(() => build({ prompt: "p", mcpConfig: CONFIG, maxTurns: 1 }), StandInAgentError);
+    delete env.VERCEL;
+    delete env.OPENSRCER_AGENT_BIN;
+    assert.equal(build({ prompt: "p", mcpConfig: CONFIG, maxTurns: 1 }).standIn, false);
+  } finally {
+    reset();
+  }
+});
+
+test("the child env is an allowlist plus explicit injections", () => {
+  const saved = process.env.AUTH0_SECRET;
+  process.env.AUTH0_SECRET = "must-not-leak";
+  try {
+    const { env } = build({ prompt: "p", mcpConfig: CONFIG, maxTurns: 1, inject: { GITHUB_TOKEN: "t", OPENSRCER_EXEC_URL: undefined } });
+    assert.equal(env.AUTH0_SECRET, undefined);
+    assert.equal(env.GITHUB_TOKEN, "t");
+    assert.ok(!("OPENSRCER_EXEC_URL" in env));
+  } finally {
+    if (saved === undefined) delete process.env.AUTH0_SECRET; else process.env.AUTH0_SECRET = saved;
+  }
 });

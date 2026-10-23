@@ -40,6 +40,8 @@ type Scan = {
   repo: string;
   total: number;
   solvable: number;
+  /** The project's stance on AI contributions (lib/contrib-guard.ts). */
+  policy?: { ai: "ban" | "disclose" | "unknown"; source: string | null; excerpt: string | null; discussFirst: string | null } | null;
   issues: Issue[];
 };
 
@@ -253,6 +255,19 @@ export function IssueScanner() {
                     <span className="font-medium text-paper">{scan.total}</span> open issue{scan.total === 1 ? "" : "s"};{" "}
                     <span className="font-medium text-signal">{scan.solvable}</span> ready for an automated attempt.
                   </p>
+                  {scan.policy?.ai === "ban" && (
+                    <p role="alert" className="mt-2 max-w-2xl text-sm text-alert">
+                      This project does not accept AI-generated contributions ({scan.policy.source}). Previews still work; publishing is refused.
+                    </p>
+                  )}
+                  {scan.policy?.ai === "disclose" && (
+                    <p className="mt-2 max-w-2xl text-xs text-paper-muted">
+                      This project asks contributors to disclose AI assistance ({scan.policy.source}); opensrcer adds that note to every PR.
+                    </p>
+                  )}
+                  {scan.policy?.discussFirst && (
+                    <p className="mt-1 max-w-2xl text-xs text-paper-muted">Maintainers ask for discussion first: {scan.policy.discussFirst}.</p>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
                   <FilterGroup label="Readiness">

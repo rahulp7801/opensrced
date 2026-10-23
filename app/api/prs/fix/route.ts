@@ -13,10 +13,10 @@ import { resolveRunPayment } from "@/lib/api-keys";
 import { NoRunCredentialError, type RunPayment } from "@/lib/run-payment";
 import { buildAgentInvocation, type AgentInvocation } from "@/lib/agent-invocation";
 import { READ_ONLY_CLAUDE_ARGS } from "@/lib/claude-tools";
+import { CLAUDE_AGENT_MODEL } from "@/lib/models";
 import { sanitizeForPrompt, sanitizeRepoId, sanitizeFilePath, sanitizeBranchName, sanitizePrNumber } from "@/lib/sanitize";
 import { acquireSlot, releaseSlot, activeSlots } from "@/lib/concurrency";
 import { sessionUserId } from "@/lib/require-session";
-import { CLAUDE_AGENT_MODEL } from "@/lib/models";
 
 
 import { githubApi, githubText } from "@/lib/github-api";
@@ -208,24 +208,18 @@ CONSTRAINTS — these are hard rules, not suggestions:
 - If the fix requires more than ~15 lines of change, explain why before proceeding
 - If you're unsure what the reviewer wants, say so instead of guessing`;
 
-  const args = [
-    "-p",
-    prompt,
-    "--mcp-config",
-    cloudExecution() ? "/vercel/sandbox/.mcp.json" : MCP_CONFIG,
-    ...READ_ONLY_CLAUDE_ARGS,
-    "--no-session-persistence",
-    "--output-format",
-    "stream-json",
-    "--verbose",
-    "--model",
-    CLAUDE_AGENT_MODEL,
-    "--max-budget-usd",
-    String(Math.min(body.budget ?? 0.25, 1)),
-  ];
+  const budgetUsd = Math.min(body.budget ?? 0.25, 1);
+  const maxTurns = 30;
 
   if (cloudExecution()) {
     releaseSlot("fix");
+    // The VM runs its own CLI against its own MCP config (API key only), so
+    // its arguments are built here rather than by buildAgentInvocation.
+    const args = [
+      "-p", prompt, "--mcp-config", "/vercel/sandbox/.mcp.json", ...READ_ONLY_CLAUDE_ARGS,
+      "--no-session-persistence", "--output-format", "stream-json", "--verbose",
+      "--model", CLAUDE_AGENT_MODEL, "--max-budget-usd", String(budgetUsd), "--max-turns", String(maxTurns),
+    ];
     return cloudExplore(args, { OPENSRCER_ALLOWED_REPO: sourceRepo, OPENSRCER_REPO_REF: head.sha, ANTHROPIC_API_KEY: apiKey!, ...(ghToken ? { GITHUB_TOKEN: ghToken } : {}) }, signal, userId);
   }
 
@@ -237,9 +231,7 @@ CONSTRAINTS — these are hard rules, not suggestions:
       provider: payment.provider, prompt, mcpConfig: MCP_CONFIG,
       inject: { OPENSRCER_ALLOWED_REPO: sourceRepo, OPENSRCER_REPO_REF: head.sha, GITHUB_TOKEN: ghToken ?? undefined },
       anthropicKey: apiKey, model: payment.provider === "codex-subscription" ? undefined : CLAUDE_AGENT_MODEL,
-      budgetUsd: Math.min(body.budget ?? 0.25, 1),
-      // ponytail: fixed step cap for a small review fix; make it a knob if fixes get cut off.
-      maxTurns: 20,
+      budgetUsd, maxTurns,
     });
   } catch (error) {
     releaseSlot("fix");

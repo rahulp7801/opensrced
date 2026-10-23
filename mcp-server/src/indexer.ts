@@ -221,7 +221,8 @@ function pickLang(file: string): LangConfig | undefined {
 
 async function listTrackedFiles(repoDir: string): Promise<string[]> {
   const { stdout } = await execFileAsync("git", ["-C", repoDir, "ls-files"], {
-    maxBuffer: 50 * 1024 * 1024, timeout: 30_000, windowsHide: true,
+    // OPENSRCER_INDEX_TIMEOUT_MS (default 120 s; was 30 s, short for pytorch).
+    maxBuffer: 50 * 1024 * 1024, timeout: Number(process.env.OPENSRCER_INDEX_TIMEOUT_MS) > 0 ? Number(process.env.OPENSRCER_INDEX_TIMEOUT_MS) : 120_000, windowsHide: true,
   });
   return stdout.split("\n").filter(Boolean);
 }

@@ -105,6 +105,28 @@ test("label keywords match whole words, not substrings", async (t) => {
   assert.equal(byNumber.get(6)?.category, "docs");
 });
 
+test("authenticated scans count open PRs targeting each issue and stop offering those", async (t) => {
+  const node = (number: number, refs: Array<{ number: number; state: string } | Record<string, never>>) => ({
+    number, title: "Crash when parsing empty input", body: "Steps: call parse('') and it throws a TypeError at src/parse.ts:12. Expected an empty result.".repeat(2),
+    state: "OPEN", url: `https://github.com/acme/app/issues/${number}`, createdAt: "2026-10-01", updatedAt: "2026-10-01", author: { login: "alice" },
+    labels: { nodes: [{ name: "bug" }] }, assignees: { nodes: [] }, comments: { totalCount: 0, nodes: [] },
+    timelineItems: { nodes: refs.map((source) => ({ source })) },
+  });
+  t.mock.method(globalThis, "fetch", async (_url: string, options: RequestInit) => {
+    assert.match(JSON.parse(String(options.body)).query, /CROSS_REFERENCED_EVENT/);
+    return Response.json({ data: { repository: { issues: { nodes: [
+      node(1, [{ number: 10, state: "OPEN" }, { number: 11, state: "OPEN" }, { number: 10, state: "OPEN" }, { number: 12, state: "MERGED" }]),
+      node(2, [{ number: 13, state: "CLOSED" }, {}]),
+    ] } } } });
+  });
+  const byNumber = new Map((await listIssues("acme", "app", 50, [], "test-user-token")).map(i => [i.number, i]));
+  assert.equal(byNumber.get(1)?.open_prs, 2);
+  assert.equal(byNumber.get(1)?.solvable, false);
+  assert.match(byNumber.get(1)!.reason, /^2 open PRs already target this issue/);
+  assert.equal(byNumber.get(2)?.open_prs, 0);
+  assert.equal(byNumber.get(2)?.solvable, true);
+});
+
 test("anonymous issue scans are not starved by PRs on the same page", async (t) => {
   const base = { title: "Fix typo", body: "", labels: [], state: "open", user: { login: "alice" },
     html_url: "https://github.com/acme/app/issues/1", created_at: "2026-09-01", updated_at: "2026-09-01", assignees: [], comments: 0 };

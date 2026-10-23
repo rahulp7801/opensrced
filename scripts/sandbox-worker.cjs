@@ -16,14 +16,17 @@ function claudeAuth(args, env) {
   return new Promise(resolve => execFile('claude', ['auth', ...args], { env, timeout: 30000 },
     (error, stdout) => resolve({ code: error ? (typeof error.code === 'number' ? error.code : -1) : 0, out: String(stdout) })));
 }
+const { readPreview } = require('../.worker-build/lib/pr-preview');
 
 async function main() {
-  const { run, path, summaryPath, opts, finding } = JSON.parse(process.env.OPENSRCER_JOB);
+  const { run, path, summaryPath, previewPath, opts, finding } = JSON.parse(process.env.OPENSRCER_JOB);
   const uploadToken = process.env.OPENSRCER_UPLOAD_TOKEN;
   const summaryUploadToken = process.env.OPENSRCER_SUMMARY_UPLOAD_TOKEN;
+  const previewUploadToken = process.env.OPENSRCER_PREVIEW_UPLOAD_TOKEN;
   delete process.env.OPENSRCER_JOB;
   delete process.env.OPENSRCER_UPLOAD_TOKEN;
   delete process.env.OPENSRCER_SUMMARY_UPLOAD_TOKEN;
+  delete process.env.OPENSRCER_PREVIEW_UPLOAD_TOKEN;
   let previous = '';
   let previousSummary = '';
   let lastRecord = run;
@@ -82,6 +85,15 @@ async function main() {
       const log = readLogTail(dispatch.id);
       const update = { ...run, ...record, id: run.id, log_path: '', log: log.chunk, log_size: log.size, sign_in: lastRecord.sign_in,
         stats: dispatchStatsFromLog(log.chunk, lastRecord.stats) };
+      if (record.status !== 'running' && record.has_preview && previewPath && previewUploadToken) {
+        // The publish gate's frozen preview, uploaded before the final record
+        // so the run page never shows "ready for review" without it.
+        const stored = await readPreview(require('node:path').join(process.cwd(), '.dispatches', dispatch.id));
+        if (stored) {
+          await put(previewPath, JSON.stringify({ ...stored.preview, diff: stored.diff }), { access: 'private', token: previewUploadToken,
+            contentType: 'application/json', abortSignal: AbortSignal.timeout(15000) });
+        }
+      }
       await publish(update);
       if (record.status !== 'running' && record.pr_status !== 'pending') return;
     }

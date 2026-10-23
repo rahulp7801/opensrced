@@ -10,7 +10,9 @@
     "lib/pr-push.ts",
     "lib/graph-worker.ts",
     "lib/hosted-sign-in.ts",
-    "lib/run-payment.ts"
+    "lib/run-payment.ts",
+    "lib/pr-lifecycle.ts",
+    "lib/publish.ts"
   ],
   "exclude": [
     "node_modules",

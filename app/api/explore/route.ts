@@ -14,10 +14,10 @@ import { resolveGitHubToken } from "@/lib/github-token";
 import { auth0 } from "@/lib/auth0";
 import { mappingForRequest, resolveGithubTokenForRequest } from "@/lib/crucible/tokens";
 import { reserveSlot } from "@/lib/concurrency";
-import { CLAUDE_AGENT_MODEL } from "@/lib/models";
 import { requireSession, sessionUserId } from "@/lib/require-session";
 import { sanitizeForPrompt } from "@/lib/sanitize";
 import { READ_ONLY_CLAUDE_ARGS } from "@/lib/claude-tools";
+import { CLAUDE_AGENT_MODEL } from "@/lib/models";
 
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { cloudExplore } from "@/lib/cloud-explore";
@@ -99,22 +99,6 @@ export async function POST(req: NextRequest) {
   const prompt = buildExplorePrompt(repoFull, body.query);
 
   // The same restricted tool configuration is used by every agent entry point.
-  const args = [
-    "-p",
-    prompt,
-    "--mcp-config",
-    cloudExecution() ? "/vercel/sandbox/.mcp.json" : MCP_CONFIG,
-    ...READ_ONLY_CLAUDE_ARGS,
-    "--no-session-persistence",
-    "--output-format",
-    "stream-json",
-    "--verbose",
-    "--model",
-    CLAUDE_AGENT_MODEL,
-    "--max-budget-usd",
-    String(Math.min(Math.max(body.budget ?? 0.15, 0.01), 2)),
-  ];
-
   // Private repo support — use installation token if org is specified.
   let githubToken: string | undefined;
   if (body.github_org) {
@@ -135,9 +119,20 @@ export async function POST(req: NextRequest) {
     githubToken = (await resolveGitHubToken()) ?? undefined;
   }
 
+  const budgetUsd = Math.min(Math.max(body.budget ?? 0.15, 0.01), 2);
+  const maxTurns = 30;
+
   if (cloudExecution()) {
     const owner = await sessionUserId();
     if (!owner) return Response.json({ error: "Not authenticated" }, { status: 401 });
+    // The VM runs its own CLI against its own MCP config, so its arguments are
+    // built here rather than by buildAgentInvocation (which resolves a local
+    // config file). Hosted exploration is API-key only.
+    const args = [
+      "-p", prompt, "--mcp-config", "/vercel/sandbox/.mcp.json", ...READ_ONLY_CLAUDE_ARGS,
+      "--no-session-persistence", "--output-format", "stream-json", "--verbose",
+      "--model", CLAUDE_AGENT_MODEL, "--max-budget-usd", String(budgetUsd), "--max-turns", String(maxTurns),
+    ];
     return cloudExplore(args, {
       OPENSRCER_ALLOWED_REPO: repoFull,
       ANTHROPIC_API_KEY: anthropicKey!,
@@ -157,9 +152,7 @@ export async function POST(req: NextRequest) {
       provider: payment.provider, prompt, mcpConfig: MCP_CONFIG,
       inject: { OPENSRCER_ALLOWED_REPO: repoFull, GITHUB_TOKEN: githubToken },
       anthropicKey, model: payment.provider === "codex-subscription" ? undefined : CLAUDE_AGENT_MODEL,
-      budgetUsd: Math.min(Math.max(body.budget ?? 0.15, 0.01), 2),
-      // ponytail: fixed step cap for read-only Q&A; make it a knob if answers get cut off.
-      maxTurns: 15,
+      budgetUsd, maxTurns,
     });
   } catch (error) {
     release();

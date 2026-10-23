@@ -9,8 +9,9 @@ import { pollJson } from "@/lib/poll-json";
 import { cn, formatRelative } from "@/lib/utils";
 import { extractFirstDiff, parseSplitHunks, type DiffRow } from "@/lib/diff-view";
 import { findGitHubPullUrl } from "@/lib/github-pull-url";
+import { PublishPanel } from "./publish-panel";
 
-type PrStatus = "opened" | "failed" | "pending" | "tests_passed" | "tests_failed" | "none";
+type PrStatus = "opened" | "failed" | "pending" | "tests_passed" | "tests_failed" | "awaiting_review" | "blocked" | "none";
 
 type Dispatch = {
   id: string;
@@ -31,6 +32,8 @@ type Dispatch = {
   tests?: "passed" | "failed" | "skipped" | "not_run";
   /** Hosted subscription runs: the Claude sign-in this run is waiting on. */
   sign_in?: { url: string; status: "waiting" | "signed_in" | "failed" };
+  /** A frozen publish-gate preview exists for this run. */
+  has_preview?: boolean;
 };
 
 type DispatchWithLog = Dispatch & { log: string };
@@ -408,7 +411,7 @@ export function DispatchList() {
                 </div>
                 <div className="flex items-center gap-2">
                   <StatusChip tone={detail.status === "running" ? "signal" : detail.pr_status === "opened" ? "ok" : (detail.pr_status === "failed" || detail.pr_status === "tests_failed") ? "alert" : toneFor(detail.status)}>
-                    {detail.status === "running" ? "live" : detail.pr_status === "opened" ? "PR opened" : detail.pr_status === "tests_failed" ? "tests failed" : detail.status}
+                    {detail.status === "running" ? "live" : detail.pr_status === "opened" ? "PR opened" : detail.pr_status === "tests_failed" ? "tests failed" : detail.pr_status === "awaiting_review" ? "ready for review" : detail.pr_status === "blocked" ? "blocked" : detail.status}
                   </StatusChip>
                   {detail.status === "running" && <CancelButton dispatchId={detail.id} />}
                   <RetryButton dispatch={detail} />
@@ -431,9 +434,14 @@ export function DispatchList() {
             {/* Failure banner (compact) */}
             {(detail.pr_status === "failed" || detail.pr_status === "tests_failed") && (
               <div className="border-b border-alert/40 bg-alert/5 px-4 py-2.5 text-[12px] text-alert">
-                {detail.pr_status === "tests_failed" ? "Tests failed — PR not opened" : "Auto-PR failed"}
+                {detail.pr_status === "tests_failed" ? "Tests failed — PR not opened" : "Publishing failed"}
                 {detail.pr_failure_reason && <span className="text-paper-muted ml-2">— {detail.pr_failure_reason.slice(0, 120)}</span>}
               </div>
+            )}
+
+            {/* Publish gate: review the frozen preview, confirm, then publish. */}
+            {detail.status !== "running" && detail.has_preview && !prInfo && (
+              <PublishPanel dispatchId={detail.id} />
             )}
 
             {/* PR banner */}

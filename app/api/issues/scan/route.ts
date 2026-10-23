@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listIssues } from "@/lib/issues";
+import { fetchRepoPolicy } from "@/lib/contrib-guard";
 import { recordScan } from "@/lib/stats";
 import { sessionUserId } from "@/lib/require-session";
 import { resolveGitHubToken } from "@/lib/github-token";
@@ -46,13 +47,18 @@ export async function GET(req: NextRequest) {
     // Scan as the requesting user. Without a token this still works against
     // public repos, just at the unauthenticated rate limit.
     const token = await resolveGitHubToken();
-    const issues = await listIssues(parsed.owner, parsed.repo, 50, beginnerLabels, token, req.signal);
+    const [issues, policy] = await Promise.all([
+      listIssues(parsed.owner, parsed.repo, 50, beginnerLabels, token, req.signal),
+      // The project's stance on AI contributions; advisory, so a failed read is just "unknown".
+      token ? fetchRepoPolicy(parsed.owner, parsed.repo, token, req.signal).catch(() => null) : Promise.resolve(null),
+    ]);
     // Fire-and-forget stats bump — failure here must not break the scan.
     await recordScan(`${parsed.owner}/${parsed.repo}`, owner).catch(() => {});
     return NextResponse.json({
       repo: `${parsed.owner}/${parsed.repo}`,
       total: issues.length,
       solvable: issues.filter((i) => i.solvable).length,
+      policy,
       issues,
     });
   } catch (err) {

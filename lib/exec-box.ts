@@ -79,12 +79,15 @@ function dockerEnv(): NodeJS.ProcessEnv {
 
 /** Docker run arguments for one box. Exported for tests: the isolation
  *  flags are the security property, so they are asserted, not assumed. */
-export function dockerRunArgs(name: string, token: string, script = EXEC_SERVER_SCRIPT, cacheVolume?: string): string[] {
+export function dockerRunArgs(name: string, token: string, script = EXEC_SERVER_SCRIPT, cacheVolume?: string, envVolume?: string): string[] {
   const limits = execLimits();
   // Package caches (uv, pip, yarn) survive between runs of the SAME repository
   // only: a repository's code can write into its cache, so sharing one cache
-  // across repositories would let one poison another's installs.
+  // across repositories would let one poison another's installs. The env
+  // volume holds the installed environment (a venv) for one repository and
+  // one lockfile hash, so a later run of the same revision starts warm.
   const cache = cacheVolume && /^opensrcer-cache-[a-z0-9_.-]{1,180}$/.test(cacheVolume) ? ["-v", `${cacheVolume}:/home/node/.cache`] : [];
+  const env = envVolume && /^opensrcer-env-[a-z0-9_.-]{1,180}$/.test(envVolume) ? ["-v", `${envVolume}:/home/node/env`] : [];
   return [
     "run", "-d", "--rm", "--name", name,
     "--init",
@@ -101,8 +104,10 @@ export function dockerRunArgs(name: string, token: string, script = EXEC_SERVER_
     "-e", `EXEC_TOTAL_MS=${limits.totalMs}`,
     "-e", `EXEC_OUTPUT_BYTES=${limits.outputBytes}`,
     "-e", `EXEC_MAX_LIFETIME_MS=${limits.maxLifetimeMs}`,
+    "-e", `EXEC_SETUP_MS=${limits.setupMs}`,
     "-v", `${script}:/opt/opensrcer/exec-server.cjs:ro`,
     ...cache,
+    ...env,
     limits.image,
     "node", "/opt/opensrcer/exec-server.cjs",
   ];
@@ -110,7 +115,7 @@ export function dockerRunArgs(name: string, token: string, script = EXEC_SERVER_
 
 /** Start a box for one dispatch. `workDir` is the dispatch's scratch dir
  *  (host backend only). Throws ExecBoxError when the box cannot start. */
-export async function startExecBox(mode: Exclude<ExecMode, "off">, dispatchId: string, workDir: string, repoFull?: string): Promise<ExecBox> {
+export async function startExecBox(mode: Exclude<ExecMode, "off">, dispatchId: string, workDir: string, repoFull?: string, envKey?: string): Promise<ExecBox> {
   if (mode === "remote") {
     const url = process.env.OPENSRCER_EXEC_URL!, token = process.env.OPENSRCER_EXEC_TOKEN!;
     // The worker removes these from its own env once read, so the agent's
@@ -123,7 +128,8 @@ export async function startExecBox(mode: Exclude<ExecMode, "off">, dispatchId: s
     const env = dockerEnv();
     try {
       const cache = repoFull && process.env.OPENSRCER_EXEC_CACHE !== "0" ? `opensrcer-cache-${repoFull.toLowerCase().replace(/[^a-z0-9_.-]/g, "_")}` : undefined;
-      await execFileAsync("docker", dockerRunArgs(name, token, EXEC_SERVER_SCRIPT, cache), { env, timeout: 120_000, windowsHide: true });
+      const envVolume = repoFull && envKey ? `opensrcer-env-${repoFull.toLowerCase().replace(/[^a-z0-9_.-]/g, "_")}-${envKey}` : undefined;
+      await execFileAsync("docker", dockerRunArgs(name, token, EXEC_SERVER_SCRIPT, cache, envVolume), { env, timeout: 120_000, windowsHide: true });
     } catch (error) {
       throw new ExecBoxError(`docker run failed: ${redactToken(error instanceof Error ? error.message : String(error), token)}`);
     }
@@ -298,10 +304,11 @@ export type RunResult = {
 
 /** Run a command in the box. `verify` marks the host's own verification
  *  re-runs, which do not draw on the agent's command budget. */
-export function runInBox(box: ExecBox, command: string, timeoutMs?: number, verify = false): Promise<RunResult> {
+export function runInBox(box: ExecBox, command: string, timeoutMs?: number, verify = false, setup = false): Promise<RunResult> {
   // The HTTP wait outlives the command's own timeout so the box reports it.
-  const wait = (timeoutMs ?? execLimits().cmdTimeoutMs) + 60_000;
-  return boxRequest<RunResult>(box, "POST", "/run", { command, verify, ...(timeoutMs ? { timeout_ms: timeoutMs } : {}) }, wait);
+  const limits = execLimits();
+  const wait = (timeoutMs ?? (setup ? limits.setupMs : limits.cmdTimeoutMs)) + 60_000;
+  return boxRequest<RunResult>(box, "POST", "/run", { command, verify, setup, ...(timeoutMs ? { timeout_ms: timeoutMs } : {}) }, wait);
 }
 
 /** The box's patch against its baseline: `git diff` of what the agent did. */

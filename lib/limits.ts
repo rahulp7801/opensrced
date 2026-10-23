@@ -57,6 +57,9 @@ export function execLimits() {
     totalMs: num("OPENSRCER_EXEC_TOTAL_MS", 60 * 60_000),
     /** Output returned per command (head + tail are kept). */
     outputBytes: num("OPENSRCER_EXEC_OUTPUT_BYTES", 48 * 1024),
+    /** Host-run environment setup (installs) before the agent starts; its
+     *  own clock, so installs never eat the agent's wall clock or turns. */
+    setupMs: num("OPENSRCER_EXEC_SETUP_MS", 25 * 60_000),
     /** The box kills itself after this, whatever the host does. */
     maxLifetimeMs: num("OPENSRCER_EXEC_MAX_LIFETIME_MS", 120 * 60_000),
     memory: str("OPENSRCER_EXEC_MEMORY", "6g"),

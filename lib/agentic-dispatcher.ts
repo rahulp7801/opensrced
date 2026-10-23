@@ -34,7 +34,7 @@ const MCP_CONFIG = join(process.cwd(), ".mcp.json");
 
 import { ALLOWED_TOOLS, EXEC_TOOLS } from "./claude-tools";
 import { buildAgentInvocation, type AgentProvider } from "./agent-invocation";
-import { finalizeExec, prepareRepo, profileLogLine, setupExec, type EvalHook, type ExecOutcome, type ExecSession } from "./exec-run";
+import { finalizeExec, prepareRepo, profileLogLine, setupExec, setupPromptNotes, type EvalHook, type ExecOutcome, type ExecSession } from "./exec-run";
 import { aiBanReason, competingPrReason, discussFirstReason, openPrsForIssue } from "./contrib-guard";
 import { finishRun } from "./run-finish";
 import { triageIssue } from "./triage";
@@ -654,7 +654,7 @@ async function spawnDispatch(
   if (fastPath && !useFastPath) out.write("[triage] fast path off: this repository has contribution rules the PR must follow\n");
   const issueNo = target.kind === "issue" ? target.issueNumber : 0;
   const basePrompt = exec && prepared.issueFormatted
-    ? buildExecPrompt(repoFull, issueNo, prepared.issueFormatted, profilePromptNotes(exec.profile), Math.floor(agentLimits("exec").timeoutMs / 60_000))
+    ? buildExecPrompt(repoFull, issueNo, prepared.issueFormatted, `${setupPromptNotes(exec.setup)}\n${profilePromptNotes(exec.profile)}`, Math.floor(agentLimits("exec").timeoutMs / 60_000))
     : !useFastPath && fastPath && prepared.issueFormatted && profile
       ? `${buildPrompt(repoFull, issueNo, prepared.issueFormatted)}\n\n## Notes for this repository\n\n${profilePromptNotes(profile)}`
       : prepared.prompt;

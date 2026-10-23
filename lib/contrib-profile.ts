@@ -15,6 +15,7 @@
 // host files into a prompt), size-capped, and fenced as untrusted when they
 // reach a prompt.
 
+import { createHash } from "node:crypto";
 import { lstatSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { cloneLimits } from "./limits";
@@ -140,9 +141,8 @@ const BUILTIN: Record<string, Builtin> = {
     dco: true,
     notes: [
       "Read AGENTS.md and docs/contributing/README.md; this project bans pure-agent PRs and busywork PRs, and a human will review your change before it is published.",
-      "Python-only setup without compiling kernels: `uv venv ~/venv --python 3.12 && VLLM_USE_PRECOMPILED=1 uv pip install --python ~/venv/bin/python -e . --torch-backend=cpu` (or the CPU torch wheel via `--extra-index-url https://download.pytorch.org/whl/cpu`). This can take 10+ minutes; install once.",
-      "Install only what the targeted test needs: `uv pip install --python ~/venv/bin/python pytest pytest-asyncio`. There is no GPU: choose or write tests that run on CPU.",
-      "Run tests as `~/venv/bin/python -m pytest tests/path/test_file.py::test_name -q`.",
+      "There is no GPU: choose or write tests that run on CPU.",
+      "Run tests as `~/env/venv/bin/python -m pytest tests/path/test_file.py::test_name -q` (the host installs that environment before you start).",
       "Lint the files you changed with `pre-commit run ruff-check --files <files>` and `pre-commit run ruff-format --files <files>` (declare them as `lint:` lines). Do not run hooks that rewrite files in your `lint:` lines; run them before, then re-check.",
       "PR titles start with bracketed tags, e.g. `[Bugfix] Fix ...`.",
     ],
@@ -150,7 +150,6 @@ const BUILTIN: Record<string, Builtin> = {
   "facebook/react": {
     cla: "React requires the Meta Contributor License Agreement, signed once per GitHub account at https://code.facebook.com/cla before a PR can be merged.",
     notes: [
-      "Install once with `yarn install --frozen-lockfile --ignore-engines` (takes a few minutes).",
       "Run only the touched package's tests: `yarn test --silent --no-watchman <path-or-pattern>` (for example `yarn test --silent --no-watchman packages/react-dom/src/__tests__/ReactDOMInput-test.js`).",
       "Lint and format-check only changed files: `node_modules/.bin/eslint <files>` and `node_modules/.bin/prettier --check <files>`.",
       "Fill in the PR template's Summary and 'How did you test this change?' sections.",
@@ -186,6 +185,86 @@ export function sparseDirsFor(repo: string): string[] | null {
   return SPARSE[repo.toLowerCase()] ?? null;
 }
 
+// ── Environment setup (host-run, before the agent starts) ───────────────
+
+export type SetupPlan = {
+  /** Shell commands run in the box, in order, from the repository root. */
+  commands: string[];
+  /** Files whose contents key the cached environment (lockfiles, manifests). */
+  hashFiles: string[];
+  /** True when the environment lives in ~/env (a venv), so a later run with
+   *  the same hash can skip setup entirely; node_modules live in the
+   *  checkout and are reinstalled (from the package cache) every run. */
+  persistent: boolean;
+  /** How the agent runs tests in the prepared environment. */
+  hint: string;
+};
+
+const VENV = "~/env/venv";
+const makeVenv = (python = "python3") => `[ -x ${VENV}/bin/python ] || ${python === "python3" ? `python3 -m venv ${VENV}` : `uv venv ${VENV} --python ${python}`}`;
+
+const SETUP: Record<string, SetupPlan> = {
+  "vllm-project/vllm": {
+    commands: [
+      makeVenv("3.12"),
+      // Precompiled kernels + CPU torch: no compile step, no CUDA download.
+      `VLLM_USE_PRECOMPILED=1 uv pip install --python ${VENV}/bin/python -e . --torch-backend=cpu`,
+      `uv pip install --python ${VENV}/bin/python pytest pytest-asyncio`,
+    ],
+    hashFiles: ["pyproject.toml", "setup.py", "requirements/common.txt", "requirements/cpu.txt", "requirements/build.txt"],
+    persistent: true,
+    hint: `vllm is installed editable (precompiled kernels, CPU torch) in ${VENV}. Run tests with \`${VENV}/bin/python -m pytest tests/path/test_x.py::test_name -q\`. No GPU: pick CPU-runnable tests.`,
+  },
+  "facebook/react": {
+    commands: ["yarn install --frozen-lockfile --ignore-engines --network-timeout 600000"],
+    hashFiles: ["yarn.lock"],
+    persistent: false,
+    hint: "Dependencies are installed. Run one package's tests with `yarn test --silent --no-watchman <test file path>`; lint with `node_modules/.bin/eslint <files>` and `node_modules/.bin/prettier --check <files>`.",
+  },
+};
+
+/** The environment recipe for a checkout: a built-in one, else detected from
+ *  its lockfiles/manifests, else null (the agent sets up what it needs). */
+export function setupPlan(dir: string, repo: string): SetupPlan | null {
+  const key = repo.toLowerCase();
+  const builtin = SETUP[key === "react/react" ? "facebook/react" : key];
+  if (builtin) return builtin;
+  if (key === "pytorch/pytorch") return null; // nightly-wheel overlay is left to the agent (profile notes)
+  const has = (f: string) => readDoc(dir, f) !== null || lockSize(dir, f) > 0;
+  if (has("package.json") && has("yarn.lock")) return { commands: ["yarn install --frozen-lockfile --ignore-engines"], hashFiles: ["yarn.lock"], persistent: false, hint: "Node dependencies are installed (yarn). Run the repository's test script on the files you touch." };
+  if (has("package.json") && has("package-lock.json")) return { commands: ["npm ci --no-audit --no-fund"], hashFiles: ["package-lock.json"], persistent: false, hint: "Node dependencies are installed (npm ci). Run the repository's test script on the files you touch." };
+  if (has("pyproject.toml") || has("setup.py")) {
+    return { commands: [makeVenv(), `${VENV}/bin/pip install -e . pytest`], hashFiles: ["pyproject.toml", "setup.py", "setup.cfg"], persistent: true, hint: `The project is installed editable in ${VENV}; run tests with \`${VENV}/bin/python -m pytest <path> -q\`.` };
+  }
+  if (has("requirements.txt")) {
+    return { commands: [makeVenv(), `${VENV}/bin/pip install -r requirements.txt pytest`], hashFiles: ["requirements.txt"], persistent: true, hint: `Requirements are installed in ${VENV}; run tests with \`${VENV}/bin/python -m pytest <path> -q\`.` };
+  }
+  return null;
+}
+
+/** Size of a regular (non-symlink) file in the checkout, or 0. Lockfiles can
+ *  be larger than the documents readDoc accepts. */
+function lockSize(dir: string, rel: string): number {
+  try {
+    const stat = lstatSync(path.join(dir, rel));
+    return stat.isFile() ? stat.size : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Short key of the files that determine the environment. */
+export function setupKey(dir: string, plan: SetupPlan): string {
+  const hash = createHash("sha256");
+  for (const f of plan.hashFiles) {
+    const size = lockSize(dir, f);
+    hash.update(`${f}\0${size ? readFileSync(path.join(dir, f)) : ""}\0`);
+    if (size > 50_000_000) break;
+  }
+  hash.update(plan.commands.join("\n"));
+  return hash.digest("hex").slice(0, 12);
+}
+
 /** Paths a pytorch patch may not touch: compiled code is out of scope. */
 export function outOfScopePaths(repo: string, files: string[]): string[] {
   if (repo.toLowerCase() !== "pytorch/pytorch") return [];
@@ -204,7 +283,9 @@ export function refuseIssue(repo: string, title: string, body: string): string |
 // ── Detection ─────────────────────────────────────────────────────────────
 
 export function detectProfile(dir: string, repoFull: string): ContribProfile {
-  const builtin = BUILTIN[repoFull.toLowerCase()];
+  // facebook/react moved to react/react (GitHub redirects the old name).
+  const key = repoFull.toLowerCase();
+  const builtin = BUILTIN[key === "react/react" ? "facebook/react" : key];
   const guideFiles = [
     ...matching(dir, "", /^(contributing|ai[-_]?policy|ai[-_]?contributions?|agents|claude)(\.(md|rst|txt))?$/i),
     ...matching(dir, ".github", /^(contributing|ai[-_]?policy|pull_request_template)(\.(md|rst|txt))?$/i),

@@ -41,6 +41,7 @@ const CMD_TIMEOUT_MS = num('EXEC_CMD_TIMEOUT_MS', 10 * 60_000);
 const TOTAL_MS = num('EXEC_TOTAL_MS', 45 * 60_000);
 const OUTPUT_BYTES = num('EXEC_OUTPUT_BYTES', 64 * 1024);
 const MAX_LIFETIME_MS = num('EXEC_MAX_LIFETIME_MS', 90 * 60_000);
+const SETUP_MS = num('EXEC_SETUP_MS', 25 * 60_000);
 const MAX_JSON_BYTES = 4 * 1024 * 1024;
 const MAX_READ_BYTES = 2 * 1024 * 1024;
 
@@ -249,14 +250,17 @@ const handlers = {
     if (typeof body.command !== 'string' || !body.command.trim() || body.command.length > 20_000) {
       throw new HttpError(400, 'command must be a non-empty string');
     }
-    // The host's verification re-runs (verify: true; the agent's MCP tool
-    // never sets it) are bounded per command but do not draw on the agent's
-    // budget, so an agent that used its time up still gets verified.
-    const verify = body.verify === true;
-    const remaining = verify ? CMD_TIMEOUT_MS : TOTAL_MS - usedMs;
+    // The host's own commands (verify: true for verification re-runs, setup:
+    // true for the environment install; the agent's MCP tool never sets
+    // either) are bounded per command but do not draw on the agent's budget,
+    // so an agent that used its time up still gets verified.
+    const setup = body.setup === true;
+    const verify = body.verify === true || setup;
+    const cap = setup ? SETUP_MS : CMD_TIMEOUT_MS;
+    const remaining = verify ? cap : TOTAL_MS - usedMs;
     if (remaining <= 0) throw new HttpError(429, `the box's total command time (${Math.round(TOTAL_MS / 1000)}s) is used up`);
-    const asked = Number.isSafeInteger(body.timeout_ms) && body.timeout_ms > 0 ? body.timeout_ms : CMD_TIMEOUT_MS;
-    const timeout = Math.min(asked, CMD_TIMEOUT_MS, remaining);
+    const asked = Number.isSafeInteger(body.timeout_ms) && body.timeout_ms > 0 ? body.timeout_ms : cap;
+    const timeout = Math.min(asked, cap, remaining);
     const result = await runShell(body.command, timeout);
     if (!verify) usedMs += result.duration_ms;
     return { ...result, timeout_ms: timeout, budget_left_ms: Math.max(0, TOTAL_MS - usedMs) };

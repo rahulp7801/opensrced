@@ -14,9 +14,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # The server script is mounted read-only at run time (lib/exec-box.ts), so
 # the image never goes stale against the code that drives it.
 # Unprivileged: repo scripts get the `node` user and its empty home.
-# /home/node/.cache exists and is node-owned so a per-repository cache volume
-# mounted there (lib/exec-box.ts) inherits that ownership on first use.
-RUN mkdir -p /work /home/node/.cache && chown node:node /work /home/node/.cache
+# /home/node/.cache and /home/node/env exist and are node-owned so the per-repository volumes
+# mounted there (package cache, installed environment; lib/exec-box.ts) inherit it on first use.
+RUN mkdir -p /work /home/node/.cache /home/node/env && chown node:node /work /home/node/.cache /home/node/env
 USER node
 WORKDIR /work
 EXPOSE 7070

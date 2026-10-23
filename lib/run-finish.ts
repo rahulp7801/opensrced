@@ -42,6 +42,7 @@ export async function finishRun(input: FinishInput): Promise<PrPreview | null> {
   const { title, body } = buildPrContent(input.issueNumber, input.dispatchId, logText, diff);
   const blockers: string[] = [];
   const warnings: string[] = [];
+  if (input.exec?.setup?.status === "failed") warnings.push("The host's environment setup failed (see [setup] in the log); test results depend on what the agent could install itself.");
   const refused = refusedPaths(diff, input.repoFull);
   if (refused.length) blockers.push(`the patch touches paths opensrcer does not publish: ${refused.slice(0, 3).join(", ")}`);
   if (input.profile) {

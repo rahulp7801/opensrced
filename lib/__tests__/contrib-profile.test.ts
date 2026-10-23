@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-  classifyAiPolicy, cloneEnv, detectAiTrailer, detectProfile, detectsCla, detectsDco, outOfScopePaths, profilePromptNotes, refuseIssue,
+  classifyAiPolicy, cloneEnv, detectAiTrailer, detectProfile, detectsCla, detectsDco, outOfScopePaths, profilePromptNotes, refuseIssue, setupKey, setupPlan,
 } from "../contrib-profile";
 
 test("classifyAiPolicy: bans, disclosure requirements, and silence", () => {
@@ -86,11 +86,35 @@ test("detectProfile: a ban anywhere wins, and symlinked docs are never read", ()
   }
 });
 
+test("setupPlan: built-in recipes, detected fallbacks, and a key that follows the lockfile", () => {
+  const node = fixture({ "package.json": "{}", "yarn.lock": "a@1\n" });
+  const py = fixture({ "pyproject.toml": "[project]\nname='x'\n" });
+  const bare = fixture({ "README.md": "hi" });
+  try {
+    assert.match(setupPlan(bare, "vllm-project/vllm")!.commands.join("\n"), /VLLM_USE_PRECOMPILED=1 uv pip install .* --torch-backend=cpu/);
+    assert.equal(setupPlan(bare, "vllm-project/vllm")!.persistent, true);
+    assert.match(setupPlan(bare, "react/react")!.commands[0], /^yarn install --frozen-lockfile/);
+    assert.equal(setupPlan(bare, "pytorch/pytorch"), null);
+    assert.match(setupPlan(node, "x/y")!.commands[0], /^yarn install/);
+    assert.equal(setupPlan(py, "x/y")!.persistent, true);
+    assert.equal(setupPlan(bare, "x/y"), null);
+    const plan = setupPlan(node, "x/y")!;
+    const before = setupKey(node, plan);
+    assert.match(before, /^[0-9a-f]{12}$/);
+    assert.equal(setupKey(node, plan), before, "stable for the same lockfile");
+    writeFileSync(path.join(node, "yarn.lock"), "a@2\n");
+    assert.notEqual(setupKey(node, plan), before, "a changed lockfile is a new environment");
+  } finally {
+    for (const d of [node, py, bare]) rmSync(d, { recursive: true, force: true });
+  }
+});
+
 test("built-in profiles: vllm DCO, react CLA, pytorch scope rules", () => {
   const empty = fixture({ "README.md": "hi" });
   try {
     assert.equal(detectProfile(empty, "vllm-project/vllm").dco, true);
     assert.match(detectProfile(empty, "facebook/react").cla!, /Meta Contributor License Agreement/);
+    assert.match(detectProfile(empty, "react/react").cla!, /Meta Contributor License Agreement/, "the repository's new name");
     assert.match(detectProfile(empty, "pytorch/pytorch").cla!, /EasyCLA/);
     assert.equal(detectProfile(empty, "other/repo").dco, false);
   } finally {

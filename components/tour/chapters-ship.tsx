@@ -59,7 +59,7 @@ function WorkspacePhase() {
   // Down through the fix and its checks, then back up to the comment, now fixed.
   const scrollRef = useScrollFraction(t < 17800 ? progress(t, 9200, 15400) : 1 - progress(t, 17800, 19000));
   return (
-    <div ref={scrollRef} className="h-full space-y-2.5 overflow-hidden px-4 py-3 sm:px-6">
+    <div ref={scrollRef} data-chat-room className="h-full space-y-2.5 overflow-hidden px-4 py-3 sm:px-6">
       <p className="text-[11px] text-paper-muted">PRs / {DEMO_REPO} / #{RUN.pr}</p>
       <div className="rounded-xl border border-border-soft bg-surface px-3 py-2.5">
         <p className="text-[13px] font-medium text-paper"><span className="mr-1.5 rounded border border-signal/40 px-1 text-[10px] text-signal">OPEN</span>{RUN.prTitle}</p>
@@ -409,7 +409,7 @@ function ReplyView() {
   const scrollRef = useAutoScroll(5600, 11400);
   return (
     <AppWindow path={`/prs/${DEMO_REPO}/${RUN.pr}`} section="Ship" tab="Pull requests">
-      <div ref={scrollRef} className="h-full space-y-2.5 overflow-hidden px-4 py-3 sm:px-6">
+      <div ref={scrollRef} data-chat-room className="h-full space-y-2.5 overflow-hidden px-4 py-3 sm:px-6">
         <p className="flex flex-wrap items-center gap-2 text-[11.5px] text-paper-muted">
           2 review comments <span className="text-ok">1 fixed</span>
           {sent ? <><span className="text-info">1 replied</span><StatusChip tone="ok">all addressed</StatusChip></> : <span className="text-signal">1 pending</span>}

@@ -42,6 +42,29 @@ function gitAuthArgs(token?: string): string[] {
   return ["-c", `http.https://github.com/.extraheader=AUTHORIZATION: basic ${basic}`];
 }
 
+/** OPENSRCER_CLONE_TIMEOUT_MS (default 10 min; was a fixed 60 s, too short
+ *  for pytorch-sized repositories). Forwarded by the dispatcher. */
+function cloneTimeoutMs(): number {
+  const v = Number(process.env.OPENSRCER_CLONE_TIMEOUT_MS);
+  return Number.isFinite(v) && v > 0 ? v : 10 * 60_000;
+}
+
+/** Extra `git clone` flags. core.longpaths is persisted into the clone so
+ *  Git for Windows can check out (and later worktree) repositories with
+ *  paths past MAX_PATH; vllm's fused_moe config names failed the whole
+ *  clone without it. A no-op elsewhere. */
+function cloneFlags(): string[] {
+  return ["--config", "core.longpaths=true"];
+}
+
+/** OPENSRCER_CLONE_SPARSE: space-separated directories for a partial,
+ *  sparse (cone) clone; empty means a full shallow clone. The dispatcher
+ *  sets it from the built-in profile (pytorch). Exported for tests. */
+export function sparseDirs(): string[] {
+  return (process.env.OPENSRCER_CLONE_SPARSE ?? "").split(/\s+/)
+    .filter((d) => /^[A-Za-z0-9_.][A-Za-z0-9_./-]*$/.test(d) && !d.split("/").includes(".."));
+}
+
 function cacheRoot(): string {
   if (process.env.OPENSRCER_CACHE_DIR) return process.env.OPENSRCER_CACHE_DIR;
   return path.join(homedir(), ".contribai", "repos");
@@ -235,16 +258,24 @@ async function doClone(ref: RepoRef, dir: string): Promise<string> {
   // lands in .git/config and persists in the cache long after the run that
   // needed it. See lib/git-auth.ts in the parent app.
   const url = `https://github.com/${ref.full}.git`;
+  const auth = gitAuthArgs(process.env.GITHUB_TOKEN);
+  const sparse = sparseDirs();
   try {
     await execFileAsync(
       "git",
-      [...gitAuthArgs(process.env.GITHUB_TOKEN), "clone", "--depth=1", "--single-branch", url, dir],
-      { maxBuffer: 50 * 1024 * 1024, timeout: 60_000, windowsHide: true },
+      [...auth, "clone", "--depth=1", "--single-branch", ...cloneFlags(),
+        // Partial + sparse: only the listed directories (and root files) are
+        // fetched and checked out. pytorch: ~150 s for a full shallow clone.
+        ...(sparse.length ? ["--filter=blob:none", "--sparse"] : []), url, dir],
+      { maxBuffer: 50 * 1024 * 1024, timeout: cloneTimeoutMs(), windowsHide: true },
     );
+    if (sparse.length) {
+      await execFileAsync("git", [...auth, "-C", dir, "sparse-checkout", "set", "--", ...sparse], { timeout: cloneTimeoutMs(), windowsHide: true });
+    }
     const revision = pinnedRef();
     if (revision) {
-      await execFileAsync("git", [...gitAuthArgs(process.env.GITHUB_TOKEN), "-C", dir, "fetch", "--depth=1", "origin", revision], { timeout: 60_000, windowsHide: true });
-      await execFileAsync("git", ["-C", dir, "checkout", "--detach", revision], { timeout: 15_000, windowsHide: true });
+      await execFileAsync("git", [...auth, "-C", dir, "fetch", "--depth=1", "origin", revision], { timeout: cloneTimeoutMs(), windowsHide: true });
+      await execFileAsync("git", [...auth, "-C", dir, "checkout", "--detach", revision], { timeout: cloneTimeoutMs(), windowsHide: true });
     }
   } catch {
     // execFile errors include argv, which contains the encoded authorization header.

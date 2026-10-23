@@ -2,13 +2,13 @@ import { spawn, execFile } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
 import { claudeEvents } from "./claude-events";
 
-export function localClaudeStream(args: string[], env: NodeJS.ProcessEnv, requestSignal: AbortSignal, release: () => void): Response {
+export function localClaudeStream(args: string[], env: NodeJS.ProcessEnv, requestSignal: AbortSignal, release: () => void, bin = "claude"): Response {
   const encoder = new TextEncoder();
   let cancelled = false;
   let stop = () => {};
   const stream = new ReadableStream({
     start(controller) {
-      const child = spawn("claude", args, { env, windowsHide: true, detached: process.platform !== "win32" });
+      const child = spawn(bin, args, { env, windowsHide: true, detached: process.platform !== "win32" });
       let finished = false, completed = false, failed = false;
       const decoder = new StringDecoder("utf8");
       const send = (event: Record<string, unknown>) => {

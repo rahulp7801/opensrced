@@ -10,12 +10,10 @@ import { NextRequest } from "next/server";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { resolveAnthropicKey } from "@/lib/api-keys";
-import { childEnv } from "@/lib/child-env";
-import { READ_ONLY_CLAUDE_ARGS } from "@/lib/claude-tools";
+import { buildAgentInvocation } from "@/lib/agent-invocation";
 import { sanitizeForPrompt, sanitizeRepoId, sanitizeFilePath, sanitizeBranchName, sanitizePrNumber } from "@/lib/sanitize";
 import { acquireSlot, releaseSlot, activeSlots } from "@/lib/concurrency";
 import { sessionUserId } from "@/lib/require-session";
-import { CLAUDE_AGENT_MODEL } from "@/lib/models";
 
 
 import { githubApi, githubText } from "@/lib/github-api";
@@ -200,30 +198,21 @@ CONSTRAINTS — these are hard rules, not suggestions:
 - If the fix requires more than ~15 lines of change, explain why before proceeding
 - If you're unsure what the reviewer wants, say so instead of guessing`;
 
-  const args = [
-    "-p",
+  // Allowlisted env + a read-only toolbelt: this spawn embeds PR review
+  // comments, which are written by third parties, in its prompt.
+  const credentials = { OPENSRCER_ALLOWED_REPO: sourceRepo, OPENSRCER_REPO_REF: head.sha, ANTHROPIC_API_KEY: apiKey, ...(ghToken ? { GITHUB_TOKEN: ghToken } : {}) };
+  const invocation = buildAgentInvocation({
     prompt,
-    "--mcp-config",
-    cloudExecution() ? "/vercel/sandbox/.mcp.json" : MCP_CONFIG,
-    ...READ_ONLY_CLAUDE_ARGS,
-    "--no-session-persistence",
-    "--output-format",
-    "stream-json",
-    "--verbose",
-    "--model",
-    CLAUDE_AGENT_MODEL,
-    "--max-budget-usd",
-    String(Math.min(body.budget ?? 0.25, 1)),
-  ];
+    mcpConfig: cloudExecution() ? "/vercel/sandbox/.mcp.json" : MCP_CONFIG,
+    budgetUsd: Math.min(body.budget ?? 0.25, 1),
+    maxTurns: 30,
+    inject: credentials,
+  });
 
   if (cloudExecution()) {
     releaseSlot("fix");
-    return cloudExplore(args, { OPENSRCER_ALLOWED_REPO: sourceRepo, OPENSRCER_REPO_REF: head.sha, ANTHROPIC_API_KEY: apiKey, ...(ghToken ? { GITHUB_TOKEN: ghToken } : {}) }, signal, userId);
+    return cloudExplore(invocation.args, credentials, signal, userId);
   }
 
-  // Allowlisted env + a read-only toolbelt: this spawn embeds PR review
-  // comments, which are written by third parties, in its prompt.
-  const env = childEnv({ OPENSRCER_ALLOWED_REPO: sourceRepo, OPENSRCER_REPO_REF: head.sha, ANTHROPIC_API_KEY: apiKey, GITHUB_TOKEN: ghToken ?? undefined });
-
-  return localClaudeStream(args, env, signal, () => releaseSlot("fix"));
+  return localClaudeStream(invocation.args, invocation.env, signal, () => releaseSlot("fix"), invocation.bin);
 }

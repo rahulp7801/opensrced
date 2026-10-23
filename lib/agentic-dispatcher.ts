@@ -20,8 +20,7 @@ import { StringDecoder } from "node:string_decoder";
 import { randomUUID } from "node:crypto";
 import { parseRunTarget } from "./run-target";
 import { consumeCancelRequest, registerDispatch, type Dispatch } from "./dispatcher";
-import { patch, persist } from "./dispatch-store";
-import { createDraftPrFromLog } from "./agentic-pr";
+import { persist } from "./dispatch-store";
 import { claudeResultFailure } from "./claude-events";
 import { classifyScope, type ScopeInfo } from "./scope";
 import { sanitizeForPrompt, sanitizeLogValue } from "./sanitize";
@@ -33,7 +32,14 @@ import { githubApi } from "./github-api";
 const DISPATCH_DIR = join(process.cwd(), ".dispatches");
 const MCP_CONFIG = join(process.cwd(), ".mcp.json");
 
-import { READ_ONLY_CLAUDE_ARGS } from "./claude-tools";
+import { ALLOWED_TOOLS, EXEC_TOOLS } from "./claude-tools";
+import { buildAgentInvocation } from "./agent-invocation";
+import { finalizeExec, prepareRepo, profileLogLine, setupExec, type EvalHook, type ExecOutcome, type ExecSession } from "./exec-run";
+import { aiBanReason, competingPrReason, discussFirstReason, openPrsForIssue } from "./contrib-guard";
+import { finishRun } from "./run-finish";
+import { agentLimits, execLimits } from "./limits";
+import { cloneEnv, detectProfile, profilePromptNotes, refuseIssue, type ContribProfile } from "./contrib-profile";
+import { testOutcome } from "./verify";
 
 // Parse stream-json output from Claude, write readable text to the log,
 // and return the total cost when the result event arrives.
@@ -97,6 +103,7 @@ type FetchedIssue = {
   title: string;
   body: string;
   formatted: string; // pre-formatted block used in the prompt
+  labels: string[];
 };
 
 /** The requested issue cannot be run (missing, inaccessible, or a pull
@@ -107,6 +114,7 @@ export async function fetchIssue(
   repoFull: string,
   issueNumber: number,
   token: string | undefined,
+  allowClosed = false,
 ): Promise<FetchedIssue> {
   const fallbackTitle = `Issue #${issueNumber}`;
   // Fetch and authorize before reading cached source or starting paid work.
@@ -120,7 +128,7 @@ export async function fetchIssue(
   catch (error) { throw new RunTargetError(error instanceof Error ? error.message : "GitHub request failed."); }
   if (parsed.pull_request) throw new RunTargetError("This target is a pull request, not an issue.");
   // A closed issue is fixed or declined already; a run would spend the budget on a PR nobody wants.
-  if (parsed.state === "closed") throw new RunTargetError("This issue is closed. Reopen it on GitHub to run it.");
+  if (parsed.state === "closed" && !allowClosed) throw new RunTargetError("This issue is closed. Reopen it on GitHub to run it.");
   // Everything below this line is attacker-controlled: anyone can file an
   // issue, pick its title, and write its body. It gets interpolated into
   // the prompt of an agent with tools, so it is sanitized (control chars
@@ -150,7 +158,7 @@ export async function fetchIssue(
     body || "(empty body)",
     `</issue-report>`,
   ].join("\n");
-  return { title, body, formatted };
+  return { title, body, formatted, labels: (parsed.labels ?? []).map((l) => String(l.name)).slice(0, 50) };
 }
 
 /** URL of the caller's open opensrcer PR for this issue, or null. Live runs push
@@ -309,6 +317,58 @@ function buildLeafPrompt(
   ].join("\n");
 }
 
+/** Prompt for runs with an exec box: the agent edits files and runs the
+ *  repository's own tests, and the patch is the box's `git diff`. */
+export function buildExecPrompt(repoFull: string, issueNumber: number, issueBody: string, profileNotes = ""): string {
+  return [
+    `You are fixing issue #${issueNumber} in the GitHub repository \`${repoFull}\`. Work like a careful human contributor: reproduce the bug, fix it, verify the fix.`,
+    ``,
+    `## The issue`,
+    ``,
+    issueBody,
+    ``,
+    `## Your workspace and tools`,
+    ``,
+    `MCP server \`opensrcer-repo-tools\` is configured. Every tool takes \`repo: "${repoFull}"\`.`,
+    ``,
+    `- \`read_file\` — read a file in your workspace, including your own edits.`,
+    `- \`edit_file\` — replace an exact string in a file (copy old_string from read_file, without the line-number prefix). \`write_file\` creates a file.`,
+    `- \`run_command\` — bash at the repository root in a Linux box: git, node 24 with npm/yarn, python3.11 with venv/pip/uv, pre-commit. No credentials; network for package registries. Commands share a total time budget, so install only what the targeted tests need.`,
+    `- \`grep\`, \`list_files\`, \`find_definition\`, \`find_references\`, \`repo_info\` — fast search over the ORIGINAL checkout. They do not see your edits; use \`run_command\` with \`git grep\` or \`git diff\` for that.`,
+    ``,
+    `Keep virtualenvs and caches OUTSIDE the repository (e.g. \`python3 -m venv ~/venv\`, then call \`~/venv/bin/python\` by full path: each command is a fresh shell).`,
+    ``,
+    `## How to work`,
+    ``,
+    `1. Read the contribution guide (CONTRIBUTING*, the PR template under .github/) and note the test, lint and commit conventions.`,
+    `2. Find the root cause.`,
+    `3. Reproduce first: add or extend a test in the repository's own test layout that captures the bug, run it, and see it FAIL.`,
+    `4. Fix it with the smallest change. Do not refactor surrounding code.`,
+    `5. Run the targeted tests and see them pass. Run the repository's linters/formatters on the files you changed and fix what they flag.`,
+    `6. Run \`git diff\` and review it: that diff is exactly what will be proposed.`,
+    ``,
+    `Stop without editing, and say why, if the fix needs C++/CUDA/GPU-only code paths, would touch more than 5 files, or you cannot find the root cause with confidence. If you cannot get the tests to run, say plainly what blocked you; the run is then reported as unverified.`,
+    profileNotes ? `\n## Notes for this repository\n\n${profileNotes}\n` : ``,
+    `## Final answer`,
+    ``,
+    `Use these section headings exactly:`,
+    ``,
+    `1. \`## Conventions\` — what the contribution guide/PR template require (2–5 bullets), or "No contribution guide found".`,
+    `2. \`## Diagnosis\` — 2–4 sentences on the root cause, citing file:line.`,
+    `3. \`## Verification\` — a fenced block tagged \`verification\`, one command per line, prefixed \`setup:\`, \`test:\` or \`lint:\`. After you finish, the host re-runs every \`test:\` and \`lint:\` line in the same box against your final workspace, and the pull request reports exactly what those re-runs show. Use targeted selections (a test file or test id), never the whole suite; lint commands must only check, never rewrite files. Example:`,
+    "```verification",
+    `setup: python3 -m venv ~/venv && ~/venv/bin/pip install -e .`,
+    `test: ~/venv/bin/python -m pytest tests/test_foo.py::test_bar -q`,
+    `lint: ~/venv/bin/ruff check src/foo.py`,
+    "```",
+    `4. \`## Risk / Test\` — what could regress and what you checked.`,
+    `5. \`## PR title\` — one line, under 72 chars, in the repository's convention.`,
+    `6. \`## PR body\` — markdown for the PR: summary, root cause, what changed and why, and \`Fixes #${issueNumber}\`. If the repository has a PR template, fill it in. Do not report test results here: the host appends a "Tests run" section from its own re-runs.`,
+    ``,
+    `Do not put a diff in your answer: the patch is taken from your workspace.`,
+  ].join("\n");
+}
+
 function buildPrompt(repoFull: string, issueNumber: number, issueBody: string): string {
   // The system/user prompt drives the agent through the MCP tools. We lean
   // on Claude's own judgment for exploration depth rather than prescribing a
@@ -384,6 +444,13 @@ export type StartAgenticOpts = {
   maxSpendUsd?: number;
   // The requester's GitHub identity; the auto-PR commit is authored as them.
   author?: { login: string; id: number };
+  // Pin the checkout to this commit (40-hex SHA). Eval runs and PR follow-ups.
+  repoRef?: string;
+  // Eval mode only (scripts/eval-merged.ts): accept a closed issue. Never set
+  // by a web route; live runs on closed issues stay refused.
+  allowClosedIssue?: boolean;
+  // Eval mode only: inspect the exec box after verification, before it stops.
+  evalHook?: EvalHook;
   // Auth0 `sub` of the requesting user. Recorded on the dispatch so only
   // they can read its log (which contains repo source and the generated
   // diff) or cancel the run.
@@ -395,11 +462,17 @@ export function agenticChildEnv(
   repoFull: string,
   opts: StartAgenticOpts,
 ): NodeJS.ProcessEnv {
-  return childEnv({
+  return childEnv(agenticInject(repoFull, opts));
+}
+
+function agenticInject(repoFull: string, opts: StartAgenticOpts): Record<string, string | undefined> {
+  return {
     OPENSRCER_ALLOWED_REPO: repoFull,
     GITHUB_TOKEN: opts.token,
     ANTHROPIC_API_KEY: opts.anthropicKey,
-  });
+    OPENSRCER_REPO_REF: opts.repoRef,
+    ...cloneEnv(repoFull),
+  };
 }
 
 /** What this dispatch is trying to fix. The only real difference between
@@ -414,7 +487,8 @@ async function prepare(
   target: DispatchTarget,
   token: string | undefined,
   out: import("node:fs").WriteStream,
-): Promise<{ prompt: string; headerLine: string; fastPath: boolean }> {
+  allowClosed = false,
+): Promise<{ prompt: string; headerLine: string; fastPath: boolean; issueFormatted?: string; issueLabels?: string[] }> {
   if (target.kind === "finding") {
     const label = target.finding.cve_id ?? target.finding.id;
     return {
@@ -425,7 +499,10 @@ async function prepare(
   }
 
   const { issueNumber } = target;
-  const issue = await fetchIssue(repoFull, issueNumber, token);
+  const issue = await fetchIssue(repoFull, issueNumber, token, allowClosed);
+  // Out-of-scope issues are refused before any model spend.
+  const refusal = refuseIssue(repoFull, issue.title, issue.body);
+  if (refusal) throw new RunTargetError(`Refused before starting: ${refusal}.`);
 
   // Triage: classify the scope of the issue from its title + body. If the
   // scope is leaf or doc, we swap in a much more constrained prompt that
@@ -445,6 +522,8 @@ async function prepare(
       : buildPrompt(repoFull, issueNumber, issue.formatted),
     headerLine: `repo: ${repoFull}  issue: #${issueNumber}`,
     fastPath,
+    issueFormatted: issue.formatted,
+    issueLabels: issue.labels,
   };
 }
 
@@ -488,65 +567,92 @@ async function spawnDispatch(
   const token = opts.token;
   let prepared: Awaited<ReturnType<typeof prepare>>;
   try {
-    prepared = await prepare(repoFull, target, token, out);
+    prepared = await prepare(repoFull, target, token, out, opts.allowClosedIssue === true);
   } catch (error) {
     out.end();
     throw error;
   }
   const { headerLine, fastPath } = prepared;
-  const prompt = prepared.prompt + (opts.notes ? `\nUser guidance:\n${sanitizeForPrompt(opts.notes)}` : "");
 
-  // Runaway guard rails:
-  //   --max-budget-usd — hard cap on total LLM spend for this one invocation.
-  //     Claude exits cleanly when the cap is reached. Default $2 is a
-  //     realistic ceiling for leaf/cross-file issues; override via env for
-  //     harder repos. Only works under --print (we're in -p mode already).
-  //     Fast-path leaf/doc issues get a tighter $0.50 cap — if a "small fix"
-  //     is somehow burning more than that, something's wrong and we'd rather
-  //     bail than blow the budget.
+  // Exec box: the agent can edit files and run the repository's own tests in
+  // a credential-free box, and the patch becomes `git diff` of that box.
+  // Security findings keep the text-diff path. ponytail: extend when needed.
+  let exec: ExecSession | null = null;
+  let profile: ContribProfile | null = null;
+  if (target.kind === "issue") {
+    try {
+      // Clone first: the contribution profile (DCO, CLA, template, AI
+      // policy) comes from the repository's own files.
+      const repo = await prepareRepo(repoFull, token, opts.repoRef);
+      profile = detectProfile(repo.dir, repoFull);
+      out.write(`[exec] checkout ${repo.sha}\n${profileLogLine(profile)}`);
+      // Guards before any model spend. Previews (dry runs) still run so the
+      // user can look, and are labeled; publishing re-checks all of these.
+      const ban = aiBanReason(profile);
+      if (ban && !opts.dryRun) throw new RunTargetError(`Refused: ${ban}. A preview (dry run) is still possible.`);
+      if (ban) out.write(`[guard] preview only: ${ban}\n`);
+      if (!opts.allowClosedIssue) {
+        const competing = competingPrReason(await openPrsForIssue(repoFull, target.issueNumber, token).catch(() => []));
+        if (competing && !opts.dryRun) throw new RunTargetError(`Refused: ${competing}`);
+        if (competing) out.write(`[guard] preview only: ${competing}\n`);
+      }
+      const discuss = discussFirstReason("", prepared.issueLabels ?? []) ?? profile.discussFirst;
+      if (discuss) out.write(`[guard] warning: ${discuss}; the run page will offer a drafted issue comment\n`);
+      exec = await setupExec(repoFull, id, join(DISPATCH_DIR, id), repo, profile, (line) => out.write(line));
+    } catch (error) {
+      out.end();
+      throw error;
+    }
+  }
+  const basePrompt = exec && prepared.issueFormatted
+    ? buildExecPrompt(repoFull, target.kind === "issue" ? target.issueNumber : 0, prepared.issueFormatted, profilePromptNotes(exec.profile))
+    : prepared.prompt;
+  const prompt = basePrompt + (opts.notes ? `\nUser guidance:\n${sanitizeForPrompt(opts.notes)}` : "");
+
+  // Runaway guard rails (lib/limits.ts):
+  //   --max-budget-usd — dollar cap; binds on API-key runs. Fast-path
+  //     leaf/doc issues get a tighter cap; exec runs a larger one (installs
+  //     and test runs cost turns).
+  //   --max-turns — the cap that also binds on subscription runs.
   //   wall-clock timeout — the setTimeout below kills the whole process tree
-  //     if Claude is still alive after N minutes. Covers the case where the
-  //     model loops on tool calls without ever emitting final output.
-  const defaultBudget = fastPath
-    ? Number(process.env.OPENSRCER_AGENTIC_LEAF_BUDGET_USD ?? "0.5")
-    : Number(process.env.OPENSRCER_AGENTIC_BUDGET_USD ?? "2");
-  const budgetUsd = opts.maxSpendUsd ?? defaultBudget;
-  // 30 min default. Was 15 — bumped after a real dispatch on
-  // splx-ai/agentic-radar#127 hit the cap while Claude was still writing
-  // a complete response. Override via OPENSRCER_AGENTIC_TIMEOUT_MS.
-  const timeoutMs = Number(process.env.OPENSRCER_AGENTIC_TIMEOUT_MS ?? String(30 * 60 * 1000));
-
-  // Restrict the runtime to our read-only MCP tools, with no host customizations.
-  const args = [
-    "-p",
-    prompt,
-    "--mcp-config",
-    MCP_CONFIG,
-    ...READ_ONLY_CLAUDE_ARGS,
-    "--no-session-persistence",
-    "--output-format",
-    "stream-json",
-    "--verbose",
-    "--max-budget-usd",
-    String(budgetUsd),
-  ];
+  //     if Claude is still alive after N minutes.
+  const limits = agentLimits(exec ? "exec" : fastPath ? "fast" : "full");
+  const budgetUsd = opts.maxSpendUsd ?? limits.budgetUsd;
+  const timeoutMs = limits.timeoutMs;
 
   // Allowlisted environment. The previous denylist (`{...process.env}` minus
   // three keys) still handed the child AUTH0_SECRET — which decrypts every
   // user's stored API keys — plus GITHUB_APP_PRIVATE_KEY and the webhook
-  // secret. See lib/child-env.ts.
-  const env = agenticChildEnv(repoFull, opts);
+  // secret. See lib/child-env.ts. With a box, the MCP server also gets the
+  // box capability (URL + token) and nothing else new.
+  const invocation = buildAgentInvocation({
+    prompt,
+    mcpConfig: MCP_CONFIG,
+    tools: exec ? [...ALLOWED_TOOLS, ...EXEC_TOOLS] : ALLOWED_TOOLS,
+    budgetUsd,
+    maxTurns: limits.maxTurns,
+    inject: {
+      ...agenticInject(repoFull, opts),
+      ...(exec ? {
+        OPENSRCER_EXEC_URL: exec.box.url,
+        OPENSRCER_EXEC_TOKEN: exec.box.token,
+        // Claude Code's per-tool-call timeout must outlast one box command.
+        MCP_TOOL_TIMEOUT: String(execLimits().cmdTimeoutMs + 120_000),
+      } : {}),
+    },
+  });
+  const env = invocation.env;
 
   out.write(
     `[agentic-dispatcher] ${new Date().toISOString()}\n` +
       `[agentic-dispatcher] ${headerLine}\n` +
-      `[agentic-dispatcher] bin: claude (-p headless, MCP: ${MCP_CONFIG})\n` +
+      `[agentic-dispatcher] bin: ${invocation.bin} (-p headless, MCP: ${MCP_CONFIG}${exec ? `, exec box: ${exec.box.mode}` : ""})\n` +
       `[agentic-dispatcher] env: ANTHROPIC_API_KEY=${env.ANTHROPIC_API_KEY ? "(present)" : "(missing — claude will use its own auth)"} · GITHUB_TOKEN=${token ? "(present)" : "(missing)"}\n` +
-      `[agentic-dispatcher] guardrails: --max-budget-usd=${budgetUsd} · timeout=${Math.round(timeoutMs / 1000)}s\n` +
+      `[agentic-dispatcher] guardrails: --max-budget-usd=${budgetUsd} · --max-turns=${limits.maxTurns} · timeout=${Math.round(timeoutMs / 1000)}s\n` +
       `[agentic-dispatcher] ─────────────────────────────\n`,
   );
 
-  const child = spawn("claude", args, { env, windowsHide: true });
+  const child = spawn(invocation.bin, invocation.args, { env, windowsHide: true });
 
   // Wall-clock kill-switch. Fires only if claude is still alive at the
   // deadline; cleared when the close handler runs. `taskkill /T` on Windows
@@ -601,6 +707,7 @@ async function spawnDispatch(
     status: "running",
     pid: child.pid,
     log_path: logPath,
+    ...(findingId ? { finding_id: findingId } : {}),
   };
 
   // Register before wiring handlers so a cancel arriving immediately finds
@@ -619,80 +726,50 @@ async function spawnDispatch(
     // taskkill on Windows exits 1 with no signal, so a user cancel is only
     // visible through the flag cancelDispatch() leaves behind.
     const wasKilled = signal === "SIGKILL" || signal === "SIGTERM" || killedByTimeout || consumeCancelRequest(dispatch.id);
-    dispatch.status = wasKilled ? "killed" : code === 0 && result.complete && !result.failed ? "succeeded" : "failed";
+    const finalStatus = wasKilled ? "killed" : code === 0 && result.complete && !result.failed ? "succeeded" : "failed";
     out.write(
       `\n[agentic-dispatcher] ─────────────────────────────\n` +
-        `[agentic-dispatcher] exited at ${dispatch.ended_at} · status=${dispatch.status} · exit=${code ?? "n/a"}` +
+        `[agentic-dispatcher] exited at ${dispatch.ended_at} · status=${finalStatus} · exit=${code ?? "n/a"}` +
         (killedByTimeout ? " (killed by wall-clock timeout)" : "") +
         `\n`,
     );
     if (!wasKilled && code === 0 && (!result.complete || result.failed)) out.write("[agentic-dispatcher] No successful completion event; incomplete output will not be published.\n");
-    out.end();
 
-    const autoPr = !opts.dryRun && dispatch.status === "succeeded" && process.env.OPENSRCER_AGENTIC_AUTO_PR !== "0";
-    persist({ ...dispatch, pr_status: autoPr ? "pending" : "none" });
-
-    // Auto-PR on clean exit. Runs detached — we can't block the close
-    // handler, and the dispatch is already reported as succeeded. On
-    // success we append the PR URL to the log; on failure we append the
-    // diagnostic so the user can fix and rerun. Either way the outcome is
-    // written to the sidecar so the dashboard doesn't have to re-derive it
-    // by regexing this log on every poll.
-    if (autoPr) {
-      void (async () => {
-        // Small delay so the close handler's write flushes before we append.
-        await new Promise((r) => setTimeout(r, 250));
-        await appendFile(
-          logPath,
-          `\n[agentic-pr] ─────────────────────────────\n` +
-            `[agentic-pr] starting auto-PR at ${new Date().toISOString()}\n`,
-        ).catch(() => {});
-        try {
-          const result = await createDraftPrFromLog({
-            repoFull,
-            issueNumber,
-            logPath,
-            dispatchId: id,
-            orgCtx: opts.orgCtx,
-            installationToken: opts.installationToken,
-            findingId,
-            // Public flows: the fork + push + `gh pr create` must run as the
-            // user who asked for the dispatch. This hook fires detached,
-            // long after the request context is gone, so the token is
-            // captured at dispatch start and carried here. Without it the
-            // step fell through to whatever credential the host had — the
-            // deployer's PAT or gh keychain.
-            token: opts.token,
-            geminiKey: opts.geminiKey,
-            author: opts.author,
-          });
-          const line = result.ok
-            ? `[agentic-pr] opened draft PR: ${sanitizeLogValue(result.url)}\n` +
-              `[agentic-pr] head: ${sanitizeLogValue(result.branch, 200)}  →  base: ${sanitizeLogValue(result.base.branch, 200)} (${sanitizeLogValue(result.base.confidence, 20)} confidence — ${sanitizeLogValue(result.base.reason)})\n`
-            : `[agentic-pr] skipped: ${sanitizeLogValue(result.reason)}\n`;
-          await appendFile(logPath, line).catch(() => {});
-          patch(id, result.ok
-            ? { pr_status: "opened", pr_url: result.url, tests: result.tests }
-            : {
-                pr_status: result.tests === "failed" ? "tests_failed" : "failed",
-                pr_failure_reason: result.reason.slice(0, 500),
-                tests: result.tests,
-              });
-        } catch (e) {
-          const msg = sanitizeLogValue(e instanceof Error ? `${e.name}: ${e.message}` : e);
-          await appendFile(logPath, `[agentic-pr] unexpected error: ${msg}\n`).catch(() => {});
-          patch(id, { pr_status: "failed", pr_failure_reason: msg.slice(0, 500) });
-        } finally {
-          release();
-        }
-      })();
-    } else {
-      release();
-    }
+    void (async () => {
+      try {
+        // Let the log stream flush before anything else appends to the file.
+        await new Promise<void>((r) => out.end(r));
+        // With a box, the run stays "running" until the patch is taken and
+        // verified: the verdict is part of the run, not an afterthought.
+        let execOutcome: ExecOutcome | null = null;
+        if (exec) execOutcome = await finalizeExec(exec, logPath, { verify: finalStatus === "succeeded", evalHook: opts.evalHook });
+        // The publish gate: nothing is published when a run ends. A
+        // successful run freezes its patch, PR text and evidence into a
+        // preview; the user publishes it from the run page after review.
+        const preview = finalStatus === "succeeded"
+          ? await finishRun({
+              repoFull, issueNumber, dispatchId: id, dispatchDir: join(DISPATCH_DIR, id), logPath,
+              exec: exec ? execOutcome : null, profile, issueLabels: prepared.issueLabels ?? [],
+              privateOrg: Boolean(opts.orgCtx || opts.installationToken), token,
+            }).catch(async (e) => {
+              await appendFile(logPath, `\n[preview] failed: ${sanitizeLogValue(e instanceof Error ? e.message : e)}\n`).catch(() => {});
+              return null;
+            })
+          : null;
+        dispatch.status = finalStatus;
+        const tests = execOutcome ? testOutcome(execOutcome.verification) : undefined;
+        const prStatus = !preview || dispatch.dry_run ? "none" : preview.blockers.length ? "blocked" : "awaiting_review";
+        Object.assign(dispatch, { pr_status: prStatus, ...(tests ? { tests } : {}), ...(preview ? { has_preview: true } : {}) });
+        persist(dispatch);
+      } finally {
+        release();
+      }
+    })();
   });
   child.on("error", (err) => {
     spawnFailed = true;
     clearTimeout(timeoutHandle);
+    void exec?.box.stop();
     release();
     dispatch.ended_at = new Date().toISOString();
     dispatch.status = "failed";

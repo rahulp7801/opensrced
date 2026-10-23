@@ -1,0 +1,77 @@
+// What happens when an agent run ends: freeze the preview (patch, PR text,
+// evidence, guard results) for the publish gate. Nothing is published here;
+// app/api/dispatches/[id]/publish opens the PR once the user has reviewed
+// the preview and confirmed it.
+
+import { appendFile, readFile } from "node:fs/promises";
+import { buildPrContent, extractDiagnosis, extractFirstDiff, refusedPaths } from "./agentic-pr";
+import type { ContribProfile } from "./contrib-profile";
+import { aiBanReason, competingPrReason, discussFirstReason, draftIssueComment, openPrsForIssue } from "./contrib-guard";
+import type { ExecOutcome } from "./exec-run";
+import { CLAUDE_AGENT_MODEL } from "./models";
+import { buildPreview, writePreview, type PrPreview } from "./pr-preview";
+
+export type FinishInput = {
+  repoFull: string;
+  issueNumber: number;
+  dispatchId: string;
+  dispatchDir: string;
+  logPath: string;
+  exec: ExecOutcome | null;
+  profile: ContribProfile | null;
+  issueLabels: string[];
+  privateOrg: boolean;
+  token?: string;
+  model?: string;
+};
+
+/** Build and store the preview. Returns null when there is nothing to
+ *  publish (no patch). Never throws on a GitHub lookup failure: a guard that
+ *  could not run becomes a warning, and publish re-checks it. */
+export async function finishRun(input: FinishInput): Promise<PrPreview | null> {
+  const log = (s: string) => appendFile(input.logPath, s).catch(() => {});
+  const logText = await readFile(input.logPath, "utf8");
+  let diff: string | null;
+  if (input.exec) diff = input.exec.patchPath ? await readFile(input.exec.patchPath, "utf8") : null;
+  else diff = extractFirstDiff(logText);
+  if (!diff?.trim()) {
+    await log("\n[preview] no patch to publish\n");
+    return null;
+  }
+
+  const { title, body } = buildPrContent(input.issueNumber, input.dispatchId, logText, diff);
+  const blockers: string[] = [];
+  const warnings: string[] = [];
+  const refused = refusedPaths(diff, input.repoFull);
+  if (refused.length) blockers.push(`the patch touches paths opensrcer does not publish: ${refused.slice(0, 3).join(", ")}`);
+  if (input.profile) {
+    const ban = aiBanReason(input.profile);
+    if (ban) blockers.push(ban);
+  }
+  if (input.issueNumber > 0) {
+    try {
+      const competing = competingPrReason(await openPrsForIssue(input.repoFull, input.issueNumber, input.token));
+      if (competing) blockers.push(competing);
+    } catch {
+      warnings.push("Could not check for other open PRs on this issue; publishing re-checks it.");
+    }
+  }
+  // Issue labels first (specific to this issue), then the guide's general rule.
+  const discuss = discussFirstReason("", input.issueLabels) ?? input.profile?.discussFirst ?? null;
+  const verification = input.exec?.verification ?? null;
+  const preview = buildPreview({
+    title, body, diff, profile: input.profile, verification, executed: Boolean(input.exec),
+    model: input.model ?? CLAUDE_AGENT_MODEL, provider: "Anthropic", privateOrg: input.privateOrg,
+    blockers, warnings: discuss ? [`Maintainers ask for discussion first: ${discuss}. Consider posting the drafted issue comment instead of a PR.`, ...warnings] : warnings,
+    draftIssueComment: discuss ? draftIssueComment(extractDiagnosis(logText), verification?.status === "verified") : undefined,
+  });
+  await writePreview(input.dispatchDir, preview, diff);
+  await log(
+    `\n[preview] ─────────────────────────────\n` +
+    `[preview] ready for review: "${preview.title}" (${preview.files.length} file(s), sign-off=${preview.signoff}, verification=${verification?.status ?? "not run"})\n` +
+    preview.blockers.map((b) => `[preview] BLOCKED: ${b}\n`).join("") +
+    preview.warnings.map((w) => `[preview] warning: ${w}\n`).join("") +
+    `[preview] nothing has been published; review the patch and evidence, then use Publish on the run page\n`,
+  );
+  return preview;
+}

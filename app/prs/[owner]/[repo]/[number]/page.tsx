@@ -11,6 +11,8 @@ import { parseSplitHunks, parseUnifiedRows, type UnifiedKind } from "@/lib/diff-
 import { sseEvents, readTextResponse } from "@/lib/sse";
 import { parseMarkdownBlocks } from "@/lib/graph-view";
 import { copyText } from "@/lib/clipboard";
+import { commentDisclosure } from "@/lib/disclosure";
+import { CLAUDE_FAST_MODEL } from "@/lib/models";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -334,7 +336,7 @@ export default function PrDetailPage() {
         body: JSON.stringify({
           repo: repoFull,
           pr_title: pr?.title,
-          comment_body: `I generated this fix for a PR review comment. Summarize what was changed and why in 2-3 sentences, written as if I'm explaining my own commit to the reviewer. First person, no AI mentions.\n\nFix output:\n${fixResponse.slice(0, 3000)}`,
+          comment_body: `I made this fix for a PR review comment with an AI coding tool and reviewed it. Summarize what was changed and why in 2-3 sentences, in the first person as the PR author (I am accountable for the change). Be accurate; do not claim I wrote it unaided.\n\nFix output:\n${fixResponse.slice(0, 3000)}`,
           comment_author: "me",
         }),
       });
@@ -778,7 +780,7 @@ export default function PrDetailPage() {
         body: JSON.stringify({
           repo: repoFull,
           pr_title: pr?.title,
-          comment_body: `I just pushed a follow-up commit to this PR. Here is the diff and explanation:\n\n${fixState.response.slice(0, 4000)}\n\nPlease write a detailed but concise PR comment I can post explaining:\n1. What this commit changes and why\n2. The technical reasoning behind the approach\n3. Any caveats or things the reviewer should know\n\nWrite it as if I'm the author explaining my own commit to the reviewer. Use first person. Do not mention AI or automation.`,
+          comment_body: `I just pushed a follow-up commit to this PR. Here is the diff and explanation:\n\n${fixState.response.slice(0, 4000)}\n\nPlease write a detailed but concise PR comment I can post explaining:\n1. What this commit changes and why\n2. The technical reasoning behind the approach\n3. Any caveats or things the reviewer should know\n\nWrite it in the first person as the PR author, who is accountable for the commit. Be accurate about how it was made: an AI tool drafted the change and I reviewed it. A short AI-assistance note is appended automatically, so do not add another.`,
           comment_author: "me",
         }),
       });
@@ -786,6 +788,9 @@ export default function PrDetailPage() {
       await readTextResponse(res, text => {
         if (!controller.signal.aborted) setFollowUpComment(text);
       });
+      // Posted comments carry the same short AI-assistance note as the PR
+      // body. It stays editable: this is a draft the user posts themselves.
+      if (!controller.signal.aborted) setFollowUpComment((text) => text.trim() ? text + commentDisclosure(CLAUDE_FAST_MODEL) : text);
     } catch (err) {
       setFollowUpComment("");
       if (!controller.signal.aborted) toast(err instanceof Error ? err.message : "Failed to generate comment.", "alert");

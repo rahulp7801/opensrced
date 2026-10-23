@@ -12,11 +12,9 @@ import { resolveGitHubToken } from "@/lib/github-token";
 import { auth0 } from "@/lib/auth0";
 import { mappingForRequest, resolveGithubTokenForRequest } from "@/lib/crucible/tokens";
 import { reserveSlot } from "@/lib/concurrency";
-import { CLAUDE_AGENT_MODEL } from "@/lib/models";
 import { requireSession, sessionUserId } from "@/lib/require-session";
 import { sanitizeForPrompt } from "@/lib/sanitize";
-import { childEnv } from "@/lib/child-env";
-import { READ_ONLY_CLAUDE_ARGS } from "@/lib/claude-tools";
+import { buildAgentInvocation } from "@/lib/agent-invocation";
 
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { cloudExplore } from "@/lib/cloud-explore";
@@ -93,22 +91,6 @@ export async function POST(req: NextRequest) {
   const prompt = buildExplorePrompt(repoFull, body.query);
 
   // The same restricted tool configuration is used by every agent entry point.
-  const args = [
-    "-p",
-    prompt,
-    "--mcp-config",
-    cloudExecution() ? "/vercel/sandbox/.mcp.json" : MCP_CONFIG,
-    ...READ_ONLY_CLAUDE_ARGS,
-    "--no-session-persistence",
-    "--output-format",
-    "stream-json",
-    "--verbose",
-    "--model",
-    CLAUDE_AGENT_MODEL,
-    "--max-budget-usd",
-    String(Math.min(Math.max(body.budget ?? 0.15, 0.01), 2)),
-  ];
-
   // Private repo support — use installation token if org is specified.
   let githubToken: string | undefined;
   if (body.github_org) {
@@ -129,27 +111,31 @@ export async function POST(req: NextRequest) {
     githubToken = (await resolveGitHubToken()) ?? undefined;
   }
 
+  // Allowlisted env — the child has no business seeing AUTH0_SECRET or the
+  // GitHub App private key. See lib/child-env.ts.
+  const credentials = {
+    OPENSRCER_ALLOWED_REPO: repoFull,
+    ANTHROPIC_API_KEY: anthropicKey,
+    ...(githubToken ? { GITHUB_TOKEN: githubToken } : {}),
+  };
+  // Read-only exploration; the same restricted tool configuration as every agent entry point.
+  const invocation = buildAgentInvocation({
+    prompt,
+    mcpConfig: cloudExecution() ? "/vercel/sandbox/.mcp.json" : MCP_CONFIG,
+    budgetUsd: Math.min(Math.max(body.budget ?? 0.15, 0.01), 2),
+    maxTurns: 30,
+    inject: credentials,
+  });
+
   if (cloudExecution()) {
     const owner = await sessionUserId();
     if (!owner) return Response.json({ error: "Not authenticated" }, { status: 401 });
-    return cloudExplore(args, {
-      OPENSRCER_ALLOWED_REPO: repoFull,
-      ANTHROPIC_API_KEY: anthropicKey,
-      ...(githubToken ? { GITHUB_TOKEN: githubToken } : {}),
-    }, req.signal, owner);
+    return cloudExplore(invocation.args, credentials, req.signal, owner);
   }
 
   let release: () => void;
   try { release = reserveSlot("explore", MAX_CONCURRENT_EXPLORE); }
   catch { return Response.json({ error: "Three explorations are running. Try again when one finishes." }, { status: 429 }); }
 
-  // Allowlisted env — the child has no business seeing AUTH0_SECRET or the
-  // GitHub App private key. See lib/child-env.ts.
-  const env: NodeJS.ProcessEnv = childEnv({
-    OPENSRCER_ALLOWED_REPO: repoFull,
-    ANTHROPIC_API_KEY: anthropicKey,
-    GITHUB_TOKEN: githubToken,
-  });
-
-  return localClaudeStream(args, env, req.signal, release);
+  return localClaudeStream(invocation.args, invocation.env, req.signal, release, invocation.bin);
 }

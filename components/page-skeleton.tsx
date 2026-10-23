@@ -1,4 +1,10 @@
-export default function Loading() {
+// The placeholder an app page shows while its data loads. Each signed-in
+// section re-exports it as its loading.tsx. It is deliberately not at the app
+// root: a root loading.tsx wraps every page in a Suspense boundary, and React
+// holds that reveal back for about a second, so the public pages (landing,
+// tour, sign-in, privacy, shared fixes), which have nothing to load, would
+// flash a skeleton first.
+export default function PageSkeleton() {
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 py-6 space-y-6">
       <div className="space-y-2">

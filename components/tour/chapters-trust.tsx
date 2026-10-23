@@ -107,7 +107,7 @@ export const outro: Chapter = {
   source: "Recap of the real run",
   captions: [
     { at: 0, text: "That's opensrcer: from an open issue to a reviewed draft pull request, with you in charge of every step." },
-    { at: 4500, text: "The run you saw was real: one issue, 69 seconds of agent time, 20 cents, and a draft pull request. Jump back to any chapter from the list below." },
+    { at: 4500, text: "The run you saw was real: one issue, 69 seconds of agent time, 20 cents, and a draft pull request. Jump back to any chapter whenever you like." },
   ],
   View: OutroView,
 };

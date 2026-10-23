@@ -10,12 +10,13 @@
 // times the playback speed; each chapter view renders its frame from its local
 // time (components/tour/kit.tsx), so pausing, seeking and replaying are exact.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import Link from "next/link";
 import { ArrowCounterClockwise, ArrowRight, CornersIn, CornersOut, HandPointing, Pause, Play, SkipBack, SkipForward } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { CHAPTERS, STARTS, TOTAL } from "./chapters";
-import { ACTS, InteractContext, TimeContext, type Interact } from "./kit";
+import { ACTS, InteractContext, TimeContext, progress, type Interact } from "./kit";
+import { RUN } from "./data";
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2] as const;
 type Speed = (typeof SPEEDS)[number];
@@ -28,6 +29,71 @@ const MIN_SCALED_WIDTH = 900;
 /** Filling a short window would shrink the slide; below this scale the page
  *  keeps the stage at full size and scrolls instead. */
 const MIN_FILL_SCALE = 0.95;
+
+/** Where Watch mode's cursor waits before its first trip, on the design canvas. */
+const CURSOR_HOME = { x: DESIGN.width * 0.78, y: DESIGN.height * 0.82 };
+
+/** Watch mode's pointer. It glides to each button the tour is about to press and
+ *  clicks it, so an audience sees what is being done, not only what changed. The
+ *  buttons announce themselves (kit.tsx Press, data-cursor), so it simply follows
+ *  the tour's clock: pausing, scrubbing and speed changes all keep it exact. */
+function WatchCursor({ canvasRef, zoom }: { canvasRef: RefObject<HTMLDivElement | null>; zoom: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const pos = useRef({ ...CURSOR_HOME });
+  const trip = useRef<{ to: Element; from: { x: number; y: number } } | null>(null);
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current;
+    const cursor = ref.current;
+    if (!canvas || !cursor) return;
+    const target = canvas.querySelector("[data-cursor]");
+    if (target && target.getClientRects().length > 0) {
+      if (trip.current?.to !== target) trip.current = { to: target, from: { ...pos.current } };
+      const box = canvas.getBoundingClientRect();
+      const r = target.getBoundingClientRect();
+      const to = { x: (r.left + r.width / 2 - box.left) / zoom, y: (r.top + r.height / 2 - box.top) / zoom };
+      const p = Number(target.getAttribute("data-cursor-p") ?? 1);
+      const eased = p < 0.5 ? 2 * p * p : 1 - Math.pow(2 - 2 * p, 2) / 2;
+      const from = trip.current.from;
+      pos.current = { x: from.x + (to.x - from.x) * eased, y: from.y + (to.y - from.y) * eased };
+      cursor.dataset.state = target.getAttribute("data-cursor") ?? "move";
+    } else {
+      trip.current = null;
+      cursor.dataset.state = "idle";
+    }
+    cursor.style.transform = `translate(${pos.current.x}px, ${pos.current.y}px)`;
+  });
+  return (
+    <div ref={ref} aria-hidden className="group pointer-events-none absolute left-0 top-0 z-20 transition-transform duration-75 ease-linear" style={{ transform: `translate(${CURSOR_HOME.x}px, ${CURSOR_HOME.y}px)` }}>
+      <span className="absolute -left-3 -top-3 size-6 rounded-full bg-signal/30 opacity-0 group-data-[state=click]:animate-ping group-data-[state=click]:opacity-100 motion-reduce:animate-none" />
+      <svg width="22" height="22" viewBox="0 0 22 22" className="relative -translate-x-[3px] -translate-y-[2px] drop-shadow-[0_2px_3px_rgb(0_0_0/0.35)] transition-transform duration-100 group-data-[state=click]:scale-90">
+        <path d="M3 2 L3 18 L7.5 13.8 L10.6 20.2 L13.4 18.9 L10.4 12.6 L16.6 12.4 Z" fill="#1d1d1f" stroke="#ffffff" strokeWidth="1.6" strokeLinejoin="round" />
+      </svg>
+    </div>
+  );
+}
+
+/** Where the tour is, act by act: a segmented bar that is also a way to jump. */
+function ActBar({ t, onJump }: { t: number; onJump: (chapter: number) => void }) {
+  return (
+    <div role="group" aria-label="Tour acts" className="mb-2 flex gap-1.5">
+      {ACTS.map((act) => {
+        const first = CHAPTERS.findIndex((c) => c.act === act);
+        const last = CHAPTERS.length - 1 - [...CHAPTERS].reverse().findIndex((c) => c.act === act);
+        const start = STARTS[first];
+        const end = STARTS[last] + CHAPTERS[last].duration;
+        const current = t >= start && (t < end || last === CHAPTERS.length - 1);
+        return (
+          <button key={act} type="button" onClick={() => onJump(first)} aria-label={`${act}: jump to ${CHAPTERS[first].label}`} style={{ flexGrow: end - start }} className="group min-h-7 min-w-0 basis-0 text-left">
+            <span className={cn("block truncate text-[10.5px] font-semibold uppercase tracking-[0.08em] transition-colors", current ? "text-signal max-sm:overflow-visible" : "text-paper-muted group-hover:text-paper max-sm:invisible")}>{act}</span>
+            <span className="mt-1 block h-1 overflow-hidden rounded-full bg-surface-3">
+              <span className="block h-full rounded-full bg-signal transition-[width] duration-150 ease-linear" style={{ width: `${progress(t, start, end) * 100}%` }} />
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 type Mode = "try" | "watch";
 /** What a click-through tour is paused on: a scripted click, or the end of a chapter. */
@@ -56,6 +122,9 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
   const [fullscreen, setFullscreen] = useState(false);
   const [canFullscreen, setCanFullscreen] = useState(false);
   const [mode, setMode] = useState<Mode>("try");
+  // The start screen, until the visitor picks a way in (or ?watch skips it).
+  const [cover, setCover] = useState(true);
+  const coverRef = useRef(true);
   const [waiting, setWaitingState] = useState<Waiting | null>(null);
   // Refs mirror mode and waiting for the clock, which must stop the moment a
   // click comes due, before React gets round to re-rendering.
@@ -83,6 +152,13 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
   const setWaiting = useCallback((w: Waiting | null) => {
     waitingRef.current = w;
     setWaitingState(w);
+  }, []);
+
+  /** The visitor has started the tour, by any route: the start screen goes. */
+  const begin = useCallback(() => {
+    started.current = true;
+    coverRef.current = false;
+    setCover(false);
   }, []);
 
   const seek = useCallback((next: number) => {
@@ -118,13 +194,13 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
     return () => window.clearInterval(id);
   }, [playing, speed, setWaiting]);
 
-  // Start once the stage is first in view, unless the visitor prefers reduced
-  // motion: then the tour waits for Play.
+  // With ?watch (the presenter link) there is no start screen: the tour starts
+  // once the stage is in view, unless the visitor prefers reduced motion.
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage || typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver((entries) => {
-      if (started.current || !entries.some((e) => e.isIntersecting)) return;
+      if (started.current || coverRef.current || !entries.some((e) => e.isIntersecting)) return;
       started.current = true;
       if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) setPlaying(true);
     }, { threshold: 0.5 });
@@ -150,9 +226,9 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
   }, []);
 
   const goTo = useCallback((i: number) => {
-    started.current = true;
+    begin();
     seek(STARTS[Math.min(CHAPTERS.length - 1, Math.max(0, i))]);
-  }, [seek]);
+  }, [seek, begin]);
 
   /** A keyboard visitor working inside the stage keeps their place: the button they used
    *  is about to disappear, so focus waits on the stage and moves to the next button asked for. */
@@ -166,7 +242,7 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
   const step = useCallback(() => {
     const w = waitingRef.current;
     if (!w) return;
-    started.current = true;
+    begin();
     holdFocus();
     if (w.kind === "press") {
       done.current.add(`${chapterAt(tRef.current)}:${w.at}`);
@@ -175,14 +251,14 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
       goTo(chapterAt(tRef.current) + 1);
     }
     setPlaying(true);
-  }, [goTo, setWaiting, holdFocus]);
+  }, [goTo, setWaiting, holdFocus, begin]);
 
   const togglePlay = useCallback(() => {
-    started.current = true;
+    begin();
     if (waitingRef.current) return step();
     if (tRef.current >= TOTAL) seek(0);
     setPlaying((p) => !p || tRef.current >= TOTAL);
-  }, [seek, step]);
+  }, [seek, step, begin]);
 
   const changeMode = useCallback((m: Mode) => {
     modeRef.current = m;
@@ -199,7 +275,11 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
   // starting speed, so a presenter can bookmark exactly the tour they want.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.has("watch")) changeMode("watch");
+    if (params.has("watch")) {
+      changeMode("watch");
+      coverRef.current = false;
+      setCover(false);
+    }
     const asked = Number(params.get("speed"));
     const listed = SPEEDS.find((s) => s === asked);
     if (listed) setSpeed(listed);
@@ -278,6 +358,20 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
     else void rootRef.current?.requestFullscreen();
   }, []);
 
+  /** The start screen's ways in: watch, click through, or present (watch, full screen). */
+  const start = useCallback((m: Mode, present = false) => {
+    changeMode(m);
+    begin();
+    if (present) toggleFullscreen();
+    setPlaying(true);
+  }, [changeMode, begin, toggleFullscreen]);
+
+  const replay = useCallback(() => {
+    begin();
+    seek(0);
+    setPlaying(true);
+  }, [begin, seek]);
+
   // Keyboard: only when focus is on the page or inside the tour, never while typing.
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -328,6 +422,8 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
             </div>
           </div>
 
+          <ActBar t={t} onJump={goTo} />
+
           {/* The stage: the app, drawn on a fixed-size canvas scaled to fit. While watching it is
               a picture, and screen readers get the captions below, which narrate it; in
               click-through mode it is the visitor's to use. */}
@@ -351,12 +447,58 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
                   </div>
                 </TimeContext.Provider>
               </InteractContext.Provider>
+              {!cover && !ended && index > 0 && progress(local, 200, 600) * (1 - progress(local, 3600, 4100)) > 0 && (
+                // The chapter's name, on the stage as it begins, for an audience that can't see the list.
+                <div aria-hidden className="pointer-events-none absolute bottom-5 left-5 z-10 rounded-2xl bg-paper/90 px-4 py-2.5 text-surface shadow-[0_10px_30px_-10px_rgb(0_0_0/0.45)]" style={{ opacity: progress(local, 200, 600) * (1 - progress(local, 3600, 4100)), transform: `translateY(${(1 - progress(local, 200, 600)) * 10}px)` }}>
+                  <p className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-surface/75">{chapter.act} · {index + 1} of {CHAPTERS.length}</p>
+                  <p className="text-[16px] font-semibold tracking-[-0.01em]">{chapter.title}</p>
+                </div>
+              )}
+              {mode === "watch" && !cover && !ended && <WatchCursor canvasRef={canvasRef} zoom={scale ?? 1} />}
               {waiting?.kind === "next" && nextChapter && (
                 <button ref={nextRef} type="button" onClick={step} className="absolute bottom-4 right-4 z-10 inline-flex min-h-10 animate-fade-rise items-center gap-2 rounded-full bg-signal px-4 text-[13.5px] font-medium text-white shadow-[0_8px_24px_-6px_rgb(0_86_173/0.55)] transition hover:brightness-110 motion-reduce:animate-none">
                   Next: {nextChapter.label} <ArrowRight aria-hidden size={15} weight="bold" />
                 </button>
               )}
             </div>
+            {cover && (
+              <div className="absolute inset-0 z-30 flex items-center justify-center rounded-[20px] bg-ink/60 backdrop-blur-[6px] sm:rounded-[26px]">
+                <div style={{ zoom: scale ?? 1 }} className="mx-4 w-full max-w-[620px] animate-fade-rise rounded-[28px] border border-border-soft bg-surface px-7 py-8 text-center shadow-[0_30px_80px_-30px_rgb(0_0_0/0.35)] motion-reduce:animate-none sm:px-10">
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-signal">Product tour · about {Math.round(TOTAL / 60000)} minutes</p>
+                  <h2 className="display mt-3 text-[30px] leading-[1.05] text-paper sm:text-[36px]">Watch an issue become a pull request.</h2>
+                  <p className="mx-auto mt-3 max-w-[46ch] text-[15px] leading-6 text-paper-muted">Follow one real issue from bug report to draft pull request, then see everything else opensrcer does.</p>
+                  <div className="mt-6 flex flex-wrap justify-center gap-3">
+                    <button type="button" onClick={() => start("watch")} className="inline-flex min-h-11 items-center gap-2 rounded-full bg-signal px-5 text-[15px] font-medium text-white transition hover:brightness-110">
+                      <Play aria-hidden size={16} weight="fill" />Watch the tour
+                    </button>
+                    <button type="button" onClick={() => start("try")} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-surface px-5 text-[15px] font-medium text-paper transition hover:border-border-strong">
+                      <HandPointing aria-hidden size={17} weight="fill" />Click through it yourself
+                    </button>
+                  </div>
+                  {canFullscreen && (
+                    <button type="button" onClick={() => start("watch", true)} className="mt-4 inline-flex min-h-8 items-center gap-1.5 text-[14px] font-medium text-signal underline-offset-4 hover:underline">
+                      <CornersOut aria-hidden size={15} weight="bold" />Present full screen
+                    </button>
+                  )}
+                  <p className="mt-4 hidden text-[12px] text-paper-muted sm:block">Space plays and pauses · ← → change chapter{canFullscreen ? " · F presents" : ""}</p>
+                </div>
+              </div>
+            )}
+            {ended && !cover && (
+              <div className="absolute inset-0 z-30 flex items-center justify-center rounded-[20px] bg-ink/55 backdrop-blur-[4px] sm:rounded-[26px]">
+                <div style={{ zoom: scale ?? 1 }} className="mx-4 w-full max-w-[600px] animate-fade-rise rounded-[28px] border border-border-soft bg-surface px-7 py-8 text-center shadow-[0_30px_80px_-30px_rgb(0_0_0/0.35)] motion-reduce:animate-none sm:px-10">
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-signal">That&apos;s the tour</p>
+                  <h2 className="display mt-3 text-[30px] leading-[1.05] text-paper sm:text-[34px]">Issues in. Pull requests out.</h2>
+                  <p className="mx-auto mt-3 max-w-[46ch] text-[15px] leading-6 text-paper-muted">One real issue, {RUN.seconds} seconds of agent time, {Math.round(RUN.cost * 100)} cents, and a draft pull request you review line by line.</p>
+                  <div className="mt-6 flex flex-wrap justify-center gap-3">
+                    <Link href="/login" className="inline-flex min-h-11 items-center rounded-full bg-signal px-5 text-[15px] font-medium text-white transition hover:brightness-110">{inviteOnly ? "Have an invite? Sign in" : "Connect GitHub"}</Link>
+                    <button type="button" onClick={replay} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-surface px-5 text-[15px] font-medium text-paper transition hover:border-border-strong">
+                      <ArrowCounterClockwise aria-hidden size={16} weight="bold" />Watch again
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Captions */}
@@ -395,7 +537,7 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
                 max={TOTAL}
                 step={250}
                 value={Math.round(t)}
-                onChange={(e) => { started.current = true; seek(Number(e.target.value)); }}
+                onChange={(e) => { begin(); seek(Number(e.target.value)); }}
                 aria-valuetext={`${clock(t)} of ${clock(TOTAL)}, ${chapter.title}`}
                 className="h-6 w-full cursor-pointer accent-[var(--color-signal)]"
               />

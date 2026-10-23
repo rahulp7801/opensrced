@@ -40,10 +40,12 @@ const PUBLIC_PATHS = new Set([
   // Public crawler metadata must not be redirected through authentication.
   "/robots.txt",
   "/sitemap.xml",
-  // Generated share card and home-screen icon (app/opengraph-image.tsx,
+  // Generated share cards and home-screen icon (app/opengraph-image.tsx,
+  // app/demo/opengraph-image.tsx,
   // app/apple-icon.tsx). They have no file extension, so the static-file
   // exemption in the matcher below does not cover them.
   "/opengraph-image",
+  "/demo/opengraph-image",
   "/apple-icon",
   // GitHub App webhook — authenticates via HMAC, not session.
   "/api/crucible/github/webhook",
@@ -91,6 +93,7 @@ const UNCONFIGURED_PUBLIC_PATHS = new Set([
   "/robots.txt",
   "/sitemap.xml",
   "/opengraph-image",
+  "/demo/opengraph-image",
   "/apple-icon",
   "/demo",
   "/fix",
@@ -110,6 +113,7 @@ const PREVIEW_PUBLIC_PATHS = new Set([
   "/robots.txt",
   "/sitemap.xml",
   "/opengraph-image",
+  "/demo/opengraph-image",
   "/apple-icon",
   "/demo",
   "/api/access",

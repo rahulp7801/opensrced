@@ -78,6 +78,9 @@ try {
         const tour = main.locator('section[aria-label="Product tour"]');
         const play = tour.getByRole('button', { name: 'Play', exact: true });
         await play.waitFor();
+        // The start screen offers the ways in; nothing plays until one is picked.
+        await tour.getByRole('button', { name: 'Watch the tour', exact: true }).waitFor();
+        await tour.getByRole('button', { name: 'Click through it yourself', exact: true }).waitFor();
         const chapters = tour.locator('nav[aria-label="Tour chapters"] button');
         assert.equal(await chapters.count(), 21, 'every chapter is listed');
         const position = tour.getByRole('slider', { name: 'Tour position' });
@@ -112,6 +115,7 @@ try {
         assert.equal(await tour.getByRole('region', { name: 'The opensrcer app (demo)' }).count(), 0, 'watch mode turns the stage back into a picture');
         await position.fill(await position.getAttribute('max'));
         await tour.getByRole('button', { name: 'Replay the tour', exact: true }).waitFor();
+        await tour.getByRole('button', { name: 'Watch again', exact: true }).waitFor();
         // textContent: the transcript sits in a collapsed <details>, which innerText skips.
         const transcript = await main.locator('details').textContent() ?? '';
         for (const title of ['What opensrcer does', 'Watch the agent work', 'A draft pull request, in your name', 'Safe by default']) {

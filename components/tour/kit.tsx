@@ -71,6 +71,9 @@ export const InteractContext = createContext<Interact | null>(null);
  *  press animation starts (at - 450), with room for one slow clock tick. */
 const REACH_MS = 600;
 
+/** How long before its click Watch mode's cursor (tour.tsx) sets off for a Press. */
+const CURSOR_LEAD = 1300;
+
 /** A mock button that lights up as the tour "clicks" it at `at`. In
  *  click-through mode it becomes a real button the visitor has to press.
  *  `label` names it when its text is more than a button label. */
@@ -92,6 +95,10 @@ export function Press({ at, children, className, label }: { at: number | null; c
     if (ix?.claimFocus()) ref.current?.focus({ preventScroll: true });
   }, [waiting, ix]);
   const pressing = !waiting && at !== null && t >= at - 450 && t < at + 350;
+  // Where the cursor is in its trip to this button: data-cursor says moving or
+  // clicking, data-cursor-p how far along (0-1). The cursor reads the DOM for them.
+  const approaching = !waiting && at !== null && t >= at - CURSOR_LEAD && t < at + 300;
+  const cursor = approaching ? { "data-cursor": t >= at - 150 ? "click" : "move", "data-cursor-p": progress(t, at - CURSOR_LEAD, at - 350).toFixed(3) } : {};
   const cls = cn(
     "relative inline-flex select-none items-center justify-center transition-[transform,box-shadow] duration-200 motion-reduce:transition-none",
     pressing && "scale-[0.96] shadow-[0_0_0_4px_rgb(0_86_173/0.28)]",
@@ -102,7 +109,7 @@ export function Press({ at, children, className, label }: { at: number | null; c
   return waiting && ix ? (
     <button ref={ref as Ref<HTMLButtonElement>} type="button" onClick={ix.press} aria-label={label} className={cls}>{children}{halo}</button>
   ) : (
-    <span ref={ref} className={cls}>{children}{halo}</span>
+    <span ref={ref} className={cls} {...cursor}>{children}{halo}</span>
   );
 }
 

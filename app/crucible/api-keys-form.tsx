@@ -165,7 +165,7 @@ export function ApiKeysForm() {
     <div className="space-y-7">
       {/* How runs are paid for */}
       <fieldset className="space-y-3" aria-describedby="payment-help">
-        <legend className="text-sm font-medium text-paper">How runs are paid for</legend>
+        <legend className="text-sm font-medium text-paper">Payment order</legend>
         <p id="payment-help" className="text-xs leading-5 text-paper-muted">
           Runs try these in order. Your own subscription comes first, so you are not charged API prices by default.
         </p>

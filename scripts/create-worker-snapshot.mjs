@@ -57,7 +57,8 @@ try {
   await run('npm', ['install', '-g', '@anthropic-ai/claude-code@2.1.269'], true);
   // Exec VM tools the setup recipes and agents call (uv ships with the image).
   await run('npm', ['install', '-g', 'yarn@1.22.22'], true);
-  await run('python3', ['-m', 'pip', 'install', '--no-cache-dir', '--break-system-packages', 'pre-commit==4.0.1'], true);
+  // Its own venv: pip into the system Python collides with Debian's packages.
+  await run('bash', ['-c', 'set -e; python3 -m venv /opt/pre-commit; /opt/pre-commit/bin/pip install --no-cache-dir pre-commit==4.0.1; ln -sf /opt/pre-commit/bin/pre-commit /usr/local/bin/pre-commit'], true);
   await run('bash', ['-c', 'set -euo pipefail; cd /tmp; curl -fsSLO https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz; echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks_8.30.1_linux_x64.tar.gz" | sha256sum -c -; tar -xzf gitleaks_8.30.1_linux_x64.tar.gz gitleaks; install gitleaks /usr/local/bin/gitleaks'], true);
   for (const cmd of ['node', 'git', 'gh', 'claude', 'gitleaks', 'yarn', 'uv', 'pre-commit', 'gcc']) await run(cmd, ['--version']);
   await run('node', ['node_modules/typescript/bin/tsc', '-p', 'tsconfig.test.json']);

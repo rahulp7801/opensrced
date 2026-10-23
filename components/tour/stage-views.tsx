@@ -13,7 +13,7 @@
 import { ArrowUp, Sparkle } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { StatusChip } from "@/components/status-dot";
-import { AppWindow, Pips, Press, Reveal, SCOPE_TONE, SEVERITY_TONE, Typed, progress, useFollow, useT, type Caption, type Chapter } from "./kit";
+import { AppWindow, Pips, Press, Reveal, SCOPE_TONE, SEVERITY_TONE, TimeContext, Typed, progress, useFollow, useT, type Caption, type Chapter } from "./kit";
 import { CodeGraph, LIGHTS } from "./graph";
 import { DEMO_REPO, RUN } from "./data";
 
@@ -31,6 +31,7 @@ const SCAN_REPO = "acme/ui-kit";
 const SCAN: ScanRow[] = [
   { number: 2290, title: "Tooltip flickers when its trigger re-renders", category: "bug", labels: ["bug", "good first issue"], opened: "3d ago", scope: "leaf", risk: "medium", complexity: 2, estimate: "30m" },
   { number: 2288, title: "Select loses focus after clearing the value", category: "bug", labels: ["bug"], opened: "4d ago", reason: "Already assigned to @mira-dev — someone's on it. Skip." },
+  { number: 2286, title: "Popover closes when clicking inside a portal", category: "bug", labels: ["bug"], opened: "5d ago", reason: "1 open PR already targets this issue. Review or help with it instead." },
   { number: 2284, title: "DatePicker ignores the locale prop for month names", category: "bug", labels: ["bug"], opened: "6d ago", scope: "leaf", risk: "low", complexity: 2, estimate: "45m" },
   { number: 2279, title: "Modal scroll lock leaks on iOS", category: "bug", labels: ["bug", "ios"], opened: "9d ago", reason: "Appears already resolved (comment by @acme-lead (maintainer) says \"fixed in #2281\"). Skip — the ticket is stale-open." },
   { number: 2271, title: "Docs: the Button size table lists the wrong default", category: "docs", labels: ["documentation", "good first issue"], opened: "12d ago", scope: "doc", risk: "low", complexity: 1, estimate: "15m" },
@@ -117,7 +118,7 @@ export const stageScan: Chapter = {
   captions: [
     { at: 0, text: "This is where beginners get stuck, and where Claude Code can't help: Claude Code starts once you already have an issue. Here, a repository's newest open issues are read and vetted for you." },
     { at: SHOW_ALL_AT, text: "Show everything it found, including what it filtered out, and why." },
-    { at: SHOW_ALL_AT + 600, spot: "scan-list", text: "Assigned to someone? Skip, they're on it. Already fixed in a PR but never closed? Skip. That one alone saves maintainers a pile of duplicate PRs." },
+    { at: SHOW_ALL_AT + 600, spot: "scan-list", text: "Assigned to someone? Skip, they're on it. Someone already has a pull request open? Skip, help them instead. Already fixed but never closed? Skip. That one alone saves maintainers a pile of duplicate PRs." },
     { at: SHOW_ALL_AT + 4200, spot: "scan-list", text: "Questions, wontfix or duplicate labels, and issues too vague to act on are skipped too, with the reason spelled out." },
     { at: SHOW_ALL_AT + 7200, text: "What's left is actually open to a newcomer, each with its scope, risk, complexity and a time estimate." },
     { at: SHOW_READY_AT, text: "Back to the ready ones. This is the contribution etiquette Claude Code assumes you already know." },
@@ -127,7 +128,7 @@ export const stageScan: Chapter = {
 
 // ── Understand: plain-English questions about the code ──────────────────────
 
-type Turn = { prompt: string; answer: string; cites: string[]; cost: string };
+type Turn = { prompt: string; answer: string; cites: string[]; cost?: string };
 type TimedTurn = Turn & { typeAt: number; askAt: number; answerAt: number; doneAt: number };
 
 const PROMPT_CPS = 26; // the presenter's question, typed into the box
@@ -151,38 +152,45 @@ function schedule(start: number, turns: Turn[]): { turns: TimedTurn[]; end: numb
 
 /** The Explore page's question box as a conversation: each question is typed,
  *  sent (a stop for the presenter), and answered with its sources and cost. */
-function AskPanel({ turns }: { turns: TimedTurn[] }) {
+type PanelText = { title: string; subtitle: string; intro: string; placeholder: string };
+const GRAPH_PANEL: PanelText = {
+  title: "Ask in plain English",
+  subtitle: "Answered from this repository's code graph",
+  intro: "Ask any question in plain English about the codebase.",
+  placeholder: `Ask about ${DEMO_REPO}…`,
+};
+
+function AskPanel({ turns, text = GRAPH_PANEL }: { turns: TimedTurn[]; text?: PanelText }) {
   const t = useT();
   const scrollRef = useFollow(Math.floor(t / 250));
   const typing = turns.find((turn) => t >= turn.typeAt && t < turn.askAt + 150);
-  const spent = turns.filter((turn) => t >= turn.doneAt).reduce((sum, turn) => sum + Number(turn.cost.slice(1)), 0);
+  const costs = turns.every((turn) => turn.cost);
+  const spent = turns.filter((turn) => t >= turn.doneAt).reduce((sum, turn) => sum + Number((turn.cost ?? "$0").slice(1)), 0);
   return (
     <section data-spot="ask" aria-label="Ask in plain English" className="flex h-full min-h-0 flex-col rounded-xl border border-border-soft bg-surface">
       <div className="flex items-center gap-2 border-b border-border-soft px-4 py-2.5">
         <span className="grid size-7 place-items-center rounded-lg bg-signal text-white"><Sparkle aria-hidden size={15} weight="fill" /></span>
         <div className="min-w-0 flex-1">
-          <p className="text-[13.5px] font-semibold leading-tight text-paper">Ask in plain English</p>
-          <p className="text-[11px] leading-tight text-paper-muted">Answered from this repository&apos;s code graph</p>
+          <p className="text-[15px] font-semibold leading-tight text-paper">{text.title}</p>
+          <p className="text-[12px] leading-tight text-paper-muted">{text.subtitle}</p>
         </div>
-        <span className="font-mono text-[11px] text-ok">${spent.toFixed(4)}</span>
+        {costs && <span className="font-mono text-[12px] text-ok">${spent.toFixed(4)}</span>}
       </div>
       <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-hidden px-4 py-3">
-        <p className="rounded-2xl rounded-tl-md bg-surface-2 px-3 py-2.5 text-[12.5px] leading-5 text-paper-dim">
-          Ask any question in plain English about the codebase. Graph commands like <code className="font-mono">impact truncate</code> answer for free.
-        </p>
+        <p className="rounded-2xl rounded-tl-md bg-surface-2 px-3 py-2.5 text-[13.5px] leading-[1.45] text-paper-dim">{text.intro}</p>
         {turns.map((turn) => t >= turn.askAt + 150 && (
           <div key={turn.prompt} className="space-y-2">
-            <Reveal at={turn.askAt + 150} className="ml-10 rounded-2xl rounded-tr-md bg-paper px-3 py-2 text-[12.5px] leading-5 text-surface">{turn.prompt}</Reveal>
+            <Reveal at={turn.askAt + 150} className="ml-10 rounded-2xl rounded-tr-md bg-paper px-3 py-2 text-[14px] leading-[1.45] text-surface">{turn.prompt}</Reveal>
             {t < turn.answerAt ? (
               <div className="flex w-fit items-center gap-1 rounded-2xl rounded-tl-md bg-surface-2 px-3 py-2.5" aria-label="Thinking">
                 {[0, 1, 2].map((i) => <span key={i} className="size-1.5 animate-bounce rounded-full bg-paper-muted motion-reduce:animate-none" style={{ animationDelay: `${i * 140}ms` }} />)}
               </div>
             ) : (
-              <div className="mr-6 rounded-2xl rounded-tl-md border border-border-soft bg-surface px-3 py-2.5 text-[12.5px] leading-[1.55] text-paper">
+              <div className="mr-4 rounded-2xl rounded-tl-md border border-border-soft bg-surface px-3 py-2.5 text-[14px] leading-[1.5] text-paper">
                 <Typed text={turn.answer} at={turn.answerAt} cps={ANSWER_CPS} />
                 <Reveal at={turn.doneAt} className="mt-2 flex flex-wrap items-center gap-1.5">
-                  {turn.cites.map((c) => <span key={c} className="rounded-md bg-signal/10 px-1.5 py-0.5 font-mono text-[10.5px] text-signal">{c}</span>)}
-                  <span className="ml-auto font-mono text-[10.5px] text-paper-muted">{turn.cost}</span>
+                  {turn.cites.map((c) => <span key={c} className="rounded-md bg-signal/10 px-1.5 py-0.5 font-mono text-[11.5px] text-signal">{c}</span>)}
+                  {turn.cost && <span className="ml-auto font-mono text-[11.5px] text-paper-muted">{turn.cost}</span>}
                 </Reveal>
               </div>
             )}
@@ -191,8 +199,8 @@ function AskPanel({ turns }: { turns: TimedTurn[] }) {
       </div>
       <div className="border-t border-border-soft p-3">
         <div className={cn("flex items-center gap-2 rounded-xl border bg-surface px-3 py-2 transition-colors", typing ? "border-signal/60" : "border-border")}>
-          <span className="min-w-0 flex-1 truncate text-[12.5px] text-paper">
-            {typing ? <Typed text={typing.prompt} at={typing.typeAt} cps={PROMPT_CPS} /> : <span className="text-paper-muted">Ask about {DEMO_REPO}…</span>}
+          <span className="min-w-0 flex-1 truncate text-[14px] text-paper">
+            {typing ? <Typed text={typing.prompt} at={typing.typeAt} cps={PROMPT_CPS} /> : <span className="text-paper-muted">{text.placeholder}</span>}
           </span>
           {turns.map((turn) => turn === typing && (
             <Press key={turn.askAt} at={turn.askAt} label="Ask" className="grid size-7 shrink-0 place-items-center rounded-full bg-signal text-white">
@@ -436,3 +444,172 @@ export function withPrFacts(chapter: Chapter): Chapter {
   }
   return { ...chapter, View };
 }
+
+// ── Ship: "ask about this change", the PR page's chat ───────────────────────
+
+// The PR page's chat (app/prs/[owner]/[repo]/[number]/page.tsx): once a fix is
+// generated, "ask about this change" opens it, and Claude answers with the fix as
+// context (via /api/prs/draft-reply). It stays open on the page, so it's there for
+// the next comment too. The conversation here is an example.
+const CHANGE_PANEL: PanelText = {
+  title: "Ask about this change",
+  subtitle: "Ask Claude to explain the reasoning, potential risks, or alternatives",
+  intro: "Ask anything about the generated fix: why it chose this approach, what could go wrong, alternative approaches, etc.",
+  placeholder: "Ask about this change…",
+};
+const FIX_QUESTIONS: Turn[] = [
+  {
+    prompt: "Explain this follow-up change in plain English.",
+    answer: "Before, it only trimmed spaces from the end of the cut text before adding the ellipsis. Now it also trims a trailing comma, semicolon or colon, so “The quick, brown” cut at 11 becomes “The quick…” instead of “The quick,…”. It's one line, line 24 of src/truncate.ts.",
+    cites: [],
+  },
+  {
+    prompt: "Could this break anything?",
+    answer: "Only results that end in one of those marks right at the cut change, and they get a character shorter. A trailing period or other punctuation is kept. The change adds no test and the project's tests weren't run, so say that in your reply.",
+    cites: [],
+  },
+];
+const SEGMENTER_QUESTION: Turn[] = [
+  {
+    prompt: "The reviewer asked why I didn't use Intl.Segmenter for the word boundary. What is it, and is my fix wrong without it?",
+    answer: "Intl.Segmenter is built into JavaScript and splits text into words using each language's rules, so it works for languages like Japanese or Thai that don't put spaces between words. Your fix finds word boundaries at spaces, as the function already did, so it isn't wrong for text with spaces; text without them is cut the same way as before. Switching to Intl.Segmenter is a bigger change, which fits better as a follow-up.",
+    cites: [],
+  },
+];
+
+/** A PR-page chapter with the chat open beside it. At pauseAt the page holds
+ *  while the questions are asked and answered, then carries on where it was. */
+function withChangeChat(chapter: Chapter, o: { openAt: number; pauseAt: number; turns: Turn[]; before?: Turn[]; notes: Caption[] }): Chapter {
+  const asked = schedule(o.pauseAt + 500, o.turns);
+  const hold = asked.end - o.pauseAt;
+  // Earlier questions on the same page, already answered.
+  const before: TimedTurn[] = (o.before ?? []).map((turn) => ({ ...turn, typeAt: -1, askAt: -1, answerAt: -1, doneAt: -1 }));
+  const Inner = chapter.View;
+  function View() {
+    const t = useT();
+    const page = t < o.pauseAt ? t : t < o.pauseAt + hold ? o.pauseAt : t - hold;
+    return (
+      <div className="relative h-full [&_[data-chat-room]]:pr-[468px]">
+        <TimeContext.Provider value={page}><Inner /></TimeContext.Provider>
+        <Reveal at={o.openAt} spot="chat" className="absolute bottom-3 right-3 top-[112px] z-10 w-[450px] shadow-[0_20px_50px_-20px_rgb(0_0_0/0.3)]">
+          <AskPanel turns={[...before, ...asked.turns]} text={CHANGE_PANEL} />
+        </Reveal>
+      </div>
+    );
+  }
+  const shifted = chapter.captions.map((c) => (c.at >= o.pauseAt ? { ...c, at: c.at + hold } : c));
+  return { ...chapter, duration: chapter.duration + hold, captions: [...shifted, ...o.notes].sort((a, b) => a.at - b.at), View };
+}
+
+/** Fix a comment: ask about the fix before pushing it. */
+export function withFixChat(chapter: Chapter): Chapter {
+  const pauseAt = 13000;
+  const timed = schedule(pauseAt + 500, FIX_QUESTIONS).turns;
+  return withChangeChat(chapter, {
+    openAt: 3400, pauseAt, turns: FIX_QUESTIONS,
+    notes: [
+      { at: timed[0].typeAt, spot: "chat", text: "This is the point: it explains, it doesn't take over. Before you push anything, ask about the change in plain English, so you can explain it to the maintainer yourself." },
+      { at: timed[1].typeAt, spot: "chat", text: "And what could go wrong. The answer is honest that nothing was tested." },
+    ],
+  });
+}
+
+/** Answer a question: understand it before drafting a reply. */
+export function withQuestionChat(chapter: Chapter): Chapter {
+  const pauseAt = 2000;
+  const timed = schedule(pauseAt + 500, SEGMENTER_QUESTION).turns;
+  return withChangeChat(chapter, {
+    openAt: 0, pauseAt, turns: SEGMENTER_QUESTION, before: FIX_QUESTIONS,
+    notes: [
+      { at: timed[0].typeAt, spot: "chat", text: "A beginner may not even understand the question. Ask first, in plain English, then answer the maintainer as someone who knows what they're talking about." },
+    ],
+  });
+}
+
+// ── Fix: when it says no ────────────────────────────────────────────────────
+
+// The run page's review panel when a blocker applies (components/publish-panel.tsx):
+// the reason is shown and there is no confirm box and no Publish button. EXAMPLE:
+// a fictional project and guide; the wording is lib/contrib-guard.ts's.
+const BAN_REPO = "acme/forms";
+const BAN_EXCERPT = "We don't accept pull requests written by AI tools.";
+
+function RefusedView() {
+  return (
+    <AppWindow path={`/dispatches?dispatch=c_example`} section="Fix" tab="Runs">
+      <div className="p-6">
+        <div className="mx-auto max-w-[860px] overflow-hidden rounded-2xl border border-border-soft bg-surface">
+          <div className="border-b border-border px-5 py-3">
+            <p className="text-[13px] text-paper-muted">{BAN_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[11px] text-info">#412</span></p>
+            <p className="mt-0.5 text-[17px] font-medium text-paper">Form reset doesn&apos;t clear validation errors</p>
+          </div>
+          <Reveal at={400} spot="refusal" className="px-5 py-4 text-[15px]">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <p className="text-[16px] font-medium text-paper">Review before publishing</p>
+              <span className="text-alert">Verification: not verified (no code was run)</span>
+            </div>
+            <p className="mt-1.5 text-paper-muted">Nothing has been posted. Publishing opens a draft PR from your account with exactly this patch and text (1 file).</p>
+            <p role="alert" className="mt-3 rounded-lg border border-alert/30 bg-alert/5 px-3 py-2.5 text-alert">Blocked: this project does not accept AI-generated contributions (CONTRIBUTING.md: &quot;{BAN_EXCERPT}&quot;)</p>
+          </Reveal>
+        </div>
+      </div>
+    </AppWindow>
+  );
+}
+
+export const stageRefused: Chapter = {
+  id: "refused",
+  act: "Fix",
+  label: "When it says no",
+  title: "When it says no",
+  duration: 3000,
+  source: "Example: a fictional project whose guide bans AI",
+  captions: [
+    { at: 0, spot: "refusal", text: "And it says no. This project's contribution guide bans AI-written pull requests, so publishing is refused, quoting the guide. There's no confirm box and no Publish button; the preview is still yours to learn from. Same when someone else already has a pull request open on the issue." },
+  ],
+  View: RefusedView,
+};
+
+// ── Close: why this isn't AI slop ───────────────────────────────────────────
+
+// Each row is something opensrcer does today (on the hosted site unless it says otherwise).
+const SLOP: Array<[string, string]> = [
+  ["Nobody asked for it", "Only issues that are open to you. It skips assigned, already-fixed and vague issues, and refuses projects whose guide bans AI."],
+  ["Someone's already on it", "It won't publish while another pull request targets the issue."],
+  ["The sender can't explain it", "Nothing publishes until you've read the patch and confirmed you can explain it. The chat helps you get there."],
+  ["Hidden AI", "Every pull request says who asked, which model, and what was and wasn't tested."],
+  ["Untested", "It says plainly when tests weren't run. On your own machine, it shows the new test failing without the fix."],
+  ["Sent in bulk", "Always a draft, with you as the author. One open pull request per project per person, and at most three a day."],
+];
+const SLOP_STEP = 1600;
+
+function SlopView() {
+  return (
+    <div className="flex h-full flex-col justify-center bg-ink px-12 py-10">
+      <Reveal at={150}><p className="text-[30px] font-semibold tracking-[-0.02em] text-paper">What makes an AI pull request slop, and what opensrcer does about it</p></Reveal>
+      <div className="mt-6 divide-y divide-border-soft rounded-[22px] border border-border-soft bg-surface">
+        {SLOP.map(([problem, answer], i) => (
+          <Reveal key={problem} at={700 + i * SLOP_STEP} className="grid grid-cols-[260px_minmax(0,1fr)] items-baseline gap-6 px-6 py-3.5">
+            <p className="text-[18px] font-semibold text-alert">{problem}</p>
+            <p className="text-[17px] leading-[1.4] text-paper">{answer}</p>
+          </Reveal>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export const stageSlop: Chapter = {
+  id: "slop",
+  act: "Ship",
+  label: "Not slop",
+  title: "Why this isn't AI slop",
+  duration: 700 + SLOP.length * SLOP_STEP + 1500,
+  source: "What opensrcer does today",
+  captions: [
+    { at: 0, text: "The fair worry about a tool like this is AI slop: pull requests nobody asked for, from people who can't explain them. So here's what slop is made of, and what opensrcer does about each." },
+    { at: 700 + 2 * SLOP_STEP, text: "The heart of it: you can't publish what you can't explain, and the chat is there so you can." },
+    { at: 700 + 5 * SLOP_STEP, text: "It's built to make better contributors, not more pull requests. Thank you." },
+  ],
+  View: SlopView,
+};

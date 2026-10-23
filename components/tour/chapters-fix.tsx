@@ -60,7 +60,8 @@ function RunView() {
   const costShown = f >= 0.66;
   const seconds = Math.round(f * RUN.seconds);
   const elapsed = `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, "0")}s`;
-  const logRef = useFollow(lines.length);
+  // Followed again when the ready bar takes room from the log, so its last line stays in view.
+  const logRef = useFollow(lines.length + (ready ? 1 : 0));
   return (
     <AppWindow path={`/dispatches?dispatch=${RUN.id}`} section="Fix" tab="Runs">
       <div className="grid h-full gap-3 overflow-hidden p-3 sm:p-4 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)]">
@@ -91,7 +92,7 @@ function RunView() {
           ))}
         </div>
         <div className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-border-soft bg-surface">
-          <div data-spot="run-status" className="border-b border-border px-3 py-2.5 sm:px-4">
+          <div className="border-b border-border px-3 py-2.5 sm:px-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate text-[11.5px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[10.5px] text-info">#{ISSUE.number}</span></p>
@@ -133,7 +134,7 @@ export const run: Chapter = {
     { at: runAt(0.3), text: "Before writing anything, it notes the project's conventions. There's no contribution guide here, so it matches the style the code already uses." },
     { at: runAt(0.4), text: "It writes down what's wrong and where, then the fix as a patch." },
     { at: runAt(0.72), text: "The run ends with everything frozen for review: the patch, the pull request text and the evidence. Nothing has been published." },
-    { at: runAt(0.93), spot: "run-status", text: "69 seconds and 20 cents, end to end. The hosted service can't run the project's tests, so it says so: unverified, for you to check." },
+    { at: runAt(0.93), spot: "log-preview", text: "69 seconds and 20 cents, end to end. The hosted service can't run the project's tests, so it says so: unverified, for you to check." },
   ],
   View: RunView,
 };

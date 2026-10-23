@@ -18,7 +18,7 @@ import { pacedBy } from "./chapters";
 import { choose } from "./chapters-find";
 import { newRun, pr, review, run } from "./chapters-fix";
 import { reply, respond } from "./chapters-ship";
-import { stageCompare, stageExplore, stageNotes, stageScan, withPrFacts } from "./stage-views";
+import { stageCompare, stageExplore, stageNotes, stageRefused, stageScan, stageSlop, withFixChat, withPrFacts, withQuestionChat } from "./stage-views";
 
 /** How much slower than written the stage plays its animations. The presenter
  *  sets the pace between steps; this only stretches what plays by itself. */
@@ -36,8 +36,8 @@ const SKIP = new Set(["Copy diff", "Commit msg"]);
 const PHASES: Phase[] = [
   { name: "Find", say: "Why not just Claude Code: finding an issue that's actually open to a newcomer is the step it assumes you've already done.", chapters: [stageCompare, stageScan, S.choose] },
   { name: "Understand", say: "Understand a repository you haven't cloned: a map of it, and plain-English answers about it.", chapters: [stageExplore] },
-  { name: "Fix", say: "One click starts an agent in a throwaway machine; you read the patch and decide whether to publish.", chapters: [S.run, S.review] },
-  { name: "Ship", say: "A draft pull request in your name, every GitHub step done right, and help with the follow-ups.", chapters: [withPrFacts(S.pr), S.respond, S.reply] },
+  { name: "Fix", say: "One click starts an agent in a throwaway machine; you read the patch and decide whether to publish.", chapters: [S.run, S.review, stageRefused] },
+  { name: "Ship", say: "A draft pull request in your name, every GitHub step done right, and help with the follow-ups.", chapters: [withPrFacts(S.pr), withFixChat(S.respond), withQuestionChat(S.reply), stageSlop] },
 ];
 
 const STEPS = PHASES.flatMap((phase, p) => phase.chapters.map((c) => ({ phase: p, chapter: pacedBy(c, STAGE_PACE) })));
@@ -305,6 +305,7 @@ export function StageDemo() {
 }
 
 const SPOT_PAD = 10; // screen px around the target
+const SMALL = 48; // screen px: a target this short is ringed on its own edge, so the ring stays off its neighbours
 
 /** With no pointer on stage, what's being clicked or talked about is lit: the rest of
  *  the screen dims and a thick ring sits around the target. Drawn in screen pixels,
@@ -321,9 +322,11 @@ function Spotlight({ selector, strong, within }: { selector: string | null; stro
       const r = { left: Math.min(...rects.map((b) => b.left)), top: Math.min(...rects.map((b) => b.top)), right: Math.max(...rects.map((b) => b.right)), bottom: Math.max(...rects.map((b) => b.bottom)), width: 1 };
       const c = canvas.getBoundingClientRect();
       // Kept to the app window: a long list lights only the part on screen.
-      const left = Math.max(r.left, c.left) - SPOT_PAD, top = Math.max(r.top, c.top) - SPOT_PAD;
-      const right = Math.min(r.right, c.right) + SPOT_PAD, bottom = Math.min(r.bottom, c.bottom) + SPOT_PAD;
-      const next = r.width > 0 && right > left && bottom > top ? `${left}|${top}|${right - left}|${bottom - top}` : null;
+      const small = r.bottom - r.top < SMALL;
+      const pad = small ? 0 : SPOT_PAD;
+      const left = Math.max(r.left, c.left) - pad, top = Math.max(r.top, c.top) - pad;
+      const right = Math.min(r.right, c.right) + pad, bottom = Math.min(r.bottom, c.bottom) + pad;
+      const next = r.width > 0 && right > left && bottom > top ? `${left}|${top}|${right - left}|${bottom - top}|${small ? 1 : 0}` : null;
       setBox((prev) => (prev === next ? prev : next));
     };
     measure();
@@ -332,12 +335,15 @@ function Spotlight({ selector, strong, within }: { selector: string | null; stro
     return () => window.clearInterval(id);
   }, [selector, within]);
   if (!box) return null;
-  const [left, top, width, height] = box.split("|").map(Number);
+  const [left, top, width, height, small] = box.split("|").map(Number);
   const frame = { left, top, width, height };
+  const shape = cn("fixed z-[60] transition-all duration-300 ease-out motion-reduce:transition-none", small ? "rounded-[8px]" : "rounded-[16px]");
+  // A small target's ring sits on its own edge (inside), a big one's around it.
+  const ring = small ? "inset 0 0 0 3px var(--color-signal), 0 0 22px 4px rgb(0 86 173 / 0.55)" : "inset 0 0 0 3px #fff, 0 0 0 6px var(--color-signal), 0 0 28px 8px rgb(0 86 173 / 0.5)";
   return (
     <div aria-hidden className="pointer-events-none">
-      <div data-spotlight={strong ? "click" : "note"} className="fixed z-[60] rounded-[16px] transition-all duration-300 ease-out motion-reduce:transition-none" style={{ ...frame, boxShadow: `0 0 0 9999px rgb(0 0 0 / ${strong ? 0.62 : 0.45})` }} />
-      <div className="fixed z-[60] animate-pulse rounded-[16px] transition-all duration-300 ease-out motion-reduce:animate-none motion-reduce:transition-none" style={{ ...frame, boxShadow: "inset 0 0 0 3px #fff, 0 0 0 6px var(--color-signal), 0 0 28px 8px rgb(0 86 173 / 0.5)" }} />
+      <div data-spotlight={strong ? "click" : "note"} className={shape} style={{ ...frame, boxShadow: `0 0 0 9999px rgb(0 0 0 / ${strong ? 0.62 : 0.45})` }} />
+      <div className={cn(shape, "animate-pulse motion-reduce:animate-none")} style={{ ...frame, boxShadow: ring }} />
     </div>
   );
 }

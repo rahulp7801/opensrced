@@ -79,7 +79,8 @@ test("reusing a finished run's slot stops its idle VM", async () => {
   await seed(1, "auth0|dana", "running");
   await seed(2, "auth0|erin", "running");
   assert.equal(await reserveCapacity(runPath("auth0|carol", newCloudRunId()), Date.now() + 60_000), "capacity/0.json");
-  assert.deepEqual(stopped, [idle]);
+  // Its exec VM (hosted exec runs) goes with it; none exists for other runs.
+  assert.deepEqual([...stopped].sort(), [idle, `${idle}-exec`]);
 
   // A record that claims its VM already stopped is not believed: the worker
   // writes that field, so the lease's VM is stopped anyway (stop is idempotent).
@@ -89,7 +90,7 @@ test("reusing a finished run's slot stops its idle VM", async () => {
   await seed(1, "auth0|dana", "running");
   await seed(2, "auth0|erin", "running");
   await reserveCapacity(runPath("auth0|carol", newCloudRunId()), Date.now() + 60_000);
-  assert.deepEqual(stopped, [claimedStopped]);
+  assert.deepEqual([...stopped].sort(), [claimedStopped, `${claimedStopped}-exec`]);
 });
 
 test("simultaneous requests cannot slip past the per-account caps", async () => {

@@ -10,6 +10,7 @@ import { aiBanReason, competingPrReason, discussFirstReason, draftIssueComment, 
 import type { ExecOutcome } from "./exec-run";
 import { CLAUDE_AGENT_MODEL } from "./models";
 import { buildPreview, writePreview, type PrPreview } from "./pr-preview";
+import { parseCases } from "./verify";
 
 export type FinishInput = {
   repoFull: string;
@@ -63,11 +64,17 @@ export async function finishRun(input: FinishInput): Promise<PrPreview | null> {
   // Issue labels first (specific to this issue), then the guide's general rule.
   const discuss = discussFirstReason("", input.issueLabels) ?? input.profile?.discussFirst ?? null;
   const verification = input.exec?.verification ?? null;
+  // The variants the agent listed and which test covers each. Fewer covered
+  // than listed is a warning for the reviewer, not a blocker.
+  const cases = parseCases(logText);
+  const uncovered = cases.filter((c) => !c.test);
+  if (uncovered.length) warnings.push(`The agent listed ${cases.length} reported variant(s) but covered only ${cases.length - uncovered.length} with a test; not covered: ${uncovered.map((c) => c.variant).join("; ").slice(0, 400)}.`);
   const preview = buildPreview({
     title, body, diff, profile: input.profile, verification, executed: Boolean(input.exec),
     model: input.model ?? CLAUDE_AGENT_MODEL, provider: "Anthropic", privateOrg: input.privateOrg,
     blockers, warnings: discuss ? [`Maintainers ask for discussion first: ${discuss}. Consider posting the drafted issue comment instead of a PR.`, ...warnings] : warnings,
     draftIssueComment: discuss ? draftIssueComment(extractDiagnosis(logText), verification?.status === "verified") : undefined,
+    cases,
   });
   await writePreview(input.dispatchDir, preview, diff);
   await log(

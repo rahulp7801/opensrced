@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { agenticChildEnv, fetchIssue, findOpenRunPr, pipeStreamJson, RunTargetError } from "../agentic-dispatcher";
+import { agenticChildEnv, buildExecPrompt, fetchIssue, findOpenRunPr, pipeStreamJson, RunTargetError } from "../agentic-dispatcher";
 import { PassThrough } from "node:stream";
 import { once } from "node:events";
 
@@ -96,4 +96,16 @@ test("a live run finds the caller's own open PR for the same issue, and only tha
   assert.equal(await findOpenRunPr("acme/app", 1, "alice", "t"), null);
   status = 403;
   await assert.rejects(findOpenRunPr("acme/app", 1, "alice", "t"), (error: Error) => error instanceof RunTargetError);
+});
+
+test("exec prompt: enumerate variants, one test each, fix at the owning layer, report Cases", () => {
+  const p = buildExecPrompt("o/r", 7, "<issue-report untrusted=\"true\">x</issue-report>", "notes", 20);
+  assert.match(p, /List every distinct reproduction, variant or input the issue describes/);
+  assert.match(p, /one test case per variant/);
+  assert.match(p, /prefer the module the issue or its traceback points at over a generic shared engine/);
+  assert.match(p, /also run the existing tests of the module you changed/);
+  assert.match(p, /`## Cases` — a fenced block tagged `cases`/);
+  assert.match(p, /about 20 minutes of wall-clock time/);
+  assert.match(p, /Do not put a diff in your answer/);
+  assert.doesNotMatch(buildExecPrompt("o/r", 7, "x"), /minutes of wall-clock/);
 });

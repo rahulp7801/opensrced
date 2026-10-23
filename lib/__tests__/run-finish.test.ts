@@ -39,6 +39,20 @@ test("a stand-in agent's preview carries a blocker, so it can never be published
   assert.match(log, /\[preview\] BLOCKED: this patch was produced by the scripted stand-in agent/);
 });
 
+test("fewer covered variants than listed is a warning, not a blocker", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "opensrcer-finish-"));
+  try {
+    const log = `${LOG}\n## Cases\n\`\`\`cases\ncase: exponent with sign -> test_signed\ncase: exponent without digits -> not covered\n\`\`\`\n`;
+    writeFileSync(path.join(dir, "run.log"), log);
+    const preview = await finishRun({ repoFull: "o/r", issueNumber: 0, dispatchId: "d_c", dispatchDir: path.join(dir, "d_c"), logPath: path.join(dir, "run.log"), exec: null, profile: null, issueLabels: [], privateOrg: false });
+    assert.deepEqual(preview!.cases, [{ variant: "exponent with sign", test: "test_signed" }, { variant: "exponent without digits", test: null }]);
+    assert.match(preview!.warnings.join(" "), /listed 2 reported variant\(s\) but covered only 1 with a test; not covered: exponent without digits/);
+    assert.deepEqual(preview!.blockers, []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("finishRun returns null when there is no patch", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "opensrcer-finish-"));
   try {

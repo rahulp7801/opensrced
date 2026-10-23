@@ -56,6 +56,24 @@ export function parseVerificationPlan(text: string): VerificationPlan {
   return plan;
 }
 
+export type CaseCoverage = { variant: string; test: string | null };
+
+/** The last ```cases block: `case: <variant> -> <test name | not covered>`.
+ *  The agent's own account of which reported variants its tests cover. */
+export function parseCases(text: string): CaseCoverage[] {
+  const blocks = [...text.replace(/\r\n/g, "\n").matchAll(/^```cases[ \t]*\n([\s\S]*?)^```/gm)];
+  const body = blocks.at(-1)?.[1];
+  if (!body) return [];
+  const out: CaseCoverage[] = [];
+  for (const line of body.split("\n")) {
+    const m = /^\s*case\s*:\s*(.+?)\s*->\s*(.+?)\s*$/i.exec(line);
+    if (!m || out.length >= 20) continue;
+    const test = /^(not covered|none|-)$/i.test(m[2]) ? null : m[2].slice(0, 200);
+    out.push({ variant: m[1].slice(0, 300), test });
+  }
+  return out;
+}
+
 /** Test files by the conventions of the ecosystems we target (pytest,
  *  unittest, jest, go). Exported for tests. */
 export function isTestPath(file: string): boolean {

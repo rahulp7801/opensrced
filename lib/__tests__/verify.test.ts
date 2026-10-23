@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { boxPatch, boxRequest, initBox, startExecBox, type ExecBox } from "../exec-box";
 import {
-  failBeforeScript, isTestPath, parseVerificationPlan, runVerification, testOutcome, verificationMarkdown, type Verification,
+  failBeforeScript, isTestPath, parseCases, parseVerificationPlan, runVerification, testOutcome, verificationMarkdown, type Verification,
 } from "../verify";
 
 test("parseVerificationPlan reads the last verification block only", () => {
@@ -25,6 +25,15 @@ test("parseVerificationPlan reads the last verification block only", () => {
     setup: ["python3 -m venv ~/venv"], test: ["~/venv/bin/pytest tests/test_a.py -q"], lint: ["ruff check a.py"],
   });
   assert.deepEqual(parseVerificationPlan("no block here"), { setup: [], test: [], lint: [] });
+});
+
+test("parseCases reads the agent's variant list; 'not covered' becomes null", () => {
+  const log = "```cases\ncase: old -> t0\n```\n## Cases\n```cases\ncase: unclosed opener then real call -> test_a\ncase: opener in a code block -> not covered\nnoise\n```";
+  assert.deepEqual(parseCases(log), [
+    { variant: "unclosed opener then real call", test: "test_a" },
+    { variant: "opener in a code block", test: null },
+  ]);
+  assert.deepEqual(parseCases("no cases"), []);
 });
 
 test("isTestPath recognizes pytest, unittest, jest and go conventions", () => {

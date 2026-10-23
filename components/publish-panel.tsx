@@ -17,6 +17,7 @@ type Preview = {
   blockers: string[];
   warnings: string[];
   draft_issue_comment?: string;
+  cases?: Array<{ variant: string; test: string | null }>;
   confirmation: string;
   publishable: boolean;
 };
@@ -74,6 +75,16 @@ export function PublishPanel({ dispatchId, onPublished }: { dispatchId: string; 
       </p>
       {preview.blockers.map((b) => <p key={b} role="alert" className="mt-2 text-alert">Blocked: {b}</p>)}
       {preview.warnings.map((w) => <p key={w} className="mt-2 text-paper-muted">Note: {w}</p>)}
+      {preview.cases && preview.cases.length > 0 && (
+        <div className="mt-2">
+          <p className="text-paper">Cases covered (the agent&apos;s list of reported variants):</p>
+          <ul className="mt-1 list-disc pl-5 text-paper-muted">
+            {preview.cases.map((c) => (
+              <li key={c.variant} className={c.test ? "" : "text-alert"}>{c.variant} → {c.test ?? "not covered"}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <details className="mt-2">
         <summary className="cursor-pointer text-paper">PR text: {preview.title}</summary>
         <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg border border-border-soft bg-surface p-3 text-[11px] text-paper-muted">{preview.body}</pre>

@@ -9,7 +9,7 @@ import path from "node:path";
 import { diffTouchedFiles } from "./apply-diff";
 import type { ContribProfile } from "./contrib-profile";
 import { aiDisclosureMarkdown, aiTrailer, disclosureEnabled, tickAiCheckboxes } from "./disclosure";
-import { verificationMarkdown, type Verification } from "./verify";
+import { verificationMarkdown, type CaseCoverage, type Verification } from "./verify";
 
 export type PrPreview = {
   version: 1;
@@ -30,6 +30,8 @@ export type PrPreview = {
   /** For issues where maintainers ask to discuss first: a comment the user
    *  can post themselves. Never posted by opensrcer. */
   draft_issue_comment?: string;
+  /** Reported variants and the test that covers each (null = not covered). */
+  cases?: CaseCoverage[];
 };
 
 export type PreviewInput = {
@@ -45,6 +47,7 @@ export type PreviewInput = {
   blockers?: string[];
   warnings?: string[];
   draftIssueComment?: string;
+  cases?: CaseCoverage[];
 };
 
 /** Compose the PR body: the agent's body (template checkboxes about AI use
@@ -73,6 +76,7 @@ export function buildPreview(input: PreviewInput): PrPreview {
     blockers: [...(input.blockers ?? []), ...(input.verification?.status === "failed" ? [`verification failed: ${input.verification.reason}`] : [])],
     warnings,
     ...(input.draftIssueComment ? { draft_issue_comment: input.draftIssueComment } : {}),
+    ...(input.cases?.length ? { cases: input.cases } : {}),
   };
 }
 

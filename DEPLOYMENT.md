@@ -88,6 +88,17 @@ from this release (protocol 7). Time caps, all inside the 40-minute VM:
 `OPENSRCER_HOSTED_EXEC_AGENT_MS` (agent wall clock and command budget, 20 min),
 `OPENSRCER_HOSTED_EXEC_CMD_TIMEOUT_MS` (one command, 5 min).
 
+### PR follow-ups
+
+On the page of a PR one of the user's runs opened, each view polls GitHub
+(read-only) and lists CI failures, review comments and conflicts. "Help me with
+follow-ups" is a per-PR opt-in; with it, "Fix CI failure" / "Address review"
+start an ordinary run pinned to the PR head. It ends at the same publish gate,
+where publishing pushes one commit to the PR's branch (re-read from GitHub,
+only the user's own open PR) instead of opening a PR. Nothing posts comments;
+replies stay drafts. State lives in `.dispatches/lifecycle/` locally and in the
+owner's Blob prefix when hosted.
+
 ## How runs are paid for
 
 Runs prefer the user's own subscription, with their Anthropic API key as an

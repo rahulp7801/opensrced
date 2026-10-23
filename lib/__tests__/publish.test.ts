@@ -29,6 +29,7 @@ async function fixture(id: string, record: Partial<DispatchRecord>, blockers: st
   return () => {
     rmSync(path.join(DIR, id), { recursive: true, force: true });
     rmSync(path.join(DIR, `${id}.json`), { force: true });
+    rmSync(path.join(DIR, `${id}.log`), { force: true });
   };
 }
 

@@ -119,7 +119,7 @@ export const stageScan: Chapter = {
     { at: 0, text: "This is where beginners get stuck, and where Claude Code can't help: Claude Code starts once you already have an issue. Here, a repository's newest open issues are read and vetted for you." },
     { at: SHOW_ALL_AT, text: "Show everything it found, including what it filtered out, and why." },
     { at: SHOW_ALL_AT + 600, spot: "scan-list", text: "Assigned to someone? Skip, they're on it. Someone already has a pull request open? Skip, help them instead. Already fixed but never closed? Skip. That one alone saves maintainers a pile of duplicate PRs." },
-    { at: SHOW_ALL_AT + 4200, spot: "scan-list", text: "Questions, wontfix or duplicate labels, and issues too vague to act on are skipped too, with the reason spelled out." },
+    { at: SHOW_ALL_AT + 4200, spot: "scan-list", text: "Questions, wontfix or duplicate labels, and issues too vague to act on are flagged too, with the reason spelled out, so you know to pass on them." },
     { at: SHOW_ALL_AT + 7200, text: "What's left is actually open to a newcomer, each with its scope, risk, complexity and a time estimate." },
     { at: SHOW_READY_AT, text: "Back to the ready ones. This is the contribution etiquette Claude Code assumes you already know." },
   ],
@@ -574,7 +574,7 @@ export const stageRefused: Chapter = {
 
 // Each row is something opensrcer does today (on the hosted site unless it says otherwise).
 const SLOP: Array<[string, string]> = [
-  ["Nobody asked for it", "Only issues that are open to you. It skips assigned, already-fixed and vague issues, and refuses projects whose guide bans AI."],
+  ["Nobody asked for it", "Steers you to issues that are open to you: it flags assigned, already-fixed and vague issues, and refuses projects whose guide bans AI."],
   ["Someone's already on it", "It won't publish while another pull request targets the issue."],
   ["The sender can't explain it", "Nothing publishes until you've read the patch and confirmed you can explain it. The chat helps you get there."],
   ["Hidden AI", "Every pull request says who asked, which model, and what was and wasn't tested."],

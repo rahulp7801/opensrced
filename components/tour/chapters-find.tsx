@@ -226,7 +226,7 @@ export const find: Chapter = {
   source: "Example search · fictional repositories, plus the real demo repository",
   captions: [
     { at: 0, text: "Find: search public GitHub repositories by language and stars. Searching uses GitHub only and spends no AI credit." },
-    { at: 3800, text: "Every open issue is scored for scope, risk and complexity, with a time estimate, so you can see which ones an agent can realistically fix." },
+    { at: 3800, text: "Each issue it finds is scored for scope, risk and complexity, with a time estimate, so you can see which ones an agent can realistically fix." },
     { at: 7400, text: "This one is a contained bug in a single file, which makes it a good fit. Open it to see the evidence." },
   ],
   View: FindView,

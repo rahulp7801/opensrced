@@ -242,6 +242,11 @@ function codexInvocation(
     // Codex starts optional MCP servers in the background and does not wait
     // for them, so a slow cold start would leave the run with no repo tools.
     "-c", `${prefix}.required=true`,
+    // approval_policy=never refuses every MCP call that is not pre-approved
+    // ("MCP tool call requires approval"). Pre-approve this server's tools,
+    // which enabled_tools limits to our read-only list: the counterpart of
+    // Claude's --allowed-tools. Without it a run gets no repo access at all.
+    "-c", `${prefix}.default_tools_approval_mode=${toml("approve")}`,
     "-c", `${prefix}.startup_timeout_sec=120`,
     ...(input.model ? ["--model", input.model] : []),
     input.prompt,

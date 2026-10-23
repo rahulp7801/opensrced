@@ -123,6 +123,7 @@ test("a Codex run is read-only, keeps only our MCP server, and forwards credenti
         for (const flag of ["--json", "--ephemeral", "--ignore-user-config", "--ignore-rules", "--skip-git-repo-check"]) assert.ok(run.args.includes(flag), flag);
         assert.ok(run.args.includes('approval_policy="never"'));
         assert.ok(run.args.includes("mcp_servers.opensrcer-repo-tools.required=true"));
+        assert.ok(run.args.includes('mcp_servers.opensrcer-repo-tools.default_tools_approval_mode="approve"'), "our tools pre-approved, or approval_policy=never refuses them");
         for (const feature of ["shell_tool", "unified_exec", "view_image", "multi_agent"]) {
           assert.ok(run.args.some((arg, i) => arg === feature && run.args[i - 1] === "--disable"), feature);
         }

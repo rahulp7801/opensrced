@@ -9,6 +9,9 @@ const lines = {
   thread: { type: "thread.started", thread_id: "t" },
   warning: { type: "item.completed", item: { id: "item_0", type: "error", message: "Model metadata not found" } },
   tool: { type: "item.started", item: { id: "item_1", type: "mcp_tool_call", server: "opensrcer-repo-tools", tool: "read_file", arguments: { repo: "acme/app", path: "src/index.ts" }, status: "in_progress" } },
+  toolDone: { type: "item.completed", item: { id: "item_1", type: "mcp_tool_call", server: "opensrcer-repo-tools", tool: "read_file", arguments: { repo: "acme/app", path: "src/index.ts" }, result: { content: [] }, error: null, status: "completed" } },
+  // Captured from codex 0.164 under approval_policy=never without a pre-approval.
+  toolRefused: { type: "item.completed", item: { id: "item_0", type: "mcp_tool_call", server: "opensrcer-repo-tools", tool: "repo_info", arguments: { repo: "acme/app" }, result: null, error: { message: "MCP tool call requires approval, but approval policy is never" }, status: "failed" } },
   message: { type: "item.completed", item: { id: "item_2", type: "agent_message", text: "## Diagnosis\nOff by one.\n```diff\n--- a/x\n+++ b/x\n```\n## PR title\nfix: off by one" } },
   done: { type: "turn.completed", usage: { input_tokens: 1200, cached_input_tokens: 0, output_tokens: 300 } },
   limit: { type: "turn.failed", error: { message: "You've hit your usage limit. Try again later." } },
@@ -25,7 +28,7 @@ async function pipe(events: object[]) {
 }
 
 test("a completed Codex turn writes the agent's sections and tool calls to the run log", async () => {
-  const { state, log } = await pipe([lines.thread, lines.warning, lines.tool, lines.message, lines.done]);
+  const { state, log } = await pipe([lines.thread, lines.warning, lines.tool, lines.toolDone, lines.message, lines.done]);
   assert.deepEqual(state, { complete: true, failed: false, unavailable: false });
   assert.match(log, /\[tool\] read_file src\/index\.ts/);
   assert.match(log, /## Diagnosis\nOff by one\./);
@@ -47,6 +50,10 @@ test("other failures and garbage fail without claiming the plan is unavailable",
   const noTools = await pipe([lines.thread, lines.message, lines.done]);
   assert.deepEqual(noTools.state, { complete: false, failed: true, unavailable: false }, "a turn without a real tool call is not a result");
   assert.match(noTools.log, /made no repository tool calls/);
+  // The real-run failure: calls attempted but refused, then a confident "fix".
+  const refused = await pipe([lines.thread, lines.tool, lines.toolRefused, lines.message, lines.done]);
+  assert.equal(refused.state.failed, true);
+  assert.match(refused.log, /\[tool\] repo_info failed: MCP tool call requires approval/);
   const stdout = new PassThrough();
   const garbage = pipeCodexJson(stdout, { write: () => true });
   stdout.end("not json\n");

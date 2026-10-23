@@ -6,7 +6,8 @@
 // Event stream (codex-cli 0.164, learn.chatgpt.com/docs/non-interactive-mode):
 //   thread.started, turn.started, item.started / item.updated / item.completed,
 //   turn.completed {usage}, turn.failed {error: {message}}, error {message}.
-// Items we read: agent_message {text}, mcp_tool_call {server, tool, arguments}.
+// Items we read: agent_message {text}, mcp_tool_call {server, tool, arguments,
+// status: in_progress|completed|failed, error: {message} | null}.
 
 import { StringDecoder } from "node:string_decoder";
 import { sanitizeLogValue } from "./sanitize";
@@ -17,7 +18,7 @@ export function planUnavailable(message: string): boolean {
   return /usage limit|hit your limit|rate.?limit|quota|limit reached|not logged in|please run \/login|log ?in again|unauthori[sz]ed|token (has )?expired|401/i.test(message);
 }
 
-type CodexItem = { type?: string; text?: string; tool?: string; arguments?: unknown };
+type CodexItem = { type?: string; text?: string; tool?: string; arguments?: unknown; status?: string; error?: { message?: string } | null };
 
 /** First string argument besides the repo: a path, pattern or symbol. */
 function toolDetail(args: unknown): string {
@@ -65,8 +66,13 @@ export function pipeCodexJson(
       out.write(event.item.text + "\n");
     }
     if (event.type === "item.started" && event.item?.type === "mcp_tool_call" && typeof event.item.tool === "string") {
-      toolCalls++;
       out.write(`\n[tool] ${sanitizeLogValue(event.item.tool, 40)} ${sanitizeLogValue(toolDetail(event.item.arguments), 100)}\n`);
+    }
+    // Only a call that returned counts: a refused one ("requires approval")
+    // leaves the agent writing a fix it never grounded in the repo.
+    if (event.type === "item.completed" && event.item?.type === "mcp_tool_call") {
+      if (event.item.status === "completed" && !event.item.error) toolCalls++;
+      else out.write(`[tool] ${sanitizeLogValue(event.item.tool, 40)} failed: ${sanitizeLogValue(event.item.error?.message ?? event.item.status, 160)}\n`);
     }
     if (event.type === "turn.completed") {
       // Plan usage has no dollar cost; record tokens so the run shows its size.

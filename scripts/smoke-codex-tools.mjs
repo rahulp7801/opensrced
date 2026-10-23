@@ -29,9 +29,13 @@ const server = createServer((req, res) => {
   req.on('data', c => { body += c; }).on('end', () => {
     requests.push(JSON.parse(body));
     const id = `resp_${requests.length}`;
+    // Turn 1: two writes. Turn 2: one of our MCP tools, the way Codex names it
+    // after tool_search (namespace mcp__opensrcer_repo_tools). Turn 3: done.
     const items = requests.length === 1
       ? [patch(outside, 1), patch(inside, 2)]
-      : [{ type: 'response.output_item.done', item: { type: 'message', role: 'assistant', id: `msg_${id}`, content: [{ type: 'output_text', text: 'done' }] } }];
+      : requests.length === 2
+        ? [{ type: 'response.output_item.done', item: { type: 'function_call', id: 'fc_3', call_id: 'call_3', namespace: 'mcp__opensrcer_repo_tools', name: 'list_files', arguments: JSON.stringify({ repo: 'acme/app' }), status: 'completed' } }]
+        : [{ type: 'response.output_item.done', item: { type: 'message', role: 'assistant', id: `msg_${id}`, content: [{ type: 'output_text', text: 'done' }] } }];
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     res.end(sse([{ type: 'response.created', response: { id } }, ...items, { type: 'response.completed', response: { id, usage } }]));
   });
@@ -69,7 +73,12 @@ try {
   assert.equal(outputs.length, 2);
   for (const output of outputs) assert.match(output, /rejected/);
   assert.ok(!existsSync(outside) && !existsSync(inside), 'read-only sandbox refused both writes');
-  console.log(JSON.stringify({ tools, patches: 'rejected', outside: existsSync(outside), inside: existsSync(inside) }));
+  // Our MCP tools must actually run under approval_policy=never (pre-approved);
+  // a tool-level error about the fake repo is fine, an approval refusal is not.
+  const mcpOutput = JSON.stringify(requests[2].input.filter(item => item.type === 'function_call_output'));
+  assert.ok(mcpOutput.length > 2, 'the MCP call produced an output');
+  assert.doesNotMatch(mcpOutput, /requires approval|unsupported call/);
+  console.log(JSON.stringify({ tools, patches: 'rejected', outside: existsSync(outside), inside: existsSync(inside), mcpCall: 'ran' }));
 } finally {
   invocation?.cleanup();
   server.close();

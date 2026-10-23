@@ -171,7 +171,7 @@ const BUILTIN: Record<string, Builtin> = {
  *  third_party/, aten/, c10/, caffe2/: the full shallow clone took 151 s
  *  and 365 MB here. */
 const SPARSE: Record<string, string[]> = {
-  "pytorch/pytorch": ["torch", "test", "tools", "torchgen", "functorch", "docs"],
+  "pytorch/pytorch": ["torch", "test", "tools", "torchgen", "functorch", "docs", ".github"],
 };
 
 /** Env for everything that clones (prepare.js, the MCP server). */
@@ -213,6 +213,11 @@ const SETUP: Record<string, SetupPlan> = {
       `VLLM_USE_PRECOMPILED=1 uv pip install --python ${VENV}/bin/python -e . --torch-backend=cpu`,
       // tblib: vllm's tests/conftest.py imports it (seen in a real run).
       `uv pip install --python ${VENV}/bin/python pytest pytest-asyncio tblib`,
+      // torchcodec's native library fails to load in the CPU box (even with
+      // ffmpeg installed) and vllm imports it at module load; the real run's
+      // agent removed it to get any test to import. Media decoding is out of
+      // scope for CPU tests.
+      `uv pip uninstall --python ${VENV}/bin/python torchcodec || true`,
     ],
     hashFiles: ["pyproject.toml", "setup.py", "requirements/common.txt", "requirements/cpu.txt", "requirements/build.txt"],
     persistent: true,

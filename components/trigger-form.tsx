@@ -25,6 +25,30 @@ function friendlyError(msg: string): string {
   return msg;
 }
 
+/** Claude's own sign-in pages: a run's sign-in link must point at one of them. */
+const CLAUDE_SIGN_IN_HOSTS = new Set(["claude.com", "claude.ai", "platform.claude.com"]);
+
+/** Wait for the run's worker to publish Claude's sign-in link, then send the
+ *  tab the user's click opened there (a tab opened later would be blocked as
+ *  a popup). Sign-in happens on Anthropic's page; the code is pasted on the
+ *  run page, which relays it to the run's VM. */
+async function openClaudeSignIn(tab: Window, dispatchId: string) {
+  for (let i = 0; i < 90 && !tab.closed; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    const run = await fetch(`/api/dispatches/${encodeURIComponent(dispatchId)}`)
+      .then((res) => (res.ok ? res.json() : null)).catch(() => null) as { status?: string; sign_in?: { url?: string; status?: string } } | null;
+    const url = run?.sign_in?.status === "waiting" ? run.sign_in.url : undefined;
+    if (url) {
+      try {
+        if (CLAUDE_SIGN_IN_HOSTS.has(new URL(url).hostname)) { tab.location.href = url; return; }
+      } catch { /* not a URL */ }
+      break;
+    }
+    if (run?.status && run.status !== "running") break;
+  }
+  tab.close();
+}
+
 export function TriggerForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -33,6 +57,15 @@ export function TriggerForm() {
   const [dryRun, setDryRun] = useState(true);
   const [notes, setNotes] = useState("");
   const [state, setState] = useState<SubmitState>({ kind: "idle" });
+  // True when this run will be paid by the user's Claude plan through a
+  // sign-in inside the run's worker (hosted, OPENSRCER_HOSTED_SUBSCRIPTION=1).
+  const [claudeSignIn, setClaudeSignIn] = useState(false);
+  useEffect(() => {
+    fetch("/api/settings/keys").then((res) => (res.ok ? res.json() : null)).then((s: { hostedSubscription?: boolean; providerOrder?: string[]; offered?: string[] } | null) => {
+      const first = s?.providerOrder?.find((p) => s.offered?.includes(p));
+      setClaudeSignIn(Boolean(s?.hostedSubscription && first === "claude-subscription"));
+    }).catch(() => {});
+  }, []);
   // A run started here can finish starting after the user has moved on;
   // only navigate if this form is still on screen.
   const mounted = useRef(true);
@@ -60,9 +93,16 @@ export function TriggerForm() {
       return;
     }
     setState({ kind: "pending" });
+    // Opened now, inside the click, so the browser allows it.
+    const signInTab = claudeSignIn ? window.open("", "_blank") : null;
+    if (signInTab) {
+      signInTab.document.title = "Claude sign-in";
+      signInTab.document.body.textContent = "Starting your run… Claude's sign-in page opens here in a moment.";
+    }
     try {
       const target = parseRunTarget(repoUrl);
       if (!target.issue) {
+        signInTab?.close();
         router.push(`/issues?repo=${encodeURIComponent(target.repo)}`);
         setState({ kind: "idle" });
         return;
@@ -86,6 +126,7 @@ export function TriggerForm() {
         throw new Error("The server returned an invalid run response. Please try again.");
       }
       const dispatchId = data.dispatch_id;
+      if (signInTab) void openClaudeSignIn(signInTab, dispatchId);
       setState({
         kind: "ok",
         message: data.message ?? "queued",
@@ -103,6 +144,7 @@ export function TriggerForm() {
 
       router.push(`/dispatches?dispatch=${encodeURIComponent(dispatchId)}`);
     } catch (err) {
+      signInTab?.close();
       const msg = err instanceof Error && err.name === "TimeoutError"
         ? "Starting the run timed out. Please try again."
         : err instanceof TypeError ? "Could not reach the server. Check your connection and try again."
@@ -187,7 +229,7 @@ export function TriggerForm() {
               "Starting run..."
             ) : (
               <>
-                <span className="text-signal">{dryRun ? "Generate preview" : "Start live run"}</span>
+                <span className="text-signal">{claudeSignIn ? `Sign in with Claude & ${dryRun ? "preview" : "start"}` : dryRun ? "Generate preview" : "Start live run"}</span>
                 <IconArrow size={14} className="text-signal transition-transform group-hover:translate-x-0.5" />
               </>
             )}

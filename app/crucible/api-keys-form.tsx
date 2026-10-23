@@ -226,7 +226,7 @@ export function ApiKeysForm() {
             checked={status?.keyFallback === true}
             onChange={(e) => void savePayment({ keyFallback: e.target.checked })}
             disabled={saving || loading}
-            className="mt-1 h-4 w-4 accent-[var(--color-signal)]"
+            className="h-6 w-6 shrink-0 accent-[var(--color-signal)]"
           />
           <span>
             Use my API key when my plan is unavailable

@@ -101,7 +101,7 @@ export function PublishPanel({ dispatchId, onPublished }: { dispatchId: string; 
       {preview.publishable && preview.blockers.length === 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-paper">
-            <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
+            <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="h-6 w-6 shrink-0" />
             {preview.confirmation}
           </label>
           <button

@@ -33,7 +33,13 @@ const saved = await request('/api/settings/keys', alice, {
   method: 'POST', body: JSON.stringify({ anthropic: 'test-provider-value', maxSpendUsd: 0.1 }),
 });
 assert.equal(saved.status, 200);
-assert.deepEqual(await saved.json(), { ok: true, anthropic: true, gemini: false, maxSpendUsd: 0.1 });
+// A hosted deployment offers only the user's API key: no host logins (they
+// would bill the operator's plan) and no hosted sign-in unless switched on.
+assert.deepEqual(await saved.json(), {
+  ok: true, anthropic: true, gemini: false, maxSpendUsd: 0.1,
+  providerOrder: ['claude-subscription', 'codex-subscription', 'anthropic-key'], keyFallback: false,
+  ready: true, offered: ['anthropic-key'], availability: {}, local: false, hostedSubscription: false,
+});
 const keyHeader = saved.headers.getSetCookie().find(value => value.startsWith('opensrcer-keys='));
 assert.ok(keyHeader);
 assert.match(keyHeader, /httponly/i);

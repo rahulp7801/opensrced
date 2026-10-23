@@ -41,12 +41,20 @@ function InboxPhase() {
   );
 }
 
+// Left out on purpose: the PR page can also write a "why this fix" note and post
+// it as a comment, but its prompt keeps AI out of what it writes, and a
+// maintainer should be told. The tour shows the fix being pushed by the user,
+// and the drafted reply being edited by them before it is sent.
+
+/** What the user adds to the drafted reply before sending it. */
+const REPLY_EDIT = " I can open that follow-up this week if it helps.";
+const REPLY_EDIT_AT = 10200;
+
 function WorkspacePhase() {
   const t = useT();
   const fixing = t >= 5800;
   const fixed = t >= 8800;
   const pushed = t >= 16800;
-  const posted = t >= 17500;
   const step = [...STEPS].reverse().find((s) => t >= s.at);
   // Down through the fix and its checks, then back up to the comment, now fixed.
   const scrollRef = useScrollFraction(t < 17800 ? progress(t, 9200, 15400) : 1 - progress(t, 17800, 19000));
@@ -109,18 +117,11 @@ function WorkspacePhase() {
           </ul>
         </Reveal>
       )}
-      {t >= 13400 && (
-        <Reveal at={13400} className="rounded-xl border border-ok/30 bg-ok/5 px-3 py-2 text-[11.5px] leading-5">
-          <p className="mono-label text-ok">auto-generated explanation</p>
-          <p className="text-paper-dim">Trailing commas, semicolons and colons are now trimmed along with whitespace, so <code className="font-mono">&quot;The quick, brown&quot;</code> at 11 returns <code className="font-mono">&quot;The quick…&quot;</code>.</p>
-        </Reveal>
-      )}
       {t >= 15400 && (
         <Reveal at={15400} className="flex flex-wrap items-center gap-2 rounded-xl border border-border-soft bg-surface px-3 py-2 text-[11.5px]">
           <span className="text-paper-muted">commit:</span>
           <code className="min-w-0 flex-1 truncate rounded border border-border px-2 py-0.5 font-mono text-paper">address review feedback</code>
           <Press at={16200} className={cn("rounded-full px-3 py-0.5", pushed ? "bg-ok/15 text-ok" : "bg-signal text-white")}>{pushed ? "pushed" : t >= 16200 ? "pushing..." : "push fix"}</Press>
-          <Press at={17200} className="rounded-full border border-info/40 px-3 py-0.5 text-info">{posted ? "sent" : "post comment to PR"}</Press>
         </Reveal>
       )}
     </div>
@@ -152,8 +153,7 @@ export const respond: Chapter = {
     { at: 3400, text: "Open one and every review comment is listed with its file and line." },
     { at: 5600, text: "Ask for a fix. The agent reads the file and its callers, then proposes the smallest change that answers the comment." },
     { at: 9800, text: "Before anything is pushed, the change is checked for size, secrets, syntax, and whether it touches the file the reviewer meant. It says plainly that tests weren't run." },
-    { at: 13400, text: "It drafts a short explanation for the reviewer, in your voice." },
-    { at: 16200, text: "Push the fix to the same branch and post the reply. The comment is marked fixed, and the pull request is ready for another look." },
+    { at: 15400, text: "Review the diff and push it to the same branch yourself. The comment is marked fixed, and the pull request is ready for another look." },
   ],
   View: RespondView,
 };
@@ -266,7 +266,8 @@ const FIX_LOG = [
   { at: 0.4, text: "## Diagnosis" },
   { at: 0.46, text: "path-matcher 2.1.0 arrives through router-core; 2.1.4 fixes the backtracking." },
   { at: 0.58, text: "+  \"overrides\": { \"path-matcher\": \"^2.1.4\" }" },
-  { at: 0.72, text: "[gitleaks] status=clean · findings=0" },
+  { at: 0.71, text: "[gitleaks] status=clean" },
+  { at: 0.73, text: "[gitleaks] findings=0" },
   { at: 0.86, text: "[agentic-pr] authenticated with the organization installation (this repository only)" },
   { at: 0.95, text: "[agentic-pr] opened draft PR: #31" },
 ];
@@ -401,7 +402,10 @@ function ReplyView() {
   const t = useT();
   const drafting = t >= 4200 && t < 5600;
   const drafted = t >= 5600;
-  const sent = t >= 12400;
+  // The user edits the draft before sending it.
+  const sendAt = REPLY_EDIT_AT + Math.ceil((REPLY_EDIT.length / 22) * 1000) + 1500;
+  const sent = t >= sendAt + 600;
+  const editing = t >= REPLY_EDIT_AT && !sent;
   // Follows the draft down to the send button on small screens; a no-op when it fits.
   const scrollRef = useAutoScroll(5600, 11400);
   return (
@@ -432,19 +436,21 @@ function ReplyView() {
           )}
           {drafted && (
             <Reveal at={5600} className="mt-2.5 space-y-2">
-              <p className="min-h-[86px] rounded-lg border border-border bg-surface px-3 py-2 text-[12px] leading-5 text-paper">
+              <p className={cn("min-h-[86px] rounded-lg border bg-surface px-3 py-2 text-[12px] leading-5 text-paper", editing ? "border-signal/60" : "border-border")}>
                 {sent ? DRAFTED_REPLY : <Typed text={DRAFTED_REPLY} at={5700} cps={70} />}
+                {t >= REPLY_EDIT_AT && <span className="rounded-sm bg-signal/10"><Typed text={REPLY_EDIT} at={REPLY_EDIT_AT} cps={22} /></span>}
               </p>
+              {!sent && t >= REPLY_EDIT_AT - 1200 && <p className="text-[10.5px] text-paper-muted">AI draft · edit it before you send</p>}
               <div className="flex items-center gap-2 text-[11px]">
-                <Press at={11800} className={cn("rounded-full px-3 py-0.5", sent ? "bg-ok/15 text-ok" : "border border-info/40 bg-info/10 text-info")}>{sent ? "replied" : t >= 11800 ? "..." : "send"}</Press>
+                <Press at={sendAt} className={cn("rounded-full px-3 py-0.5", sent ? "bg-ok/15 text-ok" : "border border-info/40 bg-info/10 text-info")}>{sent ? "replied" : t >= sendAt ? "..." : "send"}</Press>
                 {!sent && <span className="rounded-full border border-border px-2.5 py-0.5 text-paper-muted">cancel</span>}
               </div>
             </Reveal>
           )}
         </div>
       </div>
-      {t >= 12400 && t < 15500 && (
-        <Reveal at={12400} className="pointer-events-none absolute bottom-3 right-3 rounded-xl bg-paper px-3 py-2 text-[11.5px] text-surface shadow-lg">Reply posted successfully</Reveal>
+      {sent && t < sendAt + 3700 && (
+        <Reveal at={sendAt + 600} className="pointer-events-none absolute bottom-3 right-3 rounded-xl bg-paper px-3 py-2 text-[11.5px] text-surface shadow-lg">Reply posted successfully</Reveal>
       )}
     </AppWindow>
   );
@@ -455,12 +461,12 @@ export const reply: Chapter = {
   act: "Ship",
   label: "Answer a question",
   title: "Answer a reviewer's question",
-  duration: 16000,
+  duration: 19500,
   source: "Example question on the real pull request #6",
   captions: [
     { at: 0, text: "Not every comment needs code. When a reviewer asks a question, opensrcer recognizes it and offers to draft an answer." },
-    { at: 5600, text: "The draft explains the trade-off in plain words, in your voice, and offers a follow-up instead of growing the change." },
-    { at: 9600, text: "You can edit it or write your own. Nothing is posted until you press send, and it goes out under your account." },
+    { at: 5600, text: "The draft explains the trade-off in plain words and offers a follow-up instead of growing the change." },
+    { at: 10200, text: "It's a draft. Edit it or write your own; nothing is posted until you press send." },
   ],
   View: ReplyView,
 };

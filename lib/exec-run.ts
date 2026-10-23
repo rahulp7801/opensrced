@@ -69,7 +69,7 @@ export async function setupExec(
   let box: ExecBox | undefined;
   try {
     await mkdir(workDir, { recursive: true });
-    box = await startExecBox(mode, dispatchId, workDir);
+    box = await startExecBox(mode, dispatchId, workDir, repoFull);
     const sparse = sparseDirsFor(repoFull);
     const { baseline } = await initBox(box, repo.dir, repo.sha, sparse);
     log(`[exec] box ${box.mode} up, ${repo.sha.slice(0, 12)} loaded${sparse ? ` (sparse: ${sparse.join(" ")})` : ""} as baseline ${baseline.slice(0, 12)} in ${Math.round((Date.now() - started) / 1000)}s\n`);

@@ -49,7 +49,7 @@ export function graphLimits() {
 /** Exec box limits (lib/exec-box.ts, scripts/exec-server.cjs). */
 export function execLimits() {
   return {
-    image: str("OPENSRCER_EXEC_IMAGE", "opensrcer-exec:1"),
+    image: str("OPENSRCER_EXEC_IMAGE", "opensrcer-exec:2"),
     /** One command's wall clock. pip/yarn installs of big repos need minutes. */
     cmdTimeoutMs: num("OPENSRCER_EXEC_CMD_TIMEOUT_MS", 15 * 60_000),
     /** Sum of all command time in one box. */

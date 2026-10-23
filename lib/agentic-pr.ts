@@ -215,6 +215,20 @@ export type CreatePrArgs = {
   stored: { preview: PrPreview; diff: string };
 };
 
+/** `git commit` arguments for a published preview: committed as the user,
+ *  signed off when the repository requires a DCO, with the preview's
+ *  message (title + AI attribution trailer). Exported for tests. */
+export function commitArgs(dir: string, who: { name: string; email: string }, preview: Pick<PrPreview, "signoff" | "commit_message">): string[] {
+  return [
+    "-C", dir,
+    "-c", `user.name=${who.name}`,
+    "-c", `user.email=${who.email}`,
+    "commit",
+    ...(preview.signoff ? ["--signoff"] : []),
+    "-m", preview.commit_message,
+  ];
+}
+
 /** Paths a published patch may never touch. A workflow file pushed to the
  *  user's fork would run in their account's Actions. Exported for tests. */
 export function refusedPaths(diff: string, repoFull = ""): string[] {
@@ -558,20 +572,8 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
       reason: `PR title or description appears to contain a ${sensitivePrContent} - publication blocked`,
     };
   }
-  const commitMsg = preview.commit_message;
   try {
-    await run(
-      "git",
-      [
-        "-C", worktreeDir,
-        "-c", `user.name=${authorName}`,
-        "-c", `user.email=${authorEmail}`,
-        "commit",
-        ...(preview.signoff ? ["--signoff"] : []),
-        "-m", commitMsg,
-      ],
-      { env },
-    );
+    await run("git", commitArgs(worktreeDir, { name: authorName, email: authorEmail }, preview), { env });
   } catch (e) {
     await cleanupWorktree();
     return {

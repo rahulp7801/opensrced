@@ -101,7 +101,8 @@ export function computeEvents(snap: PrSnapshot, state: LifecycleState): { events
     // The user's own comments and empty review summaries need no reply.
     if (c.author.toLowerCase() === snap.author.toLowerCase() || (!c.body.trim() && !c.changes_requested)) continue;
     events.push({ kind: "comment", id: c.id, author: c.author, body: c.body, url: c.url, path: c.path, line: c.line, changes_requested: Boolean(c.changes_requested) });
-    next.pending_replies.push({ id: c.id, author: c.author, url: c.url, body: c.body.slice(0, 2000) });
+    // Bots (size reports, CLA checks) are surfaced as events but need no reply.
+    if (!/\[bot\]$/i.test(c.author)) next.pending_replies.push({ id: c.id, author: c.author, url: c.url, body: c.body.slice(0, 2000) });
   }
   next.seen_comment_ids = next.seen_comment_ids.slice(-1000);
   return { events, next };

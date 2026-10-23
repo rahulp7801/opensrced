@@ -20,11 +20,12 @@ test("computeEvents: CI verdict once per head sha, comments once, own comments i
       { id: 1, kind: "review", author: "maintainer", body: "please rename this", url: "c1", path: "a.py", line: 3, created_at: "t" },
       { id: 2, kind: "issue", author: "me", body: "thanks", url: "c2", created_at: "t" },
       { id: 3, kind: "review_summary", author: "maintainer", body: "", url: "c3", changes_requested: true, created_at: "t" },
+      { id: 4, kind: "issue", author: "github-actions[bot]", body: "size report", url: "c4", created_at: "t" },
     ],
   };
   const first = computeEvents(snap, initialState(pr));
-  assert.deepEqual(first.events.map((e) => e.kind), ["ci_failed", "comment", "comment"]);
-  assert.equal(first.next.pending_replies.length, 2);
+  assert.deepEqual(first.events.map((e) => e.kind), ["ci_failed", "comment", "comment", "comment"]);
+  assert.equal(first.next.pending_replies.length, 2, "bot comments need no reply");
   assert.equal(first.next.followups, false, "follow-ups are opt-in");
   const again = computeEvents(snap, first.next);
   assert.deepEqual(again.events, [], "nothing is reported twice");

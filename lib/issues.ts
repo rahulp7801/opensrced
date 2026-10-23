@@ -152,6 +152,9 @@ export type ScannedIssue = {
   solvable: boolean;
   reason: string;
   scope: ScopeInfo;
+  /** Open pull requests (anyone's) cross-referencing this issue. Undefined
+   *  when unknown (anonymous scans read REST without timelines). */
+  open_prs?: number;
 };
 
 type GhComment = {
@@ -176,6 +179,7 @@ type GhIssue = {
   // stale-open detection so the scanner skips issues resolved in a comment.
   comments: GhComment[];
   commentCount?: number;
+  openPrs?: number;
 };
 
 export async function listIssues(
@@ -241,6 +245,7 @@ async function runListIssues(
       labels: { nodes: GhIssue["labels"] };
       assignees: { nodes: GhIssue["assignees"] };
       comments: { nodes: GhComment[]; totalCount: number };
+      timelineItems?: { nodes: Array<{ source?: { number?: number; state?: string } | null }> };
     };
     const data = await githubGraphql<{ repository: { issues: { nodes: IssueNode[] } } | null }>(`
       query Issues($owner: String!, $repo: String!, $first: Int!, $labels: [String!]) {
@@ -251,6 +256,7 @@ async function runListIssues(
               labels(first: 100) { nodes { name } }
               assignees(first: 100) { nodes { login } }
               comments(last: 20) { totalCount nodes { body author { login } authorAssociation createdAt } }
+              timelineItems(itemTypes: [CROSS_REFERENCED_EVENT], last: 30) { nodes { ... on CrossReferencedEvent { source { ... on PullRequest { number state } } } } }
             }
           }
         }
@@ -259,6 +265,8 @@ async function runListIssues(
     return data.repository.issues.nodes.map((issue) => ({ ...issue,
       labels: issue.labels.nodes, assignees: issue.assignees.nodes,
       comments: issue.comments.nodes, commentCount: issue.comments.totalCount,
+      // Same rule as lib/contrib-guard.ts: open PRs cross-referencing the issue.
+      openPrs: new Set((issue.timelineItems?.nodes ?? []).filter((n) => n.source?.state === "OPEN" && n.source.number).map((n) => n.source!.number)).size,
     }));
   }
   // Anonymous public reads use REST; comment bodies require an authenticated scan.
@@ -348,6 +356,9 @@ function scoreIssue(i: GhIssue): ScannedIssue {
   if (resolvedHint) {
     solvable = false;
     reason = `Appears already resolved (${resolvedHint.reason}). Skip — the ticket is stale-open.`;
+  } else if (i.openPrs) {
+    solvable = false;
+    reason = `${i.openPrs} open PR${i.openPrs === 1 ? " already targets" : "s already target"} this issue. Review or help with ${i.openPrs === 1 ? "it" : "those"} instead.`;
   } else if (assigneeLogins.length > 0) {
     const who =
       assigneeLogins.length === 1
@@ -393,5 +404,6 @@ function scoreIssue(i: GhIssue): ScannedIssue {
     solvable,
     reason,
     scope,
+    ...(i.openPrs !== undefined ? { open_prs: i.openPrs } : {}),
   };
 }

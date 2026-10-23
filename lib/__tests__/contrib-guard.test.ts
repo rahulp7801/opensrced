@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
-  aiBanReason, competingPrReason, discussFirstReason, draftIssueComment, openPrsFromTimeline, prCaps, publishedInLastDay, type TimelineEvent,
+  aiBanReason, competingPrReason, discussFirstReason, draftIssueComment, fetchRepoPolicy, openPrsFromTimeline, prCaps, publishedInLastDay, type TimelineEvent,
 } from "../contrib-guard";
 
 test("openPrsFromTimeline: recorded facebook/react#37837 timeline has 4 competing open PRs", () => {
@@ -50,6 +50,28 @@ test("caps: defaults, overrides, and the 24h window", () => {
   }
   const now = Date.parse("2026-10-23T12:00:00Z");
   assert.equal(publishedInLastDay(["2026-10-23T01:00:00Z", "2026-10-22T11:00:00Z", undefined, "2026-10-22T13:00:00Z"], now), 2);
+});
+
+test("fetchRepoPolicy classifies the repository's own files in one GraphQL call", async () => {
+  const original = globalThis.fetch;
+  let calls = 0;
+  let query = "";
+  globalThis.fetch = (async (_url: string, init: { body: string }) => {
+    calls++;
+    query = JSON.parse(init.body).query;
+    const repository = { f0: { text: "Please open an issue first and wait to be assigned." }, f4: { text: "We do not accept AI-generated contributions." }, f1: null };
+    return new Response(JSON.stringify({ data: { repository } }), { status: 200, headers: { "content-type": "application/json" } });
+  }) as typeof fetch;
+  try {
+    const policy = await fetchRepoPolicy("o", "r", "token");
+    assert.equal(calls, 1);
+    assert.match(query, /HEAD:AGENTS\.md/);
+    assert.equal(policy.ai, "ban");
+    assert.equal(policy.source, "AGENTS.md");
+    assert.match(policy.discussFirst!, /discuss or get assigned/);
+  } finally {
+    globalThis.fetch = original;
+  }
 });
 
 test("aiBanReason and the drafted issue comment", () => {

@@ -28,6 +28,11 @@ test("docker box is unprivileged, loopback-only and carries no credentials", () 
   const mounts = args.flatMap((a, i) => (args[i - 1] === "-v" ? [a] : []));
   assert.deepEqual(mounts, ["/srv/exec-server.cjs:/opt/opensrcer/exec-server.cjs:ro"]);
   assert.ok(!args.includes("--privileged") && !args.includes("--network=host"));
+  // A per-repository package cache is the only other mount, and only with a safe name.
+  const cached = dockerRunArgs("box1", "t".repeat(64), "/srv/exec-server.cjs", "opensrcer-cache-vllm-project_vllm");
+  assert.ok(cached.includes("opensrcer-cache-vllm-project_vllm:/home/node/.cache"));
+  const bad = dockerRunArgs("box1", "t".repeat(64), "/srv/exec-server.cjs", "/etc:/host");
+  assert.equal(bad.filter((a) => a === "-v").length, 1, "a malformed cache name never becomes a mount");
 });
 
 test("resolveExecMode honors explicit modes and rejects unknown ones", async () => {

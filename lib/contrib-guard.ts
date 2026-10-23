@@ -8,8 +8,8 @@
 // GitHub; the discuss-first path hands the user a drafted comment to post
 // themselves.
 
-import { githubApi } from "./github-api";
-import type { ContribProfile } from "./contrib-profile";
+import { githubApi, githubGraphql } from "./github-api";
+import { classifyAiPolicy, type AiStance, type ContribProfile } from "./contrib-profile";
 
 export type TimelineEvent = {
   event?: string;
@@ -88,6 +88,32 @@ export function discussFirstReason(contributingText: string, labels: string[]): 
     if (m) return `the contribution guide asks contributors to discuss or get assigned first ("${m[0].trim().slice(0, 120)}")`;
   }
   return null;
+}
+
+const POLICY_FILES = [
+  "CONTRIBUTING.md", ".github/CONTRIBUTING.md", "docs/CONTRIBUTING.md", "docs/contributing/README.md",
+  "AGENTS.md", "AI_POLICY.md", ".github/PULL_REQUEST_TEMPLATE.md", ".github/pull_request_template.md",
+];
+
+export type RepoPolicy = { ai: AiStance; source: string | null; excerpt: string | null; discussFirst: string | null };
+
+/** A repository's AI-contribution policy and discuss-first rule, read from
+ *  its default branch in one GraphQL call, for the issue scanner. Uses the
+ *  same classifiers as the run-time profile (lib/contrib-profile.ts). */
+export async function fetchRepoPolicy(owner: string, repo: string, token: string, signal?: AbortSignal): Promise<RepoPolicy> {
+  const fields = POLICY_FILES.map((f, i) => `f${i}: object(expression: ${JSON.stringify(`HEAD:${f}`)}) { ... on Blob { text } }`).join("\n");
+  const data = await githubGraphql<{ repository: Record<string, { text?: string } | null> | null }>(
+    `query Policy($owner: String!, $repo: String!) { repository(owner: $owner, name: $repo) { ${fields} } }`, { owner, repo }, token, signal);
+  let policy: RepoPolicy = { ai: "unknown", source: null, excerpt: null, discussFirst: null };
+  const texts: string[] = [];
+  POLICY_FILES.forEach((file, i) => {
+    const text = data.repository?.[`f${i}`]?.text?.slice(0, 200_000);
+    if (!text) return;
+    texts.push(text);
+    const c = classifyAiPolicy(text);
+    if (c.stance === "ban" || (c.stance === "disclose" && policy.ai === "unknown")) policy = { ...policy, ai: c.stance, source: file, excerpt: c.excerpt };
+  });
+  return { ...policy, discussFirst: discussFirstReason(texts.join("\n"), []) };
 }
 
 export function aiBanReason(profile: Pick<ContribProfile, "aiPolicy">): string | null {

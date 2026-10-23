@@ -189,7 +189,9 @@ const handlers = {
     // -f: the archive holds exactly the tracked files, including any that
     // upstream force-added past its own .gitignore.
     const base = await runShell(
-      'git init -q && git add -A -f && ' +
+      // autocrlf off: byte-exact working tree even when the host backend's
+      // global Git config (Git for Windows) would convert line endings.
+      'git init -q && git config core.autocrlf false && git add -A -f && ' +
       'git -c user.name=opensrcer -c user.email=opensrcer@localhost commit -q --no-verify -m baseline && git rev-parse HEAD',
       CMD_TIMEOUT_MS,
     );

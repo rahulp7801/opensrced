@@ -54,7 +54,10 @@ test("only completed agent output that used its tools becomes a preview; nothing
       await once(worker.stdout, "end");
       worker.child.emit("close", 0, null);
       const recordPath = join(".dispatches", `${dispatch.id}.json`);
-      for (let attempt = 0; attempt < 400 && !existsSync(recordPath); attempt++) await new Promise((r) => setTimeout(r, 5));
+      // The record is written at start (running) and again once the run is finalized.
+      for (let attempt = 0; attempt < 800 && (!existsSync(recordPath) || JSON.parse(readFileSync(recordPath, "utf8")).status === "running"); attempt++) {
+        await new Promise((r) => setTimeout(r, 5));
+      }
       const record = JSON.parse(readFileSync(recordPath, "utf8"));
       assert.equal(record.status, c.ok ? "succeeded" : "failed");
       assert.equal(record.pr_status, c.ok ? "awaiting_review" : "none");

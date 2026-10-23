@@ -79,8 +79,12 @@ function dockerEnv(): NodeJS.ProcessEnv {
 
 /** Docker run arguments for one box. Exported for tests: the isolation
  *  flags are the security property, so they are asserted, not assumed. */
-export function dockerRunArgs(name: string, token: string, script = EXEC_SERVER_SCRIPT): string[] {
+export function dockerRunArgs(name: string, token: string, script = EXEC_SERVER_SCRIPT, cacheVolume?: string): string[] {
   const limits = execLimits();
+  // Package caches (uv, pip, yarn) survive between runs of the SAME repository
+  // only: a repository's code can write into its cache, so sharing one cache
+  // across repositories would let one poison another's installs.
+  const cache = cacheVolume && /^opensrcer-cache-[a-z0-9_.-]{1,180}$/.test(cacheVolume) ? ["-v", `${cacheVolume}:/home/node/.cache`] : [];
   return [
     "run", "-d", "--rm", "--name", name,
     "--init",
@@ -98,6 +102,7 @@ export function dockerRunArgs(name: string, token: string, script = EXEC_SERVER_
     "-e", `EXEC_OUTPUT_BYTES=${limits.outputBytes}`,
     "-e", `EXEC_MAX_LIFETIME_MS=${limits.maxLifetimeMs}`,
     "-v", `${script}:/opt/opensrcer/exec-server.cjs:ro`,
+    ...cache,
     limits.image,
     "node", "/opt/opensrcer/exec-server.cjs",
   ];
@@ -105,7 +110,7 @@ export function dockerRunArgs(name: string, token: string, script = EXEC_SERVER_
 
 /** Start a box for one dispatch. `workDir` is the dispatch's scratch dir
  *  (host backend only). Throws ExecBoxError when the box cannot start. */
-export async function startExecBox(mode: Exclude<ExecMode, "off">, dispatchId: string, workDir: string): Promise<ExecBox> {
+export async function startExecBox(mode: Exclude<ExecMode, "off">, dispatchId: string, workDir: string, repoFull?: string): Promise<ExecBox> {
   if (mode === "remote") {
     const url = process.env.OPENSRCER_EXEC_URL!, token = process.env.OPENSRCER_EXEC_TOKEN!;
     // The worker removes these from its own env once read, so the agent's
@@ -117,7 +122,8 @@ export async function startExecBox(mode: Exclude<ExecMode, "off">, dispatchId: s
     const name = `opensrcer-exec-${dispatchId.replace(/[^A-Za-z0-9_.-]/g, "-").slice(-40)}`;
     const env = dockerEnv();
     try {
-      await execFileAsync("docker", dockerRunArgs(name, token), { env, timeout: 120_000, windowsHide: true });
+      const cache = repoFull && process.env.OPENSRCER_EXEC_CACHE !== "0" ? `opensrcer-cache-${repoFull.toLowerCase().replace(/[^a-z0-9_.-]/g, "_")}` : undefined;
+      await execFileAsync("docker", dockerRunArgs(name, token, EXEC_SERVER_SCRIPT, cache), { env, timeout: 120_000, windowsHide: true });
     } catch (error) {
       throw new ExecBoxError(`docker run failed: ${redactToken(error instanceof Error ? error.message : String(error), token)}`);
     }

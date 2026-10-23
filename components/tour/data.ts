@@ -72,8 +72,11 @@ export const RUN_LOG: Array<{ at: number; text: string }> = [
   { at: 0.68, text: "[agentic-dispatcher] exited · status=succeeded · exit=0" },
   { at: 0.73, text: "[agentic-pr] starting auto-PR" },
   { at: 0.77, text: "[agentic-pr] diff applied via: git apply (strict)" },
-  { at: 0.82, text: "[gitleaks] status=clean · findings=0" },
-  { at: 0.87, text: "[crucible-tests] status=not_run — patch is unverified" },
+  // As the worker prints them: gitleaks on two lines, and the public flow does
+  // not run the repository's tests, so the patch is marked unverified.
+  { at: 0.81, text: "[gitleaks] status=clean" },
+  { at: 0.83, text: "[gitleaks] findings=0" },
+  { at: 0.87, text: "[crucible-tests] status=not_run reason=OPENSRCER_RUN_TESTS=off (public flow) — patch is UNVERIFIED" },
   { at: 0.94, text: `[agentic-pr] opened draft PR: https://github.com/${DEMO_REPO}/pull/6` },
 ];
 

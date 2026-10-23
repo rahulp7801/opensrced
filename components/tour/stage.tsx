@@ -15,9 +15,10 @@ import { ArrowRight, CaretLeft, CaretRight, CornersOut } from "@phosphor-icons/r
 import { cn } from "@/lib/utils";
 import { InteractContext, TimeContext, type Chapter, type Interact } from "./kit";
 import { pacedBy } from "./chapters";
-import { choose, find, understand } from "./chapters-find";
+import { choose, find } from "./chapters-find";
 import { newRun, pr, review, run } from "./chapters-fix";
-import { respond } from "./chapters-ship";
+import { reply, respond } from "./chapters-ship";
+import { stageExplore, stageNotes, stageScan } from "./stage-views";
 
 /** How much slower than written the stage plays its animations. The presenter
  *  sets the pace between steps; this only stretches what plays by itself. */
@@ -25,12 +26,15 @@ export const STAGE_PACE = 1.15;
 
 type Phase = { name: string; say: string; chapters: Chapter[] };
 
+// The tour's screens with the stage's speaker notes (and its versions of the review screens).
+const S = stageNotes({ find, choose, newRun, run, review, pr, respond, reply });
+
 /** The four phases, and the one line each one is about (shown in the notes). */
 const PHASES: Phase[] = [
-  { name: "Find", say: "Start where every contributor starts: finding an issue worth fixing.", chapters: [find, choose] },
-  { name: "Understand", say: "Before changing anything, see how the code fits together. No AI needed for this part.", chapters: [understand] },
-  { name: "Fix", say: "An agent works through the code in an isolated machine and writes a patch you can read.", chapters: [newRun, run, review] },
-  { name: "Ship", say: "A draft pull request in your name, and help answering the reviewers.", chapters: [pr, respond] },
+  { name: "Find", say: "Finding an issue that's actually open to a newcomer: the step Claude Code assumes you've already done.", chapters: [S.find, stageScan, S.choose] },
+  { name: "Understand", say: "Ask an unfamiliar codebase anything, in plain English, before you touch it.", chapters: [stageExplore] },
+  { name: "Fix", say: "An agent writes a small patch in the project's style, in a throwaway machine, and you review every line.", chapters: [S.newRun, S.run, S.review] },
+  { name: "Ship", say: "A draft pull request in your name, and help with the follow-ups. You're the author throughout.", chapters: [S.pr, S.respond, S.reply] },
 ];
 
 const STEPS = PHASES.flatMap((phase, p) => phase.chapters.map((c) => ({ phase: p, chapter: pacedBy(c, STAGE_PACE) })));

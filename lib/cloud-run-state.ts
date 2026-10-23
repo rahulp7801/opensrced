@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { DispatchRecord, DispatchStats } from "./dispatch-store";
 import { parseRunTarget } from "./run-target";
 import { sanitizeLogValue } from "./sanitize";
+import { validSignInState, type SignInState } from "./hosted-sign-in";
 
 export type CloudRun = DispatchRecord & {
   sandbox_name: string;
@@ -10,6 +11,8 @@ export type CloudRun = DispatchRecord & {
   expires_at: number;
   log: string;
   log_size: number;
+  /** Hosted subscription runs: the Claude sign-in link the user must open. */
+  sign_in?: SignInState;
 };
 
 export type CloudRunSummary = Omit<CloudRun, "log" | "log_size">;
@@ -75,6 +78,8 @@ export function validCloudRun(value: unknown, owner: string, id: string): value 
     (run.pr_failure_reason === undefined || (typeof run.pr_failure_reason === "string" && run.pr_failure_reason.length <= 500)) &&
     (run.tests === undefined || TEST_STATUSES.has(run.tests)) &&
     (run.stats === undefined || validDispatchStats(run.stats)) &&
+    // Only an Anthropic authorize URL; a worker cannot plant any other link.
+    (run.sign_in === undefined || validSignInState(run.sign_in)) &&
     typeof run.expires_at === "number" && Number.isFinite(run.expires_at) && run.expires_at > 0 &&
     // The worker can rewrite its own record, so expiry is bounded by the
     // server-minted id (c_<ms>_...), not by any field the worker controls:

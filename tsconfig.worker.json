@@ -8,7 +8,9 @@
     "lib/dispatch-store.ts",
     "lib/dispatcher.ts",
     "lib/pr-push.ts",
-    "lib/graph-worker.ts"
+    "lib/graph-worker.ts",
+    "lib/hosted-sign-in.ts",
+    "lib/run-payment.ts"
   ],
   "exclude": [
     "node_modules",

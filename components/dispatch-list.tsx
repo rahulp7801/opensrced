@@ -29,6 +29,8 @@ type Dispatch = {
   /** Whether the repo's own suite ran against the patch. "Verified" in the
    *  UI must mean `passed` and nothing else. */
   tests?: "passed" | "failed" | "skipped" | "not_run";
+  /** Hosted subscription runs: the Claude sign-in this run is waiting on. */
+  sign_in?: { url: string; status: "waiting" | "signed_in" | "failed" };
 };
 
 type DispatchWithLog = Dispatch & { log: string };
@@ -422,6 +424,10 @@ export function DispatchList() {
               </div>
             )}
 
+            {detail.status === "running" && detail.sign_in?.status === "waiting" && (
+              <SignInPanel dispatchId={detail.id} url={detail.sign_in.url} />
+            )}
+
             {/* Failure banner (compact) */}
             {(detail.pr_status === "failed" || detail.pr_status === "tests_failed") && (
               <div className="border-b border-alert/40 bg-alert/5 px-4 py-2.5 text-[12px] text-alert">
@@ -514,6 +520,65 @@ function RetryButton({ dispatch }: { dispatch: DispatchWithLog }) {
       </button>
       {error && <span role="alert" className="text-xs text-alert">{error}</span>}
     </div>
+  );
+}
+
+// Hosted subscription run waiting for the user to sign in to Claude. The link
+// is Anthropic's own sign-in page (validated server-side); the code it shows
+// is sent once to this run's worker and not kept anywhere.
+function SignInPanel({ dispatchId, url }: { dispatchId: string; url: string }) {
+  const [code, setCode] = useState("");
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setPending(true);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/dispatches/${dispatchId}/sign-in`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code: code.trim() }),
+        signal: AbortSignal.timeout(20_000),
+      });
+      const result = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "Could not send the code.");
+      setCode("");
+      setMessage({ text: "Code sent. The run starts once Claude confirms the sign-in.", ok: true });
+    } catch (cause) {
+      setMessage({ text: cause instanceof Error && cause.name !== "TimeoutError" ? cause.message : "Sending the code timed out. Try again.", ok: false });
+    } finally {
+      setPending(false);
+    }
+  }
+  return (
+    <section aria-labelledby={`sign-in-${dispatchId}`} className="border-b border-signal/40 bg-signal/5 px-4 py-3 text-[13px]">
+      <h3 id={`sign-in-${dispatchId}`} className="font-medium text-signal">Sign in to Claude to start this run</h3>
+      <p className="mt-1 text-paper-muted">
+        This run uses your own Claude subscription. Sign in on Claude&apos;s page, then paste the code it shows you here.
+      </p>
+      <form onSubmit={submit} className="mt-2.5 flex flex-wrap items-center gap-2">
+        <a href={url} target="_blank" rel="noreferrer" className="rounded-full inline-flex min-h-9 items-center gap-1.5 border border-signal/50 bg-signal/10 px-3 text-signal hover:bg-signal/20">
+          Open Claude sign-in <IconExternal />
+        </a>
+        <label htmlFor={`sign-in-code-${dispatchId}`} className="sr-only">Sign-in code</label>
+        <input
+          id={`sign-in-code-${dispatchId}`}
+          type="password"
+          maxLength={1024}
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="Paste code"
+          autoComplete="off"
+          spellCheck={false}
+          className="min-w-0 flex-1 rounded-md border border-border bg-ink px-3 py-2 text-base text-paper placeholder:text-paper-faint focus:border-signal"
+        />
+        <button type="submit" disabled={pending || !code.trim()} className="min-h-9 rounded-md bg-signal px-4 text-sm font-medium text-ink hover:bg-signal-soft disabled:opacity-50">
+          {pending ? "Sending…" : "Send code"}
+        </button>
+      </form>
+      {message && <p role="status" className={`mt-2 text-xs ${message.ok ? "text-ok" : "text-alert"}`}>{message.text}</p>}
+    </section>
   );
 }
 

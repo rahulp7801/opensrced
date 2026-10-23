@@ -14,8 +14,8 @@ type OnboardingState = {
 const STEPS = [
   {
     key: "key" as const,
-    title: "Add an Anthropic API key",
-    description: "Add the provider key used for agent runs. You can add Gemini later for patch review.",
+    title: "Choose how runs are paid for",
+    description: "Use your Claude subscription, or add an API key. You can add Gemini later for patch review.",
     href: "/crucible",
     cta: "Go to Settings",
     check: (s: OnboardingState) => s.hasKey,
@@ -63,8 +63,8 @@ export function Onboarding({ localMode = false, inviteOnly = false }: { localMod
     Promise.all([
       fetch("/api/settings/keys", { signal }).then(async (response) => {
         if (!response.ok) throw new Error("Settings unavailable");
-        const data = await response.json() as { anthropic?: unknown };
-        return data.anthropic === true;
+        const data = await response.json() as { anthropic?: unknown; ready?: unknown };
+        return (data.ready ?? data.anthropic) === true;
       }),
       fetch("/api/dispatches", { signal }).then(async (response) => {
         if (!response.ok) throw new Error("Runs unavailable");

@@ -19,6 +19,8 @@ export function cloudWorkerJobJson(
       notes: opts.notes,
       token: opts.token,
       installationToken: Boolean(opts.orgCtx),
+      provider: opts.provider,
+      keyFallback: opts.keyFallback,
       anthropicKey: opts.anthropicKey,
       geminiKey: opts.geminiKey,
       maxSpendUsd: opts.maxSpendUsd,

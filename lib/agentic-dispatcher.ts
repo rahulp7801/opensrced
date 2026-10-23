@@ -33,15 +33,21 @@ import { githubApi } from "./github-api";
 const DISPATCH_DIR = join(process.cwd(), ".dispatches");
 const MCP_CONFIG = join(process.cwd(), ".mcp.json");
 
-import { READ_ONLY_CLAUDE_ARGS } from "./claude-tools";
+import { buildAgentInvocation, PROVIDER_LABELS, type AgentProvider } from "./agent-invocation";
+import { pipeCodexJson, planUnavailable } from "./codex-events";
 
 // Parse stream-json output from Claude, write readable text to the log,
 // and return the total cost when the result event arrives.
+//
+// `stopIfKeyed` is passed for subscription runs: if the CLI reports that it
+// authenticated with any API key or token instead of the login, the run is
+// stopped, never silently billed to a key (the house bug: silent fallbacks).
 export function pipeStreamJson(
   stdout: import("node:stream").Readable,
   out: Pick<import("node:fs").WriteStream, "write">,
-): { complete: boolean; failed: boolean } {
-  const state = { complete: false, failed: false };
+  stopIfKeyed?: () => void,
+): { complete: boolean; failed: boolean; unavailable: boolean } {
+  const state = { complete: false, failed: false, unavailable: false };
   const decoder = new StringDecoder("utf8");
   let buf = "";
   function consume(line: string) {
@@ -49,6 +55,17 @@ export function pipeStreamJson(
     try {
       const evt = JSON.parse(line);
       if (evt.type === "error") state.failed = true;
+      // The CLI's own report of which credential it is using: "none" means
+      // no API key or token, i.e. the subscription login.
+      if (evt.type === "system" && evt.subtype === "init" && typeof evt.apiKeySource === "string") {
+        out.write(`[agentic-dispatcher] credential source reported by the CLI: ${sanitizeLogValue(evt.apiKeySource, 40)}\n`);
+        if (stopIfKeyed && evt.apiKeySource !== "none") {
+          state.failed = true;
+          out.write("[agentic-dispatcher] This subscription run picked up an API key or token; stopping it before it is billed.\n");
+          stopIfKeyed();
+        }
+      }
+      if (evt.type === "rate_limit_event" && evt.rate_limit_info?.status === "rejected") state.unavailable = true;
       if (evt.type === "assistant" && Array.isArray(evt.message?.content)) {
         for (const block of evt.message.content) {
           if (block.type === "text" && typeof block.text === "string") out.write(block.text);
@@ -63,11 +80,20 @@ export function pipeStreamJson(
       }
       if (evt.type === "result") {
         if (typeof evt.total_cost_usd === "number" && Number.isFinite(evt.total_cost_usd)) {
-          out.write(`\n[agentic-dispatcher] total_cost_usd=${evt.total_cost_usd.toFixed(6)}\n`);
+          // A plan run is not billed per token; the CLI's figure is only what
+          // the same work would have cost on the API. Never record it as spend.
+          out.write(stopIfKeyed
+            ? `\n[agentic-dispatcher] plan usage (API-equivalent, not billed): $${evt.total_cost_usd.toFixed(4)}\n`
+            : `\n[agentic-dispatcher] total_cost_usd=${evt.total_cost_usd.toFixed(6)}\n`);
         }
         const failure = claudeResultFailure(evt, "Agent could not complete the task. Check provider access and the task budget.");
         if (failure) {
           state.failed = true;
+          // Plan limits and expired or missing logins come back as error text.
+          if (evt.is_error && typeof evt.result === "string" && planUnavailable(evt.result)) {
+            state.unavailable = true;
+            out.write(`\n[agentic-dispatcher] provider said: ${sanitizeLogValue(evt.result, 200)}\n`);
+          }
           out.write(`\n[agentic-dispatcher] ${failure}\n`);
         } else state.complete = true;
       }
@@ -377,6 +403,14 @@ export type StartAgenticOpts = {
   orgCtx?: { auth0UserId: string; githubOrg: string };
   // Server-only: freshly minted token in a VM capped below its one-hour TTL.
   installationToken?: boolean;
+  // Which credential pays (lib/run-payment.ts). Defaults to the API key when
+  // one is passed, else the Claude subscription login.
+  provider?: AgentProvider;
+  // Re-run on anthropicKey if the subscription turns out unavailable. Only
+  // set when the user opted in.
+  keyFallback?: boolean;
+  // Hosted subscription runs: the VM-local config dir holding this run's login.
+  claudeConfigDir?: string;
   // User-provided API keys (from encrypted cookie).
   anthropicKey?: string;
   geminiKey?: string;
@@ -516,73 +550,11 @@ async function spawnDispatch(
   // a complete response. Override via OPENSRCER_AGENTIC_TIMEOUT_MS.
   const timeoutMs = Number(process.env.OPENSRCER_AGENTIC_TIMEOUT_MS ?? String(30 * 60 * 1000));
 
-  // Restrict the runtime to our read-only MCP tools, with no host customizations.
-  const args = [
-    "-p",
-    prompt,
-    "--mcp-config",
-    MCP_CONFIG,
-    ...READ_ONLY_CLAUDE_ARGS,
-    "--no-session-persistence",
-    "--output-format",
-    "stream-json",
-    "--verbose",
-    "--max-budget-usd",
-    String(budgetUsd),
-  ];
-
-  // Allowlisted environment. The previous denylist (`{...process.env}` minus
-  // three keys) still handed the child AUTH0_SECRET — which decrypts every
-  // user's stored API keys — plus GITHUB_APP_PRIVATE_KEY and the webhook
-  // secret. See lib/child-env.ts.
-  const env = agenticChildEnv(repoFull, opts);
-
-  out.write(
-    `[agentic-dispatcher] ${new Date().toISOString()}\n` +
-      `[agentic-dispatcher] ${headerLine}\n` +
-      `[agentic-dispatcher] bin: claude (-p headless, MCP: ${MCP_CONFIG})\n` +
-      `[agentic-dispatcher] env: ANTHROPIC_API_KEY=${env.ANTHROPIC_API_KEY ? "(present)" : "(missing — claude will use its own auth)"} · GITHUB_TOKEN=${token ? "(present)" : "(missing)"}\n` +
-      `[agentic-dispatcher] guardrails: --max-budget-usd=${budgetUsd} · timeout=${Math.round(timeoutMs / 1000)}s\n` +
-      `[agentic-dispatcher] ─────────────────────────────\n`,
-  );
-
-  const child = spawn("claude", args, { env, windowsHide: true });
-
-  // Wall-clock kill-switch. Fires only if claude is still alive at the
-  // deadline; cleared when the close handler runs. `taskkill /T` on Windows
-  // takes down the whole tree (claude + any MCP-server children).
-  //
-  // Writing a marker line to the log the moment the timer fires matters
-  // because Node's `close` event can lag the actual kill by many minutes
-  // on Windows when a grandchild holds the inherited stdio pipe open. The
-  // "exited at" line only lands when that pipe finally closes — without
-  // this marker, the user sees a 90-min gap and can't tell when we pulled
-  // the plug.
-  let killedByTimeout = false;
-  const timeoutHandle = setTimeout(() => {
-    if (!child.killed && child.pid) {
-      killedByTimeout = true;
-      const killedAt = new Date().toISOString();
-      try {
-        out.write(
-          `\n[agentic-dispatcher] ─────────────────────────────\n` +
-            `[agentic-dispatcher] wall-clock timeout (${Math.round(timeoutMs / 1000)}s) hit at ${killedAt}\n` +
-            `[agentic-dispatcher] issuing taskkill on PID ${child.pid} + tree; Node 'close' event may lag if a grandchild holds the stdio pipe\n`,
-        );
-      } catch {
-        /* stream may be half-closed; nothing we can do */
-      }
-      if (process.platform === "win32") {
-        try {
-          execFileSync("taskkill", ["/F", "/T", "/PID", String(child.pid)], { stdio: "pipe" });
-        } catch {
-          child.kill("SIGKILL");
-        }
-      } else {
-        child.kill("SIGKILL");
-      }
-    }
-  }, timeoutMs);
+  // Subscription runs have no per-token cost for --max-budget-usd to cap, so
+  // they are capped by steps (--max-turns) plus the same wall-clock timeout.
+  const maxTurns = fastPath
+    ? Number(process.env.OPENSRCER_AGENTIC_LEAF_MAX_TURNS ?? "12")
+    : Number(process.env.OPENSRCER_AGENTIC_MAX_TURNS ?? "40");
 
   // Findings use a synthetic issue number of 0 — the PR pipeline names the
   // branch after the finding ID instead.
@@ -599,108 +571,205 @@ async function spawnDispatch(
     issue_number: issueNumber,
     started_at: new Date().toISOString(),
     status: "running",
-    pid: child.pid,
     log_path: logPath,
   };
 
-  // Register before wiring handlers so a cancel arriving immediately finds
-  // the child. Without this, cancelDispatch() had nothing to kill and every
-  // agentic cancel failed with "No running process found".
-  registerDispatch(dispatch, child);
+  out.write(
+    `[agentic-dispatcher] ${new Date().toISOString()}\n` +
+      `[agentic-dispatcher] ${headerLine}\n`,
+  );
 
-  const result = pipeStreamJson(child.stdout, out);
-  child.stderr.on("data", () => {}); // swallow stderr (MCP startup noise)
-  let spawnFailed = false;
-  child.on("close", (code, signal) => {
-    clearTimeout(timeoutHandle);
-    if (spawnFailed) return;
-    dispatch.ended_at = new Date().toISOString();
-    dispatch.exit_code = code ?? undefined;
-    // taskkill on Windows exits 1 with no signal, so a user cancel is only
-    // visible through the flag cancelDispatch() leaves behind.
-    const wasKilled = signal === "SIGKILL" || signal === "SIGTERM" || killedByTimeout || consumeCancelRequest(dispatch.id);
-    dispatch.status = wasKilled ? "killed" : code === 0 && result.complete && !result.failed ? "succeeded" : "failed";
+  // One spawn of the agent CLI. A subscription run that finds the plan
+  // unavailable (signed out, usage limit) launches once more on the API key,
+  // but only when the user saved one and opted in (opts.keyFallback).
+  const launch = (provider: AgentProvider) => {
+    // Restricted to our read-only MCP tools, no host customizations, an
+    // allowlisted environment (lib/child-env.ts) and an empty working dir.
+    // See lib/agent-invocation.ts for each provider's flags.
+    const invocation = buildAgentInvocation({
+      provider,
+      prompt,
+      mcpConfig: MCP_CONFIG,
+      inject: { OPENSRCER_ALLOWED_REPO: repoFull, GITHUB_TOKEN: opts.token },
+      anthropicKey: opts.anthropicKey,
+      budgetUsd,
+      maxTurns,
+      claudeConfigDir: opts.claudeConfigDir,
+    });
+    // Which credential pays is logged; the credential itself never is.
     out.write(
-      `\n[agentic-dispatcher] ─────────────────────────────\n` +
-        `[agentic-dispatcher] exited at ${dispatch.ended_at} · status=${dispatch.status} · exit=${code ?? "n/a"}` +
-        (killedByTimeout ? " (killed by wall-clock timeout)" : "") +
-        `\n`,
+      `[agentic-dispatcher] bin: ${invocation.bin} (${invocation.output}, MCP: ${MCP_CONFIG})\n` +
+        `[agentic-dispatcher] paid by: ${PROVIDER_LABELS[provider]} · GITHUB_TOKEN=${token ? "(present)" : "(missing)"}\n` +
+        `[agentic-dispatcher] guardrails: cap=${invocation.capMode} ${invocation.capLabel} · timeout=${Math.round(timeoutMs / 1000)}s\n` +
+        `[agentic-dispatcher] ─────────────────────────────\n`,
     );
-    if (!wasKilled && code === 0 && (!result.complete || result.failed)) out.write("[agentic-dispatcher] No successful completion event; incomplete output will not be published.\n");
-    out.end();
 
-    const autoPr = !opts.dryRun && dispatch.status === "succeeded" && process.env.OPENSRCER_AGENTIC_AUTO_PR !== "0";
-    persist({ ...dispatch, pr_status: autoPr ? "pending" : "none" });
+    const child = spawn(invocation.bin, invocation.args, { env: invocation.env, cwd: invocation.cwd, windowsHide: true });
+    // Codex waits for more prompt text on an open stdin.
+    child.stdin?.end();
+    dispatch.pid = child.pid;
 
-    // Auto-PR on clean exit. Runs detached — we can't block the close
-    // handler, and the dispatch is already reported as succeeded. On
-    // success we append the PR URL to the log; on failure we append the
-    // diagnostic so the user can fix and rerun. Either way the outcome is
-    // written to the sidecar so the dashboard doesn't have to re-derive it
-    // by regexing this log on every poll.
-    if (autoPr) {
-      void (async () => {
-        // Small delay so the close handler's write flushes before we append.
-        await new Promise((r) => setTimeout(r, 250));
-        await appendFile(
-          logPath,
-          `\n[agentic-pr] ─────────────────────────────\n` +
-            `[agentic-pr] starting auto-PR at ${new Date().toISOString()}\n`,
-        ).catch(() => {});
+    const kill = () => {
+      if (!child.pid) return;
+      if (process.platform === "win32") {
         try {
-          const result = await createDraftPrFromLog({
-            repoFull,
-            issueNumber,
-            logPath,
-            dispatchId: id,
-            orgCtx: opts.orgCtx,
-            installationToken: opts.installationToken,
-            findingId,
-            // Public flows: the fork + push + `gh pr create` must run as the
-            // user who asked for the dispatch. This hook fires detached,
-            // long after the request context is gone, so the token is
-            // captured at dispatch start and carried here. Without it the
-            // step fell through to whatever credential the host had — the
-            // deployer's PAT or gh keychain.
-            token: opts.token,
-            geminiKey: opts.geminiKey,
-            author: opts.author,
-          });
-          const line = result.ok
-            ? `[agentic-pr] opened draft PR: ${sanitizeLogValue(result.url)}\n` +
-              `[agentic-pr] head: ${sanitizeLogValue(result.branch, 200)}  →  base: ${sanitizeLogValue(result.base.branch, 200)} (${sanitizeLogValue(result.base.confidence, 20)} confidence — ${sanitizeLogValue(result.base.reason)})\n`
-            : `[agentic-pr] skipped: ${sanitizeLogValue(result.reason)}\n`;
-          await appendFile(logPath, line).catch(() => {});
-          patch(id, result.ok
-            ? { pr_status: "opened", pr_url: result.url, tests: result.tests }
-            : {
-                pr_status: result.tests === "failed" ? "tests_failed" : "failed",
-                pr_failure_reason: result.reason.slice(0, 500),
-                tests: result.tests,
-              });
-        } catch (e) {
-          const msg = sanitizeLogValue(e instanceof Error ? `${e.name}: ${e.message}` : e);
-          await appendFile(logPath, `[agentic-pr] unexpected error: ${msg}\n`).catch(() => {});
-          patch(id, { pr_status: "failed", pr_failure_reason: msg.slice(0, 500) });
-        } finally {
-          release();
+          execFileSync("taskkill", ["/F", "/T", "/PID", String(child.pid)], { stdio: "pipe" });
+        } catch {
+          child.kill("SIGKILL");
         }
-      })();
-    } else {
-      release();
-    }
-  });
-  child.on("error", (err) => {
-    spawnFailed = true;
-    clearTimeout(timeoutHandle);
-    release();
-    dispatch.ended_at = new Date().toISOString();
-    dispatch.status = "failed";
-    out.write(`\n[agentic-dispatcher] spawn error: ${err.message}\n`);
-    out.end();
-    persist({ ...dispatch, pr_status: "none" });
-  });
+      } else {
+        child.kill("SIGKILL");
+      }
+    };
 
+    // Wall-clock kill-switch. Fires only if the agent is still alive at the
+    // deadline; cleared when the close handler runs. `taskkill /T` on Windows
+    // takes down the whole tree (agent + any MCP-server children).
+    //
+    // Writing a marker line to the log the moment the timer fires matters
+    // because Node's `close` event can lag the actual kill by many minutes
+    // on Windows when a grandchild holds the inherited stdio pipe open. The
+    // "exited at" line only lands when that pipe finally closes — without
+    // this marker, the user sees a 90-min gap and can't tell when we pulled
+    // the plug.
+    let killedByTimeout = false;
+    const timeoutHandle = setTimeout(() => {
+      if (!child.killed && child.pid) {
+        killedByTimeout = true;
+        const killedAt = new Date().toISOString();
+        try {
+          out.write(
+            `\n[agentic-dispatcher] ─────────────────────────────\n` +
+              `[agentic-dispatcher] wall-clock timeout (${Math.round(timeoutMs / 1000)}s) hit at ${killedAt}\n` +
+              `[agentic-dispatcher] issuing taskkill on PID ${child.pid} + tree; Node 'close' event may lag if a grandchild holds the stdio pipe\n`,
+          );
+        } catch {
+          /* stream may be half-closed; nothing we can do */
+        }
+        kill();
+      }
+    }, timeoutMs);
+
+    // Register before wiring handlers so a cancel arriving immediately finds
+    // the child. Without this, cancelDispatch() had nothing to kill and every
+    // agentic cancel failed with "No running process found".
+    registerDispatch(dispatch, child);
+
+    const result = invocation.output === "codex-jsonl"
+      ? pipeCodexJson(child.stdout, out)
+      : pipeStreamJson(child.stdout, out, provider === "claude-subscription" ? kill : undefined);
+    child.stderr.on("data", () => {}); // swallow stderr (MCP startup noise)
+    let spawnFailed = false;
+    child.on("close", (code, signal) => {
+      clearTimeout(timeoutHandle);
+      invocation.cleanup();
+      if (spawnFailed) return;
+      // taskkill on Windows exits 1 with no signal, so a user cancel is only
+      // visible through the flag cancelDispatch() leaves behind.
+      const wasKilled = signal === "SIGKILL" || signal === "SIGTERM" || killedByTimeout || consumeCancelRequest(dispatch.id);
+      if (!wasKilled && provider !== "anthropic-key" && result.unavailable && opts.keyFallback && opts.anthropicKey) {
+        out.write(
+          `\n[agentic-dispatcher] ─────────────────────────────\n` +
+            `[agentic-dispatcher] ${PROVIDER_LABELS[provider]} unavailable for this run; retrying on your Anthropic API key (you turned on the API-key fallback)\n`,
+        );
+        launch("anthropic-key");
+        return;
+      }
+      dispatch.ended_at = new Date().toISOString();
+      dispatch.exit_code = code ?? undefined;
+      dispatch.status = wasKilled ? "killed" : code === 0 && result.complete && !result.failed ? "succeeded" : "failed";
+      out.write(
+        `\n[agentic-dispatcher] ─────────────────────────────\n` +
+          `[agentic-dispatcher] exited at ${dispatch.ended_at} · status=${dispatch.status} · exit=${code ?? "n/a"}` +
+          (killedByTimeout ? " (killed by wall-clock timeout)" : "") +
+          `\n`,
+      );
+      if (!wasKilled && result.unavailable && provider !== "anthropic-key") {
+        out.write(`[agentic-dispatcher] ${PROVIDER_LABELS[provider]} could not serve this run. Sign in again or wait for your plan limit to reset${opts.anthropicKey ? "" : ", or save an API key and turn on the API-key fallback"}.\n`);
+      }
+      if (!wasKilled && code === 0 && (!result.complete || result.failed)) out.write("[agentic-dispatcher] No successful completion event; incomplete output will not be published.\n");
+      out.end();
+
+      const autoPr = !opts.dryRun && dispatch.status === "succeeded" && process.env.OPENSRCER_AGENTIC_AUTO_PR !== "0";
+      persist({ ...dispatch, pr_status: autoPr ? "pending" : "none" });
+
+      // Auto-PR on clean exit. Runs detached — we can't block the close
+      // handler, and the dispatch is already reported as succeeded. On
+      // success we append the PR URL to the log; on failure we append the
+      // diagnostic so the user can fix and rerun. Either way the outcome is
+      // written to the sidecar so the dashboard doesn't have to re-derive it
+      // by regexing this log on every poll.
+      if (autoPr) {
+        void (async () => {
+          // Small delay so the close handler's write flushes before we append.
+          await new Promise((r) => setTimeout(r, 250));
+          await appendFile(
+            logPath,
+            `\n[agentic-pr] ─────────────────────────────\n` +
+              `[agentic-pr] starting auto-PR at ${new Date().toISOString()}\n`,
+          ).catch(() => {});
+          try {
+            const result = await createDraftPrFromLog({
+              repoFull,
+              issueNumber,
+              logPath,
+              dispatchId: id,
+              orgCtx: opts.orgCtx,
+              installationToken: opts.installationToken,
+              findingId,
+              // Public flows: the fork + push + `gh pr create` must run as the
+              // user who asked for the dispatch. This hook fires detached,
+              // long after the request context is gone, so the token is
+              // captured at dispatch start and carried here. Without it the
+              // step fell through to whatever credential the host had — the
+              // deployer's PAT or gh keychain.
+              token: opts.token,
+              geminiKey: opts.geminiKey,
+              author: opts.author,
+            });
+            const line = result.ok
+              ? `[agentic-pr] opened draft PR: ${sanitizeLogValue(result.url)}\n` +
+                `[agentic-pr] head: ${sanitizeLogValue(result.branch, 200)}  →  base: ${sanitizeLogValue(result.base.branch, 200)} (${sanitizeLogValue(result.base.confidence, 20)} confidence — ${sanitizeLogValue(result.base.reason)})\n`
+              : `[agentic-pr] skipped: ${sanitizeLogValue(result.reason)}\n`;
+            await appendFile(logPath, line).catch(() => {});
+            patch(id, result.ok
+              ? { pr_status: "opened", pr_url: result.url, tests: result.tests }
+              : {
+                  pr_status: result.tests === "failed" ? "tests_failed" : "failed",
+                  pr_failure_reason: result.reason.slice(0, 500),
+                  tests: result.tests,
+                });
+          } catch (e) {
+            const msg = sanitizeLogValue(e instanceof Error ? `${e.name}: ${e.message}` : e);
+            await appendFile(logPath, `[agentic-pr] unexpected error: ${msg}\n`).catch(() => {});
+            patch(id, { pr_status: "failed", pr_failure_reason: msg.slice(0, 500) });
+          } finally {
+            release();
+          }
+        })();
+      } else {
+        release();
+      }
+    });
+    child.on("error", (err) => {
+      spawnFailed = true;
+      clearTimeout(timeoutHandle);
+      invocation.cleanup();
+      release();
+      dispatch.ended_at = new Date().toISOString();
+      dispatch.status = "failed";
+      out.write(`\n[agentic-dispatcher] spawn error: ${sanitizeLogValue(err.message)}\n`);
+      out.end();
+      persist({ ...dispatch, pr_status: "none" });
+    });
+  };
+
+  try {
+    launch(opts.provider ?? (opts.anthropicKey ? "anthropic-key" : "claude-subscription"));
+  } catch (error) {
+    out.end();
+    throw error;
+  }
   return dispatch;
 }
 

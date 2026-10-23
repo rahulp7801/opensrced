@@ -7,7 +7,9 @@ import { readJsonBody } from "@/lib/request-body";
 import { NextRequest } from "next/server";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { resolveAnthropicKey } from "@/lib/api-keys";
+import { resolveRunPayment } from "@/lib/api-keys";
+import { NoRunCredentialError, type RunPayment } from "@/lib/run-payment";
+import { buildAgentInvocation, type AgentInvocation } from "@/lib/agent-invocation";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { auth0 } from "@/lib/auth0";
 import { mappingForRequest, resolveGithubTokenForRequest } from "@/lib/crucible/tokens";
@@ -82,12 +84,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const anthropicKey = await resolveAnthropicKey();
-  if (!anthropicKey) {
-    return new Response(
-      JSON.stringify({ error: "No Anthropic API key configured." }),
-      { status: 400, headers: { "Content-Type": "application/json" } },
-    );
+  let payment: RunPayment;
+  try { payment = await resolveRunPayment(); }
+  catch (error) {
+    if (!(error instanceof NoRunCredentialError)) throw error;
+    return Response.json({ error: error.message }, { status: 400 });
+  }
+  // Hosted subscription sign-in happens per agent run; a short exploration
+  // in its own VM runs on the API key, and only if the user allows it.
+  const anthropicKey = payment.anthropicKey;
+  if (cloudExecution() && !anthropicKey) {
+    return Response.json({ error: "Hosted exploration runs on your Anthropic API key. Add one, and rank it first or turn on the API-key fallback." }, { status: 400 });
   }
 
   const prompt = buildExplorePrompt(repoFull, body.query);
@@ -134,7 +141,7 @@ export async function POST(req: NextRequest) {
     if (!owner) return Response.json({ error: "Not authenticated" }, { status: 401 });
     return cloudExplore(args, {
       OPENSRCER_ALLOWED_REPO: repoFull,
-      ANTHROPIC_API_KEY: anthropicKey,
+      ANTHROPIC_API_KEY: anthropicKey!,
       ...(githubToken ? { GITHUB_TOKEN: githubToken } : {}),
     }, req.signal, owner);
   }
@@ -144,12 +151,20 @@ export async function POST(req: NextRequest) {
   catch { return Response.json({ error: "Three explorations are running. Try again when one finishes." }, { status: 429 }); }
 
   // Allowlisted env — the child has no business seeing AUTH0_SECRET or the
-  // GitHub App private key. See lib/child-env.ts.
-  const env: NodeJS.ProcessEnv = childEnv({
-    OPENSRCER_ALLOWED_REPO: repoFull,
-    ANTHROPIC_API_KEY: anthropicKey,
-    GITHUB_TOKEN: githubToken,
-  });
-
-  return localClaudeStream(args, env, req.signal, release);
+  // GitHub App private key. See lib/child-env.ts and lib/agent-invocation.ts.
+  let invocation: AgentInvocation;
+  try {
+    invocation = buildAgentInvocation({
+      provider: payment.provider, prompt, mcpConfig: MCP_CONFIG,
+      inject: { OPENSRCER_ALLOWED_REPO: repoFull, GITHUB_TOKEN: githubToken },
+      anthropicKey, model: payment.provider === "codex-subscription" ? undefined : CLAUDE_AGENT_MODEL,
+      budgetUsd: Math.min(Math.max(body.budget ?? 0.15, 0.01), 2),
+      // ponytail: fixed step cap for read-only Q&A; make it a knob if answers get cut off.
+      maxTurns: 15,
+    });
+  } catch (error) {
+    release();
+    throw error;
+  }
+  return localClaudeStream(invocation, req.signal, release);
 }

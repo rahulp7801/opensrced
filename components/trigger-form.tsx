@@ -18,7 +18,8 @@ function friendlyError(msg: string): string {
   const lower = msg.toLowerCase();
   if (lower.includes("econnrefused") || lower.includes("fetch failed")) return "Could not reach the server. Check your connection and try again.";
   if (lower.includes("unauthenticated") || lower.includes("not authenticated")) return "Your session expired. Please log in again.";
-  if (lower.includes("api key")) return "Add your Anthropic API key in Settings before starting a run.";
+  // Payment errors already say what to do (lib/run-payment.ts); only the bare one gets a hint.
+  if (lower.startsWith("no anthropic api key")) return "Choose how runs are paid for in Settings before starting a run.";
   if (lower.includes("rate limit")) return "Rate limit hit. Wait a minute and try again.";
   if (lower.includes("repo_url")) return "Please enter a valid GitHub repository URL.";
   return msg;

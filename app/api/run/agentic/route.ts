@@ -2,7 +2,8 @@ import { readJsonBody } from "@/lib/request-body";
 import { NextRequest, NextResponse } from "next/server";
 import { findOpenRunPr, RunTargetError, startAgenticDispatch } from "@/lib/agentic-dispatcher";
 import { resolveCommitAuthor, resolveGitHubToken, type CommitAuthor } from "@/lib/github-token";
-import { resolveAnthropicKey, resolveGeminiKey, resolveMaxSpendUsd } from "@/lib/api-keys";
+import { resolveGeminiKey, resolveMaxSpendUsd, resolveRunPayment } from "@/lib/api-keys";
+import { NoRunCredentialError, type RunPayment } from "@/lib/run-payment";
 import { sessionUserId } from "@/lib/require-session";
 import { parseRunTarget } from "@/lib/run-target";
 import { CapacityError } from "@/lib/concurrency";
@@ -56,12 +57,12 @@ export async function POST(req: NextRequest) {
       { status: 401 },
     );
   }
-  const anthropicKey = await resolveAnthropicKey();
-  if (!anthropicKey) {
-    return NextResponse.json(
-      { status: "error", message: "No Anthropic API key configured. Add one in Settings → AI providers." },
-      { status: 400 },
-    );
+  // Subscription first; the API key only when ranked first or opted in as fallback.
+  let payment: RunPayment;
+  try { payment = await resolveRunPayment(); }
+  catch (error) {
+    if (!(error instanceof NoRunCredentialError)) throw error;
+    return NextResponse.json({ status: "error", message: error.message }, { status: 400 });
   }
   // Live runs commit as the requester, never as the deployer.
   let author: CommitAuthor | undefined;
@@ -80,7 +81,9 @@ export async function POST(req: NextRequest) {
     const start = cloudExecution() ? startCloudRun : startAgenticDispatch;
     const d = await start(canonicalRepoUrl, issue_number, {
       token: token ?? undefined,
-      anthropicKey,
+      provider: payment.provider,
+      anthropicKey: payment.anthropicKey,
+      keyFallback: payment.keyFallback,
       geminiKey,
       maxSpendUsd,
       auth0UserId,

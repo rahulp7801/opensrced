@@ -7,6 +7,7 @@ import { cookies } from "next/headers";
 import { sessionUserId } from "./require-session";
 import { KEY_COOKIE_NAME, KEY_COOKIE_SECONDS, sealKeys, openKeys, type StoredKeys } from "./key-cookie";
 export type { StoredKeys } from "./key-cookie";
+import { choosePayment, currentAvailability, normalizeOrder, offeredProviders, type RunPayment } from "./run-payment";
 
 export async function getStoredKeys(): Promise<StoredKeys> {
   try {
@@ -54,4 +55,16 @@ export async function resolveGeminiKey(): Promise<string | null> {
 export async function resolveMaxSpendUsd(): Promise<number> {
   const keys = await getStoredKeys();
   return keys.maxSpendUsd ?? 2;
+}
+
+/** Which credential pays for the caller's next run. Throws
+ *  NoRunCredentialError (message safe to show) when nothing allowed can. */
+export async function resolveRunPayment(): Promise<RunPayment> {
+  const keys = await getStoredKeys();
+  return choosePayment(
+    { order: normalizeOrder(keys.providerOrder), keyFallback: keys.keyFallback === true },
+    offeredProviders(),
+    await currentAvailability(),
+    keys.anthropic || null,
+  );
 }

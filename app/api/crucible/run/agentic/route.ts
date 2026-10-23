@@ -11,7 +11,8 @@ import { CapacityError } from "@/lib/concurrency";
 import { RunTargetError, startAgenticDispatch, startFindingDispatch } from "@/lib/agentic-dispatcher";
 import { mappingForRequest, resolveRunTokenForRequest } from "@/lib/crucible/tokens";
 import { resolveCommitAuthor } from "@/lib/github-token";
-import { resolveAnthropicKey, resolveGeminiKey, resolveMaxSpendUsd } from "@/lib/api-keys";
+import { resolveGeminiKey, resolveMaxSpendUsd, resolveRunPayment } from "@/lib/api-keys";
+import { NoRunCredentialError, type RunPayment } from "@/lib/run-payment";
 
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { startCloudRun } from "@/lib/cloud-runs";
@@ -98,19 +99,20 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const anthropicKey = await resolveAnthropicKey();
-    if (!anthropicKey) {
-      return NextResponse.json(
-        { status: "error", message: "No Anthropic API key configured. Add one in Settings → AI providers." },
-        { status: 400 },
-      );
+    let payment: RunPayment;
+    try { payment = await resolveRunPayment(); }
+    catch (error) {
+      if (!(error instanceof NoRunCredentialError)) throw error;
+      return NextResponse.json({ status: "error", message: error.message }, { status: 400 });
     }
     const geminiKey = (await resolveGeminiKey()) ?? undefined;
     const maxSpendUsd = await resolveMaxSpendUsd();
     const sharedOpts = {
       token: resolved.token,
       orgCtx: { auth0UserId: sub, githubOrg: github_org },
-      anthropicKey,
+      provider: payment.provider,
+      anthropicKey: payment.anthropicKey,
+      keyFallback: payment.keyFallback,
       geminiKey,
       maxSpendUsd,
       // Owner of the resulting dispatch. Crucible logs carry private-repo

@@ -89,7 +89,9 @@ test("a subscription run never bills a key unless the user opted in, and never s
     {
       const before = workers.length;
       const dispatch = await startFindingDispatch("acme/app", { id: "test-finding", kind: "advisory" }, opts);
-      assert.equal(workers[before].env.MCP_TIMEOUT, "120000");
+      // OPENSRCER_MCP_CONNECT_TIMEOUT_MS, default 5 min (lib/limits.ts).
+      assert.equal(workers[before].env.MCP_TIMEOUT, "300000");
+      assert.equal(workers[before].env.MCP_CONNECT_TIMEOUT_MS, "300000");
       assert.equal(workers[before].env.MCP_CONNECTION_NONBLOCKING, "0");
       await finish(workers[before], [{ ...init("none"), tools: [], mcp_servers: [{ name: "opensrcer-repo-tools", status: "failed" }] }, ok], 0);
       assert.equal(await settled(dispatch), "failed");

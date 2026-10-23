@@ -363,12 +363,14 @@ export function StageNotes() {
           <div className="rounded-2xl border border-border-soft bg-surface p-5">
             <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-paper-muted">On stage · {chapter.title}</p>
             <ul className="mt-3 space-y-3">
-              {chapter.captions.map((c, i) => {
-                const nextAt = chapter.captions[i + 1]?.at ?? Infinity;
+              {chapter.captions.map((c) => {
+                // Notes that start together (a tour caption and a stage note at the
+                // same moment) are current together, so the next distinct time ends them.
+                const nextAt = chapter.captions.find((n) => n.at > c.at)?.at ?? Infinity;
                 const current = (state?.local ?? 0) >= c.at && (state?.local ?? 0) < nextAt;
                 const past = (state?.local ?? 0) >= nextAt;
                 return (
-                  <li key={c.at} className={cn("text-[19px] leading-[1.45] transition-colors", current ? "font-medium text-paper" : past ? "text-paper-muted" : "text-paper-dim")}>
+                  <li key={`${c.at}:${c.text}`} className={cn("text-[19px] leading-[1.45] transition-colors", current ? "font-medium text-paper" : past ? "text-paper-muted" : "text-paper-dim")}>
                     {current && <span aria-hidden className="mr-2 text-signal">▸</span>}{c.text}
                   </li>
                 );

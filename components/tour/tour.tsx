@@ -610,7 +610,7 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
                 <li key={c.id}>
                   <h3 className="text-[14px] font-semibold text-paper">{String(i + 1).padStart(2, "0")} · {c.title}</h3>
                   <p className="text-[12px] text-paper-muted">{c.source}</p>
-                  {c.captions.map((cap) => <p key={cap.at} className="mt-1.5 max-w-[75ch] text-[14px] leading-6 text-paper-dim">{cap.text}</p>)}
+                  {c.captions.map((cap) => <p key={`${cap.at}:${cap.text}`} className="mt-1.5 max-w-[75ch] text-[14px] leading-6 text-paper-dim">{cap.text}</p>)}
                 </li>
               ))}
             </ol>

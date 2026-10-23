@@ -148,7 +148,7 @@ test("with OPENSRCER_HOSTED_EXEC=1 an issue run gets a credential-free exec VM f
     assert.ok(!JSON.stringify(exec.params).includes("sk-ant-secret") && !JSON.stringify(exec.params).includes("blob-secret"));
     // The agent VM: its usual hosts plus exactly the exec VM's host.
     assert.equal(agent.params.name, run.sandbox_name);
-    assert.deepEqual((agent.params.networkPolicy as { allow: string[] }).allow, [...(AGENT_EGRESS as { allow: string[] }).allow, new URL(execDomain).host]);
+    assert.deepEqual((agent.params.networkPolicy as { allow: string[] }).allow, [...(AGENT_EGRESS as { allow: string[] }).allow, new URL(execDomain).hostname]);
     const workerEnv = agent.commands[0].env as Record<string, string>;
     assert.equal(workerEnv.OPENSRCER_EXEC, "remote");
     assert.equal(workerEnv.OPENSRCER_EXEC_URL, execDomain);

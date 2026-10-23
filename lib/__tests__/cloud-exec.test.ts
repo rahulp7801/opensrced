@@ -103,7 +103,7 @@ test("startExecVm creates a credential-free VM with one exposed port and the exe
   try {
     const vm = await startExecVm("c-1-x-exec", "snap_test", 40 * 60_000);
     assert.equal(vm.url, domainUrl);
-    assert.equal(vm.host, new URL(domainUrl).host);
+    assert.equal(vm.host, new URL(domainUrl).hostname);
     assert.match(vm.token, /^[a-f0-9]{64}$/);
     assert.equal(created.length, 1);
     const { params, commands } = created[0];

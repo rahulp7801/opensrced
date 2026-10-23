@@ -38,7 +38,7 @@ fixes. Shared fixes use owner-scoped, non-enumerable paths, stop resolving after
 Jobs receive only user provider credentials and two write tokens,
    each scoped to its full run record or compact history summary. Runs, Activity, and
    Pull Requests use summaries without repeatedly downloading full logs. Each account retains its newest
-100 run records; bounded cleanup removes older full records, summaries, and cancellation markers after a worker starts. Account-scoped tombstones and a bounded cancellation index prevent a late worker upload from reviving a stopped run in compact history. Three Blob leases bound agent concurrency across web instances.
+100 run records; bounded cleanup removes older full records, summaries, and cancellation markers after a worker starts. Account-scoped tombstones and a bounded cancellation index prevent a late worker upload from reviving a stopped run in compact history. Blob leases bound agent concurrency across web instances (`OPENSRCER_AGENT_SLOTS`: 3 runs, 2 with the hosted exec VM since each such run holds two VMs).
 Workers stop after 40 minutes; abandoned records expire after 45 minutes. A
 finished worker's VM is stopped the first time the app reads its run, so a run
 nobody opens afterwards still idles until the 40-minute limit.

@@ -32,7 +32,7 @@ import { cloudWorkerJobJson } from "./cloud-worker-job";
 import { assertWorkerProtocol } from "./worker-protocol";
 import { AGENT_EGRESS, SUBSCRIPTION_AGENT_EGRESS, agentEgressWithExec } from "./sandbox-egress";
 import { execSandboxName, startExecVm, workerExecEnv } from "./cloud-exec";
-import { hostedExecLimits } from "./limits";
+import { agentSlots, hostedExecLimits } from "./limits";
 import { SIGN_IN_CODE_PATH, validSignInCode } from "./hosted-sign-in";
 
 const TTL = 45 * 60_000;
@@ -89,7 +89,7 @@ async function pruneCloudRunHistory(owner: string): Promise<void> {
   ]), { abortSignal: AbortSignal.timeout(8_000) });
 }
 
-/** One account may hold this many of the three agent slots at once. With
+/** One account may hold this many of the agent slots at once. With
  *  two, a pair of accounts could hold every slot and lock everyone out. */
 const PER_OWNER_RUNS = 1;
 
@@ -121,7 +121,7 @@ async function slotState(stored: StoredLease): Promise<{ busy: boolean; owner?: 
 
 async function ownerSlots(ownerRuns: string): Promise<number> {
   let held = 0;
-  for (let slot = 0; slot < 3; slot++) {
+  for (let slot = 0; slot < agentSlots(); slot++) {
     const state = await slotState(await readJson<unknown>(`capacity/${slot}.json`));
     if (state.busy && state.owner === ownerRuns) held++;
   }
@@ -138,7 +138,7 @@ export async function reserveCapacity(path: string, expires: number): Promise<st
     : `You already have ${PER_OWNER_RUNS} runs in progress. Try again when one finishes.`);
   let mine = 0;
   const reclaimable: Array<{ key: string; stored: StoredLease; finishedRunId?: string }> = [];
-  for (let slot = 0; slot < 3; slot++) {
+  for (let slot = 0; slot < agentSlots(); slot++) {
     const key = `capacity/${slot}.json`;
     const stored = await readJson<unknown>(key);
     const state = await slotState(stored);
@@ -174,7 +174,7 @@ export async function reserveCapacity(path: string, expires: number): Promise<st
     if (finishedRunId) await stopRunSandboxes(finishedRunId.replaceAll("_", "-"));
     return key;
   }
-  throw new CapacityError("All three agent slots are busy. Try again when a run finishes.");
+  throw new CapacityError("All agent slots are busy. Try again when a run finishes.");
 }
 
 export async function startCloudRun(repo: string, issue: number, opts: StartAgenticOpts, finding?: FindingInput): Promise<CloudRun> {

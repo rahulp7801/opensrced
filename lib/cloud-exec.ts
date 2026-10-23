@@ -79,5 +79,5 @@ export async function startExecVm(name: string, snapshotId: string, lifetimeMs: 
   const url = sandbox.domain(EXEC_VM_PORT);
   const box = { url, token };
   await waitHealthy(box);
-  return { url, host: new URL(url).host, token };
+  return { url, host: new URL(url).hostname, token };
 }

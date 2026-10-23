@@ -704,6 +704,7 @@ async function spawnDispatch(
   out.write(
     `[agentic-dispatcher] ${new Date().toISOString()}\n` +
       `[agentic-dispatcher] ${headerLine}\n` +
+      (invocation.standIn ? `[agentic-dispatcher] STAND-IN AGENT (not a model): ${sanitizeLogValue(invocation.args.slice(0, 1).join(" "), 200)}; this run can never be published\n` : "") +
       `[agentic-dispatcher] bin: ${invocation.bin} (-p headless, provider: ${invocation.provider}, MCP: ${MCP_CONFIG}${exec ? `, exec box: ${exec.box.mode}` : ""})\n` +
       `[agentic-dispatcher] env: ANTHROPIC_API_KEY=${env.ANTHROPIC_API_KEY ? "(present)" : "(missing — claude will use its own auth)"} · GITHUB_TOKEN=${token ? "(present)" : "(missing)"}\n` +
       `[agentic-dispatcher] guardrails: ${invocation.capLabel} · timeout=${Math.round(timeoutMs / 1000)}s\n` +
@@ -818,6 +819,7 @@ async function spawnDispatch(
               privateOrg: Boolean(opts.orgCtx || opts.installationToken), token,
               // The model the CLI reported it ran, for the disclosure note.
               model: result.model,
+              standIn: invocation.standIn,
             }).catch(async (e) => {
               await appendFile(logPath, `\n[preview] failed: ${sanitizeLogValue(e instanceof Error ? e.message : e)}\n`).catch(() => {});
               return null;

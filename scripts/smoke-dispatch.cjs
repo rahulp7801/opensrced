@@ -50,6 +50,11 @@ async function main() {
   const rec = store.read(d.id);
   console.log(readFileSync(d.log_path, 'utf8').split('\n').filter((l) => /^\[(exec|profile|guard|triage|verify|preview|agentic-dispatcher\] (exited|tokens|total))/.test(l)).join('\n'));
   console.log(`[smoke] status=${rec.status} pr_status=${rec.pr_status} tests=${rec.tests}`);
+  if (live && rec.pr_status === 'blocked') {
+    // Stand-in (--plan) runs always land here: their previews carry a blocker.
+    try { await checkPublishable({ id: d.id, viewerId: 'local-smoke', confirmed: true }); console.log('[smoke] GATE FAILED: a blocked preview was publishable'); }
+    catch (e) { console.log(`[smoke] gate on a blocked preview -> ${e.status}: ${e.message}`); }
+  }
   if (live && rec.pr_status === 'awaiting_review') {
     try { await checkPublishable({ id: d.id, viewerId: 'local-smoke', confirmed: undefined }); console.log('[smoke] GATE FAILED: published without confirmation'); }
     catch (e) { console.log(`[smoke] gate without confirmation -> ${e.status}: ${e.message}`); }

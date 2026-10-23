@@ -23,6 +23,8 @@ export type FinishInput = {
   privateOrg: boolean;
   token?: string;
   model?: string;
+  /** Produced by the scripted stand-in agent: never publishable. */
+  standIn?: boolean;
 };
 
 /** Build and store the preview. Returns null when there is nothing to
@@ -43,6 +45,7 @@ export async function finishRun(input: FinishInput): Promise<PrPreview | null> {
   const blockers: string[] = [];
   const warnings: string[] = [];
   if (input.exec?.setup?.status === "failed") warnings.push("The host's environment setup failed (see [setup] in the log); test results depend on what the agent could install itself.");
+  if (input.standIn) blockers.push("this patch was produced by the scripted stand-in agent (a test harness), not a model; it can never be published");
   const refused = refusedPaths(diff, input.repoFull);
   if (refused.length) blockers.push(`the patch touches paths opensrcer does not publish: ${refused.slice(0, 3).join(", ")}`);
   if (input.profile) {

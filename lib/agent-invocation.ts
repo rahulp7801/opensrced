@@ -10,6 +10,7 @@
 import { childEnv } from "./child-env";
 import { ALLOWED_TOOLS, isolationArgs } from "./claude-tools";
 import { CLAUDE_AGENT_MODEL } from "./models";
+import { cloudExecution } from "./cloud-run-state";
 
 export type AgentProvider = "claude-subscription" | "anthropic-key";
 
@@ -31,7 +32,19 @@ export type AgentInvocationInput = {
   inject?: Record<string, string | undefined>;
 };
 
-export type AgentInvocation = { bin: string; args: string[]; env: NodeJS.ProcessEnv; provider: AgentProvider; capLabel: string };
+export type AgentInvocation = {
+  bin: string; args: string[]; env: NodeJS.ProcessEnv; provider: AgentProvider; capLabel: string;
+  /** A scripted stand-in replaces the model (tests/ops only); its output is never publishable. */
+  standIn: boolean;
+};
+
+/** The stand-in agent override was set where it must never run. */
+export class StandInAgentError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StandInAgentError";
+  }
+}
 
 // Anything that would make the CLI authenticate with something other than
 // the credential this run is meant to use.
@@ -81,9 +94,14 @@ export function buildAgentInvocation(input: AgentInvocationInput): AgentInvocati
     ...caps,
   ];
   // OPENSRCER_AGENT_BIN/_ARGS: operator-only override for end-to-end checks
-  // with a scripted stand-in (scripts/smoke-exec-agent.mjs). Unset in normal use.
-  const bin = process.env.OPENSRCER_AGENT_BIN || "claude";
-  const pre = process.env.OPENSRCER_AGENT_BIN ? (process.env.OPENSRCER_AGENT_ARGS ?? "").split(/\s+/).filter(Boolean) : [];
+  // with a scripted stand-in (scripts/smoke-exec-agent.mjs). Refused outright
+  // in production and hosted mode, never silently ignored.
+  const standIn = Boolean(process.env.OPENSRCER_AGENT_BIN);
+  if (standIn && (process.env.NODE_ENV === "production" || cloudExecution())) {
+    throw new StandInAgentError("OPENSRCER_AGENT_BIN (the scripted stand-in agent) is set in a production or hosted deployment; unset it.");
+  }
+  const bin = standIn ? process.env.OPENSRCER_AGENT_BIN! : "claude";
+  const pre = standIn ? (process.env.OPENSRCER_AGENT_ARGS ?? "").split(/\s+/).filter(Boolean) : [];
   const capLabel = caps.length ? caps.join(" ").replace(/(--\S+) (\S+)/g, "$1=$2") : "wall-clock timeout only";
-  return { bin, args: [...pre, ...args], env, provider, capLabel };
+  return { bin, args: [...pre, ...args], env, provider, capLabel, standIn };
 }

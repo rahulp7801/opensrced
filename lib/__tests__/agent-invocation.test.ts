@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildAgentInvocation } from "../agent-invocation";
+import { buildAgentInvocation, StandInAgentError } from "../agent-invocation";
 import { ALLOWED_TOOLS, EXEC_TOOLS } from "../claude-tools";
 import { CLAUDE_AGENT_MODEL } from "../models";
 
@@ -49,6 +49,32 @@ test("caps and tools are validated", () => {
   assert.match(flag(args, "--allowed-tools"), /run_command/);
   assert.throws(() => buildAgentInvocation({ prompt: "p", mcpConfig: "m", budgetUsd: 0, maxTurns: 1 }), RangeError);
   assert.throws(() => buildAgentInvocation({ prompt: "p", mcpConfig: "m", maxTurns: 1.5 }), RangeError);
+});
+
+test("the stand-in agent is refused in production and hosted mode, and flagged otherwise", () => {
+  const keys = ["OPENSRCER_AGENT_BIN", "OPENSRCER_AGENT_ARGS", "NODE_ENV", "VERCEL", "OPENSRCER_EXECUTION"] as const;
+  const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  const env = process.env as Record<string, string | undefined>;
+  const reset = () => { for (const k of keys) { if (saved[k] === undefined) delete env[k]; else env[k] = saved[k]; } };
+  try {
+    for (const k of keys) delete env[k];
+    env.OPENSRCER_AGENT_BIN = "/usr/bin/node";
+    env.OPENSRCER_AGENT_ARGS = "scripts/smoke-exec-agent.mjs";
+    const inv = buildAgentInvocation({ prompt: "p", mcpConfig: "m", maxTurns: 1 });
+    assert.equal(inv.standIn, true);
+    assert.equal(inv.bin, "/usr/bin/node");
+    assert.equal(inv.args[0], "scripts/smoke-exec-agent.mjs");
+    env.NODE_ENV = "production";
+    assert.throws(() => buildAgentInvocation({ prompt: "p", mcpConfig: "m", maxTurns: 1 }), StandInAgentError);
+    delete env.NODE_ENV;
+    env.VERCEL = "1";
+    assert.throws(() => buildAgentInvocation({ prompt: "p", mcpConfig: "m", maxTurns: 1 }), StandInAgentError);
+    delete env.VERCEL;
+    delete env.OPENSRCER_AGENT_BIN;
+    assert.equal(buildAgentInvocation({ prompt: "p", mcpConfig: "m", maxTurns: 1 }).standIn, false);
+  } finally {
+    reset();
+  }
 });
 
 test("the child env is an allowlist plus explicit injections", () => {

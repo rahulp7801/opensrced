@@ -1,45 +1,45 @@
-// GET  /api/prs/lifecycle                       lifecycle state of the caller's opensrcer PRs
-// POST /api/prs/lifecycle { pr_url, followups } per-PR opt-in for follow-up pushes and rebases
+// GET  /api/prs/lifecycle?pr_url=...            poll one of the caller's opensrcer PRs (read-only on
+//                                                GitHub) and return its follow-up view: events, CI,
+//                                                opt-in, which follow-up actions are possible
+// POST /api/prs/lifecycle { pr_url, followups }  per-PR opt-in for follow-up runs ("Help me with follow-ups")
 //
-// State is written by the poller (scripts/pr-lifecycle.cjs). Nothing here
-// posts to GitHub: pending replies are drafted and posted from the PR page.
-// Local mode only; hosted runs have no poller yet.
+// Nothing here posts to GitHub: pending replies are drafted and posted from
+// the PR page by the user. Local and hosted (lib/pr-followups.ts).
 
 import { NextRequest, NextResponse } from "next/server";
 import { sessionUserId } from "@/lib/require-session";
 import { readJsonBody } from "@/lib/request-body";
-import { listAll } from "@/lib/dispatch-store";
-import { parseGitHubPullUrl } from "@/lib/github-pull-url";
-import { loadState, setFollowups } from "@/lib/pr-lifecycle";
-import { cloudExecution } from "@/lib/cloud-run-state";
+import { resolveGitHubToken } from "@/lib/github-token";
+import { FollowupError, pollFollowups, setFollowupOptIn } from "@/lib/pr-followups";
 
-function ownedPrs(owner: string) {
-  return listAll(owner).flatMap((r) => {
-    const pr = r.pr_url ? parseGitHubPullUrl(r.pr_url) : null;
-    return pr ? [{ repo: pr.repoFull, number: pr.prNumber, url: pr.url }] : [];
-  });
+function failure(error: unknown) {
+  if (error instanceof FollowupError) return NextResponse.json({ error: error.message }, { status: error.status });
+  return NextResponse.json({ error: "Could not read this pull request's follow-ups. Try again." }, { status: 503 });
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const owner = await sessionUserId();
   if (!owner) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  if (cloudExecution()) return NextResponse.json({ prs: [] });
-  const prs = await Promise.all(ownedPrs(owner).map(async (pr) => ({ ...pr, state: await loadState(pr) })));
-  return NextResponse.json({ prs });
+  const prUrl = req.nextUrl.searchParams.get("pr_url");
+  if (!prUrl) return NextResponse.json({ error: "pr_url is required" }, { status: 400 });
+  try {
+    return NextResponse.json(await pollFollowups(owner, prUrl, (await resolveGitHubToken()) ?? undefined));
+  } catch (error) {
+    return failure(error);
+  }
 }
 
 export async function POST(req: NextRequest) {
   const owner = await sessionUserId();
   if (!owner) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  if (cloudExecution()) return NextResponse.json({ error: "Follow-ups run in local mode only." }, { status: 501 });
   const body = (await readJsonBody<Record<string, unknown>>(req)) ?? {};
   if (typeof body.pr_url !== "string" || typeof body.followups !== "boolean") {
     return NextResponse.json({ error: "pr_url (string) and followups (boolean) are required" }, { status: 400 });
   }
-  const target = parseGitHubPullUrl(body.pr_url);
-  // Only PRs this user opened through opensrcer can be opted in.
-  const pr = target && ownedPrs(owner).find((p) => p.url.toLowerCase() === target.url.toLowerCase());
-  if (!pr) return NextResponse.json({ error: "not found" }, { status: 404 });
-  const state = await setFollowups({ repo: pr.repo, number: pr.number }, body.followups);
-  return NextResponse.json({ pr: pr.url, followups: state.followups });
+  try {
+    // Only PRs this user opened through opensrcer can be opted in.
+    return NextResponse.json({ pr: body.pr_url, followups: await setFollowupOptIn(owner, body.pr_url, body.followups) });
+  } catch (error) {
+    return failure(error);
+  }
 }

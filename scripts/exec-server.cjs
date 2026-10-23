@@ -104,6 +104,16 @@ class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
 }
 
+/** A long answer (a command run): the server sends 200 at once and a space
+ *  every HEARTBEAT_MS until the JSON body. Without bytes, Node's fetch gives
+ *  up after 300 s (headers timeout) and proxies such as the hosted exec VM's
+ *  port route drop idle requests. Leading whitespace is valid JSON. A failure
+ *  after the headers went out arrives as `{"error": ...}` with status 200. */
+class Streamed {
+  constructor(work) { this.work = work; }
+}
+const HEARTBEAT_MS = 15_000;
+
 function requireInit() {
   if (!initialized) throw new HttpError(409, 'box is not initialized');
 }
@@ -261,9 +271,10 @@ const handlers = {
     if (remaining <= 0) throw new HttpError(429, `the box's total command time (${Math.round(TOTAL_MS / 1000)}s) is used up`);
     const asked = Number.isSafeInteger(body.timeout_ms) && body.timeout_ms > 0 ? body.timeout_ms : cap;
     const timeout = Math.min(asked, cap, remaining);
-    const result = await runShell(body.command, timeout);
-    if (!verify) usedMs += result.duration_ms;
-    return { ...result, timeout_ms: timeout, budget_left_ms: Math.max(0, TOTAL_MS - usedMs) };
+    return new Streamed(runShell(body.command, timeout).then((result) => {
+      if (!verify) usedMs += result.duration_ms;
+      return { ...result, timeout_ms: timeout, budget_left_ms: Math.max(0, TOTAL_MS - usedMs) };
+    }));
   },
 
   'POST /diff': async () => {
@@ -292,7 +303,17 @@ const server = http.createServer(async (req, res) => {
     if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) throw new HttpError(401, 'unauthorized');
     const handler = handlers[`${req.method} ${(req.url || '').split('?')[0]}`];
     if (!handler) throw new HttpError(404, 'no such endpoint');
-    send(200, await handler(req));
+    const value = await handler(req);
+    if (value instanceof Streamed) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.write(' ');
+      const beat = setInterval(() => res.write(' '), HEARTBEAT_MS);
+      try { res.end(JSON.stringify(await value.work)); }
+      catch (error) { res.end(JSON.stringify({ error: error instanceof Error ? error.message : String(error) })); }
+      finally { clearInterval(beat); }
+      return;
+    }
+    send(200, value);
   } catch (error) {
     send(error instanceof HttpError ? error.status : 500, { error: error instanceof Error ? error.message : String(error) });
   }

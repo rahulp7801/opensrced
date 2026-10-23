@@ -52,3 +52,13 @@ test("hosted worker jobs use an explicit input allowlist", () => {
   assert.equal("serverOnlyFutureField" in job.opts, false);
   assert.equal(job.summaryPath, "summaries/alice/run.json");
 });
+
+test("a PR follow-up job carries the PR head and the PR it updates, nothing more", () => {
+  const run = { id: "c_1767225600000_abcdef123456", auth0_user_id: "a", repo_url: "https://github.com/acme/app", mode: "agentic", dry_run: false,
+    started_at: "2026-01-01T00:00:00.000Z", status: "running", log_path: "", sandbox_name: "c-1767225600000-abcdef123456",
+    expires_at: 1767229200000, log: "", log_size: 0 } satisfies CloudRun;
+  const job = JSON.parse(cloudWorkerJobJson(run, "p", "s", { repoRef: "c".repeat(40), followupPr: "https://github.com/acme/app/pull/12", allowClosedIssue: true }));
+  assert.equal(job.opts.repoRef, "c".repeat(40));
+  assert.equal(job.opts.followupPr, "https://github.com/acme/app/pull/12");
+  assert.equal("allowClosedIssue" in job.opts, false, "eval-only flags never reach a hosted worker");
+});

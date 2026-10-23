@@ -26,13 +26,18 @@ export function takeExecConfig(env: NodeJS.ProcessEnv = process.env): ExecConfig
 async function call<T>(cfg: ExecConfig, route: string, body: unknown, timeoutMs: number): Promise<T> {
   const res = await fetch(new URL(route, cfg.url), {
     method: "POST",
-    headers: { Authorization: `Bearer ${cfg.token}`, "Content-Type": "application/json" },
+    // identity: the hosted exec VM's port route compresses (and so buffers)
+    // a response when the client accepts gzip, which would hold back the
+    // headers and heartbeats of a long /run past fetch's 300 s headers timeout.
+    headers: { Authorization: `Bearer ${cfg.token}`, "Content-Type": "application/json", "Accept-Encoding": "identity" },
     body: JSON.stringify(body),
     redirect: "error",
     signal: AbortSignal.timeout(timeoutMs),
   });
   const json = (await res.json().catch(() => ({ error: `box returned HTTP ${res.status}` }))) as T & { error?: string };
-  if (!res.ok) throw new Error(json.error ?? `box returned HTTP ${res.status}`);
+  // A streamed answer (/run: headers at once, then heartbeats) reports a late
+  // failure as 200 + {error}.
+  if (!res.ok || typeof json.error === "string") throw new Error(json.error ?? `box returned HTTP ${res.status}`);
   return json;
 }
 

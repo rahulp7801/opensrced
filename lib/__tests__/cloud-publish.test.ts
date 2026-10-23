@@ -34,9 +34,16 @@ for (const [id, fake] of [["@vercel/blob", fakeBlob], ["@vercel/sandbox", fakeSa
 }
 
 let timeline: unknown[] = [];
+const followupPr = { state: "open", author: "alice" };
 globalThis.fetch = (async (url: string | URL) => {
   const href = String(url);
-  const body = href.includes("/timeline") ? timeline : [];
+  const path = new URL(href).pathname;
+  const body = href.includes("/timeline") ? timeline
+    : path.endsWith("/pulls/12") ? { state: followupPr.state, merged: false, mergeable_state: "clean", user: { login: followupPr.author }, body: "Fixes #7",
+      head: { sha: "c".repeat(40), ref: "opensrcer/issue-7-x", repo: { full_name: "alice/app" } }, base: { ref: "main" } }
+    : path.endsWith("/check-runs") ? { check_runs: [] }
+    : path.endsWith("/status") ? { statuses: [] }
+    : [];
   return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
 }) as typeof fetch;
 
@@ -106,4 +113,52 @@ test("hosted publish: a failed job is recorded and can be retried", async () => 
   assert.equal((await getCloudRun(OWNER, id))?.pr_status, "failed");
   const ok = await publishCloudRun({ id, viewerId: OWNER, confirmed: true, token: "t", author, signal }, async () => ({ ok: true as const, url: "https://github.com/acme/app/pull/13", tests: "not_run" }));
   assert.equal(ok.url, "https://github.com/acme/app/pull/13");
+});
+
+test("hosted publish of an executed run hands the verified final patch and its evidence to the push VM unchanged", async () => {
+  const { publishCloudRun } = await import("../cloud-publish");
+  const { runPreviewPath } = await import("../cloud-run-state");
+  const id = await seed();
+  const verification = { status: "verified", reason: "declared tests pass", regression: "reproduced", plan: { setup: [], test: ["pytest t.py"], lint: [] },
+    evidence: [{ kind: "test", command: "pytest t.py", exit_code: 0, timed_out: false, duration_ms: 900, output_tail: "1 passed" }] };
+  const stored = JSON.parse(store.get(runPreviewPath(OWNER, id))!.body);
+  store.set(runPreviewPath(OWNER, id), { etag: String(++etags), body: JSON.stringify({ ...stored, executed: true, verification, body: "Fixes #7\n\n### Tests run\n\n- `pytest t.py` — passed" }) });
+  const seen: Array<{ stored: { diff: string; preview: { executed: boolean; verification: unknown; body: string } } }> = [];
+  await publishCloudRun({ id, viewerId: OWNER, confirmed: true, token: "t", author, signal }, async (j) => { seen.push(j as never); return { ok: true as const, url: "https://github.com/acme/app/pull/14", tests: "passed" }; });
+  assert.equal(seen[0].stored.diff, stored.diff);
+  assert.equal(seen[0].stored.preview.executed, true);
+  assert.deepEqual(seen[0].stored.preview.verification, verification);
+  assert.match(seen[0].stored.preview.body, /### Tests run/);
+});
+
+test("hosted follow-up publish pushes one commit to the user's own open PR branch, skipping the new-PR caps", async () => {
+  const { publishCloudRun } = await import("../cloud-publish");
+  const { getCloudRun } = await import("../cloud-runs");
+  const PR = "https://github.com/acme/app/pull/12";
+  const id = await seed({ followup_pr: PR });
+  // Another open PR on the issue would block a new PR, not a follow-up.
+  timeline = [{ event: "cross-referenced", source: { issue: { number: 12, state: "open", pull_request: {}, html_url: PR } } }];
+  const pushes: Array<{ repo: string; branch: string; diff: string }> = [];
+  const neverJob = async () => { throw new Error("a follow-up never opens a PR"); };
+  try {
+    const result = await publishCloudRun({ id, viewerId: OWNER, confirmed: true, token: "t", author, signal }, neverJob,
+      async (input) => { pushes.push(input); return { ok: true, commit: "abc12345", message: "Pushed commit abc12345" }; });
+    assert.deepEqual(result, { url: PR, tests: "not_run" });
+    assert.deepEqual(pushes.map((p) => [p.repo, p.branch]), [["alice/app", "opensrcer/issue-7-x"]]);
+    assert.match(pushes[0].diff, /\+2/);
+    const run = await getCloudRun(OWNER, id);
+    assert.equal(run?.pr_status, "opened");
+    assert.equal(run?.pr_url, PR);
+    assert.equal(run?.published_at, undefined);
+  } finally { timeline = []; }
+});
+
+test("hosted follow-up publish refuses a PR that is not the user's, without pushing", async () => {
+  const { publishCloudRun } = await import("../cloud-publish");
+  const id = await seed({ followup_pr: "https://github.com/acme/app/pull/12" });
+  followupPr.author = "mallory";
+  try {
+    await assert.rejects(publishCloudRun({ id, viewerId: OWNER, confirmed: true, token: "t", author, signal }, async () => { throw new Error("no"); },
+      async () => { throw new Error("must not push"); }), /only to your own pull requests/);
+  } finally { followupPr.author = "alice"; }
 });

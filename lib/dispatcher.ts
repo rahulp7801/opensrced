@@ -80,6 +80,9 @@ export type Dispatch = {
   has_preview?: boolean;
   /** When the user published the preview as a PR. */
   published_at?: string;
+  /** A follow-up run on the user's own open PR (lib/pr-followups.ts):
+   *  publishing pushes one commit to that PR's branch instead of opening a PR. */
+  followup_pr?: string;
 };
 
 // In-memory registry. Surviving logs are reconstructed from disk on read.

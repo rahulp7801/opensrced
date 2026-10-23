@@ -38,7 +38,7 @@ fixes. Shared fixes use owner-scoped, non-enumerable paths, stop resolving after
 Jobs receive only user provider credentials and two write tokens,
    each scoped to its full run record or compact history summary. Runs, Activity, and
    Pull Requests use summaries without repeatedly downloading full logs. Each account retains its newest
-100 run records; bounded cleanup removes older full records, summaries, and cancellation markers after a worker starts. Account-scoped tombstones and a bounded cancellation index prevent a late worker upload from reviving a stopped run in compact history. Three Blob leases bound agent concurrency across web instances.
+100 run records; bounded cleanup removes older full records, summaries, and cancellation markers after a worker starts. Account-scoped tombstones and a bounded cancellation index prevent a late worker upload from reviving a stopped run in compact history. Blob leases bound agent concurrency across web instances (`OPENSRCER_AGENT_SLOTS`: 3 runs, 2 with the hosted exec VM since each such run holds two VMs).
 Workers stop after 40 minutes; abandoned records expire after 45 minutes. A
 finished worker's VM is stopped the first time the app reads its run, so a run
 nobody opens afterwards still idles until the 40-minute limit.
@@ -67,8 +67,37 @@ path has passed compilation and automated checks but has not been provisioned
 or exercised with live user credentials. Agent runs, exploration, deep fixes, graph generation, and patch pushes use
 isolated workers. Quick fixes, replies, and graph questions use bounded API
 requests. Activity, PR history, and graph storage are scoped to their owners. Do not treat deployment alone as release
-acceptance. Repository test execution remains off inside workers because tests
-could access user credentials supplied to the agent.
+acceptance. Repository code never runs inside the agent worker, because it
+could read the user credentials supplied to the agent.
+
+### Hosted exec VM (`OPENSRCER_HOSTED_EXEC=1`, off by default)
+
+With the gate on, every issue run gets a second, credential-free Sandbox VM
+(`<run VM name>-exec`, `lib/cloud-exec.ts`) where the agent edits files and
+runs the repository's installs and tests, and where the host re-runs them on
+the final patch (with the fail-before check) before the preview is frozen.
+The exec VM holds only its own bearer token: no GitHub token, provider key or
+Blob token. It exposes port 7070 on its `*.vercel.run` route; the agent VM's
+egress gains exactly that host. The exec VM's egress is package registries and
+git hosts only (`EXEC_EGRESS` in `lib/sandbox-egress.ts`). Both VMs share the
+run's capacity slot, the same 40-minute lifetime, and every stop path
+(cancel, first read after finish, slot reclaim, failed start). With the gate
+off, hosted runs keep the unverified text-diff path. Needs a snapshot built
+from this release (protocol 7). Time caps, all inside the 40-minute VM:
+`OPENSRCER_HOSTED_EXEC_SETUP_MS` (install before the agent, default 8 min),
+`OPENSRCER_HOSTED_EXEC_AGENT_MS` (agent wall clock and command budget, 20 min),
+`OPENSRCER_HOSTED_EXEC_CMD_TIMEOUT_MS` (one command, 5 min).
+
+### PR follow-ups
+
+On the page of a PR one of the user's runs opened, each view polls GitHub
+(read-only) and lists CI failures, review comments and conflicts. "Help me with
+follow-ups" is a per-PR opt-in; with it, "Fix CI failure" / "Address review"
+start an ordinary run pinned to the PR head. It ends at the same publish gate,
+where publishing pushes one commit to the PR's branch (re-read from GitHub,
+only the user's own open PR) instead of opening a PR. Nothing posts comments;
+replies stay drafts. State lives in `.dispatches/lifecycle/` locally and in the
+owner's Blob prefix when hosted.
 
 ## How runs are paid for
 
@@ -85,7 +114,7 @@ opt-in fallback (Settings → How runs are paid for). See `lib/run-payment.ts`.
 - **Hosted (Vercel)**: `OPENSRCER_HOSTED_SUBSCRIPTION=1` lets a user sign in to
   Claude inside their own run's worker VM through Anthropic's sign-in page; the
   login lives only in that VM and is discarded with it; opensrcer never reads or stores it. Off by default; it needs a worker
-  snapshot built from this release (protocol 6) and Anthropic's Commercial
+  snapshot built from this release (protocol 7) and Anthropic's Commercial
   Terms. ChatGPT plans are not offered hosted (OpenAI requires approval for
   remotely hosted apps).
 - Subscription runs are capped by `--max-turns` (`OPENSRCER_AGENTIC_MAX_TURNS`,

@@ -532,6 +532,10 @@ export type StartAgenticOpts = {
   allowClosedIssue?: boolean;
   // Eval mode only: inspect the exec box after verification, before it stops.
   evalHook?: EvalHook;
+  // PR follow-up runs (lib/pr-followups.ts): the user's own open PR this run
+  // updates. Its own PR does not count as a competing PR, and publishing
+  // pushes a commit to that PR's branch.
+  followupPr?: string;
   // Auth0 `sub` of the requesting user. Recorded on the dispatch so only
   // they can read its log (which contains repo source and the generated
   // diff) or cancel the run.
@@ -672,7 +676,8 @@ async function spawnDispatch(
       const ban = aiBanReason(profile);
       if (ban && !opts.dryRun) throw new RunTargetError(`Refused: ${ban}. A preview (dry run) is still possible.`);
       if (ban) out.write(`[guard] preview only: ${ban}\n`);
-      if (!opts.allowClosedIssue) {
+      // A follow-up updates the user's own PR, which of course targets the issue.
+      if (!opts.allowClosedIssue && !opts.followupPr) {
         const competing = competingPrReason(await openPrsForIssue(repoFull, target.issueNumber, token).catch(() => []));
         if (competing && !opts.dryRun) throw new RunTargetError(`Refused: ${competing}`);
         if (competing) out.write(`[guard] preview only: ${competing}\n`);
@@ -735,6 +740,7 @@ async function spawnDispatch(
     status: "running",
     log_path: logPath,
     ...(findingId ? { finding_id: findingId } : {}),
+    ...(opts.followupPr ? { followup_pr: opts.followupPr } : {}),
   };
 
   out.write(
@@ -891,6 +897,7 @@ async function spawnDispatch(
                 model: result.model ?? (provider === "codex-subscription" ? "Codex (ChatGPT plan)" : undefined),
                 provider: provider === "codex-subscription" ? "OpenAI" : "Anthropic",
                 standIn: invocation.standIn,
+                followup: Boolean(opts.followupPr),
               }).catch(async (e) => {
                 await appendFile(logPath, `\n[preview] failed: ${sanitizeLogValue(e instanceof Error ? e.message : e)}\n`).catch(() => {});
                 return null;

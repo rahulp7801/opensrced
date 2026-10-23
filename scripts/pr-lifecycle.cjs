@@ -42,7 +42,7 @@ async function act(pr, events, state, snapshot, tok) {
   const { startAgenticDispatch } = require('../.worker-build/lib/agentic-dispatcher');
   const { pushPrPatch } = require('../.worker-build/lib/pr-push');
   const { readPreview } = require('../.worker-build/lib/pr-preview');
-  const issue = Number(/(?:fix(?:es|ed)?|close[sd]?|resolve[sd]?)\s+#(\d+)/i.exec(snapshot.body ?? '')?.[1] ?? 0);
+  const issue = lc.linkedIssue(snapshot.body ?? '');
   if (!issue) { console.log('  follow-up: the PR body names no issue; skipped'); return; }
   const d = await startAgenticDispatch(`https://github.com/${pr.repo}`, issue, {
     dryRun: true, repoRef: snapshot.head_sha, allowClosedIssue: true, token: tok, auth0UserId: 'local-lifecycle',

@@ -20,6 +20,8 @@ type Preview = {
   cases?: Array<{ variant: string; test: string | null }>;
   confirmation: string;
   publishable: boolean;
+  /** A follow-up run: publishing pushes one commit to this PR. */
+  followup_pr?: string;
 };
 
 export function PublishPanel({ dispatchId, onPublished }: { dispatchId: string; onPublished?: (url: string) => void }) {
@@ -70,8 +72,14 @@ export function PublishPanel({ dispatchId, onPublished }: { dispatchId: string; 
         <span className={v?.status === "verified" ? "text-ok" : "text-alert"}>Verification: {verdict}</span>
       </div>
       <p className="mt-1 text-paper-muted">
-        Nothing has been posted. Publishing opens a draft PR from your account with exactly this patch and text
-        ({preview.files.length} file{preview.files.length === 1 ? "" : "s"}{preview.signoff ? ", signed off for the DCO" : ""}).
+        {preview.followup_pr ? (
+          <>Nothing has been pushed. Publishing adds one commit with exactly this patch to your pull request{" "}
+            <a href={preview.followup_pr} target="_blank" rel="noopener" className="text-signal hover:underline">{preview.followup_pr.replace("https://github.com/", "")}</a>{" "}
+            from your account ({preview.files.length} file{preview.files.length === 1 ? "" : "s"}). No comment is posted.</>
+        ) : (
+          <>Nothing has been posted. Publishing opens a draft PR from your account with exactly this patch and text
+            ({preview.files.length} file{preview.files.length === 1 ? "" : "s"}{preview.signoff ? ", signed off for the DCO" : ""}).</>
+        )}
       </p>
       {preview.blockers.map((b) => <p key={b} role="alert" className="mt-2 text-alert">Blocked: {b}</p>)}
       {preview.warnings.map((w) => <p key={w} className="mt-2 text-paper-muted">Note: {w}</p>)}
@@ -109,7 +117,7 @@ export function PublishPanel({ dispatchId, onPublished }: { dispatchId: string; 
             disabled={!confirmed || pending}
             className="rounded-full border border-ok/50 bg-ok/10 px-3 py-1 text-[12px] text-ok hover:bg-ok/20 disabled:opacity-50"
           >
-            {pending ? "publishing…" : "Publish draft PR"}
+            {pending ? "publishing…" : preview.followup_pr ? "Push follow-up commit" : "Publish draft PR"}
           </button>
           {error && <span role="alert" className="basis-full text-alert">{error}</span>}
         </div>

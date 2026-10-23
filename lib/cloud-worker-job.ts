@@ -28,6 +28,9 @@ export function cloudWorkerJobJson(
       maxSpendUsd: opts.maxSpendUsd,
       auth0UserId: opts.auth0UserId,
       author: opts.author,
+      // PR follow-ups: the PR head to start from and the PR being updated.
+      repoRef: opts.repoRef,
+      followupPr: opts.followupPr,
     },
   });
 }

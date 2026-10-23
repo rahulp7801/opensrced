@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
+import { PrFollowups } from "@/components/pr-followups";
 import { readJson, requestErrorMessage } from "@/lib/fetch-json";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
@@ -999,6 +1000,9 @@ export default function PrDetailPage() {
               )}
             </div>
           )}
+
+          {/* Follow-up loop: events, opt-in, follow-up runs (opensrcer PRs only) */}
+          <PrFollowups prUrl={pr.url} />
 
           {/* Comment status bar */}
           {stats.total > 0 && (

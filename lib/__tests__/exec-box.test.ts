@@ -125,6 +125,28 @@ test("host box: the total command budget is enforced", async () => {
   }, { OPENSRCER_EXEC_TOTAL_MS: "1500" });
 });
 
+test("host box: /run answers 200 at once and streams until the result, so long commands outlive idle timeouts", async () => {
+  await withHostBox(async (box) => {
+    const http = await import("node:http");
+    const started = Date.now();
+    const timing = await new Promise<{ headersMs: number; body: string }>((resolve, reject) => {
+      const req = http.request(new URL("/run", box.url), { method: "POST", headers: { Authorization: `Bearer ${box.token}`, "Content-Type": "application/json" } }, (res) => {
+        const headersMs = Date.now() - started;
+        let body = "";
+        res.on("data", (c: Buffer) => { body += c.toString(); });
+        res.on("end", () => resolve({ headersMs, body }));
+      });
+      req.on("error", reject);
+      req.end(JSON.stringify({ command: "sleep 3; echo done" }));
+    });
+    assert.ok(timing.headersMs < 2_000, `headers came after ${timing.headersMs} ms`);
+    assert.match(timing.body, /^ +\{/, "heartbeat whitespace precedes the JSON");
+    assert.equal(JSON.parse(timing.body).exit_code, 0);
+    // Errors found before the command starts keep their HTTP status.
+    await assert.rejects(boxRequest(box, "POST", "/run", { command: "" }), (e: ExecBoxError) => e.status === 400);
+  });
+});
+
 test("initBox refuses anything but a full SHA", async () => {
   const fake = { mode: "host" as const, url: "http://127.0.0.1:1", token: "x", stop: async () => {} };
   await assert.rejects(initBox(fake, tmpdir(), "HEAD"), /full commit SHA/);

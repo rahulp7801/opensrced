@@ -65,6 +65,29 @@ test("a ChatGPT-plan run discloses OpenAI and Codex, not Anthropic", async () =>
   }
 });
 
+test("a follow-up run's own PR is not a competing PR; a new run's is", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "opensrcer-finish-"));
+  const realFetch = globalThis.fetch;
+  let calls = 0;
+  // The issue timeline shows one open PR: the user's own, being followed up.
+  globalThis.fetch = (async () => {
+    calls++;
+    return new Response(JSON.stringify([{ event: "cross-referenced", source: { issue: { number: 12, state: "open", pull_request: {}, html_url: "https://github.com/o/r/pull/12" } } }]), { status: 200, headers: { "content-type": "application/json" } });
+  }) as typeof fetch;
+  try {
+    writeFileSync(path.join(dir, "run.log"), LOG);
+    const base = { repoFull: "o/r", issueNumber: 7, dispatchId: "d_f", logPath: path.join(dir, "run.log"), exec: null, profile: null, issueLabels: [], privateOrg: false };
+    const followup = await finishRun({ ...base, dispatchDir: path.join(dir, "d_f"), followup: true });
+    assert.deepEqual(followup!.blockers, []);
+    assert.equal(calls, 0, "no competing-PR lookup for a follow-up");
+    const fresh = await finishRun({ ...base, dispatchDir: path.join(dir, "d_g") });
+    assert.match(fresh!.blockers.join(" "), /already targets this issue/);
+  } finally {
+    globalThis.fetch = realFetch;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("finishRun returns null when there is no patch", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "opensrcer-finish-"));
   try {

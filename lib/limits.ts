@@ -73,3 +73,28 @@ export function execLimits() {
     cpus: str("OPENSRCER_EXEC_CPUS", "4"),
   };
 }
+
+/** Hosted agent runs allowed at once across all web instances (Blob leases
+ *  in lib/cloud-runs.ts). Every Sandbox VM counts against the plan's
+ *  concurrency (Hobby: 10): explore 3 + push 2 + graph 2 + one VM per run is
+ *  10 with 3 runs. A hosted exec run holds two VMs, so the default drops to 2
+ *  runs (4 VMs, 11 at an all-busy peak; a refused create fails that start
+ *  cleanly and frees its slot). */
+export function agentSlots(): number {
+  return Math.trunc(num("OPENSRCER_AGENT_SLOTS", process.env.OPENSRCER_HOSTED_EXEC === "1" ? 2 : 3));
+}
+
+/** Hosted exec VM (lib/cloud-runs.ts). Off unless OPENSRCER_HOSTED_EXEC=1.
+ *  The agent VM lives 40 minutes, so clone + setup + agent + verification
+ *  must fit inside it: these caps replace the local ones for hosted runs. */
+export function hostedExecLimits() {
+  return {
+    enabled: process.env.OPENSRCER_HOSTED_EXEC === "1",
+    /** Host-run environment install before the agent starts. */
+    setupMs: num("OPENSRCER_HOSTED_EXEC_SETUP_MS", 8 * 60_000),
+    /** The agent's wall clock (and its total command time in the box). */
+    agentMs: num("OPENSRCER_HOSTED_EXEC_AGENT_MS", 20 * 60_000),
+    /** One command's wall clock, the agent's and each verification re-run. */
+    cmdTimeoutMs: num("OPENSRCER_HOSTED_EXEC_CMD_TIMEOUT_MS", 5 * 60_000),
+  };
+}

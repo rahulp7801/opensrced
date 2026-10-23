@@ -18,7 +18,7 @@ import { pacedBy } from "./chapters";
 import { choose } from "./chapters-find";
 import { newRun, pr, review, run } from "./chapters-fix";
 import { reply, respond } from "./chapters-ship";
-import { stageCompare, stageExplore, stageNotes, stageScan, withFixChat, withPrFacts, withQuestionChat } from "./stage-views";
+import { stageCompare, stageExplore, stageNotes, stageRefused, stageScan, stageSlop, withFixChat, withPrFacts, withQuestionChat } from "./stage-views";
 
 /** How much slower than written the stage plays its animations. The presenter
  *  sets the pace between steps; this only stretches what plays by itself. */
@@ -36,8 +36,8 @@ const SKIP = new Set(["Copy diff", "Commit msg"]);
 const PHASES: Phase[] = [
   { name: "Find", say: "Why not just Claude Code: finding an issue that's actually open to a newcomer is the step it assumes you've already done.", chapters: [stageCompare, stageScan, S.choose] },
   { name: "Understand", say: "Understand a repository you haven't cloned: a map of it, and plain-English answers about it.", chapters: [stageExplore] },
-  { name: "Fix", say: "One click starts an agent in a throwaway machine; you read the patch and decide whether to publish.", chapters: [S.run, S.review] },
-  { name: "Ship", say: "A draft pull request in your name, every GitHub step done right, and help with the follow-ups.", chapters: [withPrFacts(S.pr), withFixChat(S.respond), withQuestionChat(S.reply)] },
+  { name: "Fix", say: "One click starts an agent in a throwaway machine; you read the patch and decide whether to publish.", chapters: [S.run, S.review, stageRefused] },
+  { name: "Ship", say: "A draft pull request in your name, every GitHub step done right, and help with the follow-ups.", chapters: [withPrFacts(S.pr), withFixChat(S.respond), withQuestionChat(S.reply), stageSlop] },
 ];
 
 const STEPS = PHASES.flatMap((phase, p) => phase.chapters.map((c) => ({ phase: p, chapter: pacedBy(c, STAGE_PACE) })));

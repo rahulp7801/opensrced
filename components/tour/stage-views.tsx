@@ -31,6 +31,7 @@ const SCAN_REPO = "acme/ui-kit";
 const SCAN: ScanRow[] = [
   { number: 2290, title: "Tooltip flickers when its trigger re-renders", category: "bug", labels: ["bug", "good first issue"], opened: "3d ago", scope: "leaf", risk: "medium", complexity: 2, estimate: "30m" },
   { number: 2288, title: "Select loses focus after clearing the value", category: "bug", labels: ["bug"], opened: "4d ago", reason: "Already assigned to @mira-dev — someone's on it. Skip." },
+  { number: 2286, title: "Popover closes when clicking inside a portal", category: "bug", labels: ["bug"], opened: "5d ago", reason: "1 open PR already targets this issue. Review or help with it instead." },
   { number: 2284, title: "DatePicker ignores the locale prop for month names", category: "bug", labels: ["bug"], opened: "6d ago", scope: "leaf", risk: "low", complexity: 2, estimate: "45m" },
   { number: 2279, title: "Modal scroll lock leaks on iOS", category: "bug", labels: ["bug", "ios"], opened: "9d ago", reason: "Appears already resolved (comment by @acme-lead (maintainer) says \"fixed in #2281\"). Skip — the ticket is stale-open." },
   { number: 2271, title: "Docs: the Button size table lists the wrong default", category: "docs", labels: ["documentation", "good first issue"], opened: "12d ago", scope: "doc", risk: "low", complexity: 1, estimate: "15m" },
@@ -117,7 +118,7 @@ export const stageScan: Chapter = {
   captions: [
     { at: 0, text: "This is where beginners get stuck, and where Claude Code can't help: Claude Code starts once you already have an issue. Here, a repository's newest open issues are read and vetted for you." },
     { at: SHOW_ALL_AT, text: "Show everything it found, including what it filtered out, and why." },
-    { at: SHOW_ALL_AT + 600, spot: "scan-list", text: "Assigned to someone? Skip, they're on it. Already fixed in a PR but never closed? Skip. That one alone saves maintainers a pile of duplicate PRs." },
+    { at: SHOW_ALL_AT + 600, spot: "scan-list", text: "Assigned to someone? Skip, they're on it. Someone already has a pull request open? Skip, help them instead. Already fixed but never closed? Skip. That one alone saves maintainers a pile of duplicate PRs." },
     { at: SHOW_ALL_AT + 4200, spot: "scan-list", text: "Questions, wontfix or duplicate labels, and issues too vague to act on are skipped too, with the reason spelled out." },
     { at: SHOW_ALL_AT + 7200, text: "What's left is actually open to a newcomer, each with its scope, risk, complexity and a time estimate." },
     { at: SHOW_READY_AT, text: "Back to the ready ones. This is the contribution etiquette Claude Code assumes you already know." },
@@ -524,3 +525,91 @@ export function withQuestionChat(chapter: Chapter): Chapter {
     ],
   });
 }
+
+// ── Fix: when it says no ────────────────────────────────────────────────────
+
+// The run page's review panel when a blocker applies (components/publish-panel.tsx):
+// the reason is shown and there is no confirm box and no Publish button. EXAMPLE:
+// a fictional project and guide; the wording is lib/contrib-guard.ts's.
+const BAN_REPO = "acme/forms";
+const BAN_EXCERPT = "We don't accept pull requests written by AI tools.";
+
+function RefusedView() {
+  return (
+    <AppWindow path={`/dispatches?dispatch=c_example`} section="Fix" tab="Runs">
+      <div className="p-6">
+        <div className="mx-auto max-w-[860px] overflow-hidden rounded-2xl border border-border-soft bg-surface">
+          <div className="border-b border-border px-5 py-3">
+            <p className="text-[13px] text-paper-muted">{BAN_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[11px] text-info">#412</span></p>
+            <p className="mt-0.5 text-[17px] font-medium text-paper">Form reset doesn&apos;t clear validation errors</p>
+          </div>
+          <Reveal at={400} spot="refusal" className="px-5 py-4 text-[15px]">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <p className="text-[16px] font-medium text-paper">Review before publishing</p>
+              <span className="text-alert">Verification: not verified (no code was run)</span>
+            </div>
+            <p className="mt-1.5 text-paper-muted">Nothing has been posted. Publishing opens a draft PR from your account with exactly this patch and text (1 file).</p>
+            <p role="alert" className="mt-3 rounded-lg border border-alert/30 bg-alert/5 px-3 py-2.5 text-alert">Blocked: this project does not accept AI-generated contributions (CONTRIBUTING.md: &quot;{BAN_EXCERPT}&quot;)</p>
+          </Reveal>
+        </div>
+      </div>
+    </AppWindow>
+  );
+}
+
+export const stageRefused: Chapter = {
+  id: "refused",
+  act: "Fix",
+  label: "When it says no",
+  title: "When it says no",
+  duration: 3000,
+  source: "Example: a fictional project whose guide bans AI",
+  captions: [
+    { at: 0, spot: "refusal", text: "And it says no. This project's contribution guide bans AI-written pull requests, so publishing is refused, quoting the guide. There's no confirm box and no Publish button; the preview is still yours to learn from. Same when someone else already has a pull request open on the issue." },
+  ],
+  View: RefusedView,
+};
+
+// ── Close: why this isn't AI slop ───────────────────────────────────────────
+
+// Each row is something opensrcer does today (on the hosted site unless it says otherwise).
+const SLOP: Array<[string, string]> = [
+  ["Nobody asked for it", "Only issues that are open to you. It skips assigned, already-fixed and vague issues, and refuses projects whose guide bans AI."],
+  ["Someone's already on it", "It won't publish while another pull request targets the issue."],
+  ["The sender can't explain it", "Nothing publishes until you've read the patch and confirmed you can explain it. The chat helps you get there."],
+  ["Hidden AI", "Every pull request says who asked, which model, and what was and wasn't tested."],
+  ["Untested", "It says plainly when tests weren't run. On your own machine, it shows the new test failing without the fix."],
+  ["Sent in bulk", "Always a draft, with you as the author. One open pull request per project per person, and at most three a day."],
+];
+const SLOP_STEP = 1600;
+
+function SlopView() {
+  return (
+    <div className="flex h-full flex-col justify-center bg-ink px-12 py-10">
+      <Reveal at={150}><p className="text-[30px] font-semibold tracking-[-0.02em] text-paper">What makes an AI pull request slop, and what opensrcer does about it</p></Reveal>
+      <div className="mt-6 divide-y divide-border-soft rounded-[22px] border border-border-soft bg-surface">
+        {SLOP.map(([problem, answer], i) => (
+          <Reveal key={problem} at={700 + i * SLOP_STEP} className="grid grid-cols-[260px_minmax(0,1fr)] items-baseline gap-6 px-6 py-3.5">
+            <p className="text-[18px] font-semibold text-alert">{problem}</p>
+            <p className="text-[17px] leading-[1.4] text-paper">{answer}</p>
+          </Reveal>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export const stageSlop: Chapter = {
+  id: "slop",
+  act: "Ship",
+  label: "Not slop",
+  title: "Why this isn't AI slop",
+  duration: 700 + SLOP.length * SLOP_STEP + 1500,
+  source: "What opensrcer does today",
+  captions: [
+    { at: 0, text: "The fair worry about a tool like this is AI slop: pull requests nobody asked for, from people who can't explain them. So here's what slop is made of, and what opensrcer does about each." },
+    { at: 700 + 2 * SLOP_STEP, text: "The heart of it: you can't publish what you can't explain, and the chat is there so you can." },
+    { at: 700 + 5 * SLOP_STEP, text: "It's built to make better contributors, not more pull requests. Thank you." },
+  ],
+  View: SlopView,
+};

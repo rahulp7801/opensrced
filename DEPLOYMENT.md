@@ -70,6 +70,28 @@ requests. Activity, PR history, and graph storage are scoped to their owners. Do
 acceptance. Repository test execution remains off inside workers because tests
 could access user credentials supplied to the agent.
 
+## How runs are paid for
+
+Runs prefer the user's own subscription, with their Anthropic API key as an
+opt-in fallback (Settings → How runs are paid for). See `lib/run-payment.ts`.
+
+- **Local mode** (`AUTH_DISABLED=1`, development) uses the Claude Code and Codex
+  logins already on the machine (`claude auth login`, `codex login`). On
+  Windows set `OPENSRCER_CODEX_BIN` to `codex.exe`; the npm `codex.cmd` shim
+  cannot be spawned without a shell.
+- **Self-hosted, one operator**: set `OPENSRCER_LOCAL_SUBSCRIPTION=1` to use the
+  host's logins. Never set it on an instance other people sign in to: their
+  runs would bill the operator's plan, which Anthropic's terms forbid.
+- **Hosted (Vercel)**: `OPENSRCER_HOSTED_SUBSCRIPTION=1` lets a user sign in to
+  Claude inside their own run's worker VM through Anthropic's sign-in page; the
+  login is revoked and discarded with the VM. Off by default; it needs a worker
+  snapshot built from this release (protocol 6) and Anthropic's Commercial
+  Terms. ChatGPT plans are not offered hosted (OpenAI requires approval for
+  remotely hosted apps).
+- Subscription runs are capped by `--max-turns` (`OPENSRCER_AGENTIC_MAX_TURNS`,
+  default 40; `OPENSRCER_AGENTIC_LEAF_MAX_TURNS`, 12) plus the wall-clock
+  timeout; API-key runs keep `--max-budget-usd`.
+
 ## Local single-instance alternative
 
 The Docker path needs one long-lived Node process, persistent disk, and CLI

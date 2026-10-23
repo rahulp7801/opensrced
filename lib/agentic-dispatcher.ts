@@ -13,7 +13,7 @@
 // auto-PR hook) is identical and now lives in one place.
 
 import { execFileSync, spawn } from "node:child_process";
-import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { appendFile } from "node:fs/promises";
 import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
@@ -33,7 +33,8 @@ const DISPATCH_DIR = join(process.cwd(), ".dispatches");
 const MCP_CONFIG = join(process.cwd(), ".mcp.json");
 
 import { ALLOWED_TOOLS, EXEC_TOOLS } from "./claude-tools";
-import { buildAgentInvocation, type AgentProvider } from "./agent-invocation";
+import { buildAgentInvocation, PROVIDER_LABELS, type AgentProvider } from "./agent-invocation";
+import { pipeCodexJson, planUnavailable } from "./codex-events";
 import { finalizeExec, prepareRepo, profileLogLine, setupExec, setupPromptNotes, type EvalHook, type ExecOutcome, type ExecSession } from "./exec-run";
 import { aiBanReason, competingPrReason, discussFirstReason, openPrsForIssue } from "./contrib-guard";
 import { finishRun } from "./run-finish";
@@ -45,13 +46,22 @@ import { testOutcome } from "./verify";
 
 // Parse stream-json output from Claude, write readable text to the log,
 // and return the total cost when the result event arrives.
+//
+// `stopIfKeyed` is passed for subscription runs: if the CLI reports that it
+// authenticated with any API key or token instead of the login, the run is
+// stopped, never silently billed to a key (the house bug: silent fallbacks).
 export function pipeStreamJson(
   stdout: import("node:stream").Readable,
   out: Pick<import("node:fs").WriteStream, "write">,
-): { complete: boolean; failed: boolean; toolCalls: number; model?: string } {
-  const state: { complete: boolean; failed: boolean; toolCalls: number; model?: string } = { complete: false, failed: false, toolCalls: 0 };
+  stopIfKeyed?: () => void,
+): { complete: boolean; failed: boolean; unavailable: boolean; toolCalls: number; model?: string } {
+  const state: { complete: boolean; failed: boolean; unavailable: boolean; toolCalls: number; model?: string } =
+    { complete: false, failed: false, unavailable: false, toolCalls: 0 };
   const decoder = new StringDecoder("utf8");
   let buf = "";
+  // A run whose repository tools never connected "succeeds" with prose that
+  // only describes tool calls (seen with claude 2.1.197 on a cold MCP start).
+  let mcpStatus = "connected";
   function consume(line: string) {
     if (!line.trim()) return;
     try {
@@ -65,8 +75,20 @@ export function pipeStreamJson(
         const ours = servers.find((s: { name?: string }) => s?.name === "opensrcer-repo-tools");
         const tools = Array.isArray(evt.tools) ? evt.tools.filter((t: unknown) => typeof t === "string" && t.startsWith("mcp__opensrcer-repo-tools__")) : [];
         if (typeof evt.model === "string") state.model = sanitizeLogValue(evt.model, 60);
-        out.write(`[agentic-dispatcher] mcp: opensrcer-repo-tools=${sanitizeLogValue(ours?.status ?? "absent", 40)} tools=${tools.length} model=${sanitizeLogValue(evt.model, 60)}\n`);
+        mcpStatus = typeof ours?.status === "string" ? ours.status : "absent";
+        out.write(`[agentic-dispatcher] mcp: opensrcer-repo-tools=${sanitizeLogValue(mcpStatus, 40)} tools=${tools.length} model=${sanitizeLogValue(evt.model, 60)}\n`);
       }
+      // The CLI's own report of which credential it is using: "none" means
+      // no API key or token, i.e. the subscription login.
+      if (evt.type === "system" && evt.subtype === "init" && typeof evt.apiKeySource === "string") {
+        out.write(`[agentic-dispatcher] credential source reported by the CLI: ${sanitizeLogValue(evt.apiKeySource, 40)}\n`);
+        if (stopIfKeyed && evt.apiKeySource !== "none") {
+          state.failed = true;
+          out.write("[agentic-dispatcher] This subscription run picked up an API key or token; stopping it before it is billed.\n");
+          stopIfKeyed();
+        }
+      }
+      if (evt.type === "rate_limit_event" && evt.rate_limit_info?.status === "rejected") state.unavailable = true;
       if (evt.type === "assistant" && Array.isArray(evt.message?.content)) {
         for (const block of evt.message.content) {
           if (block.type === "text" && typeof block.text === "string") out.write(block.text);
@@ -82,7 +104,11 @@ export function pipeStreamJson(
       }
       if (evt.type === "result") {
         if (typeof evt.total_cost_usd === "number" && Number.isFinite(evt.total_cost_usd)) {
-          out.write(`\n[agentic-dispatcher] total_cost_usd=${evt.total_cost_usd.toFixed(6)}\n`);
+          // A plan run is not billed per token; the CLI's figure is only what
+          // the same work would have cost on the API. Never record it as spend.
+          out.write(stopIfKeyed
+            ? `\n[agentic-dispatcher] plan usage (API-equivalent, not billed): $${evt.total_cost_usd.toFixed(4)}\n`
+            : `\n[agentic-dispatcher] total_cost_usd=${evt.total_cost_usd.toFixed(6)}\n`);
         }
         // Prompt-cache effectiveness (the CLI caches automatically): how much
         // of the input was served from cache across the run's turns.
@@ -93,7 +119,17 @@ export function pipeStreamJson(
         const failure = claudeResultFailure(evt, "Agent could not complete the task. Check provider access and the task budget.");
         if (failure) {
           state.failed = true;
+          // Plan limits and expired or missing logins come back as error text.
+          if (evt.is_error && typeof evt.result === "string" && planUnavailable(evt.result)) {
+            state.unavailable = true;
+            out.write(`\n[agentic-dispatcher] provider said: ${sanitizeLogValue(evt.result, 200)}\n`);
+          }
           out.write(`\n[agentic-dispatcher] ${failure}\n`);
+        } else if (state.toolCalls === 0) {
+          // No real tool call means the "fix" was never grounded in the repo,
+          // whatever the prose claims. Never preview or publish it.
+          state.failed = true;
+          out.write(`\n[agentic-dispatcher] The agent made no repository tool calls (tools were ${sanitizeLogValue(mcpStatus, 20)} at start), so its output is discarded.\n`);
         } else state.complete = true;
       }
     } catch { state.failed = true; }
@@ -474,6 +510,14 @@ export type StartAgenticOpts = {
   orgCtx?: { auth0UserId: string; githubOrg: string };
   // Server-only: freshly minted token in a VM capped below its one-hour TTL.
   installationToken?: boolean;
+  // Which credential pays (lib/run-payment.ts). Defaults to the API key when
+  // one is passed, else the Claude subscription login.
+  provider?: AgentProvider;
+  // Re-run on anthropicKey if the subscription turns out unavailable. Only
+  // set when the user opted in.
+  keyFallback?: boolean;
+  // Hosted subscription runs: the VM-local config dir holding this run's login.
+  claudeConfigDir?: string;
   // User-provided API keys (from encrypted cookie).
   anthropicKey?: string;
   geminiKey?: string;
@@ -481,9 +525,6 @@ export type StartAgenticOpts = {
   maxSpendUsd?: number;
   // The requester's GitHub identity; the auto-PR commit is authored as them.
   author?: { login: string; id: number };
-  // Who pays for the model: the user's API key or their Claude plan (the
-  // CLI's own login). Default: the key when one is given.
-  provider?: AgentProvider;
   // Pin the checkout to this commit (40-hex SHA). Eval runs and PR follow-ups.
   repoRef?: string;
   // Eval mode only (scripts/eval-merged.ts): accept a closed issue. Never set
@@ -672,88 +713,10 @@ async function spawnDispatch(
   //     and test runs cost turns).
   //   --max-turns — the cap that also binds on subscription runs.
   //   wall-clock timeout — the setTimeout below kills the whole process tree
-  //     if Claude is still alive after N minutes.
+  //     if the agent is still alive after N minutes.
   const limits = agentLimits(exec ? "exec" : useFastPath ? "fast" : "full");
   const budgetUsd = opts.maxSpendUsd ?? limits.budgetUsd;
   const timeoutMs = limits.timeoutMs;
-
-  // Allowlisted environment. The previous denylist (`{...process.env}` minus
-  // three keys) still handed the child AUTH0_SECRET — which decrypts every
-  // user's stored API keys — plus GITHUB_APP_PRIVATE_KEY and the webhook
-  // secret. See lib/child-env.ts. With a box, the MCP server also gets the
-  // box capability (URL + token) and nothing else new.
-  // The agent runs from an empty directory (no project CLAUDE.md/.mcp.json
-  // is picked up) with an absolute copy of the MCP config.
-  const workDir = join(DISPATCH_DIR, id, "work");
-  mkdirSync(workDir, { recursive: true });
-  const mcpConfig = join(DISPATCH_DIR, id, "mcp.json");
-  writeFileSync(mcpConfig, absoluteMcpConfig(MCP_CONFIG), { mode: 0o600 });
-  const invocation = buildAgentInvocation({
-    provider: opts.provider,
-    prompt,
-    mcpConfig,
-    tools: exec ? [...ALLOWED_TOOLS, ...EXEC_TOOLS] : ALLOWED_TOOLS,
-    budgetUsd,
-    maxTurns: limits.maxTurns,
-    inject: {
-      ...agenticInject(repoFull, opts),
-      ...(exec ? {
-        OPENSRCER_EXEC_URL: exec.box.url,
-        OPENSRCER_EXEC_TOKEN: exec.box.token,
-        // Claude Code's per-tool-call timeout must outlast one box command.
-        MCP_TOOL_TIMEOUT: String(execLimits().cmdTimeoutMs + 120_000),
-      } : {}),
-    },
-  });
-  const env = invocation.env;
-
-  out.write(
-    `[agentic-dispatcher] ${new Date().toISOString()}\n` +
-      `[agentic-dispatcher] ${headerLine}\n` +
-      (invocation.standIn ? `[agentic-dispatcher] STAND-IN AGENT (not a model): ${sanitizeLogValue(invocation.args.slice(0, 1).join(" "), 200)}; this run can never be published\n` : "") +
-      `[agentic-dispatcher] bin: ${invocation.bin} (-p headless, provider: ${invocation.provider}, MCP: ${MCP_CONFIG}${exec ? `, exec box: ${exec.box.mode}` : ""})\n` +
-      `[agentic-dispatcher] env: ANTHROPIC_API_KEY=${env.ANTHROPIC_API_KEY ? "(present)" : "(missing — claude will use its own auth)"} · GITHUB_TOKEN=${token ? "(present)" : "(missing)"}\n` +
-      `[agentic-dispatcher] guardrails: ${invocation.capLabel} · timeout=${Math.round(timeoutMs / 1000)}s\n` +
-      `[agentic-dispatcher] ─────────────────────────────\n`,
-  );
-
-  const child = spawn(invocation.bin, invocation.args, { env, cwd: workDir, windowsHide: true });
-
-  // Wall-clock kill-switch. Fires only if claude is still alive at the
-  // deadline; cleared when the close handler runs. `taskkill /T` on Windows
-  // takes down the whole tree (claude + any MCP-server children).
-  //
-  // Writing a marker line to the log the moment the timer fires matters
-  // because Node's `close` event can lag the actual kill by many minutes
-  // on Windows when a grandchild holds the inherited stdio pipe open. The
-  // "exited at" line only lands when that pipe finally closes — without
-  // this marker, the user sees a 90-min gap and can't tell when we pulled
-  // the plug.
-  let killedByTimeout = false;
-  const timeoutHandle = setTimeout(() => {
-    if (!child.killed && child.pid) {
-      killedByTimeout = true;
-      const killedAt = new Date().toISOString();
-      try {
-        out.write(
-          `\n[agentic-dispatcher] ─────────────────────────────\n` +
-            `[agentic-dispatcher] wall-clock timeout (${Math.round(timeoutMs / 1000)}s) hit at ${killedAt}\n` +
-            `[agentic-dispatcher] issuing taskkill on PID ${child.pid} + tree; Node 'close' event may lag if a grandchild holds the stdio pipe\n`,
-        );
-      } catch {
-        /* stream may be half-closed; nothing we can do */
-      }
-      if (process.platform === "win32") {
-        try {
-          execFileSync("taskkill", ["/F", "/T", "/PID", String(child.pid)], { stdio: "pipe" });
-        } catch {
-          child.kill("SIGKILL");
-        }
-      } else {
-        child.kill("SIGKILL");
-      }
-    }
-  }, timeoutMs);
 
   // Findings use a synthetic issue number of 0 — the PR pipeline names the
   // branch after the finding ID instead.
@@ -770,89 +733,199 @@ async function spawnDispatch(
     issue_number: issueNumber,
     started_at: new Date().toISOString(),
     status: "running",
-    pid: child.pid,
     log_path: logPath,
     ...(findingId ? { finding_id: findingId } : {}),
   };
 
-  // Register before wiring handlers so a cancel arriving immediately finds
-  // the child. Without this, cancelDispatch() had nothing to kill and every
-  // agentic cancel failed with "No running process found".
-  registerDispatch(dispatch, child);
+  out.write(
+    `[agentic-dispatcher] ${new Date().toISOString()}\n` +
+      `[agentic-dispatcher] ${headerLine}\n`,
+  );
 
-  const result = pipeStreamJson(child.stdout, out);
-  // stderr is mostly MCP startup noise; keep a short tail for failed runs.
-  let stderrTail = "";
-  child.stderr.on("data", (chunk: Buffer) => { stderrTail = (stderrTail + chunk.toString()).slice(-600); });
-  let spawnFailed = false;
-  child.on("close", (code, signal) => {
-    clearTimeout(timeoutHandle);
-    if (spawnFailed) return;
-    dispatch.ended_at = new Date().toISOString();
-    dispatch.exit_code = code ?? undefined;
-    // taskkill on Windows exits 1 with no signal, so a user cancel is only
-    // visible through the flag cancelDispatch() leaves behind.
-    const wasKilled = signal === "SIGKILL" || signal === "SIGTERM" || killedByTimeout || consumeCancelRequest(dispatch.id);
-    // A run that never called a repository tool has nothing real to show,
-    // whatever its final text claims.
-    const noTools = result.toolCalls === 0;
-    const finalStatus = wasKilled ? "killed" : code === 0 && result.complete && !result.failed && !noTools ? "succeeded" : "failed";
-    if (!wasKilled && noTools) out.write("\n[agentic-dispatcher] The agent made no tool calls (its repository tools were unavailable or unused); output will not be published.\n");
-    if (!wasKilled && code !== 0 && stderrTail.trim()) out.write(`[agentic-dispatcher] stderr tail: ${sanitizeLogValue(stderrTail, 600)}\n`);
+  // One spawn of the agent CLI. A subscription run that finds the plan
+  // unavailable (signed out, usage limit) launches once more on the API key,
+  // but only when the user saved one and opted in (opts.keyFallback).
+  const launch = (provider: AgentProvider) => {
+    // Allowlisted environment (lib/child-env.ts), our MCP tools only, no host
+    // customizations, an empty working directory with an absolute copy of the
+    // MCP config (lib/agent-invocation.ts). With a box, the MCP server also
+    // gets the box capability (URL + token) and nothing else new.
+    const invocation = buildAgentInvocation({
+      provider,
+      prompt,
+      mcpConfig: MCP_CONFIG,
+      tools: exec ? [...ALLOWED_TOOLS, ...EXEC_TOOLS] : ALLOWED_TOOLS,
+      budgetUsd,
+      maxTurns: limits.maxTurns,
+      anthropicKey: opts.anthropicKey,
+      claudeConfigDir: opts.claudeConfigDir,
+      inject: {
+        ...agenticInject(repoFull, opts),
+        ...(exec ? {
+          OPENSRCER_EXEC_URL: exec.box.url,
+          OPENSRCER_EXEC_TOKEN: exec.box.token,
+          // The CLI's per-tool-call timeout must outlast one box command.
+          MCP_TOOL_TIMEOUT: String(execLimits().cmdTimeoutMs + 120_000),
+        } : {}),
+      },
+    });
+    // Which credential pays is logged; the credential itself never is.
     out.write(
-      `\n[agentic-dispatcher] ─────────────────────────────\n` +
-        `[agentic-dispatcher] exited at ${dispatch.ended_at} · status=${finalStatus} · exit=${code ?? "n/a"}` +
-        (killedByTimeout ? " (killed by wall-clock timeout)" : "") +
-        `\n`,
+      (invocation.standIn ? `[agentic-dispatcher] STAND-IN AGENT (not a model): ${sanitizeLogValue(invocation.args.slice(0, 1).join(" "), 200)}; this run can never be published\n` : "") +
+        `[agentic-dispatcher] bin: ${invocation.bin} (${invocation.output}, provider: ${invocation.provider}, MCP: ${MCP_CONFIG}${exec ? `, exec box: ${exec.box.mode}` : ""})\n` +
+        `[agentic-dispatcher] paid by: ${PROVIDER_LABELS[provider]} · GITHUB_TOKEN=${token ? "(present)" : "(missing)"}\n` +
+        `[agentic-dispatcher] guardrails: cap=${invocation.capMode} ${invocation.capLabel} · timeout=${Math.round(timeoutMs / 1000)}s\n` +
+        `[agentic-dispatcher] ─────────────────────────────\n`,
     );
-    if (!wasKilled && code === 0 && (!result.complete || result.failed)) out.write("[agentic-dispatcher] No successful completion event; incomplete output will not be published.\n");
 
-    void (async () => {
-      try {
-        // Let the log stream flush before anything else appends to the file.
-        await new Promise<void>((r) => out.end(r));
-        // With a box, the run stays "running" until the patch is taken and
-        // verified: the verdict is part of the run, not an afterthought.
-        let execOutcome: ExecOutcome | null = null;
-        if (exec) execOutcome = await finalizeExec(exec, logPath, { verify: finalStatus === "succeeded", evalHook: opts.evalHook });
-        // The publish gate: nothing is published when a run ends. A
-        // successful run freezes its patch, PR text and evidence into a
-        // preview; the user publishes it from the run page after review.
-        const preview = finalStatus === "succeeded"
-          ? await finishRun({
-              repoFull, issueNumber, dispatchId: id, dispatchDir: join(DISPATCH_DIR, id), logPath,
-              exec: exec ? execOutcome : null, profile, issueLabels: prepared.issueLabels ?? [],
-              privateOrg: Boolean(opts.orgCtx || opts.installationToken), token,
-              // The model the CLI reported it ran, for the disclosure note.
-              model: result.model,
-              standIn: invocation.standIn,
-            }).catch(async (e) => {
-              await appendFile(logPath, `\n[preview] failed: ${sanitizeLogValue(e instanceof Error ? e.message : e)}\n`).catch(() => {});
-              return null;
-            })
-          : null;
-        dispatch.status = finalStatus;
-        const tests = execOutcome ? testOutcome(execOutcome.verification) : undefined;
-        const prStatus = !preview || dispatch.dry_run ? "none" : preview.blockers.length ? "blocked" : "awaiting_review";
-        Object.assign(dispatch, { pr_status: prStatus, ...(tests ? { tests } : {}), ...(preview ? { has_preview: true } : {}) });
-        persist(dispatch);
-      } finally {
-        release();
+    const child = spawn(invocation.bin, invocation.args, { env: invocation.env, cwd: invocation.cwd, windowsHide: true });
+    // Codex waits for more prompt text on an open stdin.
+    child.stdin?.end();
+    dispatch.pid = child.pid;
+
+    const kill = () => {
+      if (!child.pid) return;
+      if (process.platform === "win32") {
+        try {
+          execFileSync("taskkill", ["/F", "/T", "/PID", String(child.pid)], { stdio: "pipe" });
+        } catch {
+          child.kill("SIGKILL");
+        }
+      } else {
+        child.kill("SIGKILL");
       }
-    })();
-  });
-  child.on("error", (err) => {
-    spawnFailed = true;
-    clearTimeout(timeoutHandle);
-    void exec?.box.stop();
-    release();
-    dispatch.ended_at = new Date().toISOString();
-    dispatch.status = "failed";
-    out.write(`\n[agentic-dispatcher] spawn error: ${err.message}\n`);
-    out.end();
-    persist({ ...dispatch, pr_status: "none" });
-  });
+    };
 
+    // Wall-clock kill-switch. Fires only if the agent is still alive at the
+    // deadline; cleared when the close handler runs. `taskkill /T` on Windows
+    // takes down the whole tree (agent + any MCP-server children).
+    //
+    // Writing a marker line to the log the moment the timer fires matters
+    // because Node's `close` event can lag the actual kill by many minutes
+    // on Windows when a grandchild holds the inherited stdio pipe open. The
+    // "exited at" line only lands when that pipe finally closes — without
+    // this marker, the user sees a 90-min gap and can't tell when we pulled
+    // the plug.
+    let killedByTimeout = false;
+    const timeoutHandle = setTimeout(() => {
+      if (!child.killed && child.pid) {
+        killedByTimeout = true;
+        const killedAt = new Date().toISOString();
+        try {
+          out.write(
+            `\n[agentic-dispatcher] ─────────────────────────────\n` +
+              `[agentic-dispatcher] wall-clock timeout (${Math.round(timeoutMs / 1000)}s) hit at ${killedAt}\n` +
+              `[agentic-dispatcher] issuing taskkill on PID ${child.pid} + tree; Node 'close' event may lag if a grandchild holds the stdio pipe\n`,
+          );
+        } catch {
+          /* stream may be half-closed; nothing we can do */
+        }
+        kill();
+      }
+    }, timeoutMs);
+
+    // Register before wiring handlers so a cancel arriving immediately finds
+    // the child. Without this, cancelDispatch() had nothing to kill and every
+    // agentic cancel failed with "No running process found".
+    registerDispatch(dispatch, child);
+
+    const result: { complete: boolean; failed: boolean; unavailable: boolean; toolCalls?: number; model?: string } =
+      invocation.output === "codex-jsonl"
+        ? pipeCodexJson(child.stdout, out)
+        : pipeStreamJson(child.stdout, out, provider === "claude-subscription" ? kill : undefined);
+    // stderr is mostly MCP startup noise; keep a short tail for failed runs.
+    let stderrTail = "";
+    child.stderr.on("data", (chunk: Buffer) => { stderrTail = (stderrTail + chunk.toString()).slice(-600); });
+    let spawnFailed = false;
+    child.on("close", (code, signal) => {
+      clearTimeout(timeoutHandle);
+      invocation.cleanup();
+      if (spawnFailed) return;
+      // taskkill on Windows exits 1 with no signal, so a user cancel is only
+      // visible through the flag cancelDispatch() leaves behind.
+      const wasKilled = signal === "SIGKILL" || signal === "SIGTERM" || killedByTimeout || consumeCancelRequest(dispatch.id);
+      if (!wasKilled && provider !== "anthropic-key" && result.unavailable && opts.keyFallback && opts.anthropicKey) {
+        out.write(
+          `\n[agentic-dispatcher] ─────────────────────────────\n` +
+            `[agentic-dispatcher] ${PROVIDER_LABELS[provider]} unavailable for this run; retrying on your Anthropic API key (you turned on the API-key fallback)\n`,
+        );
+        launch("anthropic-key");
+        return;
+      }
+      dispatch.ended_at = new Date().toISOString();
+      dispatch.exit_code = code ?? undefined;
+      // A run that never called a repository tool has nothing real to show,
+      // whatever its final text claims. (Codex counts this itself.)
+      const noTools = result.toolCalls === 0;
+      const finalStatus = wasKilled ? "killed" : code === 0 && result.complete && !result.failed && !noTools ? "succeeded" : "failed";
+      if (!wasKilled && noTools && !result.failed) out.write("\n[agentic-dispatcher] The agent made no tool calls (its repository tools were unavailable or unused); output will not be published.\n");
+      if (!wasKilled && code !== 0 && stderrTail.trim()) out.write(`[agentic-dispatcher] stderr tail: ${sanitizeLogValue(stderrTail, 600)}\n`);
+      out.write(
+        `\n[agentic-dispatcher] ─────────────────────────────\n` +
+          `[agentic-dispatcher] exited at ${dispatch.ended_at} · status=${finalStatus} · exit=${code ?? "n/a"}` +
+          (killedByTimeout ? " (killed by wall-clock timeout)" : "") +
+          `\n`,
+      );
+      if (!wasKilled && result.unavailable && provider !== "anthropic-key") {
+        out.write(`[agentic-dispatcher] ${PROVIDER_LABELS[provider]} could not serve this run. Sign in again or wait for your plan limit to reset${opts.anthropicKey ? "" : ", or save an API key and turn on the API-key fallback"}.\n`);
+      }
+      if (!wasKilled && code === 0 && (!result.complete || result.failed)) out.write("[agentic-dispatcher] No successful completion event; incomplete output will not be published.\n");
+
+      void (async () => {
+        try {
+          // Let the log stream flush before anything else appends to the file.
+          await new Promise<void>((r) => out.end(r));
+          // With a box, the run stays "running" until the patch is taken and
+          // verified: the verdict is part of the run, not an afterthought.
+          let execOutcome: ExecOutcome | null = null;
+          if (exec) execOutcome = await finalizeExec(exec, logPath, { verify: finalStatus === "succeeded", evalHook: opts.evalHook });
+          // The publish gate: nothing is published when a run ends. A
+          // successful run freezes its patch, PR text and evidence into a
+          // preview; the user publishes it from the run page after review.
+          const preview = finalStatus === "succeeded"
+            ? await finishRun({
+                repoFull, issueNumber, dispatchId: id, dispatchDir: join(DISPATCH_DIR, id), logPath,
+                exec: exec ? execOutcome : null, profile, issueLabels: prepared.issueLabels ?? [],
+                privateOrg: Boolean(opts.orgCtx || opts.installationToken), token,
+                // The model the CLI reported it ran, for the disclosure note.
+                model: result.model ?? (provider === "codex-subscription" ? "Codex (ChatGPT plan)" : undefined),
+                standIn: invocation.standIn,
+              }).catch(async (e) => {
+                await appendFile(logPath, `\n[preview] failed: ${sanitizeLogValue(e instanceof Error ? e.message : e)}\n`).catch(() => {});
+                return null;
+              })
+            : null;
+          dispatch.status = finalStatus;
+          const tests = execOutcome ? testOutcome(execOutcome.verification) : undefined;
+          const prStatus = !preview || dispatch.dry_run ? "none" : preview.blockers.length ? "blocked" : "awaiting_review";
+          Object.assign(dispatch, { pr_status: prStatus, ...(tests ? { tests } : {}), ...(preview ? { has_preview: true } : {}) });
+          persist(dispatch);
+        } finally {
+          release();
+        }
+      })();
+    });
+    child.on("error", (err) => {
+      spawnFailed = true;
+      clearTimeout(timeoutHandle);
+      invocation.cleanup();
+      void exec?.box.stop();
+      release();
+      dispatch.ended_at = new Date().toISOString();
+      dispatch.status = "failed";
+      out.write(`\n[agentic-dispatcher] spawn error: ${sanitizeLogValue(err.message)}\n`);
+      out.end();
+      persist({ ...dispatch, pr_status: "none" });
+    });
+  };
+
+  try {
+    launch(opts.provider ?? (opts.anthropicKey ? "anthropic-key" : "claude-subscription"));
+  } catch (error) {
+    void exec?.box.stop();
+    out.end();
+    throw error;
+  }
   return dispatch;
 }
 

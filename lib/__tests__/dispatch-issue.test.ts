@@ -63,7 +63,10 @@ test("dispatch completion requires a successful result and preserves split UTF-8
     return { ...state, log };
   }
   const text = { type: "assistant", message: { content: [{ type: "text", text: "caf\u00e9" }] } };
-  const success = await parse([text, { type: "result", subtype: "success", is_error: false, total_cost_usd: 0.01 }]);
+  // A success needs at least one real repository tool call.
+  const read = { type: "assistant", message: { content: [{ type: "tool_use", name: "mcp__opensrcer-repo-tools__read_file", input: { path: "a.ts" } }] } };
+  const success = await parse([read, text, { type: "result", subtype: "success", is_error: false, total_cost_usd: 0.01 }]);
+  assert.equal((await parse([text, { type: "result", subtype: "success", is_error: false }])).failed, true, "no tool call, no result");
   assert.equal(success.complete, true);
   assert.equal(success.failed, false);
   assert.match(success.log, /caf\u00e9/);

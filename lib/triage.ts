@@ -50,6 +50,9 @@ export async function triageIssue(opts: {
   repo: string; issueFormatted: string; workDir: string; provider?: AgentProvider; anthropicKey?: string;
 }): Promise<{ triage: Triage; costUsd: number | null } | null> {
   if (process.env.OPENSRCER_TRIAGE === "0") return null;
+  // Triage reads Claude's stream format; a run paid by the ChatGPT plan must
+  // not spend a Claude login or key on it, so it is skipped there.
+  if (opts.provider === "codex-subscription") return null;
   mkdirSync(opts.workDir, { recursive: true });
   const mcpConfig = path.join(opts.workDir, "triage-mcp.json");
   writeFileSync(mcpConfig, JSON.stringify({ mcpServers: {} }));
@@ -63,8 +66,9 @@ export async function triageIssue(opts: {
     child.stdout.on("data", (c: Buffer) => { out = (out + c.toString()).slice(-200_000); });
     child.stderr.resume();
     const timer = setTimeout(() => child.kill("SIGKILL"), 90_000);
-    child.on("error", () => { clearTimeout(timer); resolve(null); });
+    child.on("error", () => { clearTimeout(timer); inv.cleanup(); resolve(null); });
     child.on("close", () => {
+      inv.cleanup();
       clearTimeout(timer);
       let text = "";
       let cost: number | null = null;

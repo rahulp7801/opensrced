@@ -9,8 +9,11 @@ import { readJsonBody } from "@/lib/request-body";
 import { NextRequest } from "next/server";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
-import { resolveAnthropicKey } from "@/lib/api-keys";
-import { buildAgentInvocation } from "@/lib/agent-invocation";
+import { resolveRunPayment } from "@/lib/api-keys";
+import { NoRunCredentialError, type RunPayment } from "@/lib/run-payment";
+import { buildAgentInvocation, type AgentInvocation } from "@/lib/agent-invocation";
+import { READ_ONLY_CLAUDE_ARGS } from "@/lib/claude-tools";
+import { CLAUDE_AGENT_MODEL } from "@/lib/models";
 import { sanitizeForPrompt, sanitizeRepoId, sanitizeFilePath, sanitizeBranchName, sanitizePrNumber } from "@/lib/sanitize";
 import { acquireSlot, releaseSlot, activeSlots } from "@/lib/concurrency";
 import { sessionUserId } from "@/lib/require-session";
@@ -72,12 +75,16 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "mode must be \"quick\" or \"deep\", and file_path must be a path inside the repository." }, { status: 400 });
   }
 
-  const anthropicKey = await resolveAnthropicKey();
-  if (!anthropicKey) {
-    return Response.json(
-      { error: "No Anthropic API key configured." },
-      { status: 400 },
-    );
+  let payment: RunPayment;
+  try { payment = await resolveRunPayment(); }
+  catch (error) {
+    if (!(error instanceof NoRunCredentialError)) throw error;
+    return Response.json({ error: error.message }, { status: 400 });
+  }
+  // Hosted deep fixes run in their own VM on the API key (subscription
+  // sign-in is per agent run), and only if the user allows the key.
+  if (cloudExecution() && !payment.anthropicKey) {
+    return Response.json({ error: "Hosted fixes run on your Anthropic API key. Add one, and rank it first or turn on the API-key fallback." }, { status: 400 });
   }
 
   let token: string | null;
@@ -99,12 +106,14 @@ export async function POST(req: NextRequest) {
   // ── Route to quick or deep fix ──────────────────────────────────
   // Quick: single file known, use Haiku with file content (~$0.001)
   // Deep: no file path, multi-file, or user requested deep mode (~$0.05+)
-  const useQuickFix = body.mode === "quick" && body.file_path;
+  // The quick fix calls the API directly, so it needs the key to be the
+  // payer; a subscription run takes the CLI (deep) path instead.
+  const useQuickFix = body.mode === "quick" && body.file_path && payment.provider === "anthropic-key";
 
   if (useQuickFix) {
-    return quickFix(body, anthropicKey, token, req.signal);
+    return quickFix(body, payment.anthropicKey!, token, req.signal);
   } else {
-    return deepFix(body, anthropicKey, token, req.signal, userId);
+    return deepFix(body, payment, token, req.signal, userId);
   }
 }
 
@@ -147,11 +156,12 @@ async function deepFix(
     diff_hunk: string | null;
     budget?: number;
   },
-  apiKey: string,
+  payment: RunPayment,
   ghToken: string | null,
   signal: AbortSignal,
   userId: string,
 ) {
+  const apiKey = payment.anthropicKey;
   if (!cloudExecution() && !existsSync(MCP_CONFIG)) {
     releaseSlot("fix");
     return Response.json(
@@ -198,21 +208,34 @@ CONSTRAINTS — these are hard rules, not suggestions:
 - If the fix requires more than ~15 lines of change, explain why before proceeding
 - If you're unsure what the reviewer wants, say so instead of guessing`;
 
-  // Allowlisted env + a read-only toolbelt: this spawn embeds PR review
-  // comments, which are written by third parties, in its prompt.
-  const credentials = { OPENSRCER_ALLOWED_REPO: sourceRepo, OPENSRCER_REPO_REF: head.sha, ANTHROPIC_API_KEY: apiKey, ...(ghToken ? { GITHUB_TOKEN: ghToken } : {}) };
-  const invocation = buildAgentInvocation({
-    prompt,
-    mcpConfig: cloudExecution() ? "/vercel/sandbox/.mcp.json" : MCP_CONFIG,
-    budgetUsd: Math.min(body.budget ?? 0.25, 1),
-    maxTurns: 30,
-    inject: credentials,
-  });
+  const budgetUsd = Math.min(body.budget ?? 0.25, 1);
+  const maxTurns = 30;
 
   if (cloudExecution()) {
     releaseSlot("fix");
-    return cloudExplore(invocation.args, credentials, signal, userId);
+    // The VM runs its own CLI against its own MCP config (API key only), so
+    // its arguments are built here rather than by buildAgentInvocation.
+    const args = [
+      "-p", prompt, "--mcp-config", "/vercel/sandbox/.mcp.json", ...READ_ONLY_CLAUDE_ARGS,
+      "--no-session-persistence", "--output-format", "stream-json", "--verbose",
+      "--model", CLAUDE_AGENT_MODEL, "--max-budget-usd", String(budgetUsd), "--max-turns", String(maxTurns),
+    ];
+    return cloudExplore(args, { OPENSRCER_ALLOWED_REPO: sourceRepo, OPENSRCER_REPO_REF: head.sha, ANTHROPIC_API_KEY: apiKey!, ...(ghToken ? { GITHUB_TOKEN: ghToken } : {}) }, signal, userId);
   }
 
-  return localClaudeStream(invocation.args, invocation.env, signal, () => releaseSlot("fix"), invocation.bin);
+  // Allowlisted env + a read-only toolbelt: this spawn embeds PR review
+  // comments, which are written by third parties, in its prompt.
+  let invocation: AgentInvocation;
+  try {
+    invocation = buildAgentInvocation({
+      provider: payment.provider, prompt, mcpConfig: MCP_CONFIG,
+      inject: { OPENSRCER_ALLOWED_REPO: sourceRepo, OPENSRCER_REPO_REF: head.sha, GITHUB_TOKEN: ghToken ?? undefined },
+      anthropicKey: apiKey, model: payment.provider === "codex-subscription" ? undefined : CLAUDE_AGENT_MODEL,
+      budgetUsd, maxTurns,
+    });
+  } catch (error) {
+    releaseSlot("fix");
+    throw error;
+  }
+  return localClaudeStream(invocation, signal, () => releaseSlot("fix"));
 }

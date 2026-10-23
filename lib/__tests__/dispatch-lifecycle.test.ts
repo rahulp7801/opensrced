@@ -46,8 +46,9 @@ test("only completed agent output that used its tools becomes a preview; nothing
     for (const c of cases) {
       const dispatch = await startFindingDispatch("acme/app", { id: "test-finding", kind: "advisory", summary: "Test only" }, { auth0UserId: "test-owner", token: "test-user-token", anthropicKey: "test-provider-value" });
       const worker = workers.at(-1)!;
-      // The agent runs from an empty per-run directory with an absolute MCP config.
-      assert.equal(worker.cwd, join(root, ".dispatches", dispatch.id, "work"));
+      // The agent runs from an empty per-run directory (lib/agent-invocation.ts)
+      // with an absolute MCP config.
+      assert.ok(basename(dirname(worker.cwd!)).startsWith("opensrcer-run-") && basename(worker.cwd!) === "work");
       assert.match(readFileSync(worker.config, "utf8"), /mcp-server[\\/]+dist[\\/]+server\.js/);
       const content = [...(c.tools ? [toolUse] : []), { type: "text", text: `## PR title\nfix: bump a\n\n${DIFF}\n` }];
       worker.stdout.end(JSON.stringify({ type: "assistant", message: { content } }) + "\n" + (c.result ? JSON.stringify(c.result) : ""));

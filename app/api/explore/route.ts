@@ -7,14 +7,17 @@ import { readJsonBody } from "@/lib/request-body";
 import { NextRequest } from "next/server";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { resolveAnthropicKey } from "@/lib/api-keys";
+import { resolveRunPayment } from "@/lib/api-keys";
+import { NoRunCredentialError, type RunPayment } from "@/lib/run-payment";
+import { buildAgentInvocation, type AgentInvocation } from "@/lib/agent-invocation";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { auth0 } from "@/lib/auth0";
 import { mappingForRequest, resolveGithubTokenForRequest } from "@/lib/crucible/tokens";
 import { reserveSlot } from "@/lib/concurrency";
 import { requireSession, sessionUserId } from "@/lib/require-session";
 import { sanitizeForPrompt } from "@/lib/sanitize";
-import { buildAgentInvocation } from "@/lib/agent-invocation";
+import { READ_ONLY_CLAUDE_ARGS } from "@/lib/claude-tools";
+import { CLAUDE_AGENT_MODEL } from "@/lib/models";
 
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { cloudExplore } from "@/lib/cloud-explore";
@@ -80,12 +83,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const anthropicKey = await resolveAnthropicKey();
-  if (!anthropicKey) {
-    return new Response(
-      JSON.stringify({ error: "No Anthropic API key configured." }),
-      { status: 400, headers: { "Content-Type": "application/json" } },
-    );
+  let payment: RunPayment;
+  try { payment = await resolveRunPayment(); }
+  catch (error) {
+    if (!(error instanceof NoRunCredentialError)) throw error;
+    return Response.json({ error: error.message }, { status: 400 });
+  }
+  // Hosted subscription sign-in happens per agent run; a short exploration
+  // in its own VM runs on the API key, and only if the user allows it.
+  const anthropicKey = payment.anthropicKey;
+  if (cloudExecution() && !anthropicKey) {
+    return Response.json({ error: "Hosted exploration runs on your Anthropic API key. Add one, and rank it first or turn on the API-key fallback." }, { status: 400 });
   }
 
   const prompt = buildExplorePrompt(repoFull, body.query);
@@ -111,31 +119,44 @@ export async function POST(req: NextRequest) {
     githubToken = (await resolveGitHubToken()) ?? undefined;
   }
 
-  // Allowlisted env — the child has no business seeing AUTH0_SECRET or the
-  // GitHub App private key. See lib/child-env.ts.
-  const credentials = {
-    OPENSRCER_ALLOWED_REPO: repoFull,
-    ANTHROPIC_API_KEY: anthropicKey,
-    ...(githubToken ? { GITHUB_TOKEN: githubToken } : {}),
-  };
-  // Read-only exploration; the same restricted tool configuration as every agent entry point.
-  const invocation = buildAgentInvocation({
-    prompt,
-    mcpConfig: cloudExecution() ? "/vercel/sandbox/.mcp.json" : MCP_CONFIG,
-    budgetUsd: Math.min(Math.max(body.budget ?? 0.15, 0.01), 2),
-    maxTurns: 30,
-    inject: credentials,
-  });
+  const budgetUsd = Math.min(Math.max(body.budget ?? 0.15, 0.01), 2);
+  const maxTurns = 30;
 
   if (cloudExecution()) {
     const owner = await sessionUserId();
     if (!owner) return Response.json({ error: "Not authenticated" }, { status: 401 });
-    return cloudExplore(invocation.args, credentials, req.signal, owner);
+    // The VM runs its own CLI against its own MCP config, so its arguments are
+    // built here rather than by buildAgentInvocation (which resolves a local
+    // config file). Hosted exploration is API-key only.
+    const args = [
+      "-p", prompt, "--mcp-config", "/vercel/sandbox/.mcp.json", ...READ_ONLY_CLAUDE_ARGS,
+      "--no-session-persistence", "--output-format", "stream-json", "--verbose",
+      "--model", CLAUDE_AGENT_MODEL, "--max-budget-usd", String(budgetUsd), "--max-turns", String(maxTurns),
+    ];
+    return cloudExplore(args, {
+      OPENSRCER_ALLOWED_REPO: repoFull,
+      ANTHROPIC_API_KEY: anthropicKey!,
+      ...(githubToken ? { GITHUB_TOKEN: githubToken } : {}),
+    }, req.signal, owner);
   }
 
   let release: () => void;
   try { release = reserveSlot("explore", MAX_CONCURRENT_EXPLORE); }
   catch { return Response.json({ error: "Three explorations are running. Try again when one finishes." }, { status: 429 }); }
 
-  return localClaudeStream(invocation.args, invocation.env, req.signal, release, invocation.bin);
+  // Allowlisted env — the child has no business seeing AUTH0_SECRET or the
+  // GitHub App private key. See lib/child-env.ts and lib/agent-invocation.ts.
+  let invocation: AgentInvocation;
+  try {
+    invocation = buildAgentInvocation({
+      provider: payment.provider, prompt, mcpConfig: MCP_CONFIG,
+      inject: { OPENSRCER_ALLOWED_REPO: repoFull, GITHUB_TOKEN: githubToken },
+      anthropicKey, model: payment.provider === "codex-subscription" ? undefined : CLAUDE_AGENT_MODEL,
+      budgetUsd, maxTurns,
+    });
+  } catch (error) {
+    release();
+    throw error;
+  }
+  return localClaudeStream(invocation, req.signal, release);
 }

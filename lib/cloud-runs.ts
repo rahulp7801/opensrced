@@ -30,7 +30,8 @@ import {
 import { cloudRunLease, cloudRunLeaseIsStarting } from "./cloud-leases";
 import { cloudWorkerJobJson } from "./cloud-worker-job";
 import { assertWorkerProtocol } from "./worker-protocol";
-import { AGENT_EGRESS } from "./sandbox-egress";
+import { AGENT_EGRESS, SUBSCRIPTION_AGENT_EGRESS } from "./sandbox-egress";
+import { SIGN_IN_CODE_PATH, validSignInCode } from "./hosted-sign-in";
 
 const TTL = 45 * 60_000;
 const MAX_LISTED_RECORDS = 250;
@@ -188,7 +189,9 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
   try {
     await writeRun(path, run);
     await writeSummary(summaryPath, run);
-    const sandbox = await Sandbox.create({ name: run.sandbox_name, source: { type: "snapshot", snapshotId }, networkPolicy: AGENT_EGRESS,
+    // A subscription run also needs Anthropic's sign-in token exchange.
+    const networkPolicy = opts.provider === "claude-subscription" ? SUBSCRIPTION_AGENT_EGRESS : AGENT_EGRESS;
+    const sandbox = await Sandbox.create({ name: run.sandbox_name, source: { type: "snapshot", snapshotId }, networkPolicy,
       persistent: false, timeout: WORKER_TIMEOUT_MS, signal: AbortSignal.timeout(60_000) });
     await assertWorkerProtocol(sandbox);
     const tokenOptions = { allowedContentTypes: ["application/json"],
@@ -319,6 +322,26 @@ export async function listCloudRunSummaries(owner: string, limit = 20): Promise<
     })
     .sort((a, b) => b.started_at.localeCompare(a.started_at))
     .slice(0, cappedLimit);
+}
+
+/** A run may receive a sign-in code only while it is live and its worker is
+ *  waiting on `claude auth login`. Exported for tests. */
+export function signInRelayable(run: CloudRun | null): boolean {
+  return Boolean(run && runIsActive(run) && run.sign_in?.status === "waiting");
+}
+
+/** Hand the user's one-time Claude sign-in code to their run's VM, where the
+ *  worker types it into `claude auth login` (lib/hosted-sign-in.ts). The code
+ *  goes straight into the VM's filesystem: never to Blob, a log, or a record.
+ *  False when the run is not the caller's or is not waiting for a sign-in. */
+export async function relaySignInCode(owner: string, id: string, code: string): Promise<boolean> {
+  if (!validSignInCode(code)) return false;
+  // getCloudRun is owner-scoped: another user's run reads as missing.
+  if (!signInRelayable(await getCloudRun(owner, id))) return false;
+  // Name the VM from the server-minted run id, never from a worker-written field.
+  const sandbox = await Sandbox.get({ name: id.replaceAll("_", "-"), signal: AbortSignal.timeout(15_000) });
+  await sandbox.writeFiles([{ path: SIGN_IN_CODE_PATH, content: Buffer.from(code), mode: 0o600 }], { signal: AbortSignal.timeout(15_000) });
+  return true;
 }
 
 export async function cancelCloudRun(owner: string, id: string): Promise<boolean> {

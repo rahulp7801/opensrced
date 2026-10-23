@@ -1,7 +1,9 @@
 /** Why a Claude Code `result` event failed, phrased as what to do next, or
  *  null when it succeeded. Budget and turn limits fail the same way on retry,
  *  and a policy decline needs a different request, so they get their own words. */
-export function claudeResultFailure(event: { is_error?: boolean; subtype?: string; stop_reason?: string }, fallback: string): string | null {
+export function claudeResultFailure(event: { is_error?: boolean; subtype?: string; stop_reason?: string; result?: unknown }, fallback: string): string | null {
+  // An unfunded API key fails the same way on every retry; say what to do.
+  if (event.is_error && typeof event.result === "string" && /credit balance is too low/i.test(event.result)) return "Your Anthropic API key has no credit. Add credit or use a subscription.";
   if (event.subtype === "error_max_budget_usd") return "The run reached its spend limit before finishing. Narrow the task or raise the budget.";
   if (event.subtype === "error_max_turns") return "The run reached its step limit before finishing. Narrow the task and retry.";
   if (event.stop_reason === "refusal") return "The model declined this task. Rephrase it rather than retrying.";

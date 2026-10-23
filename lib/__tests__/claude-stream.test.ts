@@ -5,13 +5,15 @@ import { PassThrough } from "node:stream";
 import { EventEmitter } from "node:events";
 import { localClaudeStream } from "../claude-stream";
 
+const invocation = { bin: "claude", args: [], env: { NODE_ENV: "test" } as NodeJS.ProcessEnv, cwd: ".", output: "claude-stream-json" as const, cleanup: () => {} };
+
 test("local exploration never turns failed or truncated output into a done event", async (t) => {
   for (const result of [null, { type: "result", is_error: true }, { type: "result", subtype: "success", is_error: false }]) {
     const stdout = new PassThrough();
     const child = Object.assign(new EventEmitter(), { stdout, stderr: new PassThrough() }) as unknown as processes.ChildProcess;
     t.mock.method(processes, "spawn", () => child);
     let releases = 0;
-    const response = localClaudeStream([], { NODE_ENV: "test" }, new AbortController().signal, () => { releases++; });
+    const response = localClaudeStream(invocation, new AbortController().signal, () => { releases++; });
     stdout.write(JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "Some output" }] } }) + "\n");
     if (result) stdout.write(JSON.stringify(result));
     child.emit("close", 0);
@@ -29,7 +31,7 @@ test("a specific exploration failure is the only error the client receives", asy
   const child = Object.assign(new EventEmitter(), { stdout, stderr: new PassThrough() }) as unknown as processes.ChildProcess;
   t.mock.method(processes, "spawn", () => child);
   let releases = 0;
-  const response = localClaudeStream([], { NODE_ENV: "test" }, new AbortController().signal, () => { releases++; });
+  const response = localClaudeStream(invocation, new AbortController().signal, () => { releases++; });
   stdout.write(JSON.stringify({ type: "result", subtype: "error_max_budget_usd", is_error: true }) + "\n");
   child.emit("close", 1);
   const errors = (await response.text()).split("\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6))).filter(event => event.error);

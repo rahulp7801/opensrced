@@ -64,9 +64,9 @@ export default async function SettingsPage({
       <div className="mt-8 divide-y divide-border border-y border-border">
         <SettingsSection
           id="provider-heading"
-          title="AI providers"
-          description="Add the credentials used to generate and review patches. Each agent run stops at your selected budget."
-          note="Keys are encrypted in account-bound, HTTP-only cookies and sent only to the selected provider."
+          title="How runs are paid for"
+          description="Use your own Claude subscription first, with an API key as an optional fallback. Gemini keys power patch review."
+          note="Keys are encrypted in account-bound, HTTP-only cookies and sent only to the selected provider. opensrcer never asks for, sees, or stores your Claude or ChatGPT login."
         >
           <ApiKeysForm />
         </SettingsSection>

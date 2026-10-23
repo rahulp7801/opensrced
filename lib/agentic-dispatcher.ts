@@ -13,7 +13,7 @@
 // auto-PR hook) is identical and now lives in one place.
 
 import { execFileSync, spawn } from "node:child_process";
-import { createWriteStream, existsSync, mkdirSync } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { appendFile } from "node:fs/promises";
 import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
@@ -33,10 +33,12 @@ const DISPATCH_DIR = join(process.cwd(), ".dispatches");
 const MCP_CONFIG = join(process.cwd(), ".mcp.json");
 
 import { ALLOWED_TOOLS, EXEC_TOOLS } from "./claude-tools";
-import { buildAgentInvocation } from "./agent-invocation";
+import { buildAgentInvocation, type AgentProvider } from "./agent-invocation";
 import { finalizeExec, prepareRepo, profileLogLine, setupExec, type EvalHook, type ExecOutcome, type ExecSession } from "./exec-run";
 import { aiBanReason, competingPrReason, discussFirstReason, openPrsForIssue } from "./contrib-guard";
 import { finishRun } from "./run-finish";
+import { triageIssue } from "./triage";
+import { CLAUDE_FAST_MODEL } from "./models";
 import { agentLimits, execLimits } from "./limits";
 import { cloneEnv, detectProfile, profilePromptNotes, refuseIssue, type ContribProfile } from "./contrib-profile";
 import { testOutcome } from "./verify";
@@ -46,8 +48,8 @@ import { testOutcome } from "./verify";
 export function pipeStreamJson(
   stdout: import("node:stream").Readable,
   out: Pick<import("node:fs").WriteStream, "write">,
-): { complete: boolean; failed: boolean } {
-  const state = { complete: false, failed: false };
+): { complete: boolean; failed: boolean; toolCalls: number; model?: string } {
+  const state: { complete: boolean; failed: boolean; toolCalls: number; model?: string } = { complete: false, failed: false, toolCalls: 0 };
   const decoder = new StringDecoder("utf8");
   let buf = "";
   function consume(line: string) {
@@ -55,6 +57,16 @@ export function pipeStreamJson(
     try {
       const evt = JSON.parse(line);
       if (evt.type === "error") state.failed = true;
+      // The init event says whether our MCP server connected and which of its
+      // tools the agent actually has. Without them a model can only imagine
+      // tool calls (seen in a real run), so this is logged, never assumed.
+      if (evt.type === "system" && evt.subtype === "init") {
+        const servers = Array.isArray(evt.mcp_servers) ? evt.mcp_servers : [];
+        const ours = servers.find((s: { name?: string }) => s?.name === "opensrcer-repo-tools");
+        const tools = Array.isArray(evt.tools) ? evt.tools.filter((t: unknown) => typeof t === "string" && t.startsWith("mcp__opensrcer-repo-tools__")) : [];
+        if (typeof evt.model === "string") state.model = sanitizeLogValue(evt.model, 60);
+        out.write(`[agentic-dispatcher] mcp: opensrcer-repo-tools=${sanitizeLogValue(ours?.status ?? "absent", 40)} tools=${tools.length} model=${sanitizeLogValue(evt.model, 60)}\n`);
+      }
       if (evt.type === "assistant" && Array.isArray(evt.message?.content)) {
         for (const block of evt.message.content) {
           if (block.type === "text" && typeof block.text === "string") out.write(block.text);
@@ -62,6 +74,7 @@ export function pipeStreamJson(
           // exploring: the tool and its first string argument besides the repo
           // (a path, pattern or symbol), never what the tool returned.
           if (block.type === "tool_use" && typeof block.name === "string") {
+            state.toolCalls++;
             const arg = Object.entries(block.input ?? {}).find(([k, v]) => k !== "repo" && typeof v === "string")?.[1];
             out.write(`\n[tool] ${sanitizeLogValue(block.name.split("__").at(-1), 40)} ${sanitizeLogValue(arg, 100)}\n`);
           }
@@ -70,6 +83,12 @@ export function pipeStreamJson(
       if (evt.type === "result") {
         if (typeof evt.total_cost_usd === "number" && Number.isFinite(evt.total_cost_usd)) {
           out.write(`\n[agentic-dispatcher] total_cost_usd=${evt.total_cost_usd.toFixed(6)}\n`);
+        }
+        // Prompt-cache effectiveness (the CLI caches automatically): how much
+        // of the input was served from cache across the run's turns.
+        const u = evt.usage;
+        if (u && typeof u.input_tokens === "number") {
+          out.write(`[agentic-dispatcher] tokens: input=${u.input_tokens} cache_read=${u.cache_read_input_tokens ?? 0} cache_write=${u.cache_creation_input_tokens ?? 0} output=${u.output_tokens ?? 0} turns=${evt.num_turns ?? "?"}\n`);
         }
         const failure = claudeResultFailure(evt, "Agent could not complete the task. Check provider access and the task budget.");
         if (failure) {
@@ -92,6 +111,17 @@ export function pipeStreamJson(
 
 function ensureDir() {
   if (!existsSync(DISPATCH_DIR)) mkdirSync(DISPATCH_DIR, { recursive: true });
+}
+
+/** The MCP config with absolute paths, so the agent can run from an empty
+ *  directory. `node` becomes the running Node binary. Exported for tests. */
+export function absoluteMcpConfig(configPath: string, base = process.cwd()): string {
+  const parsed = JSON.parse(readFileSync(configPath, "utf8")) as { mcpServers: Record<string, { command: string; args?: string[] }> };
+  for (const server of Object.values(parsed.mcpServers ?? {})) {
+    if (server.command === "node") server.command = process.execPath;
+    server.args = (server.args ?? []).map((a) => (/^\.\.?[\\/]/.test(a) ? join(base, a) : a));
+  }
+  return JSON.stringify(parsed);
 }
 
 /** Parse "owner/name" from a URL or bare slug. Throws on garbage. */
@@ -444,6 +474,9 @@ export type StartAgenticOpts = {
   maxSpendUsd?: number;
   // The requester's GitHub identity; the auto-PR commit is authored as them.
   author?: { login: string; id: number };
+  // Who pays for the model: the user's API key or their Claude plan (the
+  // CLI's own login). Default: the key when one is given.
+  provider?: AgentProvider;
   // Pin the checkout to this commit (40-hex SHA). Eval runs and PR follow-ups.
   repoRef?: string;
   // Eval mode only (scripts/eval-merged.ts): accept a closed issue. Never set
@@ -598,6 +631,15 @@ async function spawnDispatch(
       }
       const discuss = discussFirstReason("", prepared.issueLabels ?? []) ?? profile.discussFirst;
       if (discuss) out.write(`[guard] warning: ${discuss}; the run page will offer a drafted issue comment\n`);
+      // Cheap one-turn triage on the fast model before the expensive run.
+      const triaged = prepared.issueFormatted
+        ? await triageIssue({ repo: repoFull, issueFormatted: prepared.issueFormatted, workDir: join(DISPATCH_DIR, id, "triage"), provider: opts.provider, anthropicKey: opts.anthropicKey })
+        : null;
+      if (triaged) {
+        const t = triaged.triage;
+        out.write(`[triage] model=${CLAUDE_FAST_MODEL} category=${t.category} proceed=${t.proceed} cost_usd=${triaged.costUsd ?? "n/a"} reason=${sanitizeLogValue(t.reason, 200)}\n`);
+        if (!t.proceed && !opts.dryRun) throw new RunTargetError(`Refused before the full run: triage classified this issue as ${t.category.replace(/_/g, " ")} (${t.reason}). A preview (dry run) is still possible.`);
+      }
       exec = await setupExec(repoFull, id, join(DISPATCH_DIR, id), repo, profile, (line) => out.write(line));
     } catch (error) {
       out.end();
@@ -625,9 +667,16 @@ async function spawnDispatch(
   // user's stored API keys — plus GITHUB_APP_PRIVATE_KEY and the webhook
   // secret. See lib/child-env.ts. With a box, the MCP server also gets the
   // box capability (URL + token) and nothing else new.
+  // The agent runs from an empty directory (no project CLAUDE.md/.mcp.json
+  // is picked up) with an absolute copy of the MCP config.
+  const workDir = join(DISPATCH_DIR, id, "work");
+  mkdirSync(workDir, { recursive: true });
+  const mcpConfig = join(DISPATCH_DIR, id, "mcp.json");
+  writeFileSync(mcpConfig, absoluteMcpConfig(MCP_CONFIG), { mode: 0o600 });
   const invocation = buildAgentInvocation({
+    provider: opts.provider,
     prompt,
-    mcpConfig: MCP_CONFIG,
+    mcpConfig,
     tools: exec ? [...ALLOWED_TOOLS, ...EXEC_TOOLS] : ALLOWED_TOOLS,
     budgetUsd,
     maxTurns: limits.maxTurns,
@@ -646,13 +695,13 @@ async function spawnDispatch(
   out.write(
     `[agentic-dispatcher] ${new Date().toISOString()}\n` +
       `[agentic-dispatcher] ${headerLine}\n` +
-      `[agentic-dispatcher] bin: ${invocation.bin} (-p headless, MCP: ${MCP_CONFIG}${exec ? `, exec box: ${exec.box.mode}` : ""})\n` +
+      `[agentic-dispatcher] bin: ${invocation.bin} (-p headless, provider: ${invocation.provider}, MCP: ${MCP_CONFIG}${exec ? `, exec box: ${exec.box.mode}` : ""})\n` +
       `[agentic-dispatcher] env: ANTHROPIC_API_KEY=${env.ANTHROPIC_API_KEY ? "(present)" : "(missing — claude will use its own auth)"} · GITHUB_TOKEN=${token ? "(present)" : "(missing)"}\n` +
-      `[agentic-dispatcher] guardrails: --max-budget-usd=${budgetUsd} · --max-turns=${limits.maxTurns} · timeout=${Math.round(timeoutMs / 1000)}s\n` +
+      `[agentic-dispatcher] guardrails: ${invocation.capLabel} · timeout=${Math.round(timeoutMs / 1000)}s\n` +
       `[agentic-dispatcher] ─────────────────────────────\n`,
   );
 
-  const child = spawn(invocation.bin, invocation.args, { env, windowsHide: true });
+  const child = spawn(invocation.bin, invocation.args, { env, cwd: workDir, windowsHide: true });
 
   // Wall-clock kill-switch. Fires only if claude is still alive at the
   // deadline; cleared when the close handler runs. `taskkill /T` on Windows
@@ -716,7 +765,9 @@ async function spawnDispatch(
   registerDispatch(dispatch, child);
 
   const result = pipeStreamJson(child.stdout, out);
-  child.stderr.on("data", () => {}); // swallow stderr (MCP startup noise)
+  // stderr is mostly MCP startup noise; keep a short tail for failed runs.
+  let stderrTail = "";
+  child.stderr.on("data", (chunk: Buffer) => { stderrTail = (stderrTail + chunk.toString()).slice(-600); });
   let spawnFailed = false;
   child.on("close", (code, signal) => {
     clearTimeout(timeoutHandle);
@@ -726,7 +777,12 @@ async function spawnDispatch(
     // taskkill on Windows exits 1 with no signal, so a user cancel is only
     // visible through the flag cancelDispatch() leaves behind.
     const wasKilled = signal === "SIGKILL" || signal === "SIGTERM" || killedByTimeout || consumeCancelRequest(dispatch.id);
-    const finalStatus = wasKilled ? "killed" : code === 0 && result.complete && !result.failed ? "succeeded" : "failed";
+    // A run that never called a repository tool has nothing real to show,
+    // whatever its final text claims.
+    const noTools = result.toolCalls === 0;
+    const finalStatus = wasKilled ? "killed" : code === 0 && result.complete && !result.failed && !noTools ? "succeeded" : "failed";
+    if (!wasKilled && noTools) out.write("\n[agentic-dispatcher] The agent made no tool calls (its repository tools were unavailable or unused); output will not be published.\n");
+    if (!wasKilled && code !== 0 && stderrTail.trim()) out.write(`[agentic-dispatcher] stderr tail: ${sanitizeLogValue(stderrTail, 600)}\n`);
     out.write(
       `\n[agentic-dispatcher] ─────────────────────────────\n` +
         `[agentic-dispatcher] exited at ${dispatch.ended_at} · status=${finalStatus} · exit=${code ?? "n/a"}` +
@@ -751,6 +807,8 @@ async function spawnDispatch(
               repoFull, issueNumber, dispatchId: id, dispatchDir: join(DISPATCH_DIR, id), logPath,
               exec: exec ? execOutcome : null, profile, issueLabels: prepared.issueLabels ?? [],
               privateOrg: Boolean(opts.orgCtx || opts.installationToken), token,
+              // The model the CLI reported it ran, for the disclosure note.
+              model: result.model,
             }).catch(async (e) => {
               await appendFile(logPath, `\n[preview] failed: ${sanitizeLogValue(e instanceof Error ? e.message : e)}\n`).catch(() => {});
               return null;

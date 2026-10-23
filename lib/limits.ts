@@ -22,7 +22,10 @@ export function cloneLimits() {
   const timeoutMs = num("OPENSRCER_CLONE_TIMEOUT_MS", 10 * 60_000);
   return {
     timeoutMs,
-    env: { OPENSRCER_CLONE_TIMEOUT_MS: String(timeoutMs) } as Record<string, string>,
+    env: {
+      OPENSRCER_CLONE_TIMEOUT_MS: String(timeoutMs),
+      OPENSRCER_INDEX_TIMEOUT_MS: String(num("OPENSRCER_INDEX_TIMEOUT_MS", 120_000)),
+    } as Record<string, string>,
   };
 }
 
@@ -36,6 +39,11 @@ export function agentLimits(kind: "fast" | "full" | "exec") {
     maxTurns: Math.trunc(maxTurns),
     timeoutMs: num("OPENSRCER_AGENTIC_TIMEOUT_MS", (kind === "exec" ? 75 : 30) * 60_000),
   };
+}
+
+/** Repository graph build (graphify) wall clock. */
+export function graphLimits() {
+  return { timeoutMs: num("OPENSRCER_GRAPH_TIMEOUT_MS", 240_000) };
 }
 
 /** Exec box limits (lib/exec-box.ts, scripts/exec-server.cjs). */

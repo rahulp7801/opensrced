@@ -1,7 +1,7 @@
 // SWE-bench-style evaluation against an issue a human already fixed.
 //
 //   npm run build:worker
-//   node --env-file=.env.local scripts/eval-merged.cjs <owner/repo> <merged PR #> [--issue N] [--budget USD]
+//   node scripts/eval-merged.cjs <owner/repo> <merged PR #> [--issue N] [--provider claude-subscription|anthropic-key] [--budget USD]
 //
 // Pins the checkout to the commit before the human fix (OPENSRCER_REPO_REF),
 // runs the agent as a DRY RUN on the linked issue, then inside the agent's
@@ -49,8 +49,14 @@ function testCommand(repo, files) {
 async function main() {
   const [repo, prArg] = process.argv.slice(2);
   if (!repo || !/^\d+$/.test(prArg ?? '')) throw new Error('usage: eval-merged.cjs <owner/repo> <merged PR #> [--issue N] [--budget USD]');
-  const anthropicKey = process.env.ANTHROPIC_KEY || process.env.ANTHROPIC_API_KEY;
-  if (!anthropicKey) throw new Error('set ANTHROPIC_KEY (node --env-file=.env.local)');
+  // --provider claude-subscription (default): the local claude CLI login, no key.
+  // --provider anthropic-key: ANTHROPIC_KEY / ANTHROPIC_API_KEY from the env.
+  const provider = arg('--provider') ?? 'claude-subscription';
+  const anthropicKey = provider === 'anthropic-key' ? (process.env.ANTHROPIC_KEY || process.env.ANTHROPIC_API_KEY) : undefined;
+  if (provider === 'anthropic-key' && !anthropicKey) throw new Error('set ANTHROPIC_KEY (node --env-file=.env.local)');
+  // Caps for plan-billed runs: turns and wall clock (overridable by env).
+  process.env.OPENSRCER_AGENTIC_EXEC_MAX_TURNS ??= '60';
+  process.env.OPENSRCER_AGENTIC_TIMEOUT_MS ??= String(20 * 60_000);
   const token = execFileSync('gh', ['auth', 'token'], { encoding: 'utf8' }).trim();
 
   const pr = await githubApi(`/repos/${repo}/pulls/${prArg}`, token);
@@ -91,7 +97,7 @@ async function main() {
 
   const started = Date.now();
   const d = await startAgenticDispatch(`https://github.com/${repo}`, issue, {
-    dryRun: true, repoRef: baseSha, allowClosedIssue: true, anthropicKey, token, evalHook,
+    dryRun: true, repoRef: baseSha, allowClosedIssue: true, provider, anthropicKey, token, evalHook,
     auth0UserId: 'local-eval', maxSpendUsd: arg('--budget') ? Number(arg('--budget')) : undefined,
   });
   console.log(`[eval] dispatch ${d.id}, log ${d.log_path}`);

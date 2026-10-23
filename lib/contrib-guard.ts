@@ -69,7 +69,11 @@ export function publishedInLastDay(publishedAt: Array<string | undefined>, now =
 const DISCUSS_PATTERNS = [
   /\b(?:open|file|create|start)\s+an?\s+(?:issue|discussion)\s+(?:first|before)/i,
   /\bdiscuss(?:ed)?\b[^.\n]{0,40}\b(?:first|before (?:you )?(?:start|open|submit|send|work))/i,
-  /\b(?:get|be|wait (?:to|until you are)|ask to be)\s+assigned\b/i,
+  // About the contributor being assigned, not "the PR will be assigned to a
+  // reviewer" (vllm's guide): an ask/wait/must verb, or "assigned ... before".
+  /\b(?:ask|wait|request)\s+(?:to\s+|until you are\s+)?(?:be|get)\s+assigned\b/i,
+  /\b(?:must|should|need to|have to)\s+(?:first\s+)?(?:be|get)\s+assigned\b/i,
+  /\bassigned\s+(?:to (?:you|yourself|the issue)\s+)?before\b/i,
   /\bcomment on the issue\b[^.\n]{0,40}\bbefore\b/i,
 ];
 

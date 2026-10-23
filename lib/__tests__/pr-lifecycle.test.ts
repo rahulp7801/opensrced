@@ -7,7 +7,7 @@ import path from "node:path";
 import { ciVerdict, computeEvents, followupTask, initialState, rebaseBranch, type PrSnapshot } from "../pr-lifecycle";
 
 const base: PrSnapshot = {
-  state: "open", merged: false, author: "me", head_sha: "a".repeat(40), head_ref: "opensrcer/issue-1-x", head_repo: "me/r",
+  state: "open", merged: false, author: "me", body: "Fixes #1", head_sha: "a".repeat(40), head_ref: "opensrcer/issue-1-x", head_repo: "me/r",
   base_ref: "main", mergeable_state: "clean", checks: [], comments: [],
 };
 

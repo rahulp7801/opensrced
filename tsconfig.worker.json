@@ -8,7 +8,9 @@
     "lib/dispatch-store.ts",
     "lib/dispatcher.ts",
     "lib/pr-push.ts",
-    "lib/graph-worker.ts"
+    "lib/graph-worker.ts",
+    "lib/pr-lifecycle.ts",
+    "lib/publish.ts"
   ],
   "exclude": [
     "node_modules",

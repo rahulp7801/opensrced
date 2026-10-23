@@ -264,7 +264,10 @@ export async function initBox(box: ExecBox, cloneDir: string, sha: string, spars
   // A sparse partial clone has no blobs outside its cone; archiving them
   // would fetch each one lazily. Archive the cone (and root files) only.
   const pathspecs = sparseDirs?.length ? ["--", ":(glob)*", ...sparseDirs] : [];
-  const git = spawn("git", ["-C", cloneDir, "archive", "--format=tar.gz", sha, ...pathspecs], { env: childEnv(), windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+  // git archive applies working-tree EOL conversion; with Git for Windows'
+  // autocrlf every file would reach the Linux box with CRLF (seen: edits
+  // failed to match and diffs would carry \r). Blobs go in byte-exact.
+  const git = spawn("git", ["-c", "core.autocrlf=false", "-c", "core.eol=lf", "-C", cloneDir, "archive", "--format=tar.gz", sha, ...pathspecs], { env: childEnv(), windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
   let stderr = "";
   git.stderr.on("data", (c: Buffer) => { stderr = (stderr + c.toString()).slice(-2000); });
   const exited = new Promise<number | null>((resolve) => git.on("close", resolve));

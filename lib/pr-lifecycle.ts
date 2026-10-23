@@ -31,6 +31,7 @@ export type PrSnapshot = {
   state: "open" | "closed";
   merged: boolean;
   author: string;
+  body: string;
   head_sha: string;
   head_ref: string;
   head_repo: string | null;
@@ -120,7 +121,7 @@ function checkState(status: string, conclusion: string | null): CheckResult["sta
 export async function fetchSnapshot(pr: PrRef, token: string | undefined, signal?: AbortSignal): Promise<PrSnapshot> {
   const base = `/repos/${pr.repo}`;
   const p = await githubApi<{
-    state: "open" | "closed"; merged: boolean; mergeable_state?: string | null; user: { login: string };
+    state: "open" | "closed"; merged: boolean; mergeable_state?: string | null; user: { login: string }; body: string | null;
     head: { sha: string; ref: string; repo: { full_name: string } | null }; base: { ref: string };
   }>(`${base}/pulls/${pr.number}`, token, undefined, signal);
   const [runs, statuses, reviewComments, issueComments, reviews] = await Promise.all([
@@ -134,7 +135,7 @@ export async function fetchSnapshot(pr: PrRef, token: string | undefined, signal
   const latest = new Map<string, GhStatus>();
   for (const s of statuses.statuses) if (!latest.has(s.context)) latest.set(s.context, s);
   return {
-    state: p.state, merged: p.merged, author: p.user.login, head_sha: p.head.sha, head_ref: p.head.ref,
+    state: p.state, merged: p.merged, author: p.user.login, body: p.body ?? "", head_sha: p.head.sha, head_ref: p.head.ref,
     head_repo: p.head.repo?.full_name ?? null, base_ref: p.base.ref, mergeable_state: p.mergeable_state ?? null,
     checks: [
       ...runs.check_runs.map((r) => ({ name: r.name, state: checkState(r.status, r.conclusion), url: r.html_url })),

@@ -31,6 +31,9 @@ test("discussFirstReason: labels and contribution-guide wording", () => {
   assert.match(discussFirstReason("Please open an issue first and wait to be assigned.", [])!, /discuss or get assigned/);
   assert.match(discussFirstReason("Changes should be discussed in an issue before you start work.", [])!, /discuss/);
   assert.equal(discussFirstReason("Run the tests before sending a PR.", ["bug", "good first issue"]), null);
+  // vllm docs/contributing/README.md: about reviewers, not contributors (a real false positive).
+  assert.equal(discussFirstReason("- After the PR is submitted, the PR will be assigned to a reviewer. Every", []), null);
+  assert.match(discussFirstReason("You must be assigned to an issue before opening a PR.", [])!, /discuss or get assigned/);
 });
 
 test("caps: defaults, overrides, and the 24h window", () => {

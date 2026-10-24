@@ -451,7 +451,7 @@ try {
     page.waitForResponse(response => new URL(response.url()).pathname === '/api/discover'),
     page.getByLabel('minimum stars', { exact: true }).press('Enter'),
   ]);
-  await page.getByText('No repos matched.', { exact: false }).waitFor();
+  await page.getByText('No repositories matched.', { exact: false }).waitFor();
   assert.deepEqual(interactionErrors, [], 'malformed saved bookmarks must not crash discovery');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'authenticated discovery must fit mobile');
   await assertUsableControls(page, 'authenticated mobile discovery');

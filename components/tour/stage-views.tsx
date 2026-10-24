@@ -319,10 +319,13 @@ export function stageNotes(base: { choose: Chapter; newRun: Chapter; run: Chapte
     ]),
     run: withNotes(base.run, [
       { at: 0, spot: "log-guardrails", text: "One click on the issue started this run; there was nothing to set up. The agent works in a throwaway machine, so a hostile repository can never touch your laptop. There's a hard spend cap, a timeout, and one run at a time per account." },
-      { at: 9000, spot: "log-tools", text: "It's told to read the contribution guide and PR template and match the project's conventions, keep the diff minimal, and stop and say so rather than guess when it can't find the root cause." },
+      { at: 4000, spot: "log-tools", text: "It reads before it writes: it looks for the contribution guide and PR template, then the code, the tests and every caller." },
+      { at: 9000, spot: "log-conventions", text: "And it writes down the project's rules before any code. This repo has no contribution guide, so it matches what the code already does: commit style, docs, how tests run. A maintainer gets a patch that looks like their project, kept minimal, and it stops and says so rather than guess." },
       { at: 20000, spot: "log-preview", text: "And it's honest. This run is from before tests ran on the hosted site, so the log says verification: not run. Nothing has been published; you review it first." },
     ]),
-    review: withNotes(base.review, [
+    review: withNotes({ ...base.review, captions: base.review.captions.filter((c) => !c.text.startsWith("Copy the diff")) }, [
+      { at: 13800, spot: "ask-first", text: "Not sure the maintainers even want this? It drafts a short comment for you to post on the issue first. It never posts anything for you." },
+      { at: 18000, text: "Why the confirm box: maintainers review people, not tools. If you can't explain a change, you shouldn't send it." },
       { at: 0, text: "This is where the maintainers' worry about AI pull requests is answered. Nothing is published until you've read the patch and confirmed you can explain it to reviewers." },
       { at: REVIEW_PUBLISHED_AT + 4500, spot: "next-steps", text: "It's a draft that can't be merged until you mark it ready. And it refuses to publish at all if someone else already has a pull request open on the issue, or if the project bans AI contributions." },
     ]),
@@ -404,9 +407,9 @@ export const stageCompare: Chapter = {
   duration: GUIDED_AT + 400 + GUIDED.length * 600 + 1500,
   source: "What a first contribution asks of you",
   captions: [
-    { at: 0, text: "Claude Code is a great power tool, for people who already know how to contribute. Here's what a first contribution actually asks of you." },
-    { at: 600 + 5 * 450, spot: "compare-fix", text: "Only one of these nine steps is writing the fix. The rest is open-source etiquette and GitHub mechanics, and that's where beginners get stuck or get it wrong." },
-    { at: GUIDED_AT, spot: "compare-guided", text: "opensrcer is the guided path: pick an issue that's ready, review the patch, publish a draft pull request. Everything else on that list is done for you, or checked for you. Let me show you." },
+    { at: 0, text: "Maintainers' biggest worry about AI tools: people vibe-coding fixes that ignore the project's rules. Claude Code is a great power tool for people who already know those rules. Here's what a first contribution actually asks of you." },
+    { at: 600 + 5 * 450, spot: "compare-fix", text: "Only one of these nine steps is writing the fix. The rest is the project's rules and etiquette, exactly what a coding agent on its own skips, and where beginners get it wrong." },
+    { at: GUIDED_AT, spot: "compare-guided", text: "opensrcer is the responsible path: it follows each project's rules for you, checks them, and makes sure you understand the change before anything is sent. Pick an issue that's ready, review the patch, publish a draft. Let me show you." },
   ],
   View: CompareView,
 };
@@ -572,7 +575,7 @@ export const stageRefused: Chapter = {
   duration: 3000,
   source: "Example: a fictional project whose guide bans AI",
   captions: [
-    { at: 0, spot: "refusal", text: "And it says no. This project's contribution guide bans AI-written pull requests, so publishing is refused, quoting the guide. There's no confirm box and no Publish button; the preview is still yours to learn from. Same when someone else already has a pull request open on the issue." },
+    { at: 0, spot: "refusal", text: "And it says no. This project's contribution guide bans AI-written pull requests, so publishing is refused, quoting the guide. There's no confirm box and no Publish button; the preview is still yours to learn from. Same when someone else already has a pull request open on the issue. A project's rules are enforced, not left to the contributor to notice." },
   ],
   View: RefusedView,
 };

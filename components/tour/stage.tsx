@@ -35,10 +35,10 @@ const SKIP = new Set(["Copy diff", "Commit msg"]);
 
 /** The four phases, and the one line each one is about (shown in the notes). */
 const PHASES: Phase[] = [
-  { name: "Find", by: "0:00", say: "Why not just Claude Code: finding an issue that's actually open to a newcomer is the step it assumes you've already done.", chapters: [stageCompare, stageScan, S.choose] },
-  { name: "Understand", by: "2:15", say: "Understand a repository you haven't cloned: a map of it, and plain-English answers about it.", chapters: [stageExplore] },
-  { name: "Fix", by: "4:45", say: "One click starts an agent in a throwaway machine; you read the patch and decide whether to publish.", chapters: [S.run, stageVerified, S.review, stageRefused] },
-  { name: "Ship", by: "7:45", say: "A draft pull request in your name, every GitHub step done right, and help with the follow-ups.", chapters: [withPrFacts(S.pr), withFixChat(S.respond), withQuestionChat(S.reply), stageSlop] },
+  { name: "Find", by: "0:00", say: "Responsible from the first step: only issues that are open to a newcomer, and the project's own signals respected. Claude Code assumes you've already done this.", chapters: [stageCompare, stageScan, S.choose] },
+  { name: "Understand", by: "2:15", say: "Understand before you change anything: a map of the code and plain-English answers about it, without cloning.", chapters: [stageExplore] },
+  { name: "Fix", by: "4:45", say: "The agent follows the project's rules, the tests prove the fix, and nothing goes out until you've read it and can explain it.", chapters: [S.run, stageVerified, S.review, stageRefused] },
+  { name: "Ship", by: "7:45", say: "A draft in your name that says AI helped, follows the project's process, and a chat that keeps you the one who understands the change.", chapters: [withPrFacts(S.pr), withFixChat(S.respond), withQuestionChat(S.reply), stageSlop] },
 ];
 
 const STEPS = PHASES.flatMap((phase, p) => phase.chapters.map((c) => ({ phase: p, chapter: pacedBy(c, STAGE_PACE) })));

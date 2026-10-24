@@ -47,8 +47,14 @@ function Pipeline({ f }: { f: number }) {
   );
 }
 
-/** Log lines the stage's notes point at: the guardrails, the agent's first tools, the preview. */
-function logSpot(text: string): string | undefined {
+// The "## Conventions" section of the log: the project's rules, noted before any code is written.
+const CONVENTIONS_FROM = RUN_LOG.findIndex((l) => l.text === "## Conventions");
+const CONVENTIONS_TO = RUN_LOG.findIndex((l, i) => i > CONVENTIONS_FROM && l.text.startsWith("## "));
+
+/** Log lines the stage's notes point at: the guardrails, the agent's first tools, the
+ *  project's conventions, the preview. */
+function logSpot(text: string, index: number): string | undefined {
+  if (index >= CONVENTIONS_FROM && index < CONVENTIONS_TO) return "log-conventions";
   return text.includes("] guardrails:") ? "log-guardrails" : text.startsWith("[tool]") ? "log-tools" : text.startsWith("[preview]") ? "log-preview" : undefined;
 }
 
@@ -109,7 +115,7 @@ function RunView() {
           <div className="term relative min-h-0 flex-1 overflow-hidden rounded-none">
             {!done && <span className="absolute right-3 top-2 text-[10.5px] text-[#64d2ff]">● streaming</span>}
             <div ref={logRef} className="h-full overflow-hidden px-3 py-2.5 font-mono text-[10.5px] leading-[1.6] sm:px-4 sm:text-[11px]">
-              {lines.map((l) => <LogLine key={l.at + l.text} text={l.text} spot={logSpot(l.text)} />)}
+              {lines.map((l, i) => <LogLine key={l.at + l.text} text={l.text} spot={logSpot(l.text, i)} />)}
             </div>
           </div>
         </div>
@@ -165,6 +171,7 @@ function SplitDiff() {
 }
 
 // The review's beats: the publish steps, the confirm box, Publish, and the published panel.
+const ASK_FIRST_AT = 13800;
 const STEPS_AT = 15000;
 const CONFIRM_AT = 18600;
 const PUBLISH_AT = 20200;
@@ -241,6 +248,10 @@ function ReviewView() {
               <Reveal at={6400} spot="review-diff">
                 <p className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-paper-muted">Files: {PATCH.map((p) => <code key={p.file} className="rounded bg-surface-2 px-1.5 font-mono text-paper">{p.file}</code>)}</p>
                 <SplitDiff />
+              </Reveal>
+              {/* components/publish-panel.tsx: the optional ask-first comment, collapsed. */}
+              <Reveal at={ASK_FIRST_AT} spot="ask-first" className="flex items-center gap-1.5 text-[11.5px] text-paper">
+                <span aria-hidden className="text-paper-faint">▸</span>Not sure the maintainers want this? Ask on the issue first (optional)
               </Reveal>
               {/* components/publish-panel.tsx: what pressing Publish does, before the confirm box. */}
               <Reveal at={STEPS_AT} spot="publish-steps" className="rounded-lg border border-border-soft bg-ink px-3 py-2.5 text-[11.5px]">

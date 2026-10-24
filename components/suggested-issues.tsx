@@ -138,7 +138,7 @@ export function SuggestedIssues() {
           <div className="min-w-0">
             <h2 id="suggested-issues-title" className="text-base font-semibold tracking-[-0.01em] text-paper">Suggested issues</h2>
             <p className="mt-0.5 text-xs leading-relaxed text-paper-muted">
-              Beginner-friendly work from active public repositories.
+              Beginner-friendly work from active public repositories: unassigned, with no linked pull request.
               {filteredOut > 0 && <span title="Bounty, token-farming, social-media, and follow/star tasks are excluded."> {filteredOut} low-quality result{filteredOut === 1 ? "" : "s"} hidden.</span>}
             </p>
           </div>
@@ -295,8 +295,11 @@ export function SuggestedIssues() {
                       GitHub
                       <ArrowSquareOut aria-hidden size={13} />
                     </a>
+                    {/* Through the scanner, which checks the issue (claimed, already fixed,
+                        someone else's PR, the project's AI policy) before offering a run. */}
                     <a
-                      href={`/trigger?repo=${encodeURIComponent(issue.repo)}&issue=${issue.number}`}
+                      href={`/issues?repo=${encodeURIComponent(issue.repo)}&issue=${issue.number}`}
+                      title="Check this issue, then preview or solve it"
                       className="row-cta"
                     >
                       Fix issue

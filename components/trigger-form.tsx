@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 import { parseRunTarget } from "@/lib/run-target";
 import { IconArrow } from "@/components/icons";
+import { Term } from "@/components/term";
 
 type SubmitState =
   | { kind: "idle" }
@@ -176,7 +177,7 @@ export function TriggerForm() {
           />
         </Row>
 
-        <Row label="Mode" hint="Preview generates a patch for review. Live can open a draft PR.">
+        <Row label="Mode" hint={<>A <Term term="preview">preview</Term> is a practice run you can read but never publish. A publishable run stops for your review too; a draft PR opens only when you confirm.</>}>
           <div className="flex w-fit gap-0 rounded-sm border border-border bg-ink" role="group" aria-label="Run mode">
             <button
               type="button"
@@ -198,7 +199,7 @@ export function TriggerForm() {
                 !dryRun ? "bg-signal/10 text-signal" : "text-paper-muted hover:text-paper",
               )}
             >
-              live (PR after review)
+              publishable (you review first)
             </button>
           </div>
         </Row>
@@ -270,8 +271,8 @@ export function TriggerForm() {
         <ol className="divide-y divide-border-soft px-4">
           {[
             "Use an issue URL to start a worker. Repository URLs open the issue scanner.",
-            "Preview creates a patch for review without publishing it.",
-            "Live mode can open a draft PR and requires GitHub write access.",
+            "Preview creates a patch to read. It can never be published; run the issue again to publish.",
+            "A publishable run never posts by itself: it opens a draft PR from your GitHub account only after you read it and confirm.",
           ].map((item, index) => (
             <li key={item} className="grid grid-cols-[1.5rem_1fr] gap-2 py-4 text-xs leading-5 text-paper-muted">
               <span className="font-mono text-paper-faint">{String(index + 1).padStart(2, "0")}</span>
@@ -297,7 +298,7 @@ function Row({
 }: {
   htmlFor?: string;
   label: string;
-  hint?: string;
+  hint?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (

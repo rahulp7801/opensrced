@@ -5,27 +5,33 @@ import { useCanUseApp } from "@/lib/use-current-user";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { IconClose } from "@/components/icons";
+import { paymentSummary } from "@/lib/beginner-guide";
 
 type OnboardingState = {
   hasKey: boolean;
   hasDispatch: boolean;
+  /** Why a run needs paying for and what it costs, from this deployment's settings. */
+  payment: string;
 };
+
+// Used when the settings answer lacks the fields paymentSummary needs.
+const PAYMENT_FALLBACK = "The agent is an AI model, so each run costs a little. Settings shows the ways this deployment can pay for it and lets you cap each run. Finding and checking issues is free.";
 
 const STEPS = [
   {
     key: "key" as const,
-    title: "Choose how runs are paid for",
-    description: "Use your Claude subscription, or add an API key. You can add Gemini later for patch review.",
+    title: "Set up how the AI agent is paid for",
+    description: (s: OnboardingState) => s.payment,
     href: "/crucible",
-    cta: "Go to Settings",
+    cta: "Set up payment",
     check: (s: OnboardingState) => s.hasKey,
   },
   {
     key: "dispatch" as const,
-    title: "Fix an issue",
-    description: "Choose an open issue in Discover, then generate a preview you can review before publishing.",
-    href: "/discover",
-    cta: "Discover issues",
+    title: "Pick a beginner-friendly issue",
+    description: () => "Start with a suggested good first issue: unassigned, with no pull request linked. A run stops for your review; nothing is posted until you confirm.",
+    href: "/issues",
+    cta: "Find an issue",
     check: (s: OnboardingState) => s.hasDispatch,
   },
 ];
@@ -63,8 +69,13 @@ export function Onboarding({ localMode = false, inviteOnly = false }: { localMod
     Promise.all([
       fetch("/api/settings/keys", { signal }).then(async (response) => {
         if (!response.ok) throw new Error("Settings unavailable");
-        const data = await response.json() as { anthropic?: unknown; ready?: unknown };
-        return (data.ready ?? data.anthropic) === true;
+        const data = await response.json() as { anthropic?: unknown; ready?: unknown; offered?: unknown; maxSpendUsd?: unknown };
+        let payment = PAYMENT_FALLBACK;
+        if (Array.isArray(data.offered) && typeof data.maxSpendUsd === "number") {
+          try { payment = paymentSummary({ offered: data.offered.filter((p): p is string => typeof p === "string"), maxSpendUsd: data.maxSpendUsd }); }
+          catch (error) { if (!(error instanceof RangeError)) throw error; }
+        }
+        return { hasKey: (data.ready ?? data.anthropic) === true, payment };
       }),
       fetch("/api/dispatches", { signal }).then(async (response) => {
         if (!response.ok) throw new Error("Runs unavailable");
@@ -72,8 +83,8 @@ export function Onboarding({ localMode = false, inviteOnly = false }: { localMod
         if (!Array.isArray(data.dispatches)) throw new Error("Invalid runs response");
         return data.dispatches.length > 0;
       }),
-    ]).then(([hasKey, hasDispatch]) => {
-      if (!controller.signal.aborted) setState({ hasKey, hasDispatch });
+    ]).then(([{ hasKey, payment }, hasDispatch]) => {
+      if (!controller.signal.aborted) setState({ hasKey, hasDispatch, payment });
     }).catch(() => {
       // Do not turn a service failure into incorrect setup guidance.
     });
@@ -107,8 +118,9 @@ export function Onboarding({ localMode = false, inviteOnly = false }: { localMod
         {/* Current step */}
         <div className="col-start-1 row-start-2 min-w-0 sm:col-start-auto sm:row-start-auto">
           <span className="text-[12px] font-medium text-paper">{currentStep.title}</span>
-          <span className="text-[11px] text-paper-muted ml-2 hidden sm:inline">
-            — {currentStep.description}
+          {/* Shown on phones too: the why matters more than the title. */}
+          <span className="mt-0.5 block text-[11px] leading-relaxed text-paper-muted sm:ml-2 sm:mt-0 sm:inline">
+            <span aria-hidden className="hidden sm:inline">— </span>{currentStep.description(state)}
           </span>
         </div>
 

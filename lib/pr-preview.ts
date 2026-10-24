@@ -27,9 +27,12 @@ export type PrPreview = {
   blockers: string[];
   /** Shown before publishing; the user decides. */
   warnings: string[];
-  /** For issues where maintainers ask to discuss first: a comment the user
-   *  can post themselves. Never posted by opensrcer. */
+  /** A comment asking on the issue before sending a PR, for the user to post
+   *  themselves. Never posted by opensrcer. */
   draft_issue_comment?: string;
+  /** Maintainers ask for discussion first: the comment is the suggested path.
+   *  Absent on older previews, whose comment always meant "ask first". */
+  ask_first?: boolean;
   /** Reported variants and the test that covers each (null = not covered). */
   cases?: CaseCoverage[];
 };
@@ -47,6 +50,7 @@ export type PreviewInput = {
   blockers?: string[];
   warnings?: string[];
   draftIssueComment?: string;
+  askFirst?: boolean;
   cases?: CaseCoverage[];
 };
 
@@ -75,7 +79,9 @@ export function buildPreview(input: PreviewInput): PrPreview {
     profile: input.profile ? { dco: input.profile.dco, cla: input.profile.cla, aiPolicy: input.profile.aiPolicy, aiTrailer: input.profile.aiTrailer, sources: input.profile.sources } : null,
     blockers: [...(input.blockers ?? []), ...(input.verification?.status === "failed" ? [`verification failed: ${input.verification.reason}`] : [])],
     warnings,
-    ...(input.draftIssueComment ? { draft_issue_comment: input.draftIssueComment } : {}),
+    // ask_first is always written with the comment: previews from before it
+    // existed carry a comment only when maintainers asked for discussion.
+    ...(input.draftIssueComment ? { draft_issue_comment: input.draftIssueComment, ask_first: Boolean(input.askFirst) } : {}),
     ...(input.cases?.length ? { cases: input.cases } : {}),
   };
 }

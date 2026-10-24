@@ -77,7 +77,11 @@ export async function finishRun(input: FinishInput): Promise<PrPreview | null> {
     title, body, diff, profile: input.profile, verification, executed: Boolean(input.exec),
     model: input.model ?? CLAUDE_AGENT_MODEL, provider: input.provider ?? "Anthropic", privateOrg: input.privateOrg,
     blockers, warnings: discuss ? [`Maintainers ask for discussion first: ${discuss}. Consider posting the drafted issue comment instead of a PR.`, ...warnings] : warnings,
-    draftIssueComment: discuss ? draftIssueComment(extractDiagnosis(logText), verification?.status === "verified") : undefined,
+    // Every new issue run gets the drafted "ask first" comment: asking before
+    // sending a PR is good manners anywhere. It is the main suggestion only
+    // where maintainers ask for discussion (askFirst); otherwise an option.
+    draftIssueComment: input.issueNumber > 0 && !input.followup ? draftIssueComment(extractDiagnosis(logText), verification?.status === "verified") : undefined,
+    askFirst: Boolean(discuss),
     cases,
   });
   await writePreview(input.dispatchDir, preview, diff);

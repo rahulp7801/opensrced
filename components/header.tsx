@@ -122,7 +122,7 @@ export function SiteHeader({ localMode = false, inviteOnly = false }: { localMod
                 <p className="text-paper-dim">1. Choose how runs are paid for (your Claude subscription or an API key) in <Link href="/crucible" className="text-signal hover:underline" onClick={() => setHelpOpen(false)}>Settings</Link>, behind your avatar</p>
                 <p className="text-paper-dim">2. <strong className="text-paper">Find</strong> — browse repos or issues and pick one</p>
                 <p className="text-paper-dim">3. <strong className="text-paper">Fix</strong> — start a run and watch it work</p>
-                <p className="text-paper-dim">4. <strong className="text-paper">Ship</strong> — review the draft PR it opened</p>
+                <p className="text-paper-dim">4. <strong className="text-paper">Ship</strong> — read the fix, publish it as a draft PR, then follow the reviews</p>
               </HelpSection>
               <HelpSection title="PR review shortcuts">
                 <div className="grid grid-cols-2 gap-1 text-[11px]">

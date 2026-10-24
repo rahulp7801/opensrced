@@ -745,7 +745,7 @@ const RULE_TONE: Record<RuleStatus, string> = { done: "border-ok/40 text-ok", ac
 // EXAMPLE answers: what the review screen's AI calls return, written here for this
 // change and checked against PR #7's diff. Labeled as examples in the notes.
 const CHAT_QUESTION = "Explain this fix like I'm new to the project";
-const CHAT_ANSWER = "truncate shortens text to fit a maximum length and adds “…” at the end. Before, it cut at exactly max characters and then added the “…”, so the result came out too long, and it could stop in the middle of a word. Now it saves room for the “…” first, and if the cut lands inside a word, it backs up to the last space. Two new tests check the example from the issue.";
+const CHAT_ANSWER = "truncate shortens text to fit a maximum length and adds “…” at the end. Before, it cut at exactly max characters and then added the “…”, so the result came out too long, and it could stop in the middle of a word. Now it saves room for the “…” first, and if the cut lands inside a word, it backs up to the last space. Two new tests: the example from the issue, and a cut that already lands on a space.";
 const OWN_WORDS_TEXT = "truncate added the … after cutting at max, so the result was too long and could split a word. Now it leaves room for the … and backs up to the last space. The two new tests pass, and they fail without the fix.";
 const PRACTICE = [
   { q: "What happens when there's no space before the cut, like one very long word?", a: "Then there's nothing to back up to, so it keeps the cut and adds the …: it splits that word but stays within max.", feedback: "That answers it and matches the diff.", followUp: "Should that case get its own test?" },

@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-  boxPatch, boxRequest, dockerRunArgs, ExecBoxError, initBox, resolveExecMode, runInBox, startExecBox, type ExecBox,
+  boxPatch, boxRequest, dockerCreateArgs, ExecBoxError, initBox, resolveExecMode, runInBox, startExecBox, type ExecBox,
 } from "../exec-box";
 
 function withEnv<T>(vars: Record<string, string | undefined>, fn: () => T): T {
@@ -18,7 +18,7 @@ function withEnv<T>(vars: Record<string, string | undefined>, fn: () => T): T {
 }
 
 test("docker box is unprivileged, loopback-only and carries no credentials", () => {
-  const args = withEnv({ GITHUB_TOKEN: "ghp_canary", ANTHROPIC_API_KEY: "sk-canary" }, () => dockerRunArgs("box1", "t".repeat(64), "/srv/exec-server.cjs"));
+  const args = withEnv({ GITHUB_TOKEN: "ghp_canary", ANTHROPIC_API_KEY: "sk-canary" }, () => dockerCreateArgs("box1", "t".repeat(64)));
   const joined = args.join(" ");
   for (const flag of ["--rm", "--cap-drop ALL", "--security-opt no-new-privileges", "--user node", "--pids-limit", "--memory", "--cpus"]) {
     assert.ok(joined.includes(flag), `missing ${flag}`);
@@ -26,13 +26,13 @@ test("docker box is unprivileged, loopback-only and carries no credentials", () 
   assert.ok(args.includes("127.0.0.1::7070"), "port must publish on loopback only");
   assert.ok(!joined.includes("canary"), "host credentials must never reach the box");
   const mounts = args.flatMap((a, i) => (args[i - 1] === "-v" ? [a] : []));
-  assert.deepEqual(mounts, ["/srv/exec-server.cjs:/opt/opensrcer/exec-server.cjs:ro"]);
+  assert.deepEqual(mounts, [], "nothing from the host is mounted; the server script is copied in");
   assert.ok(!args.includes("--privileged") && !args.includes("--network=host"));
   // A per-repository package cache is the only other mount, and only with a safe name.
-  const cached = dockerRunArgs("box1", "t".repeat(64), "/srv/exec-server.cjs", "opensrcer-cache-vllm-project_vllm");
+  const cached = dockerCreateArgs("box1", "t".repeat(64), "opensrcer-cache-vllm-project_vllm");
   assert.ok(cached.includes("opensrcer-cache-vllm-project_vllm:/home/node/.cache"));
-  const bad = dockerRunArgs("box1", "t".repeat(64), "/srv/exec-server.cjs", "/etc:/host");
-  assert.equal(bad.filter((a) => a === "-v").length, 1, "a malformed cache name never becomes a mount");
+  const bad = dockerCreateArgs("box1", "t".repeat(64), "/etc:/host");
+  assert.equal(bad.filter((a) => a === "-v").length, 0, "a malformed cache name never becomes a mount");
 });
 
 test("resolveExecMode honors explicit modes and rejects unknown ones", async () => {

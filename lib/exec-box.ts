@@ -77,9 +77,15 @@ function dockerEnv(): NodeJS.ProcessEnv {
   return childEnv({ DOCKER_HOST: process.env.DOCKER_HOST, DOCKER_CONTEXT: process.env.DOCKER_CONTEXT, DOCKER_CONFIG: process.env.DOCKER_CONFIG });
 }
 
-/** Docker run arguments for one box. Exported for tests: the isolation
- *  flags are the security property, so they are asserted, not assumed. */
-export function dockerRunArgs(name: string, token: string, script = EXEC_SERVER_SCRIPT, cacheVolume?: string, envVolume?: string): string[] {
+/** Where `docker cp` puts the server script inside a created box. /opt is
+ *  root-owned, so the box's `node` user cannot rewrite it. */
+const BOX_SCRIPT = "/opt/opensrcer-exec-server.cjs";
+
+/** Docker create arguments for one box. Exported for tests: the isolation
+ *  flags are the security property, so they are asserted, not assumed.
+ *  Nothing from the host is bind-mounted: the server script is copied in
+ *  (startExecBox), so a host drive Docker cannot share never breaks a run. */
+export function dockerCreateArgs(name: string, token: string, cacheVolume?: string, envVolume?: string): string[] {
   const limits = execLimits();
   // Package caches (uv, pip, yarn) survive between runs of the SAME repository
   // only: a repository's code can write into its cache, so sharing one cache
@@ -89,7 +95,7 @@ export function dockerRunArgs(name: string, token: string, script = EXEC_SERVER_
   const cache = cacheVolume && /^opensrcer-cache-[a-z0-9_.-]{1,180}$/.test(cacheVolume) ? ["-v", `${cacheVolume}:/home/node/.cache`] : [];
   const env = envVolume && /^opensrcer-env-[a-z0-9_.-]{1,180}$/.test(envVolume) ? ["-v", `${envVolume}:/home/node/env`] : [];
   return [
-    "run", "-d", "--rm", "--name", name,
+    "create", "--rm", "--name", name,
     "--init",
     "-p", `127.0.0.1::${BOX_PORT}`,
     "--memory", limits.memory, "--cpus", limits.cpus, "--pids-limit", "4096",
@@ -105,11 +111,10 @@ export function dockerRunArgs(name: string, token: string, script = EXEC_SERVER_
     "-e", `EXEC_OUTPUT_BYTES=${limits.outputBytes}`,
     "-e", `EXEC_MAX_LIFETIME_MS=${limits.maxLifetimeMs}`,
     "-e", `EXEC_SETUP_MS=${limits.setupMs}`,
-    "-v", `${script}:/opt/opensrcer/exec-server.cjs:ro`,
     ...cache,
     ...env,
     limits.image,
-    "node", "/opt/opensrcer/exec-server.cjs",
+    "node", BOX_SCRIPT,
   ];
 }
 
@@ -126,12 +131,20 @@ export async function startExecBox(mode: Exclude<ExecMode, "off">, dispatchId: s
   if (mode === "docker") {
     const name = `opensrcer-exec-${dispatchId.replace(/[^A-Za-z0-9_.-]/g, "-").slice(-40)}`;
     const env = dockerEnv();
+    const docker = (args: string[], timeout = 120_000) => execFileAsync("docker", args, { env, timeout, windowsHide: true });
     try {
       const cache = repoFull && process.env.OPENSRCER_EXEC_CACHE !== "0" ? `opensrcer-cache-${repoFull.toLowerCase().replace(/[^a-z0-9_.-]/g, "_")}` : undefined;
       const envVolume = repoFull && envKey ? `opensrcer-env-${repoFull.toLowerCase().replace(/[^a-z0-9_.-]/g, "_")}-${envKey}` : undefined;
-      await execFileAsync("docker", dockerRunArgs(name, token, EXEC_SERVER_SCRIPT, cache, envVolume), { env, timeout: 120_000, windowsHide: true });
+      await docker(dockerCreateArgs(name, token, cache, envVolume));
+      await docker(["cp", EXEC_SERVER_SCRIPT, `${name}:${BOX_SCRIPT}`], 60_000);
+      await docker(["start", name], 60_000);
     } catch (error) {
-      throw new ExecBoxError(`docker run failed: ${redactToken(error instanceof Error ? error.message : String(error), token)}`);
+      await docker(["rm", "-f", name], 60_000).catch(() => {});
+      // Docker's own stderr says why; the message is mostly the echoed command
+      // line, and callers truncate it, so the reason must come first.
+      const stderr = String((error as { stderr?: unknown })?.stderr ?? "").trim();
+      const reason = stderr || (error instanceof Error ? error.message : String(error));
+      throw new ExecBoxError(`docker run failed: ${redactToken(reason, token)}`);
     }
     let stopped = false;
     const stop = async () => {

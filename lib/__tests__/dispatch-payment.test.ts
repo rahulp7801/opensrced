@@ -33,7 +33,13 @@ test("a subscription run never bills a key unless the user opted in, and never s
     // The log is a write stream; wait for a line instead of racing its flush.
     const logHas = async (id: string, pattern: RegExp) => {
       for (let attempt = 0; attempt < 200; attempt++) {
-        if (pattern.test(readFileSync(join(".dispatches", `${id}.log`), "utf8"))) return;
+        // The write stream opens asynchronously: on a fast runner the first
+        // read can come before the file exists. That is "not yet", not a failure.
+        let text = "";
+        try { text = readFileSync(join(".dispatches", `${id}.log`), "utf8"); } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        }
+        if (pattern.test(text)) return;
         await new Promise((r) => setTimeout(r, 5));
       }
       assert.fail(`log never matched ${pattern}`);

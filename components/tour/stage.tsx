@@ -300,7 +300,7 @@ export function StageDemo() {
           never covers it, a quiet arrow when the presenter can move on. */}
       <div className="relative mt-3 flex h-11 shrink-0 items-center justify-center">
         {/* Where what's on screen comes from: quiet, outside the app, never over it. */}
-        {provenance && <p className="absolute left-0 max-w-[40%] truncate text-[13px] text-paper-muted">{provenance}</p>}
+        {provenance && <p className="absolute left-0 z-[70] max-w-[40%] truncate text-[13px] text-paper-muted">{provenance}</p>}
         <div aria-hidden className="flex items-center gap-2">
           {PHASES.map((p, i) => (
             <span key={p.name} className={cn("h-1.5 rounded-full transition-all duration-500", i === step.phase ? "w-8 bg-signal" : i < step.phase ? "w-1.5 bg-signal/50" : "w-1.5 bg-border")} />

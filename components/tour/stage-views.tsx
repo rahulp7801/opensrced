@@ -967,7 +967,7 @@ export const stageReview: Chapter = {
     { at: R.practice, spot: "practice", text: "Then two practice questions, the kind a maintainer would ask about this exact change. (Example questions and answers.)" },
     { at: R.publish, spot: "publish-steps", text: "Then exactly what publishing does, and your confirmation. Publish stays locked until all of that is done." },
     { at: R.publishAt, text: "Only then is it scanned for leaked secrets and opened, as a draft, in your name." },
-    { at: R.publish + 2500, spot: "glossary", text: "Every term a beginner trips on is explained on tap: fork, branch, draft PR." },
+    { at: R.publish + 2500, spot: "glossary", text: "Terms a beginner trips on are explained on tap: fork, branch, draft PR." },
     { at: PUBLISHED_AT + 600, spot: "next-steps", text: "And it coaches what happens next: don't chase people, answer every review comment." },
   ],
   View: StageReviewView,

@@ -230,7 +230,7 @@ export function TriggerForm() {
               "Starting run..."
             ) : (
               <>
-                <span className="text-signal">{claudeSignIn ? `Sign in with Claude & ${dryRun ? "preview" : "start"}` : dryRun ? "Generate preview" : "Start live run"}</span>
+                <span className="text-signal">{claudeSignIn ? `Sign in with Claude & ${dryRun ? "preview" : "start"}` : dryRun ? "Generate preview" : "Start publishable run"}</span>
                 <IconArrow size={14} className="text-signal transition-transform group-hover:translate-x-0.5" />
               </>
             )}

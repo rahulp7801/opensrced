@@ -15,30 +15,28 @@ import { ArrowRight, CaretLeft, CaretRight, CornersOut } from "@phosphor-icons/r
 import { cn } from "@/lib/utils";
 import { InteractContext, TimeContext, type Chapter, type Interact } from "./kit";
 import { pacedBy } from "./chapters";
-import { choose } from "./chapters-find";
-import { newRun, pr, review, run } from "./chapters-fix";
-import { reply, respond } from "./chapters-ship";
-import { stageCompare, stageExplore, stageNotes, stageRefused, stageScan, stageSlop, stageVerified, withFixChat, withPrFacts, withQuestionChat } from "./stage-views";
+import { pr, review } from "./chapters-fix";
+import { stageExplore, stageNotes, stageProblem, stagePromise, stageRefused, stageRules, stageScan, stageSlop, stageVerified, withPrFacts } from "./stage-views";
 
 /** How much slower than written the stage plays its animations. The presenter
  *  sets the pace between steps; this only stretches what plays by itself. */
 export const STAGE_PACE = 1.15;
 
-/** `by`: when the presenter should reach this phase, for a talk of about 11 minutes (shown in the notes). */
+/** `by`: when the presenter should reach this phase, for about 8:30 spoken (shown in the notes). */
 type Phase = { name: string; by: string; say: string; chapters: Chapter[] };
 
 // The tour's screens with the stage's speaker notes (and its versions of the review screens).
-const S = stageNotes({ choose, newRun, run, review, pr, respond, reply });
+const S = stageNotes({ review, pr });
 
 /** Clicks the tour's screens make that the stage makes by itself, to keep the talk to ~10 minutes. */
-const SKIP = new Set(["Copy diff", "Commit msg"]);
+const SKIP = new Set(["Copy diff", "Commit msg", "Ready (3)", "Build graph", "Review patch"]);
 
 /** The four phases, and the one line each one is about (shown in the notes). */
 const PHASES: Phase[] = [
-  { name: "Find", by: "0:00", say: "Responsible from the first step: only issues that are open to a newcomer, and the project's own signals respected. Claude Code assumes you've already done this.", chapters: [stageCompare, stageScan, S.choose] },
-  { name: "Understand", by: "2:15", say: "Understand before you change anything: a map of the code and plain-English answers about it, without cloning.", chapters: [stageExplore] },
-  { name: "Fix", by: "4:45", say: "The agent follows the project's rules, the tests prove the fix, and nothing goes out until you've read it and can explain it.", chapters: [S.run, stageVerified, S.review, stageRefused] },
-  { name: "Ship", by: "7:45", say: "A draft in your name that says AI helped, follows the project's process, and a chat that keeps you the one who understands the change.", chapters: [withPrFacts(S.pr), withFixChat(S.respond), withQuestionChat(S.reply), stageSlop] },
+  { name: "Why", by: "0:00", say: "The problem every maintainer here knows, and the promise: contributions a maintainer would actually want.", chapters: [stageProblem, stagePromise] },
+  { name: "Find", by: "1:05", say: "Pick an issue that's open to you, and understand the code before touching it.", chapters: [stageScan, stageExplore] },
+  { name: "Prove", by: "2:50", say: "It follows the project's rules, stops when they say no, and proves the fix with the project's own tests.", chapters: [stageRules, stageRefused, stageVerified] },
+  { name: "Ship", by: "5:20", say: "It explains every change, you confirm you understand it, a human publishes, and nothing is hidden.", chapters: [S.review, withPrFacts(S.pr), stageSlop] },
 ];
 
 const STEPS = PHASES.flatMap((phase, p) => phase.chapters.map((c) => ({ phase: p, chapter: pacedBy(c, STAGE_PACE) })));
@@ -261,6 +259,8 @@ export function StageDemo() {
   const noteSpot = step.chapter.captions.find((c) => c.at === currentAt && c.spot)?.spot;
   const spotOn = waiting?.kind === "press" ? "[data-waiting]" : noteSpot && !ended ? `[data-spot="${noteSpot}"]` : null;
 
+  const headline = started ? step.chapter.headlines?.filter((h) => h.at <= local).at(-1)?.text : undefined;
+
   const View = step.chapter.View;
   return (
     <div ref={rootRef} role="region" aria-label="opensrcer stage demo" className="fixed inset-0 z-50 flex flex-col bg-ink p-4 sm:p-6">
@@ -270,6 +270,9 @@ export function StageDemo() {
         <p className="text-[16px] leading-[1.5] text-paper-muted">On a phone, the product tour shows the same run, sized to fit.</p>
         <a href="/demo" className="btn-primary inline-flex min-h-11 items-center px-6 text-[16px]">Open the product tour</a>
       </div>
+      <p key={headline ?? ""} aria-live="polite" className="relative z-[70] mb-3 min-h-[1.2em] shrink-0 animate-fade-rise text-balance text-center text-[clamp(22px,3vw,46px)] font-semibold leading-tight tracking-[-0.02em] text-paper motion-reduce:animate-none">
+        {headline}
+      </p>
       <div ref={stageRef} className="relative flex min-h-0 flex-1 items-center justify-center">
         <div ref={canvasRef} style={{ width: DESIGN.width, height: DESIGN.height, zoom: scale }} className="relative shrink-0 overflow-hidden rounded-[26px] border border-border-soft bg-surface shadow-[0_2px_4px_rgb(0_0_0/0.03),0_40px_100px_-30px_rgb(0_0_0/0.22)]">
           <InteractContext.Provider value={interact}>
@@ -405,7 +408,7 @@ export function StageNotes() {
   const s = state ? STEPS[state.step] : null;
   const chapter = s?.chapter;
   const nextStep = state ? STEPS[state.step + 1] : undefined;
-  const nextUp = !state ? "" : !state.started ? "Begin: it opens on a first contribution by hand, next to opensrcer's three steps."
+  const nextUp = !state ? "" : !state.started ? "Begin: it opens on the problem every maintainer here knows."
     : state.ended ? "That's the end of the demo."
     : state.waiting?.kind === "press" ? `Click “${state.waiting.label}”`
     : state.waiting?.kind === "next" ? (nextStep ? `Next: ${nextStep.chapter.title}${nextStep.phase !== s!.phase ? ` (${PHASES[nextStep.phase].name} phase)` : ""}` : "End of the demo")

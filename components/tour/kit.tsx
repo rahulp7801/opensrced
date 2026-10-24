@@ -291,5 +291,7 @@ export type Chapter = {
   captions: Caption[];
   /** Shown on the stage: what is real and what is example data. */
   source: string;
+  /** On the stage only: the plain-language headline above the app, each from its `at`. */
+  headlines?: Caption[];
   View: () => ReactNode;
 };

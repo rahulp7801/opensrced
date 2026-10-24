@@ -13,10 +13,9 @@
 import { ArrowUp, Sparkle } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { StatusChip } from "@/components/status-dot";
-import { AppWindow, LogLine, Pips, Press, Reveal, SCOPE_LABEL, SCOPE_TONE, SEVERITY_TONE, TimeContext, Typed, progress, useFollow, useT, type Caption, type Chapter } from "./kit";
+import { AppWindow, Pips, Press, Reveal, SCOPE_LABEL, SCOPE_TONE, SEVERITY_TONE, Typed, progress, useFollow, useT, type Caption, type Chapter } from "./kit";
 import { CodeGraph, LIGHTS } from "./graph";
-import { REVIEW_PUBLISHED_AT } from "./chapters-fix";
-import { REPLY_SENT_AT } from "./chapters-ship";
+import { REVIEW_CONFIRM_AT, REVIEW_PUBLISH_AT, REVIEW_PUBLISHED_AT } from "./chapters-fix";
 import { DEMO_REPO, RUN } from "./data";
 
 
@@ -118,6 +117,7 @@ export const stageScan: Chapter = {
   title: "Only issues that are open to you",
   duration: SHOW_READY_AT + 3000,
   source: "Example scan; the verdicts are the scanner's own",
+  headlines: [{ at: 0, text: "It only picks issues that are open to you." }],
   captions: [
     { at: 0, text: "This is where beginners get stuck, and where Claude Code can't help: Claude Code starts once you already have an issue. Here, a repository's newest open issues are read and vetted for you." },
     { at: SHOW_ALL_AT, text: "Show everything it found, including what it filtered out, and why." },
@@ -218,12 +218,7 @@ function AskPanel({ turns, text = GRAPH_PANEL }: { turns: TimedTurn[]; text?: Pa
 }
 
 const BUILT_AT = 3600;
-const FIRST = schedule(BUILT_AT + 800, [
-  {
-    prompt: "What does this repository do?",
-    answer: "It's a small text-utilities library. Four helpers (slugify, truncate, parseDuration and splitCsvLine) each live in their own file under src/, are re-exported from src/index.ts, and are tested together in test/text.test.ts.",
-    cites: ["src/index.ts", "test/text.test.ts"], cost: "$0.0021",
-  },
+const FIRST = schedule(BUILT_AT + 1600, [
   {
     prompt: "Where is truncate used, and what breaks if I change it?",
     answer: "truncate is defined in src/truncate.ts. Inside the repository it's only re-exported by src/index.ts and called by one test, so a change reaches the public API and that test, nothing else.",
@@ -232,16 +227,7 @@ const FIRST = schedule(BUILT_AT + 800, [
 ]);
 // Then the presenter clicks truncate() on the graph to see the same thing on the map.
 const SELECT_AT = FIRST.end + 600;
-// The graph knows the files, symbols and calls (not function bodies), so every
-// question here is one it can answer from that.
-const LAST = schedule(SELECT_AT + 2400, [
-  {
-    prompt: "What do the tests cover, and where would a test for this bug go?",
-    answer: "test/text.test.ts has one test for each helper: slugify, truncate, parseDuration and splitCsvLine. A test for this truncate bug belongs next to the existing truncate test in that file.",
-    cites: ["test/text.test.ts", "src/truncate.ts"], cost: "$0.0024",
-  },
-]);
-const TURNS = [...FIRST.turns, ...LAST.turns];
+const TURNS = FIRST.turns;
 
 // truncate() on the graph, as a share of its 600x400 viewBox, for the click target.
 const TRUNCATE_NODE = { left: `${(512 / 600) * 100}%`, top: `${(182 / 400) * 100}%` };
@@ -289,130 +275,51 @@ export const stageExplore: Chapter = {
   act: "Find",
   label: "Explore the code",
   title: "Ask the code in plain English",
-  duration: LAST.end,
+  duration: SELECT_AT + 3500,
   source: "Example session on the real demo repository",
+  headlines: [
+    { at: 0, text: "Understand the code before you change it." },
+    { at: FIRST.turns[0].typeAt, text: "Ask about it in plain English." },
+  ],
   captions: [
-    { at: 0, text: "An unfamiliar repository is the next wall a beginner hits. With Claude Code you'd clone it, install it and start reading. Here nothing is cloned or installed: Explore builds a map of it, parsed straight from the source, no AI involved." },
-    { at: BUILT_AT, text: "Then ask about it in plain English, still without having cloned anything. No grep, no knowing where to look, and every answer shows what it cost." },
-    { at: FIRST.turns[0].typeAt, spot: "ask", text: `The big picture first: “${FIRST.turns[0].prompt}” The answer comes from the repository's code map: it points to the files involved, says when the map can't answer, and shows what it cost.` },
-    { at: FIRST.turns[1].typeAt, spot: "ask", text: `The question you'd normally answer by grepping around: “${FIRST.turns[1].prompt}”` },
-    { at: SELECT_AT, spot: "graph", text: "Same thing on the map: click truncate() and its connections stand out. One file, its options type, and one test." },
-    { at: LAST.turns[0].typeAt, spot: "ask", text: `And where your change would be tested: “${LAST.turns[0].prompt}” You know the shape of the fix before an agent writes a line.` },
+    { at: 0, text: "Before changing anything, understand the code. Explore maps the repository straight from the source: no AI, nothing cloned, nothing installed." },
+    { at: BUILT_AT, spot: "graph", text: "Files, functions, and the calls between them. (For the curious: it's parsed with tree-sitter.)" },
+    { at: FIRST.turns[0].typeAt, spot: "ask", text: `Then ask the question you'd normally grep for: “${FIRST.turns[0].prompt}” The answer comes from the map and points to the files involved.` },
+    { at: SELECT_AT, spot: "graph", text: "Same thing on the map: click truncate() and its connections light up. One file, its options type, one test. You know the shape of the fix before an agent writes a line." },
   ],
   View: StageExploreView,
 };
 
-// ── Speaker notes for the tour's own screens ────────────────────────────────
+// ── Speaker notes and headlines for the tour's review and pull request ──────
 
-/** Notes for the stage on top of the tour's narration: what sets opensrcer apart
- *  for someone new to open source, and why a maintainer can trust what it sends. */
-export function stageNotes(base: { choose: Chapter; newRun: Chapter; run: Chapter; review: Chapter; pr: Chapter; respond: Chapter; reply: Chapter }) {
-  // The review screens with the stage's own notes in place of the tour's narration.
-  const ship = (chapter: Chapter, captions: Caption[]): Chapter => ({ ...chapter, captions });
+/** A chapter with the stage's own notes in place of the tour's narration, and its headlines. */
+function staged(chapter: Chapter, headlines: Caption[], captions: Caption[]): Chapter {
+  return { ...chapter, headlines, captions };
+}
+
+/** The review and the pull request as the stage tells them. */
+export function stageNotes(base: { review: Chapter; pr: Chapter }) {
   return {
-    choose: withNotes(base.choose, [
-      { at: 0, text: "Pick one that's ready. Everything happens in the browser: nothing to install, nothing to clone, no terminal, no build tools." },
-      { at: 7600, text: "Preview is the default; opening a pull request is opt-in. Nothing reaches the project until you decide it should." },
-    ]),
-    newRun: withNotes(base.newRun, [
-      { at: 0, text: "Paste the issue link. Notes steer the agent: keep the public API, add tests." },
-    ]),
-    run: withNotes(base.run, [
-      { at: 0, spot: "log-guardrails", text: "One click on the issue started this run; there was nothing to set up. The agent works in a throwaway machine, so a hostile repository can never touch your laptop. There's a hard spend cap, a timeout, and one run at a time per account." },
-      { at: 4000, spot: "log-tools", text: "It reads before it writes: it looks for the contribution guide and PR template, then the code, the tests and every caller." },
-      { at: 9000, spot: "log-conventions", text: "And it writes down the project's rules before any code. This repo has no contribution guide, so it matches what the code already does: commit style, docs, how tests run. A maintainer gets a patch that looks like their project, kept minimal, and it stops and says so rather than guess." },
-      { at: 20000, spot: "log-preview", text: "And it's honest. This run is from before tests ran on the hosted site, so the log says verification: not run. Nothing has been published; you review it first." },
-    ]),
-    review: withNotes({ ...base.review, captions: base.review.captions.filter((c) => !c.text.startsWith("Copy the diff")) }, [
+    review: staged(base.review, [
+      { at: 0, text: "It explains every change in plain English." },
+      { at: REVIEW_CONFIRM_AT - 1500, text: "You confirm you understand it." },
+      { at: REVIEW_PUBLISH_AT, text: "A human publishes. Nothing is hidden." },
+    ], [
+      { at: 0, text: "It explains every change: what was wrong, what changed and why, and what to double-check, in plain words." },
+      { at: 7600, spot: "review-diff", text: "Then the patch itself: the one broken line out, a small commented fix in, and new tests." },
       { at: 13800, spot: "ask-first", text: "Not sure the maintainers even want this? It drafts a short comment for you to post on the issue first. It never posts anything for you." },
-      { at: 18000, text: "Why the confirm box: maintainers review people, not tools. If you can't explain a change, you shouldn't send it." },
-      { at: 0, text: "This is where the maintainers' worry about AI pull requests is answered. Nothing is published until you've read the patch and confirmed you can explain it to reviewers." },
-      { at: REVIEW_PUBLISHED_AT + 4500, spot: "next-steps", text: "It's a draft that can't be merged until you mark it ready. And it refuses to publish at all if someone else already has a pull request open on the issue, or if the project bans AI contributions." },
+      { at: 15000, spot: "publish-steps", text: "Before you confirm, it says exactly what publishing does: one commit on a new branch, a draft pull request that says an AI tool helped, nothing merged." },
+      { at: REVIEW_CONFIRM_AT - 600, text: "And you confirm you've read it and can explain it to reviewers. Maintainers review people, not tools: if you can't explain a change, you shouldn't send it." },
+      { at: REVIEW_PUBLISH_AT, text: "Only then is it scanned for leaked secrets and opened, as a draft, in your name." },
+      { at: REVIEW_PUBLISHED_AT + 600, spot: "next-steps", text: "And it tells you what happens next, etiquette included: mark it ready, give it time, don't chase people, answer every review comment." },
     ]),
-    pr: withNotes(base.pr, [
-      { at: 0, spot: "pr-facts", text: "Every GitHub step a beginner gets wrong is handled: it forks, branches, and commits under your private noreply email. It picks the base branch from where past PRs were actually merged, falling back to the default branch." },
-      { at: 5000, text: "The pull request is always a draft, you are its author, and its description closes the issue. It refuses closed issues and won't open a second PR for the same one. @mentions are disabled, so its text can't ping strangers." },
-      { at: 6200, spot: "pr-body", text: "And it discloses itself: an AI assistance section says who asked, which model, and exactly what was or wasn't tested. On projects that require a sign-off on every commit, it adds yours." },
-    ]),
-    respond: ship(base.respond, [
-      { at: 0, text: "When a maintainer comments, it comes back to one inbox, with the file and line." },
-      { at: 5600, text: "Ask for a quick fix. The agent reads the file and its callers and proposes the smallest change that answers the comment." },
-      { at: 9800, spot: "verify-checks", text: "Before you push, the change is checked for size, secrets, syntax, and whether it touches the file the reviewer meant. It says plainly that tests weren't run." },
-      { at: 15400, text: "You review the diff and push it to the same branch yourself. The comment is marked fixed." },
-    ]),
-    reply: ship(base.reply, [
-      { at: 0, text: "Not every comment needs code. For a question, it can draft an answer." },
-      { at: 5600, text: "It's a draft. You edit it, you send it: you stay the one talking to the maintainer." },
-      { at: REPLY_SENT_AT + 200, spot: "reply-note", text: "And the posted reply says so itself: drafted with AI assistance, reviewed and posted by you. Maintainers always know." },
-      { at: REPLY_SENT_AT + 3000, text: "Built so maintainers can trust it: a person is the author, it steers you to issues that are open to contribution, reads each project's contribution guide, and stays small and draft-first." },
-      { at: REPLY_SENT_AT + 4500, text: "And it proves its fixes: the project's own tests run in a machine that holds none of your keys, and the pull request shows the exact commands and that the new test fails without the fix. On a real React bug, its fix matched the one the maintainers merged." },
-      { at: REPLY_SENT_AT + 6000, text: "On your own machine it can run on your own Claude or ChatGPT subscription, so no API bill. Signing in with a subscription on the hosted site is coming; it isn't shipped yet." },
+    pr: staged(base.pr, [{ at: 0, text: "The maintainer always knows AI helped." }], [
+      { at: 0, spot: "pr-facts", text: "Every GitHub step done right: its own branch, commits under your private noreply email, the base branch past PRs were merged into, and a description that closes the issue." },
+      { at: 6200, spot: "pr-body", text: "And it discloses itself: an AI assistance section says who asked, which model, and what was and wasn't tested. Commits carry an Assisted-by trailer, and a sign-off where the project asks for one." },
+      { at: 9000, text: "It stays a draft until you mark it ready. The maintainer always knows." },
     ]),
   };
 }
-
-// ── Opening: the same contribution, by hand and with opensrcer ──────────────
-
-// What a first contribution asks of you with a coding agent alone, and with opensrcer.
-const BY_HAND = [
-  "Find an issue nobody else is working on",
-  "Check it isn't already fixed in a pull request",
-  "Read CONTRIBUTING and the PR template",
-  "Install the tools, clone, install dependencies",
-  "Fork, add a remote, create a branch",
-  "Fix it",
-  "Commit with the right name and email",
-  "Push and open a pull request",
-  "Write a description that closes the issue",
-];
-const GUIDED = ["Pick an issue that's ready", "Review the patch", "Publish a draft pull request"];
-const GUIDED_AT = 600 + BY_HAND.length * 450 + 700;
-
-function CompareView() {
-  return (
-    <div className="grid h-full grid-cols-[1.25fr_1fr] gap-6 bg-ink p-10">
-      <Reveal at={150} className="flex flex-col rounded-[24px] border border-border-soft bg-surface p-7">
-        <p className="text-[13px] font-semibold uppercase tracking-[0.08em] text-paper-muted">Contributing with Claude Code</p>
-        <ol className="mt-4 space-y-2.5">
-          {BY_HAND.map((step, i) => (
-            <Reveal as="li" key={step} at={600 + i * 450} className="flex items-baseline gap-3 text-[17px] text-paper-dim">
-              <span className="w-5 shrink-0 text-right font-mono text-[13px] text-paper-faint">{i + 1}</span>
-              <span data-spot={step === "Fix it" ? "compare-fix" : undefined}>{step}{step === "Fix it" && <span className="ml-2 rounded-full bg-surface-3 px-2 py-0.5 text-[12px] text-paper-muted">Claude Code helps here</span>}</span>
-            </Reveal>
-          ))}
-        </ol>
-      </Reveal>
-      <Reveal at={GUIDED_AT} spot="compare-guided" className="flex flex-col justify-center rounded-[24px] bg-signal p-8 text-white shadow-[0_30px_80px_-30px_rgb(0_86_173/0.6)]">
-        <p className="text-[13px] font-semibold uppercase tracking-[0.08em] text-white/75">With opensrcer</p>
-        <ol className="mt-5 space-y-5">
-          {GUIDED.map((step, i) => (
-            <Reveal as="li" key={step} at={GUIDED_AT + 400 + i * 600} className="flex items-center gap-4 text-[26px] font-semibold leading-tight tracking-[-0.02em]">
-              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-white/15 font-mono text-[16px]">{i + 1}</span>{step}
-            </Reveal>
-          ))}
-        </ol>
-        <Reveal at={GUIDED_AT + 400 + GUIDED.length * 600 + 300}>
-          <p className="mt-8 border-t border-white/20 pt-5 text-[17px] leading-snug text-white/80">Every run stops for your review. Nothing posts until you confirm.</p>
-        </Reveal>
-      </Reveal>
-    </div>
-  );
-}
-
-export const stageCompare: Chapter = {
-  id: "compare",
-  act: "Start",
-  label: "By hand, or guided",
-  title: "Your first contribution, two ways",
-  duration: GUIDED_AT + 400 + GUIDED.length * 600 + 1500,
-  source: "What a first contribution asks of you",
-  captions: [
-    { at: 0, text: "Maintainers' biggest worry about AI tools: people vibe-coding fixes that ignore the project's rules. Claude Code is a great power tool for people who already know those rules. Here's what a first contribution actually asks of you." },
-    { at: 600 + 5 * 450, spot: "compare-fix", text: "Only one of these nine steps is writing the fix. The rest is the project's rules and etiquette, exactly what a coding agent on its own skips, and where beginners get it wrong." },
-    { at: GUIDED_AT, spot: "compare-guided", text: "opensrcer is the responsible path: it follows each project's rules for you, checks them, and makes sure you understand the change before anything is sent. Pick an issue that's ready, review the patch, publish a draft. Let me show you." },
-  ],
-  View: CompareView,
-};
 
 // ── Ship: what it did on GitHub, as the real pull request shows it ──────────
 
@@ -455,87 +362,6 @@ export function withPrFacts(chapter: Chapter): Chapter {
   return { ...chapter, View };
 }
 
-// ── Ship: "ask about this change", the PR page's chat ───────────────────────
-
-// The PR page's chat (app/prs/[owner]/[repo]/[number]/page.tsx): once a fix is
-// generated, "ask about this change" opens it, and Claude answers with the fix as
-// context (via /api/prs/draft-reply). It stays open on the page, so it's there for
-// the next comment too. The conversation here is an example.
-const CHANGE_PANEL: PanelText = {
-  title: "Ask about this change",
-  subtitle: "Ask Claude to explain the reasoning, potential risks, or alternatives",
-  intro: "Ask anything about the generated fix: why it chose this approach, what could go wrong, alternative approaches, etc.",
-  placeholder: "Ask about this change…",
-};
-const FIX_QUESTIONS: Turn[] = [
-  {
-    prompt: "Explain this follow-up change in plain English.",
-    answer: "Before, it only trimmed spaces from the end of the cut text before adding the ellipsis. Now it also trims a trailing comma, semicolon or colon, so “The quick, brown” cut at 11 becomes “The quick…” instead of “The quick,…”. It's one line, line 24 of src/truncate.ts.",
-    cites: [],
-  },
-  {
-    prompt: "Could this break anything?",
-    answer: "Only results that end in one of those marks right at the cut change, and they get a character shorter. A trailing period or other punctuation is kept. The change adds no test and the project's tests weren't run, so say that in your reply.",
-    cites: [],
-  },
-];
-const SEGMENTER_QUESTION: Turn[] = [
-  {
-    prompt: "The reviewer asked why I didn't use Intl.Segmenter for the word boundary. What is it, and is my fix wrong without it?",
-    answer: "Intl.Segmenter is built into JavaScript and splits text into words using each language's rules, so it works for languages like Japanese or Thai that don't put spaces between words. Your fix finds word boundaries at spaces, as the function already did, so it isn't wrong for text with spaces; text without them is cut the same way as before. Switching to Intl.Segmenter is a bigger change, which fits better as a follow-up.",
-    cites: [],
-  },
-];
-
-/** A PR-page chapter with the chat open beside it. At pauseAt the page holds
- *  while the questions are asked and answered, then carries on where it was. */
-function withChangeChat(chapter: Chapter, o: { openAt: number; pauseAt: number; turns: Turn[]; before?: Turn[]; notes: Caption[] }): Chapter {
-  const asked = schedule(o.pauseAt + 500, o.turns);
-  const hold = asked.end - o.pauseAt;
-  // Earlier questions on the same page, already answered.
-  const before: TimedTurn[] = (o.before ?? []).map((turn) => ({ ...turn, typeAt: -1, askAt: -1, answerAt: -1, doneAt: -1 }));
-  const Inner = chapter.View;
-  function View() {
-    const t = useT();
-    const page = t < o.pauseAt ? t : t < o.pauseAt + hold ? o.pauseAt : t - hold;
-    return (
-      <div className="relative h-full [&_[data-chat-room]]:pr-[468px]">
-        <TimeContext.Provider value={page}><Inner /></TimeContext.Provider>
-        <Reveal at={o.openAt} spot="chat" className="absolute bottom-3 right-3 top-[112px] z-10 w-[450px] shadow-[0_20px_50px_-20px_rgb(0_0_0/0.3)]">
-          <AskPanel turns={[...before, ...asked.turns]} text={CHANGE_PANEL} />
-        </Reveal>
-      </div>
-    );
-  }
-  const shifted = chapter.captions.map((c) => (c.at >= o.pauseAt ? { ...c, at: c.at + hold } : c));
-  return { ...chapter, duration: chapter.duration + hold, captions: [...shifted, ...o.notes].sort((a, b) => a.at - b.at), View };
-}
-
-/** Fix a comment: ask about the fix before pushing it. */
-export function withFixChat(chapter: Chapter): Chapter {
-  const pauseAt = 13000;
-  const timed = schedule(pauseAt + 500, FIX_QUESTIONS).turns;
-  return withChangeChat(chapter, {
-    openAt: 3400, pauseAt, turns: FIX_QUESTIONS,
-    notes: [
-      { at: timed[0].typeAt, spot: "chat", text: "This is the point: it explains, it doesn't take over. Before you push anything, ask about the change in plain English, so you can explain it to the maintainer yourself." },
-      { at: timed[1].typeAt, spot: "chat", text: "And what could go wrong. The answer is honest that nothing was tested." },
-    ],
-  });
-}
-
-/** Answer a question: understand it before drafting a reply. */
-export function withQuestionChat(chapter: Chapter): Chapter {
-  const pauseAt = 2000;
-  const timed = schedule(pauseAt + 500, SEGMENTER_QUESTION).turns;
-  return withChangeChat(chapter, {
-    openAt: 0, pauseAt, turns: SEGMENTER_QUESTION, before: FIX_QUESTIONS,
-    notes: [
-      { at: timed[0].typeAt, spot: "chat", text: "A beginner may not even understand the question. Ask first, in plain English, then answer the maintainer as someone who knows what they're talking about." },
-    ],
-  });
-}
-
 // ── Fix: when it says no ────────────────────────────────────────────────────
 
 // The run page's review panel when a blocker applies (components/publish-panel.tsx):
@@ -574,6 +400,7 @@ export const stageRefused: Chapter = {
   title: "When it says no",
   duration: 3000,
   source: "Example: a fictional project whose guide bans AI",
+  headlines: [{ at: 0, text: "And when the rules say no, it stops." }],
   captions: [
     { at: 0, spot: "refusal", text: "And it says no. This project's contribution guide bans AI-written pull requests, so publishing is refused, quoting the guide. There's no confirm box and no Publish button; the preview is still yours to learn from. Same when someone else already has a pull request open on the issue. A project's rules are enforced, not left to the contributor to notice." },
   ],
@@ -616,8 +443,9 @@ export const stageSlop: Chapter = {
   title: "Why this isn't AI slop",
   duration: 700 + SLOP.length * SLOP_STEP + 1500,
   source: "What opensrcer does today",
+  headlines: [{ at: 0, text: "Not more pull requests. Better ones." }],
   captions: [
-    { at: 0, text: "The fair worry about a tool like this is AI slop: pull requests nobody asked for, from people who can't explain them. So here's what slop is made of, and what opensrcer does about each." },
+    { at: 0, text: "Back to where we started. Here's what slop is made of, and what opensrcer does about each, all of it in the product today." },
     { at: 700 + 2 * SLOP_STEP, text: "The heart of it: you can't publish what you can't explain, and the chat is there so you can." },
     { at: 700 + 5 * SLOP_STEP, text: "It's built to make better contributors, not more pull requests. Thank you." },
   ],
@@ -626,49 +454,51 @@ export const stageSlop: Chapter = {
 
 // ── Fix: a verified run, now that tests run on the hosted site ──────────────
 
-// Verbatim from a real hosted run (rahulp7801/opensrcer-demo #3, a dry run, 2026-10-24),
-// after hosted test runs shipped (OPENSRCER_HOSTED_EXEC=1). Its spend line and
-// guardrails line are left out (that run used a test cap).
-const VERIFIED_LOG = [
-  "[exec] mode=remote (exec VM provided by the web app)",
-  "[exec] box remote up, 0ab7ea99bc22 loaded as baseline 41db2904dcf2 in 0s",
-  "[setup] no environment recipe for this repository; the agent installs what it needs",
-  "[agentic-dispatcher] mcp: opensrcer-repo-tools=connected tools=12 model=claude-sonnet-5",
-  "[exec] final patch = git diff of the workspace (1551 bytes)",
-  "[verify] re-running 1 test and 0 lint command(s) on the final patch",
-  "[verify] ─────────────────────────────",
-  "[verify] status=verified regression=reproduced",
-  "[verify] reason=declared tests pass, and fail with the source change reverted",
-  "[verify] test: npm test",
-  "[verify]   exit=0 · 0.3s",
-  "[verify] fail-before: (source change reverted) npm test",
-  "[verify]   exit=1 · 0.2s",
-  "[verify] ─────────────────────────────",
-  "[preview] ready for review: \"Fix parseDuration to sum compound durations like \"1h30m\"\" (2 file(s), sign-off=false, verification=verified)",
-  "[preview] nothing has been published; review the patch and evidence, then use Publish on the run page",
+// A real hosted run (rahulp7801/opensrcer-demo #3, a preview, 2026-10-24), in plain words.
+// Its log, for questions: "[verify] re-running 1 test and 0 lint command(s) on the final patch",
+// "status=verified regression=reproduced", "test: npm test exit=0 · 0.3s",
+// "fail-before: (source change reverted) npm test exit=1 · 0.2s".
+const PROOF = [
+  { at: 600, text: "Started a separate test machine with no passwords or keys. It can only reach package registries and GitHub." },
+  { at: 2200, text: "Installed what the project needs." },
+  { at: 3800, text: "Ran the project's own tests on the fix: they pass.", verify: true },
+  { at: 5800, text: "Undid the fix and ran them again: they fail. So the new test really catches the bug.", verify: true },
+  { at: 8000, text: "Ready for your review. Nothing has been published." },
 ];
-const LINE_MS = 450;
-const VERIFY_AT = 600 + 5 * LINE_MS; // when the [verify] block starts
+const VERIFY_AT = 3800;
+const PROOF_DONE_AT = 8000;
 
 function VerifiedView() {
   const t = useT();
-  const shown = VERIFIED_LOG.filter((_l, i) => t >= 600 + i * LINE_MS);
-  const verified = shown.length === VERIFIED_LOG.length;
+  const verified = t >= PROOF_DONE_AT;
   return (
     <AppWindow path="/dispatches" section="Fix" tab="Runs">
-      <div className="flex h-full flex-col gap-3 p-4">
-        <div className="flex items-start justify-between gap-3 rounded-2xl border border-border-soft bg-surface px-4 py-3">
+      <div className="flex h-full flex-col gap-4 p-5">
+        <div className="flex items-start justify-between gap-3 rounded-2xl border border-border-soft bg-surface px-5 py-4">
           <div className="min-w-0">
-            <p className="truncate text-[12px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[11px] text-info">#3</span> · dry run</p>
-            <p className="mt-0.5 truncate text-[15px] font-medium text-paper">parseDuration returns NaN for compound durations like &quot;1h30m&quot;</p>
+            <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[11px] text-info">#3</span> · preview</p>
+            <p className="mt-0.5 truncate text-[18px] font-medium text-paper">parseDuration returns NaN for compound durations like &quot;1h30m&quot;</p>
           </div>
-          {verified ? <StatusChip tone="ok">verified</StatusChip> : <StatusChip tone="signal">live</StatusChip>}
+          {verified ? <StatusChip tone="ok">verified</StatusChip> : <StatusChip tone="signal">testing</StatusChip>}
         </div>
-        <div className="term min-h-0 flex-1 overflow-hidden rounded-2xl px-4 py-3 font-mono text-[12.5px] leading-[1.6]">
-          {shown.map((l) => <LogLine key={l} text={l} spot={l.startsWith("[verify]") ? "verify" : undefined} />)}
-        </div>
+        <ol className="space-y-3">
+          {PROOF.filter((p) => !p.verify).slice(0, 2).map((p) => <ProofStep key={p.text} {...p} />)}
+          <li data-spot="verify" className="space-y-3">
+            {PROOF.filter((p) => p.verify).map((p) => <ProofStep key={p.text} {...p} />)}
+          </li>
+          <ProofStep {...PROOF[PROOF.length - 1]} />
+        </ol>
       </div>
     </AppWindow>
+  );
+}
+
+function ProofStep({ at, text }: { at: number; text: string }) {
+  return (
+    <Reveal at={at} className="flex items-start gap-3 rounded-xl border border-border-soft bg-surface px-4 py-3 text-[17px] leading-snug text-paper">
+      <span aria-hidden className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-ok/15 text-[13px] font-semibold text-ok">✓</span>
+      <span>{text}</span>
+    </Reveal>
   );
 }
 
@@ -677,12 +507,166 @@ export const stageVerified: Chapter = {
   act: "Fix",
   label: "Tests, verified",
   title: "Tests that prove the fix",
-  duration: 600 + VERIFIED_LOG.length * LINE_MS + 1500,
-  source: "Real hosted run on opensrcer-demo #3 (dry run)",
+  duration: PROOF_DONE_AT + 2500,
+  source: "Real hosted run on opensrcer-demo #3 (preview)",
+  headlines: [{ at: 0, text: "It proves the fix works, in a locked box." }],
   captions: [
-    { at: 0, text: "Here's a run from now that tests run on the hosted site, on another issue. The agent edits the code and runs the project's tests in a second machine that holds no credentials." },
-    { at: VERIFY_AT, spot: "verify", text: "Then opensrcer re-runs the tests itself on the final patch. When the fix comes with a new test, it puts the old code back to check that test fails without the fix. This run did: regression reproduced." },
-    { at: VERIFY_AT + 9 * LINE_MS, spot: "verify", text: "And when a project has no test it can run, it says unverified instead of pretending. Maintainers get evidence, not promises." },
+    { at: 0, text: "The centerpiece: it proves the fix works before you ever see it. This is a real run on the hosted site, on another issue." },
+    { at: 600, text: "The tests run in a second machine with no passwords or keys, that can only reach package registries and GitHub. Whatever the repository's code does, it can't touch anything of yours." },
+    { at: VERIFY_AT, spot: "verify", text: "It runs the project's own declared tests on the final patch: they pass. Then it undoes the fix and runs them again: they fail. So the new test really catches the bug; it isn't decorative." },
+    { at: VERIFY_AT + 2600, spot: "verify", text: "For maintainers who ask: it re-ran npm test on the final patch, exit 0; with the source change reverted, exit 1. Status verified, regression reproduced. With no runnable test it says unverified instead, and CI on the pull request is still the project's own." },
   ],
   View: VerifiedView,
+};
+
+// ── The problem: what maintainers are drowning in ───────────────────────────
+
+// An ILLUSTRATION (labeled on screen), not real pull requests.
+const SLOP_PRS: Array<{ title: string; size: string; flags: string[] }> = [
+  { title: "Rewrite the entire parser for performance", size: "+4,812 −3,907", flags: ["No tests", "Ignores CONTRIBUTING.md"] },
+  { title: "Fix #482", size: "+36 −2", flags: ["Issue was already taken", "Skips the PR template"] },
+  { title: "Update dependencies, fix typos, refactor utils", size: "+1,203 −998", flags: ["Unrelated changes", "Can't answer review questions"] },
+  { title: "Add caching layer", size: "+2,640 −12", flags: ["Nobody asked for it", "Tests not run"] },
+];
+
+function ProblemView() {
+  return (
+    <div className="flex h-full flex-col justify-center bg-ink px-14 py-10">
+      <div className="relative rounded-[22px] border border-border-soft bg-surface">
+        <p className="absolute right-5 top-4 text-[12px] font-medium uppercase tracking-[0.08em] text-paper-faint">Illustration</p>
+        <p className="border-b border-border-soft px-6 py-4 text-[16px] font-semibold text-paper">Pull requests <span className="ml-2 font-normal text-paper-muted">214 open</span></p>
+        <ul className="divide-y divide-border-soft">
+          {SLOP_PRS.map((pr, i) => (
+            <Reveal as="li" key={pr.title} at={400 + i * 700} className="flex items-center justify-between gap-6 px-6 py-4">
+              <div className="min-w-0">
+                <p className="truncate text-[18px] font-medium text-paper">{pr.title}</p>
+                <p className="mt-1.5 flex flex-wrap gap-2">
+                  {pr.flags.map((f) => <span key={f} className="rounded-full bg-alert/10 px-2.5 py-0.5 text-[13px] font-medium text-alert">{f}</span>)}
+                </p>
+              </div>
+              <span className="shrink-0 font-mono text-[14px] text-paper-muted">{pr.size}</span>
+            </Reveal>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+export const stageProblem: Chapter = {
+  id: "problem",
+  act: "Start",
+  label: "The problem",
+  title: "What maintainers are drowning in",
+  duration: 400 + SLOP_PRS.length * 700 + 1500,
+  source: "An illustration of AI pull requests maintainers describe",
+  headlines: [{ at: 0, text: "Maintainers are drowning in AI pull requests nobody understood." }],
+  captions: [
+    { at: 0, text: "Start with the worry in this room. AI tools made it easy to open a pull request, and maintainers are drowning in them: huge diffs, no tests, the project's rules ignored, opened by people who can't answer a single review question." },
+    { at: 400 + 2 * 700, text: "These are illustrations, but every maintainer here has seen them. The problem isn't AI. It's contributions nobody understood, tested, or checked against the project's rules." },
+  ],
+  View: ProblemView,
+};
+
+// ── The promise ──────────────────────────────────────────────────────────────
+
+const PILLARS: Array<[string, string]> = [
+  ["Tested", "It runs the project's own tests, and proves the new test catches the bug."],
+  ["Explained", "Every change in plain English, and you confirm you understand it."],
+  ["Follows the rules", "It reads each project's contribution rules and respects them."],
+];
+
+function PromiseView() {
+  return (
+    <div className="flex h-full flex-col justify-center bg-ink px-14 py-10">
+      <div className="grid grid-cols-3 gap-6">
+        {PILLARS.map(([title, text], i) => (
+          <Reveal key={title} at={300 + i * 600} className="rounded-[24px] bg-signal p-7 text-white shadow-[0_30px_80px_-30px_rgb(0_86_173/0.6)]">
+            <p className="text-[32px] font-semibold leading-tight tracking-[-0.02em]">{title}</p>
+            <p className="mt-3 text-[18px] leading-snug text-white/85">{text}</p>
+          </Reveal>
+        ))}
+      </div>
+      <Reveal at={300 + PILLARS.length * 600 + 300}>
+        <p className="mt-8 text-center text-[19px] text-paper-muted">Every run stops for your review. Nothing posts until you confirm.</p>
+      </Reveal>
+    </div>
+  );
+}
+
+export const stagePromise: Chapter = {
+  id: "promise",
+  act: "Start",
+  label: "The promise",
+  title: "Contributions a maintainer would want",
+  duration: 300 + PILLARS.length * 600 + 2000,
+  source: "What opensrcer is for",
+  headlines: [{ at: 0, text: "A contribution a maintainer would actually want." }],
+  captions: [
+    { at: 0, text: "opensrcer helps a beginner make the contribution a maintainer would actually want: tested, explained, and following the project's rules." },
+    { at: 300 + PILLARS.length * 600, text: "Everything from here is the real product; the run and the pull request are real. Every run stops for your review, and nothing posts until you confirm." },
+  ],
+  View: PromiseView,
+};
+
+// ── It reads the rules first ─────────────────────────────────────────────────
+
+// Run #2 on opensrcer-demo (the one that became PR #6), in plain words. Its log, for
+// questions: "[tool] list_files CONTRIBUTING*", "[tool] list_files .github/**", then
+// "## Conventions: No contribution guide found…; matched what the repo already does".
+const RULES_FEED: Array<{ at: number; text: string; rules?: true; points?: string[] }> = [
+  { at: 600, text: "Started a throwaway machine with a spend cap and a time limit." },
+  { at: 2200, text: "Looked for the project's contribution guide and pull request template.", rules: true },
+  { at: 3800, text: "None here, so it follows what the code already does:", rules: true, points: ["commit messages written as “area: summary”", "an example in the docs for every helper", "the project's own test suite"] },
+  { at: 6600, text: "Read the code around the bug, and everything that calls it." },
+  { at: 8600, text: "Found the cause: truncate cuts at a fixed point and then adds “…”, so the result is one character too long and can split a word." },
+];
+const RULES_DONE_AT = 8600;
+
+function RulesView() {
+  return (
+    <AppWindow path={`/dispatches?dispatch=${RUN.id}`} section="Fix" tab="Runs">
+      <div className="flex h-full flex-col gap-4 p-5">
+        <div className="rounded-2xl border border-border-soft bg-surface px-5 py-4">
+          <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[11px] text-info">#2</span></p>
+          <p className="mt-0.5 truncate text-[18px] font-medium text-paper">truncate cuts mid-word and returns more than max characters</p>
+        </div>
+        <ol className="space-y-3">
+          <RulesStep {...RULES_FEED[0]} />
+          <li data-spot="rules" className="space-y-3">
+            {RULES_FEED.filter((s) => s.rules).map((s) => <RulesStep key={s.text} {...s} />)}
+          </li>
+          {RULES_FEED.slice(3).map((s) => <RulesStep key={s.text} {...s} />)}
+        </ol>
+      </div>
+    </AppWindow>
+  );
+}
+
+function RulesStep({ at, text, points }: { at: number; text: string; points?: string[] }) {
+  return (
+    <Reveal at={at} className="flex items-start gap-3 rounded-xl border border-border-soft bg-surface px-4 py-3 text-[17px] leading-snug text-paper">
+      <span aria-hidden className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-ok/15 text-[13px] font-semibold text-ok">✓</span>
+      <span>
+        {text}
+        {points && <span className="mt-1.5 block text-[15px] text-paper-dim">{points.map((p) => <span key={p} className="block">· {p}</span>)}</span>}
+      </span>
+    </Reveal>
+  );
+}
+
+export const stageRules: Chapter = {
+  id: "rules",
+  act: "Fix",
+  label: "Rules first",
+  title: "It reads the project's rules first",
+  duration: RULES_DONE_AT + 2500,
+  source: "The real run behind pull request #6, in plain words",
+  headlines: [{ at: 0, text: "It reads the project's rules first." }],
+  captions: [
+    { at: 0, text: "One click on the issue started a run, in a throwaway machine with a hard spend cap and a time limit. The first thing it does is read the project's rules." },
+    { at: 2200, spot: "rules", text: "It looks for the contribution guide and the pull request template. This repo has none, so it matches what the code already does: commit style, docs, the project's own tests. A maintainer gets a patch that looks like their project." },
+    { at: 6600, text: "Then it reads the code around the bug and everything that calls it, and writes down the cause before the fix. Where it can't find the root cause, it stops and says so rather than guess." },
+  ],
+  View: RulesView,
 };

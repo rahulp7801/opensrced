@@ -175,6 +175,8 @@ const ASK_FIRST_AT = 13800;
 const STEPS_AT = 15000;
 const CONFIRM_AT = 18600;
 const PUBLISH_AT = 20200;
+export const REVIEW_CONFIRM_AT = CONFIRM_AT;
+export const REVIEW_PUBLISH_AT = PUBLISH_AT;
 export const REVIEW_PUBLISHED_AT = PUBLISH_AT + 500;
 const DEMO_PUBLISH_STEPS = publishSteps({ files: PATCH_STATS.files, signoff: false });
 

@@ -185,14 +185,14 @@ function Published() {
   return (
     <div data-spot="next-steps" className="min-h-0 flex-1 overflow-hidden px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[13.5px] font-medium text-ok">Draft PR #{RUN.pr} opened</p>
+        <p className="text-[15px] font-medium text-ok">Draft PR #{RUN.pr} opened</p>
         <span className="flex gap-2 text-[11.5px]">
           <span className="rounded-full border border-info/40 bg-info/10 px-3 py-1 text-info">Follow it here</span>
           <span className="rounded-full border border-ok/40 bg-ok/10 px-3 py-1 text-ok">Open on GitHub ↗</span>
         </span>
       </div>
-      <p className="mt-3 text-[13px] font-medium text-paper">What happens next</p>
-      <ol className="mt-2 grid grid-cols-2 gap-x-6 gap-y-2 text-[11.5px] leading-[1.5] text-paper-dim">
+      <p className="mt-3 text-[15px] font-medium text-paper">What happens next</p>
+      <ol className="mt-2 grid grid-cols-2 gap-x-6 gap-y-2.5 text-[13px] leading-[1.5] text-paper-dim">
         {AFTER_PUBLISH.map((step, i) => (
           <Reveal as="li" key={step.title} at={REVIEW_PUBLISHED_AT + 200 + i * 250} className="flex gap-2">
             <span className="font-mono text-paper-faint">{i + 1}.</span>
@@ -289,7 +289,7 @@ export const review: Chapter = {
     { at: 4300, text: "The risk notes say what to double-check, including what it deliberately left alone." },
     { at: 7600, spot: "review-diff", text: "The patch is shown side by side: the one broken line out, a small, commented fix in, and new tests." },
     { at: 13200, text: "Copy the diff, or a ready-made commit message, if you'd rather apply it yourself." },
-    { at: STEPS_AT, spot: "publish-steps", text: "Nothing is published until you say so, and it tells you exactly what publishing does, in plain words: your own copy of the project, one commit on a new branch, a draft pull request that says an AI tool helped. Nothing is merged." },
+    { at: STEPS_AT, spot: "publish-steps", text: "Nothing is published until you say so, and it tells you exactly what publishing does, in plain words, before you confirm: one commit on a new branch, a draft pull request that says an AI tool helped, and nothing merged." },
     { at: CONFIRM_AT - 600, text: "A preview stops here. For a publishable run, you confirm you've read it and can explain it to reviewers." },
     { at: PUBLISH_AT, text: "Then it's scanned for leaked secrets and opens as a draft pull request, with exactly this patch and text." },
     { at: REVIEW_PUBLISHED_AT + 600, spot: "next-steps", text: "And it tells you what happens next, etiquette included: mark it ready when you're happy, give it time, don't chase people, answer every review comment." },

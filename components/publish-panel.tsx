@@ -6,12 +6,13 @@
 // (dry) run can never publish; it offers to start the issue again as a
 // publishable run instead of leaving the reader at a dead end.
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { copyText } from "@/lib/clipboard";
 import { publishSteps } from "@/lib/beginner-guide";
 import { projectRules, rulesText, RULE_STATUS_LABEL, type RuleRow, type RuleStatus, type RulesPreview } from "@/lib/project-rules";
 import { cn } from "@/lib/utils";
 import { ChangeChat } from "./change-chat";
+import { OwnWords, type OwnWordsResult } from "./own-words";
 import { Term } from "./term";
 
 type Preview = RulesPreview & {
@@ -51,6 +52,10 @@ export function PublishPanel({ dispatchId, repo, dryRun = false, rerun, onPublis
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // "Explain it in your own words" + "Practice review": a comprehension aid
+  // in the browser, not a security control (see components/own-words.tsx).
+  const [ownWords, setOwnWords] = useState<OwnWordsResult | null>(null);
+  const onOwnWords = useCallback((r: OwnWordsResult) => setOwnWords(r), []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -70,7 +75,10 @@ export function PublishPanel({ dispatchId, repo, dryRun = false, rerun, onPublis
       const r = await fetch(`/api/dispatches/${dispatchId}/publish`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ confirmed: true }),
+        body: JSON.stringify({
+          confirmed: true,
+          ...(askOwnWords && ownWords?.ready ? { authorExplanation: ownWords.text, explanationChecked: ownWords.checked, practiceAnswered: ownWords.practiced } : {}),
+        }),
         signal: AbortSignal.timeout(300_000),
       });
       const result = (await r.json().catch(() => ({}))) as { error?: string; pr_url?: string };
@@ -87,6 +95,15 @@ export function PublishPanel({ dispatchId, repo, dryRun = false, rerun, onPublis
   const verdict = !preview.executed ? "not verified (no code was run)" : !v ? "not verified" : `${v.status} — ${v.reason}`;
   const canPublish = preview.publishable && preview.blockers.length === 0;
   const rules = projectRules(preview);
+  // A follow-up only adds a commit (no PR text to carry the explanation).
+  const askOwnWords = (canPublish || dryRun) && !preview.followup_pr;
+  const gateOpen = !askOwnWords || Boolean(ownWords?.ready);
+  const context = {
+    description: `${preview.diagnosis ? `The agent's diagnosis:\n${preview.diagnosis}\n\n` : ""}PR text:\n${preview.body}`,
+    diff: preview.diff,
+    verification: `Verification: ${verdict}${v?.regression ? `; regression check: ${v.regression.replace(/_/g, " ")}` : ""}`,
+    rules: rulesText(rules),
+  };
   const comment = preview.draft_issue_comment;
   const commentBlock = comment && (
     <>
@@ -151,13 +168,19 @@ export function PublishPanel({ dispatchId, repo, dryRun = false, rerun, onPublis
         storageKey={`run:${dispatchId}`}
         repo={repo}
         title={preview.title}
-        context={{
-          description: `${preview.diagnosis ? `The agent's diagnosis:\n${preview.diagnosis}\n\n` : ""}PR text:\n${preview.body}`,
-          diff: preview.diff,
-          verification: `Verification: ${verdict}${v?.regression ? `; regression check: ${v.regression.replace(/_/g, " ")}` : ""}`,
-          rules: rulesText(rules),
-        }}
+        context={context}
       />
+      {askOwnWords && (
+        <OwnWords
+          storageKey={`run:${dispatchId}`}
+          repo={repo}
+          title={preview.title}
+          context={context}
+          copySources={[preview.diagnosis ?? "", preview.body]}
+          practice={dryRun}
+          onResult={onOwnWords}
+        />
+      )}
       {canPublish && (
         <>
           <div className="mt-3 rounded-lg border border-border-soft bg-ink px-3 py-2.5">
@@ -181,11 +204,12 @@ export function PublishPanel({ dispatchId, repo, dryRun = false, rerun, onPublis
             </label>
             <button
               onClick={publish}
-              disabled={!confirmed || pending}
+              disabled={!confirmed || pending || !gateOpen}
               className="rounded-full border border-ok/50 bg-ok/10 px-3 py-1 text-[12px] text-ok hover:bg-ok/20 disabled:opacity-50"
             >
               {pending ? "publishing…" : preview.followup_pr ? "Push follow-up commit" : "Publish draft PR"}
             </button>
+            {!gateOpen && <span className="basis-full text-paper-muted">To publish: explain the change in your own words, answer the practice review, and tick the box.</span>}
             {error && <span role="alert" className="basis-full text-alert">{error}</span>}
           </div>
         </>

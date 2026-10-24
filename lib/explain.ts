@@ -32,7 +32,8 @@ export type ExplainInput = { repo: string | null; title: string; question: strin
 
 export class ExplainInputError extends Error {}
 
-const str = (v: unknown, name: string): string => {
+/** Optional text field: "" when absent, ExplainInputError when not a string. */
+export const str = (v: unknown, name: string): string => {
   if (v == null) return "";
   if (typeof v !== "string") throw new ExplainInputError(`${name} must be text.`);
   return v;
@@ -40,10 +41,11 @@ const str = (v: unknown, name: string): string => {
 
 /** Our fence tags, defused inside untrusted text so it cannot close a fence. */
 function defuse(text: string): string {
-  return text.replace(/<(\/?)(change-context|description|diff|tests|project-rules|title|earlier-conversation|question)\b/gi, "&lt;$1$2");
+  return text.replace(/<(\/?)(change-context|description|diff|tests|project-rules|title|earlier-conversation|question|explanation|review-question|author-answer)\b/gi, "&lt;$1$2");
 }
 
-const clean = (text: string, max: number) => defuse(sanitizeForPrompt(text, max).trim());
+/** Untrusted text for a prompt: control characters stripped, capped, fences defused. */
+export const clean = (text: string, max: number) => defuse(sanitizeForPrompt(text, max).trim());
 
 /** The change itself, shared by "Ask about this change" and the understanding check. */
 export type ChangeInput = Pick<ExplainInput, "repo" | "title" | "context">;

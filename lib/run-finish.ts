@@ -9,7 +9,7 @@ import type { ContribProfile } from "./contrib-profile";
 import { aiBanReason, competingPrReason, discussFirstReason, draftIssueComment, openPrsForIssue } from "./contrib-guard";
 import type { ExecOutcome } from "./exec-run";
 import { CLAUDE_AGENT_MODEL } from "./models";
-import { buildPreview, writePreview, type PrPreview } from "./pr-preview";
+import { buildPreview, writePreview, type CompetingCheck, type PrPreview } from "./pr-preview";
 import { parseCases } from "./verify";
 
 export type FinishInput = {
@@ -57,12 +57,15 @@ export async function finishRun(input: FinishInput): Promise<PrPreview | null> {
     const ban = aiBanReason(input.profile);
     if (ban) blockers.push(ban);
   }
-  if (input.issueNumber > 0 && !input.followup) {
+  // Recorded for the review screen's "This project's rules".
+  let competingPrs: CompetingCheck = input.issueNumber <= 0 ? "no_issue" : input.followup ? "followup" : "none";
+  if (competingPrs === "none") {
     try {
       const competing = competingPrReason(await openPrsForIssue(input.repoFull, input.issueNumber, input.token));
-      if (competing) blockers.push(competing);
+      if (competing) { blockers.push(competing); competingPrs = "found"; }
     } catch {
       warnings.push("Could not check for other open PRs on this issue; publishing re-checks it.");
+      competingPrs = "unchecked";
     }
   }
   // Issue labels first (specific to this issue), then the guide's general rule.
@@ -83,6 +86,7 @@ export async function finishRun(input: FinishInput): Promise<PrPreview | null> {
     draftIssueComment: input.issueNumber > 0 && !input.followup ? draftIssueComment(extractDiagnosis(logText), verification?.status === "verified") : undefined,
     askFirst: Boolean(discuss),
     cases,
+    discussFirst: discuss, competingPrs, diagnosis: extractDiagnosis(logText),
   });
   await writePreview(input.dispatchDir, preview, diff);
   await log(

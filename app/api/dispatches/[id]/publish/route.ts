@@ -10,7 +10,7 @@ import { sessionUserId } from "@/lib/require-session";
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { resolveCommitAuthor, resolveGitHubToken } from "@/lib/github-token";
 import { resolveGeminiKey } from "@/lib/api-keys";
-import { PublishError, publishDispatch } from "@/lib/publish";
+import { parseAuthorWords, PublishError, publishDispatch } from "@/lib/publish";
 import { publishCloudRun } from "@/lib/cloud-publish";
 
 export const maxDuration = 300;
@@ -26,10 +26,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       resolveCommitAuthor(req.signal).catch(() => null),
       resolveGeminiKey(),
     ]);
+    // Optional: the author's own explanation, for the PR body.
+    const authorWords = parseAuthorWords(body);
     // Hosted runs: same checks, then a short-lived push VM opens the PR.
     const result = cloudExecution()
-      ? await publishCloudRun({ id, viewerId, confirmed: body.confirmed, token, author, signal: req.signal })
-      : await publishDispatch({ id, viewerId, confirmed: body.confirmed, token, author, geminiKey: geminiKey ?? undefined });
+      ? await publishCloudRun({ id, viewerId, confirmed: body.confirmed, authorWords, token, author, signal: req.signal })
+      : await publishDispatch({ id, viewerId, confirmed: body.confirmed, authorWords, token, author, geminiKey: geminiKey ?? undefined });
     return NextResponse.json({ ok: true, pr_url: result.url, tests: result.tests });
   } catch (error) {
     if (error instanceof PublishError) return NextResponse.json({ error: error.message }, { status: error.status });

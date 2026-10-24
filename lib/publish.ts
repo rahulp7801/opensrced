@@ -7,7 +7,7 @@
 
 import { join } from "node:path";
 import { appendFile } from "node:fs/promises";
-import { createDraftPrFromLog, type PrResult } from "./agentic-pr";
+import { createDraftPrFromLog, neutralizeMentions, type PrResult } from "./agentic-pr";
 import { aiBanReason, competingPrReason, openOpensrcerPrs, openPrsForIssue, prCaps, publishedInLastDay } from "./contrib-guard";
 import { listAll, patch, read } from "./dispatch-store";
 import { forgetFinished } from "./dispatcher";
@@ -31,10 +31,61 @@ export class PublishError extends Error {
   }
 }
 
+// ── In the author's words ────────────────────────────────────────────────
+// The contributor's own explanation from the review screen, shown to
+// maintainers above the AI-assistance note. `checked` and `practiced` are
+// what the page reports: its gate is a comprehension aid, not a security
+// control, so the PR line states only what the author went through.
+
+export const AUTHOR_WORDS_MAX = 2000;
+export type AuthorWords = { text: string; checked: boolean; practiced: boolean };
+
+const AUTHOR_LINE = {
+  practiced: "Before publishing, the author explained this change in their own words (checked against the diff) and answered 2 practice review questions.",
+  checked: "Before publishing, the author explained this change in their own words (checked against the diff).",
+  unchecked: "Before publishing, the author explained this change in their own words (not automatically checked).",
+};
+
+/** The optional publish fields: authorExplanation (text), explanationChecked
+ *  and practiceAnswered (booleans). Null when no explanation was sent. */
+export function parseAuthorWords(body: Record<string, unknown>): AuthorWords | null {
+  const raw = body.authorExplanation;
+  if (raw == null) return null;
+  if (typeof raw !== "string") throw new PublishError(400, "authorExplanation must be text.");
+  for (const flag of ["explanationChecked", "practiceAnswered"] as const) {
+    if (body[flag] != null && typeof body[flag] !== "boolean") throw new PublishError(400, `${flag} must be true or false.`);
+  }
+  const text = raw.replace(/\r\n?/g, "\n").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").replace(/\n{3,}/g, "\n\n").trim();
+  if (!text) return null;
+  if (text.length > AUTHOR_WORDS_MAX) throw new PublishError(400, `Keep your explanation under ${AUTHOR_WORDS_MAX} characters.`);
+  const checked = body.explanationChecked === true;
+  return { text, checked, practiced: checked && body.practiceAnswered === true };
+}
+
+/** The PR body with "In the author's words" above the AI-assistance section
+ *  and one line in that section saying what the author did. The text is a
+ *  blockquote (its headings cannot pose as the PR's own sections), with
+ *  mentions defused and HTML openers escaped outside code (an unclosed
+ *  `<!--` cannot swallow the disclosure section below it). */
+export function withAuthorWords(body: string, words: AuthorWords | null): string {
+  if (!words) return body;
+  const safe = neutralizeMentions(words.text)
+    .split(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)/g)
+    .map((part, i) => (i % 2 ? part : part.replace(/</g, "&lt;")))
+    .join("");
+  const section = `### In the author's words\n\n${safe.split("\n").map((l) => (l ? `> ${l}` : ">")).join("\n")}`;
+  const marker = body.lastIndexOf("\n### AI assistance\n");
+  if (marker < 0) return `${body}\n\n${section}`;
+  const line = words.practiced ? AUTHOR_LINE.practiced : words.checked ? AUTHOR_LINE.checked : AUTHOR_LINE.unchecked;
+  return `${body.slice(0, marker)}\n\n${section}\n${body.slice(marker)}\n\n${line}`;
+}
+
 export type PublishInput = {
   id: string;
   viewerId: string;
   confirmed: unknown;
+  /** The author's own explanation (parseAuthorWords), for the PR body. */
+  authorWords?: AuthorWords | null;
   token: string | null;
   author: { login: string; id: number } | null;
   geminiKey?: string;
@@ -46,7 +97,7 @@ type PublishTarget = { dry_run: boolean; status: string; pr_status?: string };
 
 /** State, confirmation and blockers: the checks shared by local and hosted
  *  runs. Exported for tests. */
-export function assertPublishable(run: PublishTarget, confirmed: unknown, stored: StoredPreview | null): StoredPreview {
+export function assertPublishable(run: PublishTarget, confirmed: unknown, stored: StoredPreview | null, authorWords: AuthorWords | null = null): StoredPreview {
   if (run.dry_run) throw new PublishError(409, "This was a preview-only (dry) run. Start a live run to publish.");
   if (run.pr_status === "opened") throw new PublishError(409, "This run was already published.");
   if (run.pr_status === "pending") throw new PublishError(409, "Publishing is already in progress.");
@@ -56,7 +107,7 @@ export function assertPublishable(run: PublishTarget, confirmed: unknown, stored
   if (confirmed !== true) throw new PublishError(400, `Confirm first: "${CONFIRMATION}"`);
   if (!stored) throw new PublishError(409, "The stored preview is missing; rerun the issue.");
   if (stored.preview.blockers.length) throw new PublishError(409, `Publishing is blocked: ${stored.preview.blockers.join("; ")}`);
-  return stored;
+  return authorWords ? { ...stored, preview: { ...stored.preview, body: withAuthorWords(stored.preview.body, authorWords) } } : stored;
 }
 
 /** Guards re-checked against GitHub at publish time: the world may have
@@ -106,11 +157,11 @@ export function followupGuards(preview: PrPreview): void {
 const DISPATCH_DIR = () => join(process.cwd(), ".dispatches");
 
 /** Local run lookup plus the shared checks. Exported for tests. */
-export async function checkPublishable(input: Pick<PublishInput, "id" | "viewerId" | "confirmed">) {
+export async function checkPublishable(input: Pick<PublishInput, "id" | "viewerId" | "confirmed" | "authorWords">) {
   if (!/^d_[\w-]{1,80}$/.test(input.id)) throw new PublishError(404, "not found");
   const record = read(input.id);
   if (!record || record.auth0_user_id !== input.viewerId) throw new PublishError(404, "not found");
-  const stored = assertPublishable(record, input.confirmed, await readPreview(join(DISPATCH_DIR(), input.id)));
+  const stored = assertPublishable(record, input.confirmed, await readPreview(join(DISPATCH_DIR(), input.id)), input.authorWords ?? null);
   return { record, stored };
 }
 

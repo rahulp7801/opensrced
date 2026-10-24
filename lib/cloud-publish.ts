@@ -77,7 +77,7 @@ export async function publishCloudRun(
 ): Promise<{ url: string; tests: string }> {
   const run = await getCloudRun(input.viewerId, input.id);
   if (!run) throw new PublishError(404, "not found");
-  const stored = assertPublishable(run, input.confirmed, await getCloudPreview(input.viewerId, input.id));
+  const stored = assertPublishable(run, input.confirmed, await getCloudPreview(input.viewerId, input.id), input.authorWords ?? null);
   if (!input.token || !input.author) throw new PublishError(401, "Sign in with GitHub again: the PR is opened from your account.");
   const repo = parseRunTarget(run.repo_url).repo;
   const issue = run.issue_number ?? 0;

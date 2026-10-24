@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
       throw new Error("This PR has too many comments to load here. Open the conversation on GitHub.");
     }
     const [pull, rawComments, rawIssueComments, viewer] = await Promise.all([
-      githubApi<{ title: string; state: string; merged: boolean; html_url: string; head: { ref: string; repo: { full_name: string } | null }; base: { ref: string }; user: { login: string } }>(`/repos/${repo}/pulls/${pr}`, token, undefined, req.signal),
+      githubApi<{ title: string; body?: string | null; state: string; merged: boolean; html_url: string; head: { ref: string; repo: { full_name: string } | null }; base: { ref: string }; user: { login: string } }>(`/repos/${repo}/pulls/${pr}`, token, undefined, req.signal),
       comments(`/repos/${repo}/pulls/${pr}/comments`),
       comments(`/repos/${repo}/issues/${pr}/comments`),
       token && resolved.source !== "installation"
@@ -110,6 +110,8 @@ export async function GET(req: NextRequest) {
         headRepo: pull.head.repo?.full_name ?? null,
         base: prData.baseRefName,
         author: prData.author.login,
+        // For "Ask about this change"; the explain route caps it again.
+        body: (pull.body ?? "").slice(0, 8000),
       },
       comments: [...reviewComments, ...issueComments].sort(
         (a, b) =>

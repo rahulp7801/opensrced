@@ -40,7 +40,7 @@ export function SectionNav({ localMode = false }: { localMode?: boolean }) {
               title={link.title}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] transition-colors",
+                "inline-flex min-h-10 items-center whitespace-nowrap rounded-full px-3 text-[13px] transition-colors",
                 active
                   ? "bg-surface-3 font-medium text-paper"
                   : "text-paper-muted hover:text-paper",

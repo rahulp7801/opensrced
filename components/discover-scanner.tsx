@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { StatusChip } from "./status-dot";
 import { IconArrow, IconChevronDown, IconExternal, IconSearch } from "./icons";
 
 type ScopeBucket = "doc" | "leaf" | "cross-file" | "refactor" | "new-file" | "unknown";
@@ -138,6 +137,14 @@ export function DiscoverScanner() {
   }
 
   const now = Date.now();
+  // Any filter narrower than "everything": offer a one-click way back.
+  const filtersNarrow = ageFilter !== "any" || difficulty !== "any" || scopeFilter !== "any" || solvableOnly;
+  function showAll() {
+    setAgeFilter("any");
+    setDifficulty("any");
+    setScopeFilter("any");
+    setSolvableOnly(false);
+  }
 
   const filtered = useMemo(() => {
     if (!data) return [];
@@ -193,7 +200,7 @@ export function DiscoverScanner() {
                 Advanced filters
                 <IconChevronDown size={14} className="text-paper-faint transition-transform group-open:rotate-180" />
               </span>
-              <span className="text-xs font-normal text-paper-muted">Search size and repository freshness</span>
+              <span className="text-xs font-normal text-paper-muted">How many repositories, and how recently updated</span>
             </summary>
             <div className="grid gap-4 pb-2 pt-3 sm:grid-cols-3">
               <LabeledInput
@@ -248,211 +255,141 @@ export function DiscoverScanner() {
       )}
 
       {err && (
-        <div className="rounded-xl mt-3 border border-alert/40 bg-alert/5 p-3 text-[12px] text-alert">
-          {err}
+        <div role="alert" className="rounded-xl mt-3 flex flex-wrap items-center justify-between gap-3 border border-alert/40 bg-alert/5 p-3 text-[13px] text-alert">
+          <span>The search didn&apos;t finish: {err}</span>
+          <button type="button" onClick={() => void runDiscover()} className="inline-flex min-h-10 items-center rounded-full border border-alert/40 px-4 font-medium hover:bg-alert/10">Try again</button>
         </div>
       )}
 
       {data && (
         <>
-          {/* Summary + refiner pills */}
-          <div className="mt-6 flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <div className="mono-label text-paper-muted">discover</div>
-              <div className="mt-1 flex items-baseline gap-3">
-                <span className="serif text-[40px] leading-none text-paper num-tabular">
-                  {data.repo_count}
-                </span>
-                <span className="text-[13px] text-paper-muted">repos</span>
-                <span className="text-paper-faint">·</span>
-                <span className="serif text-[28px] leading-none text-signal num-tabular">
-                  {filtered.length}
-                </span>
-                <span className="text-[13px] text-paper-muted">issues after filters</span>
-                <span className="text-paper-faint">·</span>
-                <span className="text-[13px] text-paper-muted num-tabular">
-                  {data.issue_count} total scanned
-                </span>
-              </div>
+          {/* Summary and filters */}
+          <div className="mt-6">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <span className="serif text-[40px] leading-none text-signal num-tabular">{filtered.length}</span>
+              <span className="text-[14px] text-paper">issues to look at</span>
+              <span className="text-[13px] text-paper-muted num-tabular">from {data.issue_count} open issues in {data.repo_count} repositories</span>
             </div>
-            <div className="flex flex-wrap gap-1">
+            <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3">
               <PillRow
-                label="age"
+                label="Opened"
                 options={[
-                  { k: "30", label: "30d" },
-                  { k: "90", label: "90d" },
-                  { k: "any", label: "any" },
+                  { k: "30", label: "last 30 days" },
+                  { k: "90", label: "last 90 days" },
+                  { k: "any", label: "any time" },
                 ]}
                 value={ageFilter}
                 onChange={(v) => setAgeFilter(v as typeof ageFilter)}
               />
-              <span className="mx-1 self-center text-paper-faint">·</span>
               <PillRow
-                label="difficulty"
+                label="Difficulty"
                 options={[
                   { k: "any", label: "any" },
-                  { k: "easy", label: "easy (1-2)" },
-                  { k: "medium", label: "med (3)" },
-                  { k: "hard", label: "hard (4-5)" },
+                  { k: "easy", label: "easy" },
+                  { k: "medium", label: "medium" },
+                  { k: "hard", label: "hard" },
                 ]}
                 value={difficulty}
                 onChange={(v) => setDifficulty(v as typeof difficulty)}
               />
-              <span className="mx-1 self-center text-paper-faint">·</span>
               <PillRow
-                label="scope"
+                label="Size of change"
                 options={[
                   { k: "any", label: "any" },
-                  { k: "doc", label: "doc" },
-                  { k: "leaf", label: "leaf" },
-                  { k: "cross-file", label: "cross" },
+                  { k: "doc", label: "docs only" },
+                  { k: "leaf", label: "one file" },
+                  { k: "cross-file", label: "several files" },
                   { k: "new-file", label: "new file" },
                   { k: "refactor", label: "refactor" },
                 ]}
                 value={scopeFilter}
                 onChange={(v) => setScopeFilter(v as typeof scopeFilter)}
               />
-              <span className="mx-1 self-center text-paper-faint">·</span>
               <button
+                type="button"
                 onClick={() => setSolvableOnly((v) => !v)}
                 aria-pressed={solvableOnly}
                 className={cn(
-                  "min-h-9 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+                  "min-h-10 rounded-md border px-3 text-xs font-medium transition-colors",
                   solvableOnly
                     ? "border-signal/60 bg-signal/10 text-signal"
                     : "border-border text-paper-muted hover:text-paper",
                 )}
               >
-                solvable only
+                Only issues ready for a fix
               </button>
+              {filtersNarrow && (
+                <button type="button" onClick={showAll} className="min-h-10 px-1 text-xs font-medium text-signal hover:underline">
+                  Show all
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Results table */}
-          <div className="rounded-2xl mt-6 border border-border-soft bg-surface overflow-x-auto">
-            <table className="w-full text-[12.5px]">
-              <thead>
-                <tr className="border-b border-border bg-ink/50 text-paper-muted">
-                  {["REPO", "★", "#", "TITLE", "OPENED", "CATEGORY", "SCOPE", "SEVERITY", "COMPLEXITY", "EST. TIME", "ACTION"].map(
-                    (h) => (
-                      <th
-                        key={h}
-                        className="py-2.5 px-3 text-left font-medium text-xs"
-                      >
-                        {h}
-                      </th>
-                    ),
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={11} className="py-10 text-center text-paper-muted text-[12px]">
-                      {data.repo_count === 0
-                        ? "No repos matched. Loosen the star threshold or clear the language filter."
-                        : data.issue_count === 0
-                          ? "Repos matched, but none had open issues. Try a different star range or language."
-                          : "Issues found but all filtered out. Relax the age/difficulty/scope pills."}
-                    </td>
-                  </tr>
-                ) : (
-                  filtered.map((i) => (
-                    <tr
-                      key={`${i.repo.fullName}#${i.number}`}
-                      className={cn(
-                        "group border-b border-border-soft last:border-0 transition-colors hover:bg-surface-2/60",
-                        !i.solvable && "opacity-60",
-                      )}
-                    >
-                      <td className="px-3 py-2.5 whitespace-nowrap">
+          {/* Results: one card per issue, its next step always in sight. */}
+          <ul className="mt-5 space-y-2">
+            {filtered.length === 0 ? (
+              <li className="rounded-2xl border border-border-soft bg-surface px-5 py-8 text-center text-[13px] text-paper-muted">
+                {data.repo_count === 0
+                  ? "No repositories matched. Lower the minimum stars or choose any language."
+                  : data.issue_count === 0
+                    ? "Repositories matched, but none had open issues. Try a different star range or language."
+                    : (
+                      <>
+                        Every issue found is hidden by the filters above.{" "}
+                        <button type="button" onClick={showAll} className="font-medium text-signal hover:underline">Show all</button>
+                      </>
+                    )}
+              </li>
+            ) : (
+              filtered.map((i) => {
+                const href = `/issues?repo=${encodeURIComponent(i.repo.fullName)}&issue=${i.number}`;
+                const saved = isBookmarked(i.repo.fullName);
+                return (
+                  <li
+                    key={`${i.repo.fullName}#${i.number}`}
+                    className={cn("rounded-2xl border border-border-soft bg-surface px-4 py-3.5 sm:px-5", !i.solvable && "opacity-70")}
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <Link href={href} className="text-[15px] font-medium leading-snug text-paper hover:text-signal">{i.title}</Link>
+                        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-paper-muted">
+                          <span className="text-paper-dim">{i.repo.fullName}</span>
+                          <span className="tabular-nums">★ {fmtStars(i.repo.stars)}</span>
+                          {i.repo.language && <span>{i.repo.language}</span>}
+                          <a href={i.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-signal">#{i.number}<IconExternal /></a>
+                          <span title={i.created_at}>opened {fmtRelative(i.created_at, now)}</span>
+                        </p>
+                        <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[12px] text-paper-muted">
+                          <span className="inline-flex items-center gap-1.5">Size <ScopeBadge s={i.scope} /></span>
+                          <span className="inline-flex items-center gap-1.5">Difficulty <ComplexityPips value={i.complexity} /></span>
+                          <span>about {fmtMinutes(i.est_minutes)}</span>
+                          {i.labels.slice(0, 3).map((l) => (
+                            <span key={l} className="rounded border border-border-soft px-1.5 py-0.5 text-[11px] text-paper-muted">{l}</span>
+                          ))}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
                         <button
-                          onClick={(e) => { e.stopPropagation(); toggleBookmark(i.repo.fullName); }}
-                          className={cn(
-                            "inline-block w-4 text-center mr-1 text-[12px] transition",
-                            isBookmarked(i.repo.fullName) ? "text-signal" : "text-paper-faint hover:text-signal opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100",
-                          )}
-                          aria-label={isBookmarked(i.repo.fullName) ? `Remove ${i.repo.fullName} bookmark` : `Bookmark ${i.repo.fullName}`}
-                          title={isBookmarked(i.repo.fullName) ? "Remove bookmark" : "Bookmark this repo"}
+                          type="button"
+                          onClick={() => toggleBookmark(i.repo.fullName)}
+                          aria-pressed={saved}
+                          className={cn("inline-flex min-h-10 items-center rounded-full border px-3 text-[12px] transition", saved ? "border-signal/40 text-signal" : "border-border text-paper-muted hover:text-paper")}
+                          title={saved ? "Remove this repository from Saved repos" : "Save this repository for later"}
                         >
-                          {isBookmarked(i.repo.fullName) ? "*" : "+"}
+                          {saved ? "Saved" : "Save repo"}
                         </button>
-                        <Link
-                          href={`/issues?repo=${encodeURIComponent(i.repo.fullName)}&issue=${i.number}`}
-                          className="text-paper hover:text-signal"
-                          title={i.repo.description || i.repo.fullName}
-                        >
-                          {i.repo.fullName}
-                        </Link>
-                        {i.repo.language && (
-                          <span className="ml-2 text-[11px] font-medium text-paper-faint border border-border-soft px-1 py-0.5">
-                            {i.repo.language}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 text-paper-muted tabular-nums whitespace-nowrap">
-                        {fmtStars(i.repo.stars)}
-                      </td>
-                      <td className="px-3 py-2.5 text-paper-faint tabular-nums whitespace-nowrap">
-                        <a
-                          href={i.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="hover:text-signal inline-flex items-center gap-1"
-                        >
-                          #{i.number}
-                          <IconExternal />
-                        </a>
-                      </td>
-                      <td className="px-3 py-2.5 text-paper max-w-[380px]">
-                        <div className="truncate">{i.title}</div>
-                        {i.labels.length > 0 && (
-                          <div className="mt-1 flex gap-1 flex-wrap">
-                            {i.labels.slice(0, 3).map((l) => (
-                              <span
-                                key={l}
-                                className="text-[11px] font-medium border border-border-soft px-1 py-0.5 text-paper-muted"
-                              >
-                                {l}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 whitespace-nowrap text-paper-muted tabular-nums text-[11px]" title={i.created_at}>
-                        {fmtRelative(i.created_at, now)}
-                      </td>
-                      <td className="px-3 py-2.5 text-xs font-medium text-paper-dim">
-                        {i.category}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <ScopeBadge s={i.scope} />
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <SeverityChip s={i.severity} />
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <ComplexityPips value={i.complexity} />
-                      </td>
-                      <td className="px-3 py-2.5 text-paper-muted tabular-nums whitespace-nowrap">
-                        ~{fmtMinutes(i.est_minutes)}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <Link
-                          href={`/issues?repo=${encodeURIComponent(i.repo.fullName)}&issue=${i.number}`}
-                          className="rounded-lg inline-flex items-center gap-1.5 border border-border bg-surface px-2.5 py-1 text-[11px] text-paper-dim hover:text-paper hover:border-border-strong"
-                          title="Load this repo in the scanner"
-                        >
-                          open
+                        <Link href={href} className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-paper px-4 text-[13px] font-medium text-ink hover:bg-paper-2">
+                          Look at this issue
                           <IconArrow />
                         </Link>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })
+            )}
+          </ul>
         </>
       )}
 
@@ -475,7 +412,7 @@ export function DiscoverScanner() {
         </div>
       )}
 
-      {!data && !loading && !err && (
+      {!data && !loading && (
         <section className="mt-8 border-t border-border pt-7" aria-labelledby="starter-repositories">
           <div className="max-w-2xl">
             <h2 id="starter-repositories" className="text-base font-medium text-paper">
@@ -581,14 +518,16 @@ function PillRow({
   onChange: (v: string) => void;
 }) {
   return (
-    <span className="inline-flex items-center gap-1" title={label}>
+    <span role="group" aria-label={label} className="inline-flex flex-wrap items-center gap-1">
+      <span className="mr-1 text-xs font-medium text-paper-muted">{label}</span>
       {options.map((opt) => (
         <button
           key={opt.k}
+          type="button"
           onClick={() => onChange(opt.k)}
           aria-pressed={value === opt.k}
           className={cn(
-            "min-h-9 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+            "min-h-10 rounded-md border px-3 text-xs font-medium transition-colors",
             value === opt.k
               ? "border-signal/60 bg-signal/10 text-signal"
               : "border-border text-paper-muted hover:text-paper",
@@ -611,12 +550,12 @@ function ScopeBadge({ s }: { s: ScopeInfo }) {
     unknown: "border-border bg-surface text-paper-muted",
   };
   const label: Record<ScopeBucket, string> = {
-    doc: "doc",
-    leaf: "leaf",
-    "cross-file": "cross",
+    doc: "docs only",
+    leaf: "one file",
+    "cross-file": "several files",
     refactor: "refactor",
     "new-file": "new file",
-    unknown: "?",
+    unknown: "not sure",
   };
   const title = [
     s.reason,
@@ -637,11 +576,6 @@ function ScopeBadge({ s }: { s: ScopeInfo }) {
       {label[s.bucket]}
     </span>
   );
-}
-
-function SeverityChip({ s }: { s: "low" | "medium" | "high" | "critical" }) {
-  const tone = { low: "muted", medium: "info", high: "signal", critical: "alert" } as const;
-  return <StatusChip tone={tone[s]}>{s}</StatusChip>;
 }
 
 function ComplexityPips({ value }: { value: number }) {

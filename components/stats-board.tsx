@@ -70,7 +70,13 @@ export function StatsBoard() {
     );
   }
   if (err && !data) {
-    return <div role="alert" className="rounded-xl border border-alert/40 bg-alert/5 p-3 text-[12px] text-alert">{err}</div>;
+    // ponytail: the hook polls every minute on its own; the button just reloads now.
+    return (
+      <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-alert/40 bg-alert/5 p-4 text-[13px] text-alert">
+        <span>Your activity couldn&apos;t load right now. It tries again every minute. <span className="text-alert/80">({err})</span></span>
+        <button type="button" onClick={() => window.location.reload()} className="inline-flex min-h-10 items-center rounded-full border border-alert/40 px-4 font-medium hover:bg-alert/10">Try again</button>
+      </div>
+    );
   }
   if (!data) return null;
 
@@ -93,12 +99,11 @@ export function StatsBoard() {
         </div>
         {data.biggestContributions.length === 0 ? (
           <div className="rounded-2xl border border-border-soft bg-surface p-8 text-center">
-            <div className="text-[13px] text-paper">No 1k★ PRs yet.</div>
-            <p className="mt-2 text-[11.5px] text-paper-muted leading-snug">
-              Open a draft PR on a repo with more than 1000 stars from an opensrcer run —
-              it&apos;ll show up here automatically. Public star counts are fetched from GitHub and
-              cached.
+            <div className="text-[14px] text-paper">No pull requests on 1,000-star projects yet.</div>
+            <p className="mt-2 text-[12.5px] text-paper-muted leading-snug">
+              When a run of yours opens a draft PR on a repository with more than 1,000 stars, it shows up here.
             </p>
+            <a href="/issues" className="mt-4 inline-flex min-h-10 items-center rounded-full border border-signal/40 px-4 text-[13px] font-medium text-signal hover:bg-signal/10">Find an issue →</a>
           </div>
         ) : (
           <ol className="divide-y divide-border-soft overflow-hidden rounded-md border border-border bg-surface/40">

@@ -6,7 +6,7 @@
 // flash a skeleton first.
 export default function PageSkeleton() {
   return (
-    <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 py-6 space-y-6">
+    <div className="mx-auto w-full max-w-[1200px] px-5 sm:px-8 py-10 space-y-6">
       <div className="space-y-2">
         <div className="h-7 w-48 bg-surface-3 animate-pulse" />
         <div className="h-3.5 w-96 max-w-full bg-surface-2 animate-pulse" />

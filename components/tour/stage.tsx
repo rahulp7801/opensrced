@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { InteractContext, TimeContext, type Chapter, type Interact } from "./kit";
 import { pacedBy } from "./chapters";
 import { pr, review } from "./chapters-fix";
-import { stageExplore, stageNotes, stageProblem, stagePromise, stageRefused, stageRules, stageScan, stageSlop, stageVerified, withPrFacts } from "./stage-views";
+import { stageExplore, stageNotes, stageProblem, stagePromise, stageRefused, stageRules, stageScan, stageSlop, stageVerified, withPrFacts, withSignInStart } from "./stage-views";
 
 /** How much slower than written the stage plays its animations. The presenter
  *  sets the pace between steps; this only stretches what plays by itself. */
@@ -29,14 +29,14 @@ type Phase = { name: string; by: string; say: string; chapters: Chapter[] };
 const S = stageNotes({ review, pr });
 
 /** Clicks the tour's screens make that the stage makes by itself, to keep the talk to ~10 minutes. */
-const SKIP = new Set(["Copy diff", "Commit msg", "Ready (3)", "Build graph", "Review patch"]);
+const SKIP = new Set(["Copy diff", "Commit msg", "Ready (3)", "Build graph", "Review patch", "Sign in with Claude & start"]);
 
 /** The four phases, and the one line each one is about (shown in the notes). */
 const PHASES: Phase[] = [
   { name: "Why", by: "0:00", say: "The problem every maintainer here knows, and the promise: contributions a maintainer would actually want.", chapters: [stageProblem, stagePromise] },
   { name: "Find", by: "1:05", say: "Pick an issue that's open to you, and understand the code before touching it.", chapters: [stageScan, stageExplore] },
-  { name: "Prove", by: "2:50", say: "It follows the project's rules, stops when they say no, and proves the fix with the project's own tests.", chapters: [stageRules, stageRefused, stageVerified] },
-  { name: "Ship", by: "5:20", say: "It explains every change, you confirm you understand it, a human publishes, and nothing is hidden.", chapters: [S.review, withPrFacts(S.pr), stageSlop] },
+  { name: "Prove", by: "2:50", say: "It follows the project's rules, stops when they say no, and proves the fix with the project's own tests.", chapters: [withSignInStart(stageRules), stageRefused, stageVerified] },
+  { name: "Ship", by: "5:40", say: "It explains every change, you confirm you understand it, a human publishes, and nothing is hidden.", chapters: [S.review, withPrFacts(S.pr), stageSlop] },
 ];
 
 const STEPS = PHASES.flatMap((phase, p) => phase.chapters.map((c) => ({ phase: p, chapter: pacedBy(c, STAGE_PACE) })));

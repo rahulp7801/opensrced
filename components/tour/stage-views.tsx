@@ -13,7 +13,7 @@
 import { ArrowUp, Sparkle } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { StatusChip } from "@/components/status-dot";
-import { AppWindow, Pips, Press, Reveal, SCOPE_LABEL, SCOPE_TONE, SEVERITY_TONE, Typed, progress, useFollow, useT, type Caption, type Chapter } from "./kit";
+import { AppWindow, Pips, Press, Reveal, SCOPE_LABEL, SCOPE_TONE, SEVERITY_TONE, TimeContext, Typed, progress, useFollow, useT, type Caption, type Chapter } from "./kit";
 import { CodeGraph, LIGHTS } from "./graph";
 import { REVIEW_CONFIRM_AT, REVIEW_PUBLISH_AT, REVIEW_PUBLISHED_AT } from "./chapters-fix";
 import { DEMO_REPO, RUN } from "./data";
@@ -670,3 +670,61 @@ export const stageRules: Chapter = {
   ],
   View: RulesView,
 };
+
+// ── Starting the run: Sign in with Claude ───────────────────────────────────
+
+// components/trigger-form.tsx and components/dispatch-list.tsx, verbatim. The click on
+// the start button is made by the stage itself (stage.tsx SKIP), so no new stop.
+const SIGN_IN_PRESS_AT = 900;
+const SIGN_IN_PANEL_AT = 1800;
+const SIGN_IN_SENT_AT = 3600;
+const SIGN_IN_LENGTH = 6000;
+
+function SignInView() {
+  const t = useT();
+  return (
+    <AppWindow path={`/dispatches?dispatch=${RUN.id}`} section="Fix" tab="Runs">
+      <div className="flex h-full flex-col gap-4 p-5">
+        <div className="flex items-center justify-between gap-4 rounded-2xl border border-border-soft bg-surface px-5 py-4">
+          <div className="min-w-0">
+            <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[11px] text-info">#2</span></p>
+            <p className="mt-0.5 truncate text-[18px] font-medium text-paper">truncate cuts mid-word and returns more than max characters</p>
+          </div>
+          <Press at={SIGN_IN_PRESS_AT} className="shrink-0 rounded-full border border-signal/50 bg-signal/10 px-4 py-1.5 text-[14px] font-medium text-signal">Sign in with Claude &amp; start</Press>
+        </div>
+        {t >= SIGN_IN_PRESS_AT && t < SIGN_IN_PANEL_AT && <p className="text-[15px] text-paper-muted">Starting your run… Claude&apos;s sign-in page opens here in a moment.</p>}
+        <Reveal at={SIGN_IN_PANEL_AT} spot="sign-in" className="rounded-2xl border border-signal/40 bg-signal/[0.05] p-5">
+          <p className="text-[18px] font-medium text-signal">Sign in to Claude to start this run</p>
+          <p className="mt-1.5 text-[16px] leading-snug text-paper-dim">This run uses your own Claude subscription. Sign in on Claude&apos;s page, then paste the code it shows you here.</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-[14px]">
+            <span className="rounded-full border border-signal/40 px-3.5 py-1.5 text-signal">Open Claude sign-in ↗</span>
+            <span className="min-w-[220px] flex-1 rounded-md border border-border bg-surface px-3 py-1.5 font-mono text-paper-faint">{t >= SIGN_IN_SENT_AT ? "••••••••" : "Paste code"}</span>
+            <span className="rounded-full bg-signal px-3.5 py-1.5 font-medium text-white">Send code</span>
+          </div>
+          {t >= SIGN_IN_SENT_AT && <p className="mt-3 text-[15px] text-ok">Code sent. The run starts once Claude confirms the sign-in.</p>}
+        </Reveal>
+      </div>
+    </AppWindow>
+  );
+}
+
+/** The rules stop, opened by the run's start: Sign in with Claude, then the run itself. */
+export function withSignInStart(chapter: Chapter): Chapter {
+  const Inner = chapter.View;
+  function View() {
+    const t = useT();
+    return t < SIGN_IN_LENGTH ? <SignInView /> : <TimeContext.Provider value={t - SIGN_IN_LENGTH}><Inner /></TimeContext.Provider>;
+  }
+  const later = (c: Caption): Caption => ({ ...c, at: c.at + SIGN_IN_LENGTH });
+  return {
+    ...chapter,
+    duration: chapter.duration + SIGN_IN_LENGTH,
+    headlines: [{ at: 0, text: "No API bill: it runs on the Claude plan you already pay for." }, ...(chapter.headlines ?? []).map(later)],
+    captions: [
+      { at: 0, text: "One click starts the run. It runs on the Claude plan you already pay for, so there's no API bill." },
+      { at: SIGN_IN_PANEL_AT, spot: "sign-in", text: "You sign in on Claude's own page, inside the run's isolated machine. opensrcer never sees or keeps your Claude login; the session goes away with the machine. Hit your plan's limit? The run stops and says so. It switches to your API key only if you've turned that on, and that's off by default." },
+      ...chapter.captions.map(later),
+    ],
+    View,
+  };
+}

@@ -131,7 +131,7 @@ export function ChangeChat({ storageKey, repo, title, context, starters = STARTE
         <button type="button" onClick={toggle} aria-expanded={open} aria-controls={panelId} className={`${button} border-info/50 bg-info/10 font-medium text-info hover:bg-info/20`}>
           {open ? "Close the questions" : "Ask about this change"}{turns.length > 0 && !open ? ` (${turns.length} asked)` : ""}
         </button>
-        <span className="text-paper-muted">Not sure what the fix does? Ask before you send it.</span>
+        <span className="text-paper-muted">Not sure what the change does or why? Ask about it here.</span>
       </div>
       <div id={panelId} hidden={!open} className="mt-2">
         <p className="text-paper-muted">{caveat} Each answer comes from one AI call that reads only what is shown here; it does not run the code.</p>

@@ -34,7 +34,10 @@ const redirectsTo = (r, path) => [302, 303, 307, 308].includes(r.status) && new 
 // Anonymous: the teaser, sign-in, privacy and shared fixes only.
 const home = await request('/');
 assert.equal(home.status, 200);
-assert.match(home.text, /Coming soon/);
+assert.match(home.text, /Private preview/);
+assert.match(home.text, /Pick an issue/, 'the teaser says how it works');
+// A path no route serves is a real 404, not a sign-in wall.
+for (const path of ['/nope', '/terms']) assert.equal((await request(path)).status, 404, path);
 assert.match(home.text, /Pull requests out\./);
 assert.doesNotMatch(home.text, /One place for the whole contribution/, 'the full landing page stays private');
 for (const path of ['/login', '/privacy', '/demo']) assert.equal((await request(path)).status, 200, path);

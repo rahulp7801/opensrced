@@ -15,6 +15,7 @@
 // Escape hatch: AUTH_DISABLED=1 skips the gating (local dev without Auth0).
 
 import { hasAccess, inviteOnly } from "@/lib/access";
+import { unknownRoute } from "@/lib/app-routes";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
@@ -241,6 +242,8 @@ export async function middleware(req: NextRequest) {
         { status: 503, headers: { "Cache-Control": "no-store" } },
       );
     }
+    // No such route: the not-found page, as when Auth0 is configured.
+    if (unknownRoute(pathname)) return NextResponse.next();
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("returnTo", pathname + search);
     return NextResponse.redirect(loginUrl);
@@ -248,8 +251,12 @@ export async function middleware(req: NextRequest) {
 
   // The SDK forwards any extra /auth/login query parameter to Auth0's
   // /authorize, so a crafted link could request broader GitHub scopes
-  // (connection_scope=repo,delete_repo...). Only returnTo is ours.
-  if (pathname === "/auth/login" && [...req.nextUrl.searchParams.keys()].some((key) => key !== "returnTo")) {
+  // (connection_scope=repo,delete_repo...). Only returnTo is ours, plus
+  // connection=github exactly, which sends the user straight to GitHub instead
+  // of Auth0's own "Continue with GitHub" screen. No other connection or value.
+  const loginParams = [...req.nextUrl.searchParams.entries()];
+  const allowedLoginParam = ([key, value]: [string, string]) => key === "returnTo" || (key === "connection" && value === "github");
+  if (pathname === "/auth/login" && !loginParams.every(allowedLoginParam)) {
     const clean = new URL("/auth/login", req.url);
     const returnTo = req.nextUrl.searchParams.get("returnTo");
     if (returnTo) clean.searchParams.set("returnTo", returnTo);
@@ -311,6 +318,8 @@ export async function middleware(req: NextRequest) {
   }
 
   if (isPublic(pathname)) return authRes;
+  // No such route: let Next answer with the not-found page (lib/app-routes.ts).
+  if (unknownRoute(pathname)) return authRes;
 
   const session = await auth0.getSession(req);
   if (session?.user) return hasAccess(session.user.sub) ? authRes : notInvited(req, pathname, authRes);

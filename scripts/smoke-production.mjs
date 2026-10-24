@@ -63,6 +63,14 @@ const loginTarget = login.headers.get('location') ?? '';
 assert.ok(!loginTarget.includes('connection_scope') && !loginTarget.includes('delete_repo'), `login must drop extra parameters: ${loginTarget}`);
 assert.match(loginTarget, /returnTo=%2Fdiscover/);
 await login.text();
+// connection=github is the one extra allowed (it skips Auth0's provider screen); any other connection is dropped.
+const otherConnection = await fetch(base + '/auth/login?returnTo=%2Fdiscover&connection=google-oauth2', { redirect: 'manual', signal: AbortSignal.timeout(15000) });
+const otherTarget = otherConnection.headers.get('location') ?? '';
+assert.ok(!otherTarget.includes('connection='), `login must drop other connections: ${otherTarget}`);
+await otherConnection.text();
+const githubLogin = await fetch(base + '/auth/login?connection=github&returnTo=%2Fdiscover', { redirect: 'manual', signal: AbortSignal.timeout(15000) });
+assert.match(githubLogin.headers.get('location') ?? '', /connection=github/, 'connection=github must reach Auth0');
+await githubLogin.text();
 // Another site cannot sign a visitor out (and wipe saved keys) by embedding logout.
 const crossSiteLogout = await fetch(base + '/auth/logout', { redirect: 'manual', headers: { 'sec-fetch-site': 'cross-site' }, signal: AbortSignal.timeout(15000) });
 assert.equal(new URL(crossSiteLogout.headers.get('location') ?? '', base).pathname, '/', 'cross-site logout must not reach the SDK');

@@ -12,9 +12,10 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   if (process.env.AUTH_DISABLED === "1" && process.env.NODE_ENV !== "production") {
     redirect(returnTo === "/" || returnTo.startsWith("/login") ? "/discover" : returnTo);
   }
-  const loginHref = `/auth/login?returnTo=${encodeURIComponent(returnTo)}`;
+  // connection=github skips Auth0's own provider screen (middleware allows exactly this value).
+  const loginHref = `/auth/login?connection=github&returnTo=${encodeURIComponent(returnTo)}`;
   const canSignIn = authConfigured();
-  // Private preview: sign-in is for invited accounts, and the demo is not public.
+  // Private preview: sign-in is for invited accounts; the product tour stays public.
   const preview = inviteOnly();
 
   return (
@@ -25,13 +26,14 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             <p className="eyebrow">Private preview</p>
             <h1 className="display mt-6 max-w-lg text-[46px] leading-[1.02] text-paper sm:text-[60px]">Sign in with your invite.</h1>
             <p className="mt-5 max-w-lg text-base leading-7 text-paper-dim">opensrcer is open to invited GitHub accounts while it&apos;s in preview. It opens to everyone soon.</p>
+            <Link href="/demo" className="mt-6 inline-flex min-h-11 items-center text-base text-signal hover:underline">Not invited yet? Watch a complete run in the product tour <span aria-hidden="true" className="ml-2">&rarr;</span></Link>
           </>
         ) : (
           <>
             <p className="eyebrow">Connect your GitHub account</p>
             <h1 className="display mt-6 max-w-lg text-[46px] leading-[1.02] text-paper sm:text-[60px]">Pick up where the issue leaves off.</h1>
             <p className="mt-5 max-w-lg text-base leading-7 text-paper-dim">Browse repositories, generate a patch, and review the change before opening a draft pull request.</p>
-            <Link href="/demo" className="mt-8 inline-flex text-sm text-paper-dim hover:text-paper">Explore the demo without signing in <span aria-hidden="true" className="ml-2">&rarr;</span></Link>
+            <Link href="/demo" className="mt-8 inline-flex min-h-11 items-center text-sm text-paper-dim hover:text-paper">Explore the demo without signing in <span aria-hidden="true" className="ml-2">&rarr;</span></Link>
           </>
         )}
       </section>

@@ -449,7 +449,11 @@ export function DispatchList() {
                 dryRun={detail.dry_run}
                 rerun={detail.dry_run && detail.repo_url && detail.issue_number ? { repoUrl: detail.repo_url, issue: detail.issue_number } : undefined}
                 // The run's poll has stopped by now, so show the new PR here directly.
-                onPublished={(url) => setDetail((d) => (d && d.id === detail.id ? { ...d, pr_url: url, pr_status: "opened" } : d))}
+                onPublished={(url) => {
+                  setDetail((d) => (d && d.id === detail.id ? { ...d, pr_url: url, pr_status: "opened" } : d));
+                  // The Publish button just disappeared; keep keyboard and screen-reader focus on the result.
+                  setTimeout(() => document.getElementById("pr-opened")?.focus(), 0);
+                }}
               />
             )}
 
@@ -460,7 +464,7 @@ export function DispatchList() {
               return (
                 <div className="border-b border-ok/40 bg-ok/5 px-4 py-3">
                   <div role="status" className="flex flex-wrap items-center gap-3">
-                    <span className="text-[13px] font-medium text-ok">Draft PR #{info.prNumber} opened</span>
+                    <span id="pr-opened" tabIndex={-1} className="text-[13px] font-medium text-ok outline-none">Draft PR #{info.prNumber} opened</span>
                     <span className="ml-auto flex flex-wrap items-center gap-2">
                       <Link href={`/prs/${info.repoFull}/${info.prNumber}`} className="rounded-full inline-flex min-h-8 items-center border border-signal/50 bg-signal/10 px-3 text-[12px] text-signal hover:bg-signal/20">
                         Follow it here

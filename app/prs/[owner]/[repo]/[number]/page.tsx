@@ -754,7 +754,9 @@ export default function PrDetailPage() {
         if (!controller.signal.aborted) setFixState(prev => prev ? { ...prev, response } : prev);
       });
       if (controller.signal.aborted) return;
-      setReplyTexts(prev => new Map(prev).set(comment.id, text));
+      // Same short AI-assistance note as follow-up comments and the PR body;
+      // the reply stays an editable draft the user sends themselves.
+      setReplyTexts(prev => new Map(prev).set(comment.id, text.trim() ? text + commentDisclosure(CLAUDE_FAST_MODEL) : text));
       setShowReplyFor(comment.id);
       setFixState(prev => prev ? { ...prev, response: text, status: "done", step: "Complete" } : prev);
     } catch (err) {

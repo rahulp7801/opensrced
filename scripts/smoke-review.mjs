@@ -127,7 +127,9 @@ try {
   await page.getByText(/The response ended before completion/).first().waitFor();
   await page.getByRole('button', { name: 'draft reply', exact: true }).click();
   await page.locator('textarea').filter({ visible: true }).first().waitFor();
-  assert.ok((await page.locator('textarea').evaluateAll(nodes => nodes.map(node => node.value))).includes('I added the empty-array guard.'));
+  // The drafted reply carries the short AI-assistance note, like follow-up comments.
+  const replyDrafts = await page.locator('textarea').evaluateAll(nodes => nodes.map(node => node.value));
+  assert.ok(replyDrafts.some(value => value.startsWith('I added the empty-array guard.') && value.includes('Drafted with AI assistance')), `reply draft: ${JSON.stringify(replyDrafts)}`);
   assert.equal(drafts, 3);
   assert.deepEqual(errors, []);
   console.log(JSON.stringify({ commentRefreshes: 3, explanations, verificationFailureHandled: true, truncatedFixRejected: true, cancellation: true, draftRecovery: true, terminalFailure: true, correctPushTarget: true, noWriteRetry: true, diffRetry: true, singleCommentPost: true, freshFollowUp: true }));

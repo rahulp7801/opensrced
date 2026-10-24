@@ -18,7 +18,7 @@ import { COPY_MESSAGE, OWN_WORDS, looksCopied, type ExplanationCheck, type Pract
 import { changeRequest } from "./change-chat";
 
 export const FALLBACK_MESSAGE = "The automatic check couldn't run. Your explanation will still be included in the PR.";
-export const PRACTICE_INTRO = "Practice review: maintainers will ask questions like these. Answer them now so you're ready.";
+export const PRACTICE_INTRO = "Maintainers will ask questions like these. Answer them now so you're ready.";
 
 /** What the publish request carries (lib/publish.ts parseAuthorWords). */
 export type OwnWordsResult = { ready: boolean; text: string; checked: boolean; practiced: boolean };

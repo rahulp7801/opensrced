@@ -254,7 +254,7 @@ export function DispatchList() {
       <aside className="col-span-12 md:col-span-5 lg:col-span-4">
         <div className="rounded-2xl border border-border-soft bg-surface">
           <div className="border-b border-border px-4 py-3 flex items-center justify-between gap-3">
-            <span className="text-[13px] text-paper">Pipelines</span>
+            <span className="text-[13px] text-paper">Runs</span>
             <div className="flex items-center gap-3">
               {notificationPermission === "default" && (
                 <button type="button" onClick={enableNotifications} className="text-xs text-paper-muted hover:text-paper">
@@ -295,11 +295,6 @@ export function DispatchList() {
                         <span className="text-paper-faint"> #{d.issue_number}</span>
                       )}
                     </span>
-                    {d.mode === "agentic" && (
-                      <span className="rounded-full ml-auto text-[11px] font-medium text-info border border-info/40 px-1 py-px leading-none">
-                        deep
-                      </span>
-                    )}
                     {d.dry_run && (
                       <span title="Preview: a practice run that can't be published" className="rounded-full ml-auto text-[11px] font-medium text-info border border-info/40 px-1 py-px leading-none">
                         preview
@@ -367,9 +362,6 @@ export function DispatchList() {
                       )}
                     </span>
                   </div>
-                  <div className="mt-0.5 mono-label text-paper-faint tabular-nums truncate">
-                    {d.id}
-                  </div>
                 </a>
               </li>
             ))}
@@ -404,15 +396,18 @@ export function DispatchList() {
                         ? `Issue #${detail.issue_number}`
                         : <span className="text-paper-muted">Dispatch {detail.id.slice(-8)}</span>)}
                   </div>
-                  <div className="mt-1 flex items-center gap-2 text-[11px] text-paper-muted">
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-paper-muted">
                     <span className="tabular-nums">{formatAbsoluteOrRelative(detail.started_at)}</span>
                     {detail.ended_at && (
                       <><span className="text-paper-faint">·</span><span className="tabular-nums">{formatDuration(detail.started_at, detail.ended_at)}</span></>
                     )}
                     {cost !== null && (<><span className="text-paper-faint">·</span><span className="tabular-nums text-signal">${cost.toFixed(4)}</span></>)}
+                    {/* For support requests; also in the downloaded report. */}
+                    <span className="text-paper-faint">·</span>
+                    <span className="break-all">Run ID (for support): <span className="select-all font-mono">{detail.id}</span></span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <StatusChip tone={detail.status === "running" ? "signal" : detail.pr_status === "opened" ? "ok" : (detail.pr_status === "failed" || detail.pr_status === "tests_failed") ? "alert" : toneFor(detail.status)}>
                     {detail.status === "running" ? "live" : detail.pr_status === "opened" ? "PR opened" : detail.pr_status === "tests_failed" ? "tests failed" : detail.pr_status === "awaiting_review" ? "waiting for your review" : detail.pr_status === "blocked" ? "blocked" : detail.status}
                   </StatusChip>
@@ -730,51 +725,58 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
     );
   }
 
+  // A toolbar above the log, not floating over it, so no log line is hidden.
+  const tool = "inline-flex min-h-10 items-center gap-1.5 rounded-lg border bg-surface px-3 text-xs transition sm:min-h-8";
   return (
-    <div className="relative">
-      {isRunning && !showSearch && (
-        <div className="absolute top-2 right-3 z-10 flex items-center gap-1.5 text-xs text-[#64d2ff]">
-          <StatusDot tone="signal" /> streaming
-        </div>
-      )}
-      {showSearch && (
-        <div className="absolute top-2 right-3 z-10 flex items-center gap-1.5">
-          <input
-            ref={searchRef}
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="search log..."
-            className="rounded-lg bg-surface border border-border px-2 py-1 text-[11px] text-paper w-48 focus:outline-none focus:border-signal/50"
-          />
-          {search.length >= 2 && (
-            <span className="text-xs text-paper-muted tabular-nums">{matchCount}</span>
-          )}
-          <button onClick={() => { setShowSearch(false); setSearch(""); }} className="text-[11px] text-paper-muted hover:text-paper">×</button>
-        </div>
-      )}
-      {!showSearch && !isRunning && (
-        <div className="absolute top-2 right-3 z-10 flex items-center gap-1.5">
-          <button
-            onClick={() => setRawMode(!rawMode)}
-            className={cn(
-              "rounded-lg border bg-surface px-2 py-1 text-xs transition",
-              rawMode ? "border-signal/50 text-signal" : "border-border text-paper-dim hover:text-paper"
+    <div>
+      <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-2">
+        <span className="mr-auto text-xs text-paper-muted">Agent log</span>
+        {isRunning && !showSearch && (
+          <span className="flex items-center gap-1.5 text-xs text-signal">
+            <StatusDot tone="signal" /> streaming
+          </span>
+        )}
+        {showSearch && (
+          <>
+            <input
+              ref={searchRef}
+              type="search"
+              aria-label="Search the log"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search the log…"
+              className="min-h-10 w-48 rounded-lg border border-border bg-surface px-2 text-[12px] text-paper focus:border-signal/50 focus:outline-none sm:min-h-8"
+            />
+            {search.length >= 2 && (
+              <span className="text-xs text-paper-muted tabular-nums" aria-live="polite">{matchCount} match{matchCount === 1 ? "" : "es"}</span>
             )}
-            title="Toggle terminal colors"
-          >
-            {rawMode ? "colored" : "plain"}
-          </button>
-          <button
-            onClick={() => { setShowSearch(true); setTimeout(() => searchRef.current?.focus(), 50); }}
-            className="rounded-lg flex items-center gap-1 border border-border bg-surface hover:border-signal/50 hover:text-signal px-2 py-1 text-xs text-paper-dim transition"
-            title="Search log (Ctrl+F)"
-          >
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7" cy="7" r="4" /><path d="m13 13-3.5-3.5" /></svg>
-            search
-          </button>
-        </div>
-      )}
+            <button type="button" onClick={() => { setShowSearch(false); setSearch(""); }} className={cn(tool, "border-border text-paper-dim hover:text-paper")}>
+              Close search
+            </button>
+          </>
+        )}
+        {!showSearch && !isRunning && (
+          <>
+            <button
+              type="button"
+              onClick={() => setRawMode(!rawMode)}
+              aria-pressed={rawMode}
+              className={cn(tool, rawMode ? "border-signal/50 text-signal" : "border-border text-paper-dim hover:text-paper")}
+            >
+              Show terminal colors
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowSearch(true); setTimeout(() => searchRef.current?.focus(), 50); }}
+              aria-keyshortcuts="Control+F"
+              className={cn(tool, "border-border text-paper-dim hover:border-signal/50 hover:text-signal")}
+            >
+              <svg aria-hidden width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7" cy="7" r="4" /><path d="m13 13-3.5-3.5" /></svg>
+              Search log
+            </button>
+          </>
+        )}
+      </div>
       <pre ref={logRef} onScroll={onScroll} tabIndex={0} aria-label="Run log" className="term h-[50vh] overflow-auto rounded-none p-4 text-[11.5px] leading-relaxed font-mono whitespace-pre-wrap">
         {search.length >= 2 ? renderLog() : rawMode ? <AnsiLog text={log} /> : (clean || "(log empty — waiting for first write)")}
       </pre>
@@ -843,6 +845,7 @@ function ExportButton({ dispatch }: { dispatch: DispatchWithLog }) {
     const parts = [
       `# Dispatch Report`,
       ``,
+      `- **Run ID:** ${dispatch.id}`,
       `- **Repo:** ${repo}`,
       dispatch.issue_number !== undefined ? `- **Issue:** #${dispatch.issue_number}` : null,
       `- **Status:** ${dispatch.status}`,
@@ -872,10 +875,10 @@ function ExportButton({ dispatch }: { dispatch: DispatchWithLog }) {
   return (
     <button
       onClick={download}
-      className="rounded-full border border-border text-paper-muted hover:text-paper hover:border-border-strong px-2 py-0.5 text-xs font-medium"
-      title="Download run report as .md"
+      className="rounded-full inline-flex min-h-10 items-center border border-border px-3 text-xs font-medium text-paper-muted hover:border-border-strong hover:text-paper sm:min-h-8"
+      title="Saves the run's details, patch and full log as a Markdown file"
     >
-      export
+      Download report
     </button>
   );
 }
@@ -891,13 +894,14 @@ function PipelineTimeline({ log, status, prUrl }: { log: string; status: string;
   ];
 
   return (
-    <div className="flex items-center gap-1">
+    // Wraps as whole steps on narrow screens; a step's mark and name never split.
+    <div className="flex flex-wrap items-center gap-x-1 gap-y-1.5">
       {phases.map((p, i) => (
         <div key={p.label} className="flex items-center gap-1">
           {i > 0 && <div className={cn("w-4 h-px", p.done || p.active ? "bg-signal/40" : "bg-border")} />}
           <span
             className={cn(
-              "flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-medium border leading-none",
+              "flex items-center gap-1 whitespace-nowrap px-1.5 py-1 text-[11px] font-medium border leading-none",
               p.failed ? "border-alert/40 text-alert" :
               p.done ? "border-ok/40 text-ok" :
               p.active ? "border-signal/40 text-signal" :

@@ -28,6 +28,19 @@ function cut(text: string | undefined, max: number): string {
   return text.length > max ? `${text.slice(0, max - 40)}\n… (truncated for this question)` : text;
 }
 
+/** The change as /api/explain and /api/quiz take it, cut to the server's caps. */
+export function changeRequest(repo: string | undefined, title: string, context: ExplainContext) {
+  return {
+    repo, title: cut(title, EXPLAIN_LIMITS.title),
+    context: {
+      description: cut(context.description, EXPLAIN_LIMITS.description),
+      diff: cut(context.diff, EXPLAIN_LIMITS.diff),
+      verification: cut(context.verification, EXPLAIN_LIMITS.verification),
+      rules: cut(context.rules, EXPLAIN_LIMITS.rules),
+    },
+  };
+}
+
 function loadTurns(key: string): ExplainTurn[] {
   try {
     const parsed = JSON.parse(sessionStorage.getItem(STORAGE_PREFIX + key) ?? "[]") as unknown;
@@ -41,7 +54,7 @@ function saveTurns(key: string, turns: ExplainTurn[]) {
   try { sessionStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(turns.slice(-20))); } catch { /* storage blocked: the chat still works for this view */ }
 }
 
-export function ChangeChat({ storageKey, repo, title, context, starters = STARTER_QUESTIONS, caveat = CHAT_CAVEAT, onOpen }: {
+export function ChangeChat({ storageKey, repo, title, context, starters = STARTER_QUESTIONS, caveat = CHAT_CAVEAT, onOpen, prefill }: {
   /** One conversation per run or PR, e.g. "run:<id>" or "pr:owner/repo#12". */
   storageKey: string;
   repo?: string;
@@ -51,6 +64,8 @@ export function ChangeChat({ storageKey, repo, title, context, starters = STARTE
   caveat?: string;
   /** Called when the panel opens, e.g. to load the diff it needs. */
   onOpen?: () => void;
+  /** Open the chat with this question in the box (not sent); `n` changes per request. */
+  prefill?: { text: string; n: number };
 }) {
   const [open, setOpen] = useState(false);
   const [turns, setTurns] = useState<ExplainTurn[]>([]);
@@ -58,8 +73,17 @@ export function ChangeChat({ storageKey, repo, title, context, starters = STARTE
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
+  const box = useRef<HTMLTextAreaElement>(null);
   const panelId = useId();
   const inputId = useId();
+
+  useEffect(() => {
+    if (!prefill) return;
+    setOpen(true);
+    setInput(prefill.text.slice(0, EXPLAIN_LIMITS.question));
+    // After the panel is shown, so focus lands in the visible box.
+    setTimeout(() => { box.current?.focus(); box.current?.scrollIntoView({ block: "center" }); }, 0);
+  }, [prefill]);
 
   // Restore after mount (sessionStorage is not available while rendering on the server).
   useEffect(() => { setTurns(loadTurns(storageKey)); setError(null); }, [storageKey]);
@@ -85,15 +109,7 @@ export function ChangeChat({ storageKey, repo, title, context, starters = STARTE
         method: "POST",
         signal: AbortSignal.any([controller.signal, AbortSignal.timeout(100_000)]),
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          repo, title: cut(title, EXPLAIN_LIMITS.title), question: q, history,
-          context: {
-            description: cut(context.description, EXPLAIN_LIMITS.description),
-            diff: cut(context.diff, EXPLAIN_LIMITS.diff),
-            verification: cut(context.verification, EXPLAIN_LIMITS.verification),
-            rules: cut(context.rules, EXPLAIN_LIMITS.rules),
-          },
-        }),
+        body: JSON.stringify({ ...changeRequest(repo, title, context), question: q, history }),
       });
       const answer = await readTextResponse(res, (text) => {
         if (!controller.signal.aborted) setTurns((prev) => [...prev.slice(0, -1), { question: q, answer: text }]);
@@ -150,6 +166,7 @@ export function ChangeChat({ storageKey, repo, title, context, starters = STARTE
         <form className="mt-2 flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); void ask(input); }}>
           <label htmlFor={inputId} className="basis-full text-paper">Your question</label>
           <textarea
+            ref={box}
             id={inputId}
             value={input}
             onChange={(e) => setInput(e.target.value)}

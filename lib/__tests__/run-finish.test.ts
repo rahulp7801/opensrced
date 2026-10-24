@@ -46,7 +46,7 @@ test("fewer covered variants than listed is a warning, not a blocker", async () 
     writeFileSync(path.join(dir, "run.log"), log);
     const preview = await finishRun({ repoFull: "o/r", issueNumber: 0, dispatchId: "d_c", dispatchDir: path.join(dir, "d_c"), logPath: path.join(dir, "run.log"), exec: null, profile: null, issueLabels: [], privateOrg: false });
     assert.deepEqual(preview!.cases, [{ variant: "exponent with sign", test: "test_signed" }, { variant: "exponent without digits", test: null }]);
-    assert.match(preview!.warnings.join(" "), /listed 2 reported variant\(s\) but covered only 1 with a test; not covered: exponent without digits/);
+    assert.match(preview!.warnings.join(" "), /listed 2 variant\(s\) of this bug but covered only 1 with a test; not covered: exponent without digits/);
     assert.deepEqual(preview!.blockers, []);
   } finally {
     rmSync(dir, { recursive: true, force: true });

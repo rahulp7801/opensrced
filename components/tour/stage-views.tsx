@@ -126,7 +126,7 @@ export const stageScan: Chapter = {
   captions: [
     { at: 0, text: "Step one: an issue that's actually open to a newcomer. Claude Code assumes you already have one." },
     { at: SHOW_ALL_AT, text: "Show everything it found, including what it filtered out, and why." },
-    { at: SHOW_ALL_AT + 600, spot: "scan-list", text: "Assigned to someone? Skip, they're on it. Someone already has a pull request open? Skip, help them instead. Already fixed but never closed? Skip. That one alone saves maintainers a pile of duplicate PRs." },
+    { at: SHOW_ALL_AT + 600, spot: "scan-list", text: "Assigned? Skip. A pull request already open? Skip, help them instead. Already fixed but still open? Skip. That alone saves maintainers duplicate PRs." },
     { at: SHOW_ALL_AT + 4200, spot: "scan-list", text: "Questions, wontfix and vague issues are flagged too, with the reason." },
     { at: SHOW_ALL_AT + 7200, text: "What's left is actually open to a newcomer, each with its scope, risk, complexity and a time estimate." },
     { at: SHOW_READY_AT, text: "Back to the ready ones. This is the contribution etiquette Claude Code assumes you already know." },
@@ -306,9 +306,9 @@ function staged(chapter: Chapter, headlines: Caption[], captions: Caption[]): Ch
 export function stageNotes(base: { pr: Chapter }) {
   return {
     pr: staged(base.pr, [{ at: 0, text: "The maintainer always knows AI helped." }], [
-      { at: 0, spot: "pr-facts", text: "Every GitHub step done right: its own branch, commits under your private noreply email, the base branch past PRs were merged into, and a description that closes the issue." },
+      { at: 0, spot: "pr-facts", text: "Every GitHub step done right: its own branch, your private noreply email, the right base branch, and a description that closes the issue." },
       { at: 5800, spot: "pr-verified", text: "The description shows the tests it ran and the result: verified." },
-      { at: 7400, spot: "pr-ai", text: "And it discloses itself: an AI assistance section says who asked, which model, and what was and wasn't tested. Commits carry an Assisted-by trailer, and a sign-off where the project asks for one." },
+      { at: 7400, spot: "pr-ai", text: "And it discloses itself: who asked, which model, what was and wasn't tested, plus an Assisted-by trailer and a sign-off where the project asks." },
       { at: 9000, text: "It stays a draft until you mark it ready. The maintainer always knows." },
     ]),
   };
@@ -439,7 +439,7 @@ export const stageSlop: Chapter = {
   source: "What opensrcer does today",
   headlines: [{ at: 0, text: "Not more pull requests. Better ones." }],
   captions: [
-    { at: 0, text: "Back to where we started. Here's what slop is made of, and what opensrcer does about each, all of it in the product today." },
+    { at: 0, text: "Back to where we started: what slop is made of, and what opensrcer does about each." },
     { at: 700 + 2 * SLOP_STEP, text: "The heart of it: you can't publish what you can't explain, and the chat is there so you can." },
     { at: 700 + 5 * SLOP_STEP, text: "It's built to make better contributors, not more pull requests. Thank you." },
   ],
@@ -508,7 +508,7 @@ export const stageVerified: Chapter = {
     { at: 0, text: "The centerpiece: it proves the fix works before you ever see it. Same issue, same real run, on the hosted site." },
     { at: 600, text: "In a second machine with no passwords or keys, that only reaches package registries and GitHub." },
     { at: VERIFY_AT, spot: "verify", text: "It runs the project's own tests on the final patch: all six pass. Then it undoes the fix: the two new tests fail. So they really catch the bug." },
-    { at: VERIFY_AT + 2600, spot: "verify", text: "For maintainers who ask: it re-ran node --test on the final patch, exit 0, 6 of 6; with the source change reverted, exit 1, the two new tests failing with \"The quick br…\" instead of \"The quick…\". Status verified, regression reproduced. With no runnable test it says unverified instead, and CI on the pull request is still the project's own." },
+    { at: VERIFY_AT + 2600, spot: "verify", text: "For maintainers who ask: node --test on the final patch, exit 0, 6 of 6; with the fix reverted, exit 1, the two new tests failing. With no runnable test it says unverified, and CI on the pull request is still the project's own." },
   ],
   View: VerifiedView,
 };
@@ -920,9 +920,9 @@ export const stageReview: Chapter = {
     { at: R.own, spot: "own-words", text: "Before you can publish, you explain it in your own words. The AI checks it against the actual change; pasting the AI's own text is rejected." },
     { at: R.results, spot: "own-words", text: "It goes into the pull request under “In the author's words”, so the maintainer reads the human's explanation, not the AI's." },
     { at: R.practice, spot: "practice", text: "Then two practice questions, the kind a maintainer would ask about this exact change. (Example questions and answers.)" },
-    { at: R.publish, spot: "publish-steps", text: "Then it says exactly what publishing does, and you confirm you can explain it to reviewers. Publish stays locked until all of that is done." },
+    { at: R.publish, spot: "publish-steps", text: "Then exactly what publishing does, and your confirmation. Publish stays locked until all of that is done." },
     { at: R.publishAt, text: "Only then is it scanned for leaked secrets and opened, as a draft, in your name." },
-    { at: PUBLISHED_AT + 600, spot: "next-steps", text: "And it tells you what happens next, etiquette included: mark it ready, give it time, don't chase people, answer every review comment." },
+    { at: PUBLISHED_AT + 600, spot: "next-steps", text: "And what happens next, etiquette included." },
   ],
   View: StageReviewView,
 };

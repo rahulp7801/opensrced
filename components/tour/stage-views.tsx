@@ -15,7 +15,12 @@ import { cn } from "@/lib/utils";
 import { StatusChip } from "@/components/status-dot";
 import { AppWindow, Pips, Press, Reveal, SCOPE_LABEL, SCOPE_TONE, SEVERITY_TONE, TimeContext, Typed, progress, useFollow, useT, type Caption, type Chapter } from "./kit";
 import { CodeGraph, LIGHTS } from "./graph";
-import { REVIEW_CONFIRM_AT, REVIEW_PUBLISH_AT, REVIEW_PUBLISHED_AT } from "./chapters-fix";
+import { DEMO_PUBLISH_STEPS, Published, Term } from "./chapters-fix";
+import type { ReactNode } from "react";
+import { DIAGNOSIS, PATCH_STATS, RISK } from "./data";
+import { projectRules, RULE_STATUS_LABEL, type RuleStatus } from "@/lib/project-rules";
+import { PRACTICE_INTRO } from "@/components/own-words";
+import { Inline } from "./kit";
 import { DEMO_REPO, RUN } from "./data";
 
 
@@ -119,10 +124,10 @@ export const stageScan: Chapter = {
   source: "Example scan; the verdicts are the scanner's own",
   headlines: [{ at: 0, text: "It only picks issues that are open to you." }],
   captions: [
-    { at: 0, text: "This is where beginners get stuck, and where Claude Code can't help: Claude Code starts once you already have an issue. Here, a repository's newest open issues are read and vetted for you." },
+    { at: 0, text: "Step one: an issue that's actually open to a newcomer. Claude Code assumes you already have one." },
     { at: SHOW_ALL_AT, text: "Show everything it found, including what it filtered out, and why." },
     { at: SHOW_ALL_AT + 600, spot: "scan-list", text: "Assigned to someone? Skip, they're on it. Someone already has a pull request open? Skip, help them instead. Already fixed but never closed? Skip. That one alone saves maintainers a pile of duplicate PRs." },
-    { at: SHOW_ALL_AT + 4200, spot: "scan-list", text: "Questions, wontfix or duplicate labels, and issues too vague to act on are flagged too, with the reason spelled out, so you know to pass on them." },
+    { at: SHOW_ALL_AT + 4200, spot: "scan-list", text: "Questions, wontfix and vague issues are flagged too, with the reason." },
     { at: SHOW_ALL_AT + 7200, text: "What's left is actually open to a newcomer, each with its scope, risk, complexity and a time estimate." },
     { at: SHOW_READY_AT, text: "Back to the ready ones. This is the contribution etiquette Claude Code assumes you already know." },
   ],
@@ -285,7 +290,7 @@ export const stageExplore: Chapter = {
     { at: 0, text: "Before changing anything, understand the code. Explore maps the repository straight from the source: no AI, nothing cloned, nothing installed." },
     { at: BUILT_AT, spot: "graph", text: "Files, functions, and the calls between them. (For the curious: it's parsed with tree-sitter.)" },
     { at: FIRST.turns[0].typeAt, spot: "ask", text: `Then ask the question you'd normally grep for: “${FIRST.turns[0].prompt}” The answer comes from the map and points to the files involved.` },
-    { at: SELECT_AT, spot: "graph", text: "Same thing on the map: click truncate() and its connections light up. One file, its options type, one test. You know the shape of the fix before an agent writes a line." },
+    { at: SELECT_AT, spot: "graph", text: "Same thing on the map: click truncate() and its connections light up. You know the shape of the fix before an agent writes a line." },
   ],
   View: StageExploreView,
 };
@@ -298,22 +303,8 @@ function staged(chapter: Chapter, headlines: Caption[], captions: Caption[]): Ch
 }
 
 /** The review and the pull request as the stage tells them. */
-export function stageNotes(base: { review: Chapter; pr: Chapter }) {
+export function stageNotes(base: { pr: Chapter }) {
   return {
-    review: staged(base.review, [
-      { at: 0, text: "It explains every change in plain English." },
-      { at: REVIEW_CONFIRM_AT - 1500, text: "You confirm you understand it." },
-      { at: REVIEW_PUBLISH_AT, text: "A human publishes. Nothing is hidden." },
-    ], [
-      { at: 0, spot: "review-found", text: "It explains every change: what was wrong, what changed and why, and what to double-check, in plain words." },
-      { at: 4300, spot: "review-risk", text: "And what to double-check, including what it deliberately left alone." },
-      { at: 7600, text: "Then the patch itself: the one broken line out, a small fix in, and two new tests." },
-      { at: 13800, spot: "ask-first", text: "Not sure the maintainers even want this? It drafts a short comment for you to post on the issue first. It never posts anything for you." },
-      { at: 15000, spot: "publish-steps", text: "Before you confirm, it says exactly what publishing does: one commit on a new branch, a draft pull request that says an AI tool helped, nothing merged." },
-      { at: REVIEW_CONFIRM_AT - 600, text: "And you confirm you've read it and can explain it to reviewers. Maintainers review people, not tools: if you can't explain a change, you shouldn't send it." },
-      { at: REVIEW_PUBLISH_AT, text: "Only then is it scanned for leaked secrets and opened, as a draft, in your name." },
-      { at: REVIEW_PUBLISHED_AT + 600, spot: "next-steps", text: "And it tells you what happens next, etiquette included: mark it ready, give it time, don't chase people, answer every review comment." },
-    ]),
     pr: staged(base.pr, [{ at: 0, text: "The maintainer always knows AI helped." }], [
       { at: 0, spot: "pr-facts", text: "Every GitHub step done right: its own branch, commits under your private noreply email, the base branch past PRs were merged into, and a description that closes the issue." },
       { at: 5800, spot: "pr-verified", text: "The description shows the tests it ran and the result: verified." },
@@ -405,7 +396,7 @@ export const stageRefused: Chapter = {
   source: "Example: a fictional project whose guide bans AI",
   headlines: [{ at: 0, text: "And when the rules say no, it stops." }],
   captions: [
-    { at: 0, spot: "refusal", text: "And it says no. This project's contribution guide bans AI-written pull requests, so publishing is refused, quoting the guide. There's no confirm box and no Publish button; the preview is still yours to learn from. Same when someone else already has a pull request open on the issue. A project's rules are enforced, not left to the contributor to notice." },
+    { at: 0, spot: "refusal", text: "And it says no. This guide bans AI-written pull requests, so publishing is refused, quoting the guide, with no Publish button. Same when someone else already has a pull request open." },
   ],
   View: RefusedView,
 };
@@ -515,8 +506,8 @@ export const stageVerified: Chapter = {
   headlines: [{ at: 0, text: "It proves the fix works, in a locked box." }],
   captions: [
     { at: 0, text: "The centerpiece: it proves the fix works before you ever see it. Same issue, same real run, on the hosted site." },
-    { at: 600, text: "The tests run in a second machine with no passwords or keys, that can only reach package registries and GitHub. Whatever the repository's code does, it can't touch anything of yours." },
-    { at: VERIFY_AT, spot: "verify", text: "It runs the project's own declared tests on the final patch: all six pass. Then it undoes the fix and runs them again: the two new tests fail. So they really catch the bug; they aren't decorative." },
+    { at: 600, text: "In a second machine with no passwords or keys, that only reaches package registries and GitHub." },
+    { at: VERIFY_AT, spot: "verify", text: "It runs the project's own tests on the final patch: all six pass. Then it undoes the fix: the two new tests fail. So they really catch the bug." },
     { at: VERIFY_AT + 2600, spot: "verify", text: "For maintainers who ask: it re-ran node --test on the final patch, exit 0, 6 of 6; with the source change reverted, exit 1, the two new tests failing with \"The quick br…\" instead of \"The quick…\". Status verified, regression reproduced. With no runnable test it says unverified instead, and CI on the pull request is still the project's own." },
   ],
   View: VerifiedView,
@@ -565,8 +556,8 @@ export const stageProblem: Chapter = {
   source: "An illustration of AI pull requests maintainers describe",
   headlines: [{ at: 0, text: "Maintainers are drowning in AI pull requests nobody understood." }],
   captions: [
-    { at: 0, text: "Start with the worry in this room. AI tools made it easy to open a pull request, and maintainers are drowning in them: huge diffs, no tests, the project's rules ignored, opened by people who can't answer a single review question." },
-    { at: 400 + 2 * 700, text: "These are illustrations, but every maintainer here has seen them. The problem isn't AI. It's contributions nobody understood, tested, or checked against the project's rules." },
+    { at: 0, text: "Start with the worry in this room: maintainers are drowning in AI pull requests. Huge diffs, no tests, rules ignored, from people who can't answer one review question." },
+    { at: 400 + 2 * 700, text: "Illustrations, but every maintainer here has seen them. The problem isn't AI; it's contributions nobody understood." },
   ],
   View: ProblemView,
 };
@@ -607,7 +598,7 @@ export const stagePromise: Chapter = {
   headlines: [{ at: 0, text: "A contribution a maintainer would actually want." }],
   captions: [
     { at: 0, text: "opensrcer helps a beginner make the contribution a maintainer would actually want: tested, explained, and following the project's rules." },
-    { at: 300 + PILLARS.length * 600, text: "Everything from here is the real product; the run and the pull request are real. Every run stops for your review, and nothing posts until you confirm." },
+    { at: 300 + PILLARS.length * 600, text: "Everything from here is the real product, and a real run. Nothing posts until you confirm." },
   ],
   View: PromiseView,
 };
@@ -668,9 +659,9 @@ export const stageRules: Chapter = {
   source: "The real run behind pull request #7, in plain words",
   headlines: [{ at: 0, text: "It reads the project's rules first." }],
   captions: [
-    { at: 0, text: "One click on the issue started a run, in a throwaway machine with a hard spend cap and a time limit. The first thing it does is read the project's rules." },
-    { at: 2200, spot: "rules", text: "It reads the project's rules: the contribution guide and pull request template, the AI policy, whether commits need a sign-off. This repo has none of them, so it matches what the code already does: where tests live, how they run. A maintainer gets a patch that looks like their project." },
-    { at: 6600, text: "Then it reads the code around the bug and everything that calls it, and writes down the cause before the fix. Where it can't find the root cause, it stops and says so rather than guess." },
+    { at: 0, text: "One click starts the run, in a throwaway machine with a spend cap and a time limit." },
+    { at: 2200, spot: "rules", text: "It reads the project's rules first: contribution guide, PR template, AI policy, sign-off. This repo has none, so it follows what the code already does." },
+    { at: 6600, text: "Then it reads the code around the bug and writes down the cause before the fix. If it can't find the root cause, it says so rather than guess." },
   ],
   View: RulesView,
 };
@@ -726,9 +717,212 @@ export function withSignInStart(chapter: Chapter): Chapter {
     headlines: [{ at: 0, text: "No API bill: it runs on the Claude plan you already pay for." }, ...(chapter.headlines ?? []).map(later)],
     captions: [
       { at: 0, text: "One click starts the run. It runs on the Claude plan you already pay for, so there's no API bill." },
-      { at: SIGN_IN_PANEL_AT, spot: "sign-in", text: "You sign in on Claude's own page, inside the run's isolated machine. opensrcer never sees or keeps your Claude login; the session goes away with the machine. Hit your plan's limit? The run stops and says so. It switches to your API key only if you've turned that on, and that's off by default." },
+      { at: SIGN_IN_PANEL_AT, spot: "sign-in", text: "You sign in on Claude's own page, inside the run's machine; opensrcer never sees your login. Hit your plan's limit? The run stops. It switches to an API key only if you've turned that on." },
       ...chapter.captions.map(later),
     ],
     View,
   };
 }
+
+// ── Review: the change explained, the rules, the chat, your own words ───────
+
+// "This project's rules" for the PR #7 run, computed by lib/project-rules.ts itself.
+// The run predates the checklist, so its preview lacks `rules`; these are the fields a
+// run records today for this repository: no PR template, no discuss-first signal, no
+// other open PR (true at publish), the AI note added. Profile and tests are the run's own.
+const DEMO_RULES = projectRules({
+  profile: { dco: false, cla: null, aiPolicy: { stance: "unknown", source: null, excerpt: null }, aiTrailer: null, sources: [] },
+  signoff: false,
+  executed: true,
+  verification: { status: "verified", reason: "declared tests pass, and fail with the source change reverted", plan: { setup: ["node --version"], test: ["node --experimental-strip-types --test \"test/**/*.test.ts\""], lint: [] }, regression: "reproduced", evidence: [] },
+  blockers: [],
+  warnings: [],
+  body: "",
+  rules: { pr_template: false, template_headings: null, agent_instructions: false, notes: 0, discuss_first: null, competing_prs: "none", disclosed: true },
+});
+const RULE_TONE: Record<RuleStatus, string> = { done: "border-ok/40 text-ok", action: "border-signal/40 text-signal", blocked: "border-alert/40 text-alert", check: "border-info/40 text-info", unknown: "border-border text-paper-muted", none: "border-border text-paper-muted" };
+
+// EXAMPLE answers: what the review screen's AI calls return, written here for this
+// change and checked against PR #7's diff. Labeled as examples in the notes.
+const CHAT_QUESTION = "Explain this fix like I'm new to the project";
+const CHAT_ANSWER = "truncate shortens text to fit a maximum length and adds “…” at the end. Before, it cut at exactly max characters and then added the “…”, so the result came out too long, and it could stop in the middle of a word. Now it saves room for the “…” first, and if the cut lands inside a word, it backs up to the last space. Two new tests: the example from the issue, and a cut that already lands on a space.";
+const OWN_WORDS_TEXT = "truncate added the … after cutting at max, so the result was too long and could split a word. Now it leaves room for the … and backs up to the last space. The two new tests pass, and they fail without the fix.";
+const PRACTICE = [
+  { q: "What happens when there's no space before the cut, like one very long word?", a: "Then there's nothing to back up to, so it keeps the cut and adds the …: it splits that word but stays within max.", feedback: "That answers it and matches the diff.", followUp: "Should that case get its own test?" },
+  { q: "Why check for a space at the cut instead of any whitespace?", a: "It only looks for a plain space, so a tab or newline counts as part of a word. That's worth saying in the PR.", feedback: "That answers it and matches the diff.", followUp: "Should the description say spaces rather than whitespace?" },
+];
+
+// When each section is on screen (one at a time, as a presenter walks the real page).
+const R = {
+  rules: 6500, chat: 13500, own: 22500, practice: 34500, publish: 45500,
+  chatPress: 14800, answerAt: 16000, ownTypeAt: 23500, check: 30500, results: 31200,
+  confirm: 48500, publishAt: 50000,
+};
+const PUBLISHED_AT = R.publishAt + 500;
+const PRACTICE_TIMES = [{ q: 35000, type: 35800, send: 38600, fb: 39200 }, { q: 40300, type: 40800, send: 44200, fb: 44700 }];
+
+function Section({ title, children, spot }: { title: string; children: ReactNode; spot?: string }) {
+  return (
+    <div data-spot={spot} className="animate-fade-rise rounded-xl border border-border-soft bg-ink px-4 py-2.5 text-[13px] motion-reduce:animate-none">
+      <p className="text-[15px] font-medium text-paper">{title}</p>
+      <div className="mt-1.5">{children}</div>
+    </div>
+  );
+}
+
+function StageReviewView() {
+  const t = useT();
+  const section = t < R.rules ? "found" : t < R.chat ? "rules" : t < R.own ? "chat" : t < R.practice ? "own" : t < R.publish ? "practice" : "publish";
+  const typed = OWN_WORDS_TEXT.slice(0, Math.max(0, Math.min(OWN_WORDS_TEXT.length, Math.floor(((t - R.ownTypeAt) / 1000) * 40))));
+  return (
+    <AppWindow path={`/dispatches?dispatch=${RUN.id}`} section="Fix" tab="Runs">
+      <div className="absolute inset-0 bg-ink/80 p-3 backdrop-blur-sm">
+        <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-border-soft bg-surface">
+          <div className="border-b border-border px-4 py-2.5">
+            <p className="truncate text-[15px] font-medium text-paper">{RUN.prTitle}</p>
+            <p className="text-[12px] text-paper-muted">{PATCH_STATS.files} files changed · <span className="text-ok">+{PATCH_STATS.additions}</span> · <span className="text-alert">-{PATCH_STATS.deletions}</span> · <span className="text-ok">verified</span></p>
+          </div>
+          {t >= PUBLISHED_AT ? <Published /> : (
+            <div className="min-h-0 flex-1 overflow-hidden px-4 py-3">
+              {section === "found" && (
+                <div className="space-y-3">
+                  <Reveal at={300} spot="review-found">
+                    <p className="mono-label">What was found</p>
+                    <p className="mt-1 text-[14px] leading-6 text-paper-dim"><Inline text={DIAGNOSIS} /></p>
+                  </Reveal>
+                  <Reveal at={2800} spot="review-risk">
+                    <p className="mono-label">Risk &amp; testing</p>
+                    <ul className="mt-1 space-y-1 text-[13.5px] leading-6 text-paper-dim">{RISK.map((r) => <li key={r}>· <Inline text={r} /></li>)}</ul>
+                  </Reveal>
+                </div>
+              )}
+              {section === "rules" && (
+                <Section title="This project's rules" spot="rules-list">
+                  <p className="text-paper-muted">Why this matters: maintainers set these rules, and following them is what makes a contribution welcome.</p>
+                  <ul className="mt-1 space-y-0.5">
+                    {DEMO_RULES.map((row, i) => (
+                      <Reveal as="li" key={row.id} at={R.rules + 300 + i * 450} className="rounded-lg border border-border-soft bg-surface px-3 py-0.5 text-[12.5px] leading-snug">
+                        <p className="flex flex-wrap items-baseline gap-2"><span className={cn("rounded-full border px-2 text-[11.5px]", RULE_TONE[row.status])}>{RULE_STATUS_LABEL[row.status]}</span><span className="font-medium text-paper">{row.label}:</span><span className="text-paper-dim">{row.text}</span></p>
+                        {row.detail && <p className="text-[11.5px] leading-snug text-paper-muted">{row.detail}</p>}
+                      </Reveal>
+                    ))}
+                  </ul>
+                </Section>
+              )}
+              {section === "chat" && (
+                <Section title="Ask about this change">
+                  <p className="text-paper-muted">Not sure what the change does or why? Ask about it here.</p>
+                  <p className="mt-1 text-[12px] text-paper-muted">Answers are based on this change and the project&apos;s rules; check them against the code. Each answer comes from one AI call that reads only what is shown here; it does not run the code.</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5 text-[12.5px]">
+                    <Press at={R.chatPress} label={CHAT_QUESTION} className="rounded-full border border-info/50 px-3 py-1 text-info">{CHAT_QUESTION}</Press>
+                    {["What could this break?", "Which of the project's rules apply, and did it follow them?", "How do I explain this to a reviewer?"].map((q) => <span key={q} className="rounded-full border border-border px-3 py-1 text-paper-dim">{q}</span>)}
+                  </div>
+                  {t >= R.chatPress + 400 && <p className="mt-2.5 text-paper"><span className="font-medium text-signal">You:</span> {CHAT_QUESTION}</p>}
+                  {t >= R.answerAt && (
+                    <div data-spot="chat-answer" className="mt-1.5 rounded-lg border border-border-soft bg-surface px-3 py-2">
+                      <p className="text-[12px] text-info">AI answer (not verified)</p>
+                      <p className="mt-1 text-[14px] leading-6 text-paper"><Typed text={CHAT_ANSWER} at={R.answerAt} cps={80} /></p>
+                    </div>
+                  )}
+                </Section>
+              )}
+              {section === "own" && (
+                <Section title="Explain it in your own words" spot="own-words">
+                  <p className="text-paper-muted">Maintainers want to know the person sending a change understands it. In a few sentences, answer:</p>
+                  <ul className="mt-1 list-disc pl-5 text-paper-dim"><li>What was wrong?</li><li>What did the change do?</li><li>How do you know it works?</li></ul>
+                  <p className="mt-2 text-paper">Your explanation</p>
+                  <p className="mt-1 min-h-[64px] rounded-lg border border-border bg-surface px-3 py-2 text-[14px] leading-6 text-paper">{typed}&nbsp;</p>
+                  <p className="mt-1 text-[12px] text-paper-muted">At least 80 characters ({typed.length}/2000). It goes into the pull request under &quot;In the author&apos;s words&quot;.</p>
+                  <div className="mt-2 flex items-center gap-3">
+                    <Press at={R.check} label="Check my explanation" className="rounded-full border border-signal/50 bg-signal/10 px-3 py-1 font-medium text-signal">Check my explanation</Press>
+                    <span className="text-paper-muted">{t >= R.check ? "4 checks left" : "5 checks left"}</span>
+                  </div>
+                  {t >= R.results && (
+                    <div className="mt-2 space-y-0.5">
+                      <Reveal at={R.results}><p className="text-ok">What was wrong: covered</p></Reveal>
+                      <Reveal at={R.results + 300}><p className="text-ok">What the change did: covered</p></Reveal>
+                      <Reveal at={R.results + 600}><p className="text-ok">How you know it works: covered</p></Reveal>
+                      <Reveal at={R.results + 900}><p className="text-paper-dim">Tip: Clear and complete; saying what the new tests check helps reviewers.</p></Reveal>
+                      <Reveal at={R.results + 1200}><p className="font-medium text-ok">Your explanation covers the change.</p></Reveal>
+                    </div>
+                  )}
+                </Section>
+              )}
+              {section === "practice" && (
+                <Section title="Practice review" spot="practice">
+                  <p className="text-paper-muted">{PRACTICE_INTRO}</p>
+                  <div className="mt-2 space-y-3">
+                    {PRACTICE.map((p, i) => {
+                      const at = PRACTICE_TIMES[i];
+                      return (
+                        <Reveal key={p.q} at={at.q}>
+                          <p className="text-paper"><span className="font-medium">Reviewer:</span> {p.q}</p>
+                          <p className="mt-1 min-h-[30px] rounded-lg border border-border bg-surface px-3 py-1.5 text-[13.5px] text-paper"><Typed text={p.a} at={at.type} cps={45} />&nbsp;</p>
+                          <div className="mt-1 flex items-center gap-3 text-[12.5px]">
+                            <Press at={at.send} label="Send answer" className="rounded-full border border-info/50 px-3 py-0.5 text-info">{t >= at.send ? "Send again" : "Send answer"}</Press>
+                            <span className="text-paper-muted">At least 20 characters.</span>
+                          </div>
+                          {t >= at.fb && <p className="mt-1 text-paper-dim"><span className="font-medium text-paper">Feedback:</span> {p.feedback}</p>}
+                          {t >= at.fb && <p className="mt-0.5 text-paper-muted">A reviewer might follow up: {p.followUp}</p>}
+                        </Reveal>
+                      );
+                    })}
+                  </div>
+                </Section>
+              )}
+              {section === "publish" && (
+                <Section title="What happens when you publish" spot="publish-steps">
+                  <ol className="list-decimal space-y-1 pl-5 text-[13.5px] leading-6 text-paper-dim">{DEMO_PUBLISH_STEPS.map((s) => <li key={s}>{s}</li>)}</ol>
+                  <p className="mt-2 flex flex-wrap gap-x-3 text-paper-muted">Words used here: <Term>fork</Term><Term>branch</Term><Term>draft PR</Term><Term>AI disclosure</Term></p>
+                </Section>
+              )}
+            </div>
+          )}
+          <div className="border-t border-border px-4 py-2 text-[13px]">
+            <div className="flex flex-wrap items-center gap-2">
+              <Press at={R.confirm} label="I've read this change" className="flex items-center gap-1.5 text-paper">
+                <span aria-hidden className={cn("grid h-4 w-4 place-items-center rounded-[3px] border text-[10px]", t >= R.confirm ? "border-ok bg-ok/15 text-ok" : "border-border")}>{t >= R.confirm ? "✓" : ""}</span>
+                I&apos;ve read this change and can explain it to reviewers.
+              </Press>
+              <Press at={R.publishAt} label="Publish draft PR" className={cn("ml-auto rounded-full border px-3 py-0.5 font-medium", t >= R.confirm ? "border-ok/40 bg-ok/10 text-ok" : "border-border text-paper-faint")}>
+                {t >= R.publishAt ? `Draft PR #${RUN.pr} opened ↗` : "Publish draft PR"}
+              </Press>
+            </div>
+            {t < R.confirm && <p className="mt-1 text-[12px] text-paper-muted">To publish: explain the change in your own words, answer the practice review, and tick the box.</p>}
+          </div>
+        </div>
+      </div>
+    </AppWindow>
+  );
+}
+
+export const stageReview: Chapter = {
+  id: "review",
+  act: "Fix",
+  label: "Review",
+  title: "Review, explain, publish",
+  duration: PUBLISHED_AT + 8500,
+  source: "The review screen for the PR #7 run; the chat and check answers are examples; the rules as a run records them today",
+  headlines: [
+    { at: 0, text: "It explains every change in plain English." },
+    { at: R.rules, text: "It checks the project's rules, one by one." },
+    { at: R.chat, text: "Ask anything about the change." },
+    { at: R.own, text: "Before you can publish, you explain it. In your words." },
+    { at: R.practice, text: "Then answer a reviewer's questions." },
+    { at: R.publish, text: "You confirm you understand it." },
+    { at: R.publishAt, text: "A human publishes. Nothing is hidden." },
+  ],
+  captions: [
+    { at: 0, spot: "review-found", text: "It explains every change: what was wrong and what changed, in plain words." },
+    { at: 2800, spot: "review-risk", text: "And what to double-check." },
+    { at: R.rules, spot: "rules-list", text: "Then this project's rules, one by one, and how each was handled. (For maintainers: this run predates the checklist, so it's shown as a run records it today.)" },
+    { at: R.chat, spot: "chat-answer", text: "Not sure what it does? Ask, in plain English. Answers are labeled not verified, so you check them against the code. (Example answer.)" },
+    { at: R.own, spot: "own-words", text: "Before you can publish, you explain it in your own words. The AI checks it against the actual change; pasting the AI's own text is rejected." },
+    { at: R.results, spot: "own-words", text: "It goes into the pull request under “In the author's words”, so the maintainer reads the human's explanation, not the AI's." },
+    { at: R.practice, spot: "practice", text: "Then two practice questions, the kind a maintainer would ask about this exact change. (Example questions and answers.)" },
+    { at: R.publish, spot: "publish-steps", text: "Then it says exactly what publishing does, and you confirm you can explain it to reviewers. Publish stays locked until all of that is done." },
+    { at: R.publishAt, text: "Only then is it scanned for leaked secrets and opened, as a draft, in your name." },
+    { at: PUBLISHED_AT + 600, spot: "next-steps", text: "And it tells you what happens next, etiquette included: mark it ready, give it time, don't chase people, answer every review comment." },
+  ],
+  View: StageReviewView,
+};

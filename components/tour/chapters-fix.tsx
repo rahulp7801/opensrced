@@ -7,6 +7,7 @@
 import { cn } from "@/lib/utils";
 import { StatusChip, StatusDot } from "@/components/status-dot";
 import { AppWindow, Inline, LogLine, PageHead, Press, Reveal, Typed, progress, useAutoScroll, useFollow, useT, type Chapter } from "./kit";
+import { AFTER_PUBLISH, publishSteps } from "@/lib/beginner-guide";
 import { DEMO_REPO, DIAGNOSIS, FAILED_RUN, ISSUE, PAST_RUNS, PATCH, PATCH_STATS, PR_BODY, REPORT, RISK, RUN, RUN_LOG, RUN_NOTES } from "./data";
 
 // ── 5. The run ────────────────────────────────────────────────────────────
@@ -74,7 +75,7 @@ function RunView() {
               <span className="ml-auto rounded-full border border-info/40 px-1 text-[10px] text-info">deep</span>
             </div>
             <p className="mt-1 truncate text-[11.5px] text-paper-dim">{ISSUE.title}</p>
-            <p className="mt-1 text-[11px] text-paper-muted">just now · <span className={done ? "" : "text-signal"}>{elapsed}</span> · {ready ? <span className="text-ok">ready for review <span className="text-paper-faint">· unverified</span></span> : "running"}</p>
+            <p className="mt-1 text-[11px] text-paper-muted">just now · <span className={done ? "" : "text-signal"}>{elapsed}</span> · {ready ? <span className="text-ok">waiting for your review <span className="text-paper-faint">· unverified</span></span> : "running"}</p>
           </div>
           {PAST_RUNS.map((r) => (
             <div key={r.number} className="border-t border-border-soft px-3 py-2.5">
@@ -83,7 +84,7 @@ function RunView() {
                 <span className="truncate text-paper">{DEMO_REPO} <span className="text-paper-faint">#{r.number}</span></span>
                 <span className="ml-auto flex gap-1">
                   <span className="rounded-full border border-info/40 px-1 text-[10px] text-info">deep</span>
-                  {r.dry && <span className="rounded-full border border-info/40 px-1 text-[10px] text-info">dry</span>}
+                  {r.dry && <span className="rounded-full border border-info/40 px-1 text-[10px] text-info">preview</span>}
                 </span>
               </div>
               <p className="mt-1 truncate text-[11.5px] text-paper-dim">{r.title}</p>
@@ -99,13 +100,13 @@ function RunView() {
                 <p className="mt-0.5 truncate text-[14px] font-medium text-paper">{ISSUE.title}</p>
                 <p className="mt-0.5 text-[11px] text-paper-muted">just now · {elapsed}{costShown && <> · <span className="text-signal">${RUN.cost.toFixed(4)}</span></>}</p>
               </div>
-              {ready ? <StatusChip tone="ok">ready for review</StatusChip> : <StatusChip tone="signal">live</StatusChip>}
+              {ready ? <StatusChip tone="ok">waiting for your review</StatusChip> : <StatusChip tone="signal">live</StatusChip>}
             </div>
             <div className="mt-2"><Pipeline f={f} /></div>
           </div>
           {ready && (
             <Reveal at={runAt(0.94)} className="flex items-center justify-between border-b border-ok/30 bg-ok/5 px-3 py-1.5 text-[12px] sm:px-4">
-              <span className="font-medium text-ok">Ready for review · nothing published yet</span>
+              <span className="font-medium text-ok">Waiting for your review · nothing published yet</span>
               <span className="rounded-full border border-ok/40 px-2 py-0.5 text-[11px] text-ok">Review patch →</span>
             </Reveal>
           )}
@@ -167,10 +168,47 @@ function SplitDiff() {
   );
 }
 
+// The review's beats: the publish steps, the confirm box, Publish, and the published panel.
+const STEPS_AT = 15000;
+const CONFIRM_AT = 18600;
+const PUBLISH_AT = 20200;
+export const REVIEW_PUBLISHED_AT = PUBLISH_AT + 500;
+const DEMO_PUBLISH_STEPS = publishSteps({ files: PATCH_STATS.files, signoff: false });
+
+/** A term the app explains on tap (components/term.tsx), drawn as it looks. */
+function Term({ children }: { children: string }) {
+  return <span className="underline decoration-dotted underline-offset-2">{children}</span>;
+}
+
+/** The run page after publishing (components/next-steps.tsx with lib/beginner-guide.ts). */
+function Published() {
+  return (
+    <div data-spot="next-steps" className="min-h-0 flex-1 overflow-hidden px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[15px] font-medium text-ok">Draft PR #{RUN.pr} opened</p>
+        <span className="flex gap-2 text-[11.5px]">
+          <span className="rounded-full border border-info/40 bg-info/10 px-3 py-1 text-info">Follow it here</span>
+          <span className="rounded-full border border-ok/40 bg-ok/10 px-3 py-1 text-ok">Open on GitHub ↗</span>
+        </span>
+      </div>
+      <p className="mt-3 text-[15px] font-medium text-paper">What happens next</p>
+      <ol className="mt-2 grid grid-cols-2 gap-x-6 gap-y-2.5 text-[13px] leading-[1.5] text-paper-dim">
+        {AFTER_PUBLISH.map((step, i) => (
+          <Reveal as="li" key={step.title} at={REVIEW_PUBLISHED_AT + 200 + i * 250} className="flex gap-2">
+            <span className="font-mono text-paper-faint">{i + 1}.</span>
+            <span><strong className="font-semibold text-paper">{step.title}{/[?.!]$/.test(step.title) ? "" : "."}</strong> {step.body}</span>
+          </Reveal>
+        ))}
+      </ol>
+      <p className="mt-3 flex gap-3 text-[11px] text-paper-muted">Words used here: <Term>draft PR</Term><Term>maintainer</Term><Term>CI</Term></p>
+    </div>
+  );
+}
+
 function ReviewView() {
   const t = useT();
   const open = t >= 1500;
-  const scrollRef = useAutoScroll(7600, 12000);
+  const scrollRef = useAutoScroll(7600, STEPS_AT + 1000);
   return (
     <AppWindow path={`/dispatches?dispatch=${RUN.id}`} section="Fix" tab="Runs">
       {!open ? (
@@ -193,7 +231,7 @@ function ReviewView() {
               </div>
               <span className="text-[16px] text-paper-muted" aria-hidden>×</span>
             </div>
-            <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-hidden px-4 py-3">
+            {t >= REVIEW_PUBLISHED_AT ? <Published /> : <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-hidden px-4 py-3">
               <Reveal at={2200}>
                 <p className="mono-label">What was found</p>
                 <p className="mt-1 text-[12px] leading-5 text-paper-dim"><Inline text={DIAGNOSIS} /></p>
@@ -208,7 +246,15 @@ function ReviewView() {
                 <p className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-paper-muted">Files: {PATCH.map((p) => <code key={p.file} className="rounded bg-surface-2 px-1.5 font-mono text-paper">{p.file}</code>)}</p>
                 <SplitDiff />
               </Reveal>
-            </div>
+              {/* components/publish-panel.tsx: what pressing Publish does, before the confirm box. */}
+              <Reveal at={STEPS_AT} spot="publish-steps" className="rounded-lg border border-border-soft bg-ink px-3 py-2.5 text-[11.5px]">
+                <p className="font-medium text-paper">What happens when you publish</p>
+                <ol className="mt-1.5 list-decimal space-y-1 pl-5 leading-[1.5] text-paper-dim">
+                  {DEMO_PUBLISH_STEPS.map((s) => <li key={s}>{s}</li>)}
+                </ol>
+                <p className="mt-2 flex flex-wrap gap-x-3 text-paper-muted">Words used here: <Term>fork</Term><Term>branch</Term><Term>draft PR</Term><Term>AI disclosure</Term></p>
+              </Reveal>
+            </div>}
             <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-2 text-[11.5px]">
               <Press at={13200} className="rounded-full border border-border px-2.5 py-0.5 text-paper-dim">{t >= 13200 ? "Copied ✓" : "Copy diff"}</Press>
               <Press at={14300} className="hidden rounded-full border border-border px-2.5 py-0.5 text-paper-dim sm:inline-flex">Commit msg</Press>
@@ -216,12 +262,12 @@ function ReviewView() {
             {/* The publish gate, as components/publish-panel.tsx shows it: nothing
                 opens until the owner confirms. */}
             <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-2 text-[11.5px]">
-              <Press at={15800} label="I've read this change" className="flex items-center gap-1.5 text-paper">
-                <span aria-hidden className={cn("grid h-3.5 w-3.5 place-items-center rounded-[3px] border text-[9px]", t >= 15800 ? "border-ok bg-ok/15 text-ok" : "border-border")}>{t >= 15800 ? "✓" : ""}</span>
+              <Press at={CONFIRM_AT} label="I've read this change" className="flex items-center gap-1.5 text-paper">
+                <span aria-hidden className={cn("grid h-3.5 w-3.5 place-items-center rounded-[3px] border text-[9px]", t >= CONFIRM_AT ? "border-ok bg-ok/15 text-ok" : "border-border")}>{t >= CONFIRM_AT ? "✓" : ""}</span>
                 I&apos;ve read this change and can explain it to reviewers.
               </Press>
-              <Press at={17400} label="Publish draft PR" className={cn("ml-auto rounded-full border px-2.5 py-0.5 font-medium", t >= 15800 ? "border-ok/40 bg-ok/10 text-ok" : "border-border text-paper-faint")}>
-                {t >= 17400 ? `Draft PR #${RUN.pr} opened ↗` : "Publish draft PR"}
+              <Press at={PUBLISH_AT} label="Publish draft PR" className={cn("ml-auto rounded-full border px-2.5 py-0.5 font-medium", t >= CONFIRM_AT ? "border-ok/40 bg-ok/10 text-ok" : "border-border text-paper-faint")}>
+                {t >= PUBLISH_AT ? `Draft PR #${RUN.pr} opened ↗` : "Publish draft PR"}
               </Press>
             </div>
           </Reveal>
@@ -236,15 +282,17 @@ export const review: Chapter = {
   act: "Fix",
   label: "Review the patch",
   title: "Review every line",
-  duration: 20000,
+  duration: REVIEW_PUBLISHED_AT + 8500,
   source: "Real patch · opensrcer-demo PR #6",
   captions: [
     { at: 0, text: "Every run ends in something you can read in full: what the agent found, what it changed, and how to test it." },
     { at: 4300, text: "The risk notes say what to double-check, including what it deliberately left alone." },
     { at: 7600, spot: "review-diff", text: "The patch is shown side by side: the one broken line out, a small, commented fix in, and new tests." },
     { at: 13200, text: "Copy the diff, or a ready-made commit message, if you'd rather apply it yourself." },
-    { at: 15000, text: "Nothing is published until you say so. A preview stops here. For a live run, you confirm you've read it and can explain it to reviewers." },
-    { at: 17400, text: "Then it's scanned for leaked secrets and opens as a draft pull request, with exactly this patch and text." },
+    { at: STEPS_AT, spot: "publish-steps", text: "Nothing is published until you say so, and it tells you exactly what publishing does, in plain words, before you confirm: one commit on a new branch, a draft pull request that says an AI tool helped, and nothing merged." },
+    { at: CONFIRM_AT - 600, text: "A preview stops here. For a publishable run, you confirm you've read it and can explain it to reviewers." },
+    { at: PUBLISH_AT, text: "Then it's scanned for leaked secrets and opens as a draft pull request, with exactly this patch and text." },
+    { at: REVIEW_PUBLISHED_AT + 600, spot: "next-steps", text: "And it tells you what happens next, etiquette included: mark it ready when you're happy, give it time, don't chase people, answer every review comment." },
   ],
   View: ReviewView,
 };
@@ -342,7 +390,7 @@ function NewRunView() {
               <p className="text-[12px] font-medium text-paper">Mode</p>
               <div className="mt-1 inline-flex overflow-hidden rounded-lg border border-border text-[12px]">
                 <span className={cn("px-3 py-1.5", !live ? "bg-info/10 text-info" : "text-paper-muted")}>preview</span>
-                <Press at={5200} className={cn("rounded-none border-l border-border px-3 py-1.5", live ? "bg-signal/10 text-signal" : "text-paper-muted")}>live (PR after review)</Press>
+                <Press at={5200} className={cn("rounded-none border-l border-border px-3 py-1.5", live ? "bg-signal/10 text-signal" : "text-paper-muted")}>publishable (you review first)</Press>
               </div>
             </div>
             <div>
@@ -350,7 +398,7 @@ function NewRunView() {
               <p className="mt-1 min-h-[48px] rounded-xl border border-border bg-surface px-3 py-2 text-[12px] leading-5 text-paper"><Typed text={RUN_NOTES} at={6800} cps={34} />&nbsp;</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <Press at={11000} className="rounded-full border border-signal/50 bg-signal/10 px-4 py-1.5 text-[12.5px] font-medium text-signal">{starting ? "Starting run..." : live ? "Start live run →" : "Generate preview →"}</Press>
+              <Press at={11000} className="rounded-full border border-signal/50 bg-signal/10 px-4 py-1.5 text-[12.5px] font-medium text-signal">{starting ? "Starting run..." : live ? "Start publishable run" : "Generate preview"}</Press>
               {starting && <span className="text-[11.5px] text-paper-muted">Starting an isolated worker. This can take up to 90 seconds.</span>}
               {started && <Reveal at={13300} className="flex flex-wrap gap-x-1.5"><span className="text-[12px] text-ok">+ Run started</span><span className="text-[12px] text-signal">View live run</span></Reveal>}
             </div>

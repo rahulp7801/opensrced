@@ -408,10 +408,22 @@ function NewRunView() {
               <p className="mt-1 min-h-[48px] rounded-xl border border-border bg-surface px-3 py-2 text-[12px] leading-5 text-paper"><Typed text={RUN_NOTES} at={6800} cps={34} />&nbsp;</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <Press at={11000} className="rounded-full border border-signal/50 bg-signal/10 px-4 py-1.5 text-[12.5px] font-medium text-signal">{starting ? "Starting run..." : live ? "Start publishable run" : "Generate preview"}</Press>
-              {starting && <span className="text-[11.5px] text-paper-muted">Starting an isolated worker. This can take up to 90 seconds.</span>}
-              {started && <Reveal at={13300} className="flex flex-wrap gap-x-1.5"><span className="text-[12px] text-ok">+ Run started</span><span className="text-[12px] text-signal">View live run</span></Reveal>}
+              <Press at={11000} className="rounded-full border border-signal/50 bg-signal/10 px-4 py-1.5 text-[12.5px] font-medium text-signal">{starting ? "Starting run..." : live ? "Sign in with Claude & start" : "Sign in with Claude & preview"}</Press>
+              {starting && <span className="text-[11.5px] text-paper-muted">Starting your run… Claude&apos;s sign-in page opens here in a moment.</span>}
             </div>
+            {started && (
+              // components/dispatch-list.tsx: the run waits for the contributor's own Claude sign-in.
+              <Reveal at={13300} className="rounded-xl border border-signal/40 bg-signal/[0.05] p-3 text-[12px]">
+                <p className="font-medium text-signal">Sign in to Claude to start this run</p>
+                <p className="mt-1 leading-5 text-paper-dim">This run uses your own Claude subscription. Sign in on Claude&apos;s page, then paste the code it shows you here.</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-signal/40 px-3 py-1 text-signal">Open Claude sign-in ↗</span>
+                  <span className="min-w-[140px] flex-1 rounded-md border border-border bg-surface px-2.5 py-1 font-mono text-paper-faint">Paste code</span>
+                  <span className="rounded-full bg-signal px-3 py-1 font-medium text-white">Send code</span>
+                </div>
+                {t >= 14300 && <p className="mt-2 text-ok">Code sent. The run starts once Claude confirms the sign-in.</p>}
+              </Reveal>
+            )}
           </div>
           <div className="hidden rounded-2xl border border-border-soft bg-surface p-4 lg:block">
             <p className="text-[12.5px] font-medium text-paper">Before you start</p>
@@ -436,7 +448,7 @@ export const newRun: Chapter = {
     { at: 0, text: "Ready to fix it. Paste any GitHub issue link into a new run, or start one straight from the issue list." },
     { at: 5200, text: "A preview is a practice run you can read but never publish. A publishable run, the default, stops for your review too; a draft pull request opens only when you confirm." },
     { at: 6800, text: "Notes steer the agent, like a short brief for a new contributor." },
-    { at: 11000, text: "Starting a run boots a fresh, isolated worker in the cloud, ready in seconds." },
+    { at: 11000, text: "Starting a run boots a fresh, isolated worker in the cloud. You sign in to Claude inside that worker, on Claude's own page; opensrcer never sees or keeps your Claude login." },
   ],
   View: NewRunView,
 };

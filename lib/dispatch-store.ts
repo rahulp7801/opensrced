@@ -16,7 +16,7 @@
 // not for the machine to parse. Ownerless runs from before sidecars are not
 // served because their ownership cannot be established safely.
 
-import { existsSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Dispatch } from "./dispatcher";
 
@@ -44,6 +44,9 @@ export function persist(d: DispatchRecord): void {
   const target = sidecarPath(d.id);
   const temporary = `${target}.${process.pid}.tmp`;
   try {
+    // A fresh checkout has no .dispatches/ yet; without this the write failed
+    // into the catch below and the record was silently lost.
+    mkdirSync(DISPATCH_DIR, { recursive: true });
     writeFileSync(temporary, JSON.stringify(d), { mode: 0o600 });
     renameSync(temporary, target);
   } catch {

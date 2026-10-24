@@ -36,7 +36,7 @@ function Pipeline({ f }: { f: number }) {
             {i > 0 && <span aria-hidden className={cn("h-px w-3 sm:w-4", done || active ? "bg-ok/50" : "bg-border")} />}
             <span className={cn("rounded-full border px-1.5 py-0.5 text-[10.5px] font-medium leading-none",
               s.skipped && done ? "border-border text-paper-muted" : done ? "border-ok/40 text-ok" : active ? "border-signal/40 text-signal" : "border-border-soft text-paper-faint")}
-              title={s.skipped ? "Repository tests are not run in hosted jobs" : undefined}>
+              title={s.skipped ? "The project's tests were not run in this run" : undefined}>
               {glyph} {s.name}{s.skipped && done ? " · not run" : ""}
             </span>
           </li>
@@ -46,7 +46,7 @@ function Pipeline({ f }: { f: number }) {
   );
 }
 
-/** Log lines the stage's notes point at: the guardrails, the read-only tools, the preview. */
+/** Log lines the stage's notes point at: the guardrails, the agent's first tools, the preview. */
 function logSpot(text: string): string | undefined {
   return text.includes("] guardrails:") ? "log-guardrails" : text.startsWith("[tool]") ? "log-tools" : text.startsWith("[preview]") ? "log-preview" : undefined;
 }
@@ -134,7 +134,7 @@ export const run: Chapter = {
     { at: runAt(0.3), text: "Before writing anything, it notes the project's conventions. There's no contribution guide here, so it matches the style the code already uses." },
     { at: runAt(0.4), text: "It writes down what's wrong and where, then the fix as a patch." },
     { at: runAt(0.72), text: "The run ends with everything frozen for review: the patch, the pull request text and the evidence. Nothing has been published." },
-    { at: runAt(0.93), spot: "log-preview", text: "69 seconds and 20 cents, end to end. The hosted service can't run the project's tests, so it says so: unverified, for you to check." },
+    { at: runAt(0.93), spot: "log-preview", text: "69 seconds and 20 cents, end to end. No tests ran in this run, so it says so: unverified, for you to check." },
   ],
   View: RunView,
 };

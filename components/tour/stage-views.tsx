@@ -13,9 +13,10 @@
 import { ArrowUp, Sparkle } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { StatusChip } from "@/components/status-dot";
-import { AppWindow, Pips, Press, Reveal, SCOPE_TONE, SEVERITY_TONE, TimeContext, Typed, progress, useFollow, useT, type Caption, type Chapter } from "./kit";
+import { AppWindow, LogLine, Pips, Press, Reveal, SCOPE_TONE, SEVERITY_TONE, TimeContext, Typed, progress, useFollow, useT, type Caption, type Chapter } from "./kit";
 import { CodeGraph, LIGHTS } from "./graph";
 import { DEMO_REPO, RUN } from "./data";
+
 
 /** A chapter with speaker notes added for the stage, merged in time order. */
 export function withNotes(chapter: Chapter, notes: Caption[]): Chapter {
@@ -315,9 +316,9 @@ export function stageNotes(base: { choose: Chapter; newRun: Chapter; run: Chapte
       { at: 0, text: "Paste the issue link. Notes steer the agent: keep the public API, add tests." },
     ]),
     run: withNotes(base.run, [
-      { at: 0, spot: "log-guardrails", text: "One click on the issue started this run; there was nothing to set up. The agent runs read-only in a throwaway machine, so a hostile repository can never touch your laptop. There's a hard spend cap, a timeout, and one run at a time per account." },
+      { at: 0, spot: "log-guardrails", text: "One click on the issue started this run; there was nothing to set up. The agent works in a throwaway machine, so a hostile repository can never touch your laptop. There's a hard spend cap, a timeout, and one run at a time per account." },
       { at: 9000, spot: "log-tools", text: "It's told to read the contribution guide and PR template and match the project's conventions, keep the diff minimal, and stop and say so rather than guess when it can't find the root cause." },
-      { at: 20000, spot: "log-preview", text: "And it's honest: the hosted service can't run the project's tests, so the log says verification: not run. Nothing has been published; you review it first." },
+      { at: 20000, spot: "log-preview", text: "And it's honest. This run is from before tests ran on the hosted site, so the log says verification: not run. Nothing has been published; you review it first." },
     ]),
     review: withNotes(base.review, [
       { at: 0, text: "This is where the maintainers' worry about AI pull requests is answered. Nothing is published until you've read the patch and confirmed you can explain it to reviewers." },
@@ -338,8 +339,8 @@ export function stageNotes(base: { choose: Chapter; newRun: Chapter; run: Chapte
       { at: 0, text: "Not every comment needs code. For a question, it can draft an answer." },
       { at: 5600, text: "It's a draft. You edit it, you send it: you stay the one talking to the maintainer." },
       { at: 15000, text: "Built so maintainers can trust it: a person is the author, it steers you to issues that are open to contribution, reads each project's contribution guide, and stays small and draft-first." },
-      { at: 16000, text: "Run it on your own machine and it goes further: the agent edits the code and runs the project's own tests in a container that holds none of your keys, and the pull request shows the exact commands and that the new test fails without the fix. On a real React bug, its fix matched the one the maintainers merged. It runs on your own Claude or ChatGPT subscription, so no API bill." },
-      { at: 17500, text: "Coming to the hosted site (not shipped yet): running the project's tests there, and signing in with your Claude or ChatGPT subscription." },
+      { at: 16000, text: "And it proves its fixes: the project's own tests run in a machine that holds none of your keys, and the pull request shows the exact commands and that the new test fails without the fix. On a real React bug, its fix matched the one the maintainers merged." },
+      { at: 17500, text: "On your own machine it can run on your own Claude or ChatGPT subscription, so no API bill. Signing in with a subscription on the hosted site is coming; it isn't shipped yet." },
     ]),
   };
 }
@@ -578,7 +579,7 @@ const SLOP: Array<[string, string]> = [
   ["Someone's already on it", "It won't publish while another pull request targets the issue."],
   ["The sender can't explain it", "Nothing publishes until you've read the patch and confirmed you can explain it. The chat helps you get there."],
   ["Hidden AI", "Every pull request says who asked, which model, and what was and wasn't tested."],
-  ["Untested", "It says plainly when tests weren't run. On your own machine, it shows the new test failing without the fix."],
+  ["Untested", "It runs the project's tests in a machine with no credentials and re-runs them on the final patch; when the fix adds a test, it checks that test fails without the fix. No test it can run? It says unverified."],
   ["Sent in bulk", "Always a draft, with you as the author. One open pull request per project per person, and at most three a day."],
 ];
 const SLOP_STEP = 1600;
@@ -612,4 +613,67 @@ export const stageSlop: Chapter = {
     { at: 700 + 5 * SLOP_STEP, text: "It's built to make better contributors, not more pull requests. Thank you." },
   ],
   View: SlopView,
+};
+
+// ── Fix: a verified run, now that tests run on the hosted site ──────────────
+
+// Verbatim from a real hosted run (rahulp7801/opensrcer-demo #3, a dry run, 2026-10-24),
+// after hosted test runs shipped (OPENSRCER_HOSTED_EXEC=1). Its spend line and
+// guardrails line are left out (that run used a test cap).
+const VERIFIED_LOG = [
+  "[exec] mode=remote (exec VM provided by the web app)",
+  "[exec] box remote up, 0ab7ea99bc22 loaded as baseline 41db2904dcf2 in 0s",
+  "[setup] no environment recipe for this repository; the agent installs what it needs",
+  "[agentic-dispatcher] mcp: opensrcer-repo-tools=connected tools=12 model=claude-sonnet-5",
+  "[exec] final patch = git diff of the workspace (1551 bytes)",
+  "[verify] re-running 1 test and 0 lint command(s) on the final patch",
+  "[verify] ─────────────────────────────",
+  "[verify] status=verified regression=reproduced",
+  "[verify] reason=declared tests pass, and fail with the source change reverted",
+  "[verify] test: npm test",
+  "[verify]   exit=0 · 0.3s",
+  "[verify] fail-before: (source change reverted) npm test",
+  "[verify]   exit=1 · 0.2s",
+  "[verify] ─────────────────────────────",
+  "[preview] ready for review: \"Fix parseDuration to sum compound durations like \"1h30m\"\" (2 file(s), sign-off=false, verification=verified)",
+  "[preview] nothing has been published; review the patch and evidence, then use Publish on the run page",
+];
+const LINE_MS = 450;
+const VERIFY_AT = 600 + 5 * LINE_MS; // when the [verify] block starts
+
+function VerifiedView() {
+  const t = useT();
+  const shown = VERIFIED_LOG.filter((_l, i) => t >= 600 + i * LINE_MS);
+  const verified = shown.length === VERIFIED_LOG.length;
+  return (
+    <AppWindow path="/dispatches" section="Fix" tab="Runs">
+      <div className="flex h-full flex-col gap-3 p-4">
+        <div className="flex items-start justify-between gap-3 rounded-2xl border border-border-soft bg-surface px-4 py-3">
+          <div className="min-w-0">
+            <p className="truncate text-[12px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[11px] text-info">#3</span> · dry run</p>
+            <p className="mt-0.5 truncate text-[15px] font-medium text-paper">parseDuration returns NaN for compound durations like &quot;1h30m&quot;</p>
+          </div>
+          {verified ? <StatusChip tone="ok">verified</StatusChip> : <StatusChip tone="signal">live</StatusChip>}
+        </div>
+        <div className="term min-h-0 flex-1 overflow-hidden rounded-2xl px-4 py-3 font-mono text-[12.5px] leading-[1.6]">
+          {shown.map((l) => <LogLine key={l} text={l} spot={l.startsWith("[verify]") ? "verify" : undefined} />)}
+        </div>
+      </div>
+    </AppWindow>
+  );
+}
+
+export const stageVerified: Chapter = {
+  id: "verified",
+  act: "Fix",
+  label: "Tests, verified",
+  title: "Tests that prove the fix",
+  duration: 600 + VERIFIED_LOG.length * LINE_MS + 1500,
+  source: "Real hosted run on opensrcer-demo #3 (dry run)",
+  captions: [
+    { at: 0, text: "Here's a run from now that tests run on the hosted site, on another issue. The agent edits the code and runs the project's tests in a second machine that holds no credentials." },
+    { at: VERIFY_AT, spot: "verify", text: "Then opensrcer re-runs the tests itself on the final patch. When the fix comes with a new test, it puts the old code back to check that test fails without the fix. This run did: regression reproduced." },
+    { at: VERIFY_AT + 9 * LINE_MS, spot: "verify", text: "And when a project has no test it can run, it says unverified instead of pretending. Maintainers get evidence, not promises." },
+  ],
+  View: VerifiedView,
 };

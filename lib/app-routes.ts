@@ -11,8 +11,14 @@ const SDK_SEGMENTS = ["auth", "me", "my-org"];
 
 const KNOWN = new Set<string>([...APP_FOLDERS, ...SDK_SEGMENTS]);
 
-/** True for a path whose first segment no route serves. "/" is the landing page, never unknown. */
+/** True for a path whose first segment no route serves. "/" is the landing page, never unknown.
+ *  Fails closed: the segment is percent-decoded and lowercased before the
+ *  check, and one that will not decode counts as known, so an encoded or
+ *  re-cased spelling of a gated route (/%61pi/…, /API/…) still meets the gate. */
 export function unknownRoute(pathname: string): boolean {
-  const segment = pathname.split("/")[1] ?? "";
-  return segment !== "" && !KNOWN.has(segment);
+  const raw = pathname.split("/")[1] ?? "";
+  if (raw === "") return false;
+  let segment: string;
+  try { segment = decodeURIComponent(raw).toLowerCase(); } catch { return false; }
+  return !KNOWN.has(segment);
 }

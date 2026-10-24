@@ -146,7 +146,7 @@ export function SuggestedIssues() {
         <button
           type="button"
           onClick={() => setExpanded((value) => !value)}
-          className="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-md border border-border px-3 py-1.5 text-xs font-medium text-paper-muted transition-colors hover:border-border-strong hover:text-paper sm:self-auto"
+          className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 self-start rounded-md border border-border px-3 py-1.5 text-xs font-medium text-paper-muted transition-colors hover:border-border-strong hover:text-paper sm:self-auto"
           aria-expanded={expanded}
           aria-controls="suggested-issues-filters"
         >
@@ -175,7 +175,7 @@ export function SuggestedIssues() {
                     onClick={() => toggleLang(language)}
                     aria-pressed={selectedLangs.includes(language)}
                     className={cn(
-                      "min-h-9 rounded-md border px-3 py-1.5 text-xs capitalize transition-colors",
+                      "min-h-10 rounded-md border px-3 py-1.5 text-xs capitalize transition-colors",
                       selectedLangs.includes(language)
                         ? "border-signal/45 bg-signal/10 font-medium text-signal"
                         : "border-border bg-surface/50 text-paper-muted hover:border-border-strong hover:text-paper",
@@ -200,7 +200,7 @@ export function SuggestedIssues() {
                     aria-pressed={tags === option.value}
                     title={option.hint}
                     className={cn(
-                      "min-h-9 rounded-md border px-3 py-1.5 text-xs transition-colors",
+                      "min-h-10 rounded-md border px-3 py-1.5 text-xs transition-colors",
                       tags === option.value
                         ? "border-ok/45 bg-ok/10 font-medium text-ok"
                         : "border-border bg-surface/50 text-paper-muted hover:border-border-strong hover:text-paper",
@@ -228,7 +228,7 @@ export function SuggestedIssues() {
         {error && (
           <div role="alert" className="flex flex-col gap-3 border-b border-alert/25 bg-alert/5 px-5 py-4 text-sm text-alert sm:flex-row sm:items-center sm:justify-between">
             <span>{error}</span>
-            <button type="button" onClick={() => fetchIssues(true)} className="shrink-0 self-start rounded-md border border-alert/35 px-3 py-1.5 text-xs font-medium hover:bg-alert/10 sm:self-auto">
+            <button type="button" onClick={() => fetchIssues(true)} className="min-h-10 shrink-0 self-start rounded-md border border-alert/35 px-3 py-1.5 text-xs font-medium hover:bg-alert/10 sm:self-auto">
               Try again
             </button>
           </div>

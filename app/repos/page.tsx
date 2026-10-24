@@ -171,9 +171,20 @@ export default function ReposPage() {
 
       <div id="repos-panel" role="tabpanel" aria-labelledby={`repos-tab-${tab}`} className="mt-4">
         {current.error && (
-          <div role="alert" className="rounded-xl border border-alert/30 bg-alert/5 px-4 py-3 text-[12px] text-alert mb-3">
-            {current.error}
-            <button className="ml-3 underline" disabled={current.loading} onClick={() => fetchPage(tab, current.page + 1, current.nextCursor)}>Retry</button>
+          <div role="alert" className="mb-3 flex flex-col gap-3 rounded-xl border border-alert/30 bg-alert/5 px-4 py-3 text-[12px] text-alert sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-medium">Couldn&apos;t load your repos from GitHub.</p>
+              {/* A bare server error adds nothing; a specific reason is worth showing. */}
+              {!/^internal server error\.?$/i.test(current.error.trim()) && <p className="mt-0.5 text-paper-muted">{current.error}</p>}
+            </div>
+            <button
+              type="button"
+              className="inline-flex min-h-10 shrink-0 items-center self-start rounded-md border border-alert/35 px-4 text-xs font-medium hover:bg-alert/10 disabled:opacity-50 sm:self-auto"
+              disabled={current.loading}
+              onClick={() => fetchPage(tab, current.page + 1, current.nextCursor)}
+            >
+              Retry
+            </button>
           </div>
         )}
 
@@ -185,7 +196,16 @@ export default function ReposPage() {
 
         {current.page > 0 && filtered.length === 0 && !current.loading && (
           <div className="rounded-md border border-border bg-surface/40 p-8 text-center text-[12px] text-paper-muted">
-            {search ? "No repos match your search." : "No repos found."}
+            {search ? "No repos match your search." : (
+              <>
+                <p className="text-sm font-medium text-paper">No repos here yet.</p>
+                <p className="mt-1">A good first step: pick a beginner-friendly issue in a public project.</p>
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  <Link href="/issues" className="row-cta">Find a beginner issue</Link>
+                  <Link href="/discover" className="btn-quiet">Discover projects</Link>
+                </div>
+              </>
+            )}
           </div>
         )}
 

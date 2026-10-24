@@ -135,7 +135,7 @@ export function Onboarding({ localMode = false, inviteOnly = false }: { localMod
         {/* Dismiss */}
         <button
           onClick={dismiss}
-          className="col-start-2 row-start-1 shrink-0 justify-self-end px-1 text-sm text-paper-muted hover:text-paper sm:col-start-auto sm:row-start-auto"
+          className="col-start-2 row-start-1 grid size-10 shrink-0 place-items-center justify-self-end rounded-full text-sm text-paper-muted hover:text-paper sm:col-start-auto sm:row-start-auto"
           aria-label="Dismiss onboarding"
           title="Dismiss onboarding"
         >

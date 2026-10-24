@@ -129,7 +129,7 @@ export default function PRsPage() {
           aria-controls="prs-panel-inbox"
           onClick={() => setTab("inbox")}
           className={cn(
-            "px-4 py-2 text-[12px] transition-colors border-b-2 -mb-px",
+            "min-h-10 px-4 py-2 text-[12px] transition-colors border-b-2 -mb-px",
             tab === "inbox"
               ? "text-signal border-signal"
               : "text-paper-muted border-transparent hover:text-paper",
@@ -150,7 +150,7 @@ export default function PRsPage() {
           aria-controls="prs-panel-github"
           onClick={() => setTab("github")}
           className={cn(
-            "px-4 py-2 text-[12px] transition-colors border-b-2 -mb-px",
+            "min-h-10 px-4 py-2 text-[12px] transition-colors border-b-2 -mb-px",
             tab === "github"
               ? "text-signal border-signal"
               : "text-paper-muted border-transparent hover:text-paper",
@@ -170,15 +170,18 @@ export default function PRsPage() {
           aria-controls="prs-panel-dashboard"
           onClick={() => setTab("dashboard")}
           className={cn(
-            "px-4 py-2 text-[12px] transition-colors border-b-2 -mb-px",
+            "min-h-10 px-4 py-2 text-[12px] transition-colors border-b-2 -mb-px",
             tab === "dashboard"
               ? "text-signal border-signal"
               : "text-paper-muted border-transparent hover:text-paper",
           )}
         >
-          Dashboard PRs
+          Opened with opensrcer
         </button>
       </div>
+      <p className="mt-2 text-xs text-paper-muted">
+        Inbox and All PRs show every open pull request you started on GitHub. &ldquo;Opened with opensrcer&rdquo; lists only the ones opensrcer runs opened for you.
+      </p>
 
       {/* Inbox tab — prioritized overview */}
       {tab === "inbox" && (
@@ -233,7 +236,7 @@ export default function PRsPage() {
                     subtitle="Reviewers requested changes"
                     color="alert"
                     prs={needsAction}
-                    actionHint="Click a PR to review comments and push fixes with quick fix or deep fix."
+                    actionHint="Open a PR to read what reviewers asked for. opensrcer can draft each change for you to check: a quick fix looks at the file being discussed; a deep fix explores the whole project first, so it takes longer and costs more."
                   />
                 )}
 
@@ -576,7 +579,7 @@ function DashboardPrs() {
   if (loading) {
     return (
       <div className="mt-4 text-[12px] text-paper-muted animate-pulse-signal py-8 text-center">
-        Fetching PRs created through the dashboard...
+        Fetching pull requests opened with opensrcer...
       </div>
     );
   }
@@ -584,7 +587,7 @@ function DashboardPrs() {
   if (error) {
     return (
       <div role="alert" className="rounded-xl mt-4 border border-alert/30 bg-alert/5 p-8 text-center text-[12px] text-alert">
-        Could not load dashboard PRs. {error}
+        Could not load pull requests opened with opensrcer. {error}
       </div>
     );
   }
@@ -592,7 +595,7 @@ function DashboardPrs() {
   if (!prs.length) {
     return (
       <div className="rounded-2xl mt-4 border border-border-soft bg-surface p-8 text-center text-[12px] text-paper-muted">
-        No PRs created through the dashboard yet.
+        No pull requests opened with opensrcer yet. Runs you publish show up here.
       </div>
     );
   }
@@ -618,11 +621,13 @@ function LazyPrTable({ prs }: { prs: unknown[] }) {
 }
 
 function InboxSection({ title, subtitle, color, prs, actionHint }: { title: string; subtitle: string; color: string; prs: GitHubPr[]; actionHint?: string }) {
-  const statusIcon = color === "alert" ? "x" : color === "ok" ? "+" : color === "signal" ? "!" : color === "info" ? "~" : "-";
+  // A plain colored dot: the title already says what the section is, and a
+  // glyph like "x" read as a close button.
+  const dot = { alert: "bg-alert", ok: "bg-ok", signal: "bg-signal", info: "bg-info" }[color] ?? "bg-paper-faint";
   return (
     <div className="rounded-2xl border border-border-soft bg-surface">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border-soft px-4 py-2.5">
-        <span className="text-[12px] font-mono" role="img" aria-label={title}>{statusIcon}</span>
+        <span aria-hidden className={cn("size-2 shrink-0 rounded-full", dot)} />
         <div>
           <span className="text-[12px] text-paper font-medium">{title}</span>
           <span className="ml-2 text-xs text-paper-faint tabular-nums">{prs.length}</span>

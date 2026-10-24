@@ -321,7 +321,7 @@ try {
   for (const preview of [true, false]) {
     await page.goto(base + '/issues?repo=acme/app');
     const runResponse = page.waitForResponse(response => response.url().endsWith('/api/run/agentic'));
-    await page.getByRole('button', { name: preview ? 'Preview patch' : 'Solve & open PR', exact: true }).first().click();
+    await page.getByRole('button', { name: preview ? 'Preview patch' : 'Fix it (you review first)', exact: true }).first().click();
     await page.getByRole('button', { name: 'Starting…', exact: true }).waitFor();
     await runResponse;
     assert.equal(submissions.at(-1).dry_run, preview);
@@ -341,6 +341,10 @@ try {
   await page.getByRole('heading', { name: 'Before you start', exact: true }).waitFor();
   assert.equal(await page.getByText('No runs yet.', { exact: false }).count(), 0, 'new-run page must not show ephemeral history');
   assert.equal(await page.getByRole('link', { name: 'View run history', exact: true }).getAttribute('href'), '/dispatches');
+  // A publishable run still stops for review, so it is the default; a preview is opt-in.
+  assert.equal(await page.getByRole('button', { name: 'publishable (you review first)', exact: true }).getAttribute('aria-pressed'), 'true', 'new runs default to publishable');
+  assert.equal(await page.getByRole('button', { name: 'Start publishable run', exact: true }).isEnabled(), true, 'a ready payment method leaves the start button enabled');
+  await page.getByRole('button', { name: 'preview', exact: true }).click();
   const triggerInput = page.getByLabel('Repository', { exact: true });
   await triggerInput.fill('https://github.com/acme/app/issues/1');
   invalidStartResponse = true;
@@ -423,6 +427,10 @@ try {
   await page.goto(base + '/trigger');
   await page.getByText('Anthropic key required', { exact: true }).waitFor();
   assert.equal(await page.getByText('Go to Settings', { exact: true }).count(), 0, 'missing-key guidance must not render twice');
+  const unpaidStart = page.getByRole('button', { name: 'Start publishable run', exact: true });
+  await page.waitForFunction(() => [...document.querySelectorAll('button[type="submit"]')].some(b => b.disabled));
+  assert.equal(await unpaidStart.isDisabled(), true, 'no run can start before a payment method is ready');
+  await page.getByText('Set up how runs are paid for in', { exact: false }).waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'missing-key banner must fit mobile');
   await assertNoSeriousAccessibilityViolations(page, 'mobile missing-key banner');
 

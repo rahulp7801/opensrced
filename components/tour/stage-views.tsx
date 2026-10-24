@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { StatusChip } from "@/components/status-dot";
 import { AppWindow, LogLine, Pips, Press, Reveal, SCOPE_TONE, SEVERITY_TONE, TimeContext, Typed, progress, useFollow, useT, type Caption, type Chapter } from "./kit";
 import { CodeGraph, LIGHTS } from "./graph";
+import { REVIEW_PUBLISHED_AT } from "./chapters-fix";
 import { DEMO_REPO, RUN } from "./data";
 
 
@@ -322,7 +323,7 @@ export function stageNotes(base: { choose: Chapter; newRun: Chapter; run: Chapte
     ]),
     review: withNotes(base.review, [
       { at: 0, text: "This is where the maintainers' worry about AI pull requests is answered. Nothing is published until you've read the patch and confirmed you can explain it to reviewers." },
-      { at: 18400, text: "It's a draft that can't be merged until you mark it ready. And it refuses to publish at all if someone else already has a pull request open on the issue, or if the project bans AI contributions." },
+      { at: REVIEW_PUBLISHED_AT + 4500, spot: "next-steps", text: "It's a draft that can't be merged until you mark it ready. And it refuses to publish at all if someone else already has a pull request open on the issue, or if the project bans AI contributions." },
     ]),
     pr: withNotes(base.pr, [
       { at: 0, spot: "pr-facts", text: "Every GitHub step a beginner gets wrong is handled: it forks, branches, and commits under your private noreply email. It picks the base branch from where past PRs were actually merged, falling back to the default branch." },

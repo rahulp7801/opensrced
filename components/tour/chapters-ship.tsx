@@ -306,9 +306,9 @@ function SecureView() {
                 <p className="truncate text-[13px] font-medium text-paper">{FINDINGS[0].summary}</p>
                 <p className="text-[11px] text-paper-muted">{repo} · {FINDINGS[0].pkg}</p>
               </div>
-              {f >= 0.9 ? <StatusChip tone="ok">ready for review</StatusChip> : <StatusChip tone="signal">live</StatusChip>}
+              {f >= 0.9 ? <StatusChip tone="ok">waiting for your review</StatusChip> : <StatusChip tone="signal">live</StatusChip>}
             </div>
-            {f >= 0.9 && <p className="border-b border-ok/30 bg-ok/5 px-3 py-1.5 text-[12px] font-medium text-ok">Ready for review · publish opens the draft PR</p>}
+            {f >= 0.9 && <p className="border-b border-ok/30 bg-ok/5 px-3 py-1.5 text-[12px] font-medium text-ok">Waiting for your review · publish opens the draft PR</p>}
             <div className="term h-[220px] overflow-hidden rounded-none px-3 py-2.5 font-mono text-[10.5px] leading-[1.6]">
               {FIX_LOG.filter((l) => l.at <= f).map((l) => <LogLine key={l.text} text={l.text} />)}
             </div>

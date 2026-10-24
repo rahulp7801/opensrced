@@ -83,7 +83,7 @@ export function PublishPanel({ dispatchId, dryRun = false, rerun, onPublished }:
   const commentBlock = comment && (
     <>
       <pre className="mt-1 whitespace-pre-wrap rounded-lg border border-border-soft bg-surface p-3 text-[11px] text-paper-muted">{comment}</pre>
-      <button className="mt-1 min-h-6 text-xs text-signal hover:underline" onClick={() => void copyText(comment).then(() => setCopied(true))}>
+      <button className="mt-1 inline-flex min-h-10 items-center text-xs text-signal hover:underline sm:min-h-6" onClick={() => void copyText(comment).then(() => setCopied(true))}>
         {copied ? "copied" : "copy comment"}
       </button>
     </>

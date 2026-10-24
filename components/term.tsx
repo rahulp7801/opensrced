@@ -17,7 +17,9 @@ export function Term({ term, children }: { term: GlossaryTerm; children?: React.
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-controls={id}
-        className="inline-flex min-h-6 items-center gap-1 align-baseline text-inherit underline decoration-dotted decoration-paper-faint underline-offset-[3px] hover:decoration-signal"
+        // On phones and touch screens the hit area grows to 40px; the negative
+        // margins cancel it in the layout, so the line looks the same.
+        className="inline-flex min-h-6 items-center gap-1 align-baseline text-inherit underline decoration-dotted decoration-paper-faint underline-offset-[3px] hover:decoration-signal max-sm:-mx-1.5 max-sm:-my-2 max-sm:min-h-10 max-sm:px-1.5 pointer-coarse:-mx-1.5 pointer-coarse:-my-2 pointer-coarse:min-h-10 pointer-coarse:px-1.5"
       >
         {children ?? term}
         <span aria-hidden className="grid size-4 shrink-0 place-items-center rounded-full border border-border-strong text-[10px] font-semibold leading-none text-paper-muted no-underline">?</span>

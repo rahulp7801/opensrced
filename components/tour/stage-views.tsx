@@ -798,11 +798,11 @@ function StageReviewView() {
               {section === "rules" && (
                 <Section title="This project's rules" spot="rules-list">
                   <p className="text-paper-muted">Why this matters: maintainers set these rules, and following them is what makes a contribution welcome.</p>
-                  <ul className="mt-2 space-y-1.5">
+                  <ul className="mt-1.5 space-y-1">
                     {DEMO_RULES.map((row, i) => (
-                      <Reveal as="li" key={row.id} at={R.rules + 300 + i * 450} className="rounded-lg border border-border-soft bg-surface px-3 py-1.5">
+                      <Reveal as="li" key={row.id} at={R.rules + 300 + i * 450} className="rounded-lg border border-border-soft bg-surface px-3 py-1 text-[12.5px]">
                         <p className="flex flex-wrap items-baseline gap-2"><span className={cn("rounded-full border px-2 text-[11.5px]", RULE_TONE[row.status])}>{RULE_STATUS_LABEL[row.status]}</span><span className="font-medium text-paper">{row.label}:</span><span className="text-paper-dim">{row.text}</span></p>
-                        {row.detail && <p className="mt-0.5 text-[12px] text-paper-muted">{row.detail}</p>}
+                        {row.detail && <p className="text-[11.5px] leading-snug text-paper-muted">{row.detail}</p>}
                       </Reveal>
                     ))}
                   </ul>

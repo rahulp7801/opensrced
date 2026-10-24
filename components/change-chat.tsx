@@ -140,7 +140,9 @@ export function ChangeChat({ storageKey, repo, title, context, starters = STARTE
             <button key={s} type="button" disabled={pending} onClick={() => void ask(s)} className={`${button} border-border-soft text-paper hover:border-info/50 hover:text-info`}>{s}</button>
           ))}
         </div>
-        <ol role="log" aria-live="polite" aria-busy={pending} aria-label="Questions and answers" className="mt-2 max-h-[420px] space-y-3 overflow-y-auto">
+        {/* Scrolls when long, so it takes focus for keyboard scrolling. */}
+        <div role="log" aria-live="polite" aria-busy={pending} aria-label="Questions and answers" tabIndex={turns.length ? 0 : -1} className="mt-2 max-h-[420px] overflow-y-auto">
+        <ol className="space-y-3">
           {turns.map((t, i) => (
             <li key={i} className="space-y-1">
               <p className="text-paper"><span className="mr-1.5 font-medium text-signal">You:</span>{t.question}</p>
@@ -151,6 +153,7 @@ export function ChangeChat({ storageKey, repo, title, context, starters = STARTE
             </li>
           ))}
         </ol>
+        </div>
         {error && <p role="alert" className="mt-2 text-alert">{error}</p>}
         <form className="mt-2 flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); void ask(input); }}>
           <label htmlFor={inputId} className="basis-full text-paper">Your question</label>

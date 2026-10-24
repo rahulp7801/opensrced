@@ -38,7 +38,7 @@ async function assertAccessible(page, label) {
 
 /** One rule row: its visible status tag, its label and its exact text. */
 async function assertRow(box, label, tag, text) {
-  const item = box.getByRole('listitem').filter({ has: box.page().getByText(text, { exact: true }) });
+  const item = box.getByRole('listitem').filter({ has: box.page().getByText(text, { exact: true }) }).filter({ hasText: label });
   assert.equal(await item.count(), 1, `one "${text}" row`);
   const shown = await item.innerText();
   assert.ok(shown.startsWith(tag), `"${text}" is tagged ${tag}: ${shown}`);
@@ -78,7 +78,7 @@ const rules = { pr_template: true, template_headings: { total: 2, kept: 2 }, age
 const ruleVariants = {
   'r-dco': { profile: { ...profile, dco: true, sources: ['CONTRIBUTING.md', '.github/dco.yml'] }, signoff: true, rows: [
     ['Sign-off (DCO)', 'Done', 'Required, added to your commit as you'], ['Contribution guide', 'Done', 'Read CONTRIBUTING.md and .github/dco.yml'], ['PR template', 'Done', "Followed the project's PR template"]] },
-  'r-cla': { profile: { ...profile, cla: 'React requires the Meta Contributor License Agreement, signed once at https://code.facebook.com/cla.' }, rows: [
+  'r-cla': { profile: { ...profile, cla: 'React requires the Meta Contributor License Agreement, signed once at https://code.facebook.com/cla.' }, signoff: false, rows: [
     ['CLA', 'Your action', 'Required: you must sign it yourself before maintainers can merge'], ['Sign-off (DCO)', 'Not needed', 'Not required']] },
   'r-disclose': { profile: { ...profile, aiPolicy: { stance: 'disclose', source: 'CONTRIBUTING.md', excerpt: 'Please disclose AI assistance.' } }, rows: [
     ['AI policy', 'Done', 'Asks contributors to disclose AI use: disclosure added'], ['Someone else\'s work', 'Done', 'No other open pull request targets this issue']] },
@@ -273,7 +273,7 @@ try {
     await words.getByText('Your explanation covers the change.', { exact: true }).waitFor();
     const practice = gate.getByRole('region', { name: 'Practice review' });
     await practice.getByText("Practice review: maintainers will ask questions like these. Answer them now so you're ready.", { exact: true }).waitFor();
-    await practice.getByText('What happens when items is undefined rather than empty?', { exact: false }).waitFor();
+    await practice.getByText('Reviewer: What happens when items is undefined rather than empty?', { exact: true }).waitFor();
     assert.equal(understands.at(-1).step, 'questions');
     assert.equal(await publishButton.isDisabled(), true, 'the practice review is answered first');
     for (const [i, q] of ['What happens when items is undefined rather than empty?', 'Why return null instead of throwing a clearer error?'].entries()) {
@@ -281,7 +281,7 @@ try {
       const send = practice.getByRole('button', { name: 'Send answer', exact: true }).first();
       if (i === 0) await thumbSized(send, 'Send answer');
       await send.click();
-      await practice.getByText('That answers it and matches the diff.', { exact: true }).nth(i).waitFor();
+      await practice.getByText('Feedback: That answers it and matches the diff.', { exact: true }).nth(i).waitFor();
     }
     await practice.getByText('A reviewer might follow up: Do callers already handle null?', { exact: true }).first().waitFor();
     assert.equal(await publishButton.isDisabled(), false, 'explained, practiced and confirmed: Publish is enabled');
@@ -325,6 +325,7 @@ try {
     for (const [id, v] of Object.entries(ruleVariants)) {
       await page.goto(base + '/dispatches?dispatch=' + id);
       const box = page.getByRole('region', { name: "This project's rules" });
+      await box.waitFor();
       for (const [label, tag, text] of v.rows) await assertRow(box, label, tag, text);
       if (id === 'r-ban') assert.equal(await page.getByRole('button', { name: 'Publish draft PR' }).count(), 0, 'an AI ban leaves nothing to publish');
       if (id === 'r-cla') await assertAccessible(page, `${width} CLA rules`);

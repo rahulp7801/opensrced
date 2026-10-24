@@ -353,7 +353,7 @@ function ChooseView() {
                       <Reveal at={4600} className="rounded-lg border border-border-soft bg-surface-2/60 p-2.5">
                         <p className="mono-label">Recommendation</p>
                         <p className="mt-0.5 text-[12.5px] font-semibold text-paper">Solve &amp; open PR</p>
-                        <p className="text-[11px] leading-5 text-paper-muted">Explore the repository and generate a fix. A draft PR opens only after the configured checks pass.</p>
+                        <p className="text-[11px] leading-5 text-paper-muted">Explore the repository and generate a fix, then stop for your review. The draft PR opens only when you confirm it on the run page.</p>
                       </Reveal>
                       <Reveal at={6000} className="text-[11px] leading-5 text-paper-muted">
                         <p className="mono-label">Scope evidence</p>

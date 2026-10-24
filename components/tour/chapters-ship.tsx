@@ -49,6 +49,11 @@ function InboxPhase() {
 /** What the user adds to the drafted reply before sending it. */
 const REPLY_EDIT = " I can open that follow-up this week if it helps.";
 const REPLY_EDIT_AT = 10200;
+/** When the reply is sent (the send button's click, after the user's edit is typed). */
+const REPLY_SEND_AT = REPLY_EDIT_AT + Math.ceil((REPLY_EDIT.length / 22) * 1000) + 1500;
+/** When the posted reply shows, with the note lib/disclosure.ts appends to it. */
+export const REPLY_SENT_AT = REPLY_SEND_AT + 600;
+const REPLY_NOTE = "Drafted with AI assistance (opensrcer, claude-haiku-4-5); reviewed and posted by me.";
 
 function WorkspacePhase() {
   const t = useT();
@@ -402,8 +407,8 @@ function ReplyView() {
   const drafting = t >= 4200 && t < 5600;
   const drafted = t >= 5600;
   // The user edits the draft before sending it.
-  const sendAt = REPLY_EDIT_AT + Math.ceil((REPLY_EDIT.length / 22) * 1000) + 1500;
-  const sent = t >= sendAt + 600;
+  const sendAt = REPLY_SEND_AT;
+  const sent = t >= REPLY_SENT_AT;
   const editing = t >= REPLY_EDIT_AT && !sent;
   // Follows the draft down to the send button on small screens; a no-op when it fits.
   const scrollRef = useAutoScroll(5600, 11400);
@@ -438,6 +443,7 @@ function ReplyView() {
               <p className={cn("min-h-[86px] rounded-lg border bg-surface px-3 py-2 text-[12px] leading-5 text-paper", editing ? "border-signal/60" : "border-border")}>
                 {sent ? DRAFTED_REPLY : <Typed text={DRAFTED_REPLY} at={5700} cps={70} />}
                 {t >= REPLY_EDIT_AT && <span className="rounded-sm bg-signal/10"><Typed text={REPLY_EDIT} at={REPLY_EDIT_AT} cps={22} /></span>}
+                {sent && <span data-spot="reply-note" className="mt-2 block text-[11px] text-paper-muted">{REPLY_NOTE}</span>}
               </p>
               {!sent && t >= REPLY_EDIT_AT - 1200 && <p className="text-[10.5px] text-paper-muted">AI draft · edit it before you send</p>}
               <div className="flex items-center gap-2 text-[11px]">
@@ -460,7 +466,7 @@ export const reply: Chapter = {
   act: "Ship",
   label: "Answer a question",
   title: "Answer a reviewer's question",
-  duration: 19500,
+  duration: REPLY_SENT_AT + 7500,
   source: "Example question on the real pull request #6",
   captions: [
     { at: 0, text: "Not every comment needs code. When a reviewer asks a question, opensrcer recognizes it and offers to draft an answer." },

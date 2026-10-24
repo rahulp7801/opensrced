@@ -30,6 +30,7 @@ export function pacedBy(chapter: Chapter, pace: number): Chapter {
     duration: Math.round((chapter.duration * pace) / 250) * 250,
     captions: chapter.captions.map((c) => ({ ...c, at: Math.round(c.at * pace) })),
     headlines: chapter.headlines?.map((h) => ({ ...h, at: Math.round(h.at * pace) })),
+    provenance: chapter.provenance?.map((h) => ({ ...h, at: Math.round(h.at * pace) })),
     View,
   };
 }

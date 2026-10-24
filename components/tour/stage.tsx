@@ -260,6 +260,7 @@ export function StageDemo() {
   const spotOn = waiting?.kind === "press" ? "[data-waiting]" : noteSpot && !ended ? `[data-spot="${noteSpot}"]` : null;
 
   const headline = started ? step.chapter.headlines?.filter((h) => h.at <= local).at(-1)?.text : undefined;
+  const provenance = started && !ended ? step.chapter.provenance?.filter((h) => h.at <= local).at(-1)?.text : undefined;
 
   const View = step.chapter.View;
   return (
@@ -298,6 +299,8 @@ export function StageDemo() {
       {/* Which of the four phases this is (dots, no words), and, outside the app so it
           never covers it, a quiet arrow when the presenter can move on. */}
       <div className="relative mt-3 flex h-11 shrink-0 items-center justify-center">
+        {/* Where what's on screen comes from: quiet, outside the app, never over it. */}
+        {provenance && <p className="absolute left-0 max-w-[40%] truncate text-[13px] text-paper-muted">{provenance}</p>}
         <div aria-hidden className="flex items-center gap-2">
           {PHASES.map((p, i) => (
             <span key={p.name} className={cn("h-1.5 rounded-full transition-all duration-500", i === step.phase ? "w-8 bg-signal" : i < step.phase ? "w-1.5 bg-signal/50" : "w-1.5 bg-border")} />
@@ -366,6 +369,16 @@ function Spotlight({ selector, strong, within }: { selector: string | null; stro
     </div>
   );
 }
+
+/** For questions from the room; the notes window only, never the stage. */
+const IF_ASKED = [
+  "Big-repo replays: 4 real bugs the maintainers had already fixed (React, Flask, pydantic, vLLM), each started from just before their fix. In 2 the maintainers' own tests pass on opensrcer's fix; 2 were correct but narrower, and the preview now names the variants it didn't cover. (Flask's tests came from the issue itself, which the reporter wrote.)",
+  "What it doesn't do: it doesn't run the project's own CI; CI on the pull request is still the project's. It can be wrong, which is why a person has to explain the change before anything is published.",
+  "Caps: one open opensrcer pull request per project per person, and three a day.",
+  "Cost: about ten cents a run on an Anthropic API key, or your Claude plan.",
+  "The graph on screen is for you; the agent works from the code itself. In the real run it looked up truncate's definition and read its test file before editing, and it has tools to find every caller.",
+  "opensrcer's own CI: unit tests, 7 browser smoke tests, a secret scan (gitleaks) and CodeQL on every change.",
+];
 
 function clock(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -464,6 +477,12 @@ export function StageNotes() {
         <button type="button" onClick={() => send("next")} className="inline-flex min-h-14 flex-[2] items-center justify-center gap-2 rounded-2xl bg-signal text-[17px] font-semibold text-white">Next<CaretRight aria-hidden size={18} weight="bold" /></button>
       </div>
       <p className="text-[12px] text-paper-muted">Keys work here too: → or Page Down next, ← back, 1-4 jump to a phase.</p>
+      <details className="rounded-2xl border border-border-soft bg-surface px-5 py-4 text-[15px] leading-[1.5] text-paper">
+        <summary className="cursor-pointer font-medium">If asked</summary>
+        <ul className="mt-3 list-disc space-y-2 pl-5 text-paper-dim">
+          {IF_ASKED.map((line) => <li key={line}>{line}</li>)}
+        </ul>
+      </details>
     </div>
   );
 }

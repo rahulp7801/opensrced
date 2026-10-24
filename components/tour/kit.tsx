@@ -293,5 +293,7 @@ export type Chapter = {
   source: string;
   /** On the stage only: the plain-language headline above the app, each from its `at`. */
   headlines?: Caption[];
+  /** On the stage only: where what's on screen comes from ("Real run · Oct 24"), each from its `at`. */
+  provenance?: Caption[];
   View: () => ReactNode;
 };

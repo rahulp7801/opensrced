@@ -122,6 +122,7 @@ export const stageScan: Chapter = {
   title: "Only issues that are open to you",
   duration: SHOW_READY_AT + 3000,
   source: "Example scan; the verdicts are the scanner's own",
+  provenance: [{ at: 0, text: "Example scan · the scanner's own verdicts" }],
   headlines: [{ at: 0, text: "It only picks issues that are open to you." }],
   captions: [
     { at: 0, text: "Step one: an issue that's actually open to a newcomer. Claude Code assumes you already have one." },
@@ -194,7 +195,7 @@ function AskPanel({ turns, text = GRAPH_PANEL }: { turns: TimedTurn[]; text?: Pa
                 {[0, 1, 2].map((i) => <span key={i} className="size-1.5 animate-bounce rounded-full bg-paper-muted motion-reduce:animate-none" style={{ animationDelay: `${i * 140}ms` }} />)}
               </div>
             ) : (
-              <div className="mr-4 rounded-2xl rounded-tl-md border border-border-soft bg-surface px-3 py-2.5 text-[14px] leading-[1.5] text-paper">
+              <div data-spot="answer" className="mr-4 rounded-2xl rounded-tl-md border border-border-soft bg-surface px-3 py-2.5 text-[14px] leading-[1.5] text-paper">
                 <Typed text={turn.answer} at={turn.answerAt} cps={ANSWER_CPS} />
                 <Reveal at={turn.doneAt} className="mt-2 flex flex-wrap items-center gap-1.5">
                   {turn.cites.map((c) => <span key={c} className="rounded-md bg-signal/10 px-1.5 py-0.5 font-mono text-[11.5px] text-signal">{c}</span>)}
@@ -282,20 +283,28 @@ export const stageExplore: Chapter = {
   title: "Ask the code in plain English",
   duration: SELECT_AT + 3500,
   source: "Example session on the real demo repository",
+  provenance: [{ at: 0, text: "Real repository · example questions" }],
   headlines: [
     { at: 0, text: "Understand the code before you change it." },
     { at: FIRST.turns[0].typeAt, text: "Ask about it in plain English." },
+    { at: FIRST.turns[0].doneAt, text: "Know what your change touches before you touch it." },
   ],
   captions: [
     { at: 0, text: "Before changing anything, understand the code. Explore maps the repository straight from the source: no AI, nothing cloned, nothing installed." },
     { at: BUILT_AT, spot: "graph", text: "Files, functions, and the calls between them. (For the curious: it's parsed with tree-sitter.)" },
     { at: FIRST.turns[0].typeAt, spot: "ask", text: `Then ask the question you'd normally grep for: “${FIRST.turns[0].prompt}” The answer comes from the map and points to the files involved.` },
+    { at: FIRST.turns[0].doneAt, spot: "answer", text: "The payoff: a change reaches the public API and that one test, nothing else. Know what your change touches before you touch it." },
     { at: SELECT_AT, spot: "graph", text: "Same thing on the map: click truncate() and its connections light up. You know the shape of the fix before an agent writes a line." },
   ],
   View: StageExploreView,
 };
 
 // ── Speaker notes and headlines for the tour's review and pull request ──────
+
+/** A chapter with its provenance label for the stage. */
+function withProvenance(chapter: Chapter, provenance: Caption[]): Chapter {
+  return { ...chapter, provenance };
+}
 
 /** A chapter with the stage's own notes in place of the tour's narration, and its headlines. */
 function staged(chapter: Chapter, headlines: Caption[], captions: Caption[]): Chapter {
@@ -305,12 +314,12 @@ function staged(chapter: Chapter, headlines: Caption[], captions: Caption[]): Ch
 /** The review and the pull request as the stage tells them. */
 export function stageNotes(base: { pr: Chapter }) {
   return {
-    pr: staged(base.pr, [{ at: 0, text: "The maintainer always knows AI helped." }], [
+    pr: withProvenance(staged(base.pr, [{ at: 0, text: "The maintainer always knows AI helped." }], [
       { at: 0, spot: "pr-facts", text: "Every GitHub step done right: its own branch, your private noreply email, the right base branch, and a description that closes the issue." },
       { at: 5800, spot: "pr-verified", text: "The description shows the tests it ran and the result: verified." },
       { at: 7400, spot: "pr-ai", text: "And it discloses itself: who asked, which model, what was and wasn't tested, plus an Assisted-by trailer and a sign-off where the project asks." },
       { at: 9000, text: "It stays a draft until you mark it ready. The maintainer always knows." },
-    ]),
+    ]), [{ at: 0, text: "Real pull request #7 · Oct 24" }]),
   };
 }
 
@@ -364,7 +373,37 @@ export function withPrFacts(chapter: Chapter): Chapter {
 const BAN_REPO = "acme/forms";
 const BAN_EXCERPT = "We don't accept pull requests written by AI tools.";
 
+// The guard's own words (lib/contrib-guard.ts maintainerObjectionReason), with the name and
+// the quote replaced. A REAL issue in a major open-source project; who and where stay hidden.
+const NAME_HIDDEN = "name hidden";
+const QUOTE_HIDDEN = "quote hidden";
+const MAINT_AT = 5500;
+
+/** A visibly redacted span: what was there is hidden on purpose. */
+function Redacted({ children }: { children: string }) {
+  return <span className="rounded bg-paper/80 px-1.5 text-[0.9em] font-medium text-surface">[{children}]</span>;
+}
+
+function MaintainerView() {
+  return (
+    <AppWindow path="/dispatches" section="Fix" tab="Runs">
+      <div className="flex h-full flex-col justify-center gap-4 p-6">
+        <Reveal at={MAINT_AT + 300}>
+          <p className="mx-auto max-w-[860px] text-[18px] leading-snug text-paper">On a real issue in a major open-source project, a maintainer replied asking for a human-written pull request. opensrcer read the thread and refused to publish.</p>
+        </Reveal>
+        <Reveal at={MAINT_AT + 1800} spot="maint" className="mx-auto w-full max-w-[860px] rounded-2xl border border-border-soft bg-surface px-5 py-4 text-[15px]">
+          <p className="text-[16px] font-medium text-paper">Review before publishing</p>
+          <p role="alert" className="mt-2 rounded-lg border border-alert/30 bg-alert/5 px-3 py-2.5 leading-relaxed text-alert">
+            Blocked: a maintainer asked for human-written work on this issue (@<Redacted>{NAME_HIDDEN}</Redacted>: &quot;<Redacted>{QUOTE_HIDDEN}</Redacted>&quot;). opensrcer won&apos;t open an AI-assisted pull request here; you can still use this preview to write the fix yourself
+          </p>
+        </Reveal>
+      </div>
+    </AppWindow>
+  );
+}
+
 function RefusedView() {
+  if (useT() >= MAINT_AT) return <MaintainerView />;
   return (
     <AppWindow path={`/dispatches?dispatch=c_example`} section="Fix" tab="Runs">
       <div className="p-6">
@@ -392,11 +431,13 @@ export const stageRefused: Chapter = {
   act: "Fix",
   label: "When it says no",
   title: "When it says no",
-  duration: 3000,
-  source: "Example: a fictional project whose guide bans AI",
-  headlines: [{ at: 0, text: "And when the rules say no, it stops." }],
+  duration: MAINT_AT + 7500,
+  source: "Example: a fictional project whose guide bans AI; then a real issue, names hidden",
+  headlines: [{ at: 0, text: "And when the rules say no, it stops." }, { at: MAINT_AT, text: "It listens to maintainers, even in the comments." }],
+  provenance: [{ at: 0, text: "Example project" }, { at: MAINT_AT, text: "Real issue · names hidden" }],
   captions: [
     { at: 0, spot: "refusal", text: "And it says no. This guide bans AI-written pull requests, so publishing is refused, quoting the guide, with no Publish button. Same when someone else already has a pull request open." },
+    { at: MAINT_AT, spot: "maint", text: "And it listens to maintainers in the issue itself. On a real project, a maintainer asked for a human-written pull request, so opensrcer refused to publish. Name and quote hidden; the preview still helps you write the fix yourself." },
   ],
   View: RefusedView,
 };
@@ -503,6 +544,7 @@ export const stageVerified: Chapter = {
   title: "Tests that prove the fix",
   duration: PROOF_DONE_AT + 2500,
   source: "The real run behind pull request #7",
+  provenance: [{ at: 0, text: "Real run · Oct 24 · verified" }],
   headlines: [{ at: 0, text: "It proves the fix works, in a locked box." }],
   captions: [
     { at: 0, text: "The centerpiece: it proves the fix works before you ever see it. Same issue, same real run, on the hosted site." },
@@ -657,6 +699,7 @@ export const stageRules: Chapter = {
   title: "It reads the project's rules first",
   duration: RULES_DONE_AT + 2500,
   source: "The real run behind pull request #7, in plain words",
+  provenance: [{ at: 0, text: "Real run · Oct 24" }],
   headlines: [{ at: 0, text: "It reads the project's rules first." }],
   captions: [
     { at: 0, text: "One click starts the run, in a throwaway machine with a spend cap and a time limit." },
@@ -715,6 +758,7 @@ export function withSignInStart(chapter: Chapter): Chapter {
     ...chapter,
     duration: chapter.duration + SIGN_IN_LENGTH,
     headlines: [{ at: 0, text: "No API bill: it runs on the Claude plan you already pay for." }, ...(chapter.headlines ?? []).map(later)],
+    provenance: [{ at: 0, text: "The sign-in step, as the site shows it" }, ...(chapter.provenance ?? []).map(later)],
     captions: [
       { at: 0, text: "One click starts the run. It runs on the Claude plan you already pay for, so there's no API bill." },
       { at: SIGN_IN_PANEL_AT, spot: "sign-in", text: "You sign in on Claude's own page, inside the run's machine; opensrcer never sees your login. Hit your plan's limit? The run stops. It switches to an API key only if you've turned that on." },
@@ -873,7 +917,7 @@ function StageReviewView() {
               {section === "publish" && (
                 <Section title="What happens when you publish" spot="publish-steps">
                   <ol className="list-decimal space-y-1 pl-5 text-[13.5px] leading-6 text-paper-dim">{DEMO_PUBLISH_STEPS.map((s) => <li key={s}>{s}</li>)}</ol>
-                  <p className="mt-2 flex flex-wrap gap-x-3 text-paper-muted">Words used here: <Term>fork</Term><Term>branch</Term><Term>draft PR</Term><Term>AI disclosure</Term></p>
+                  <p data-spot="glossary" className="mt-2 flex flex-wrap gap-x-3 text-paper-muted">Words used here: <Term>fork</Term><Term>branch</Term><Term>draft PR</Term><Term>AI disclosure</Term></p>
                 </Section>
               )}
             </div>
@@ -903,12 +947,13 @@ export const stageReview: Chapter = {
   title: "Review, explain, publish",
   duration: PUBLISHED_AT + 8500,
   source: "The review screen for the PR #7 run; the chat and check answers are examples; the rules as a run records them today",
+  provenance: [{ at: 0, text: "Real run · Oct 24" }, { at: R.chat, text: "Real run · Oct 24 · example answers" }],
   headlines: [
     { at: 0, text: "It explains every change in plain English." },
     { at: R.rules, text: "It checks the project's rules, one by one." },
-    { at: R.chat, text: "Ask anything about the change." },
-    { at: R.own, text: "Before you can publish, you explain it. In your words." },
-    { at: R.practice, text: "Then answer a reviewer's questions." },
+    { at: R.chat, text: "It teaches you the change…" },
+    { at: R.own, text: "…and checks that you learned it. In your words." },
+    { at: R.practice, text: "Then a practice review, before the real one." },
     { at: R.publish, text: "You confirm you understand it." },
     { at: R.publishAt, text: "A human publishes. Nothing is hidden." },
   ],
@@ -922,7 +967,8 @@ export const stageReview: Chapter = {
     { at: R.practice, spot: "practice", text: "Then two practice questions, the kind a maintainer would ask about this exact change. (Example questions and answers.)" },
     { at: R.publish, spot: "publish-steps", text: "Then exactly what publishing does, and your confirmation. Publish stays locked until all of that is done." },
     { at: R.publishAt, text: "Only then is it scanned for leaked secrets and opened, as a draft, in your name." },
-    { at: PUBLISHED_AT + 600, spot: "next-steps", text: "And what happens next, etiquette included." },
+    { at: R.publish + 2500, spot: "glossary", text: "Every term a beginner trips on is explained on tap: fork, branch, draft PR." },
+    { at: PUBLISHED_AT + 600, spot: "next-steps", text: "And it coaches what happens next: don't chase people, answer every review comment." },
   ],
   View: StageReviewView,
 };

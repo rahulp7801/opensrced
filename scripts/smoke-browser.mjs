@@ -100,7 +100,8 @@ try {
         const stage = tour.getByRole('region', { name: 'The opensrcer app (demo)' });
         await chapters.filter({ hasText: 'Get set up' }).click();
         await tour.getByRole('button', { name: 'Play', exact: true }).click();
-        await tour.getByText('Your turn: click “Sign in with GitHub”').waitFor({ timeout: 15_000 });
+        // The announced caption, not the in-window pill that repeats it (aria-hidden).
+        await tour.getByText('Your turn: click “Sign in with GitHub”').and(page.locator(':not([aria-hidden="true"])')).waitFor({ timeout: 15_000 });
         const waitingAt = Number(await position.inputValue());
         await page.waitForTimeout(600);
         assert.equal(Number(await position.inputValue()), waitingAt, 'the tour waits for the click');

@@ -301,7 +301,7 @@ export function TriggerForm() {
           ))}
         </ol>
         <div className="border-t border-border px-4 py-3">
-          <Link href="/dispatches" className="inline-flex min-h-10 items-center text-xs text-signal hover:underline">
+          <Link href="/dispatches" className="inline-flex min-h-10 items-center gap-1 text-xs text-signal hover:underline">
             View run history <span aria-hidden>→</span>
           </Link>
         </div>

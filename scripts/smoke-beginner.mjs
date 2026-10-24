@@ -66,6 +66,9 @@ try {
     page.on('pageerror', error => errors.push(error.message));
     const starts = [];
     let publishes = 0;
+    // Section 7 switches the list pages to these answers.
+    let lists = false;
+    let reposReply = 'error';
     await page.route('**/auth/profile', route => route.fulfill({ json: { sub: 'beginner', name: 'First Timer' } }));
     await page.route('**/api/**', async route => {
       const path = new URL(route.request().url()).pathname;
@@ -80,7 +83,16 @@ try {
         return route.fulfill({ json: { ...runs[m[1]], log, log_size: log.length } });
       }
       if (path === '/api/issues/suggested') return route.fulfill({ json: { issues: [{ repo: 'acme/compiler', title: 'Improve parser diagnostics', number: 72, url: 'https://github.com/acme/compiler/issues/72', labels: ['good first issue'], createdAt: now, updatedAt: now, comments: 1, language: 'TypeScript', stars: 24300 }], filteredOut: 0 } });
+      if (path === '/api/issues/scan' && new URL(route.request().url()).searchParams.get('repo') === 'acme/app') return route.fulfill({ json: { repo: 'acme/app', total: 1, solvable: 1, issues: [{
+        number: 1, title: 'Fix parser error', body: 'Fix the parser.', labels: ['bug', 'good first issue'], url: 'https://github.com/acme/app/issues/1', author: 'maint',
+        created_at: now, updated_at: now, comments: 0, category: 'bug', severity: 'low', complexity: 1, est_minutes: 5, solvable: true, reason: 'Small fix',
+        scope: { bucket: 'leaf', confidence: 'high', files: ['parser.ts'], symbols: [], reason: 'One file is named in the issue.' } }] } });
       if (path === '/api/issues/scan') return route.fulfill({ json: { repo: 'acme/compiler', total: 0, solvable: 0, issues: [] } });
+      if (lists && path === '/api/repos/github') return reposReply === 'error'
+        ? route.fulfill({ status: 500, json: { error: 'Internal server error' } })
+        : route.fulfill({ json: { repos: [], hasMore: false, nextCursor: null } });
+      if (lists && path === '/api/prs/github') return route.fulfill({ json: { login: 'first-timer', prs: [{ repo: 'acme/app', title: 'Handle empty input', number: 12, url: 'https://github.com/acme/app/pull/12',
+        state: 'OPEN', createdAt: now, updatedAt: now, branch: 'fix', base: 'main', additions: 2, deletions: 1, reviewDecision: 'CHANGES_REQUESTED', isDraft: false, commentCount: 1 }] } });
       if (path === '/api/prs/review') return route.fulfill({ json: {
         pr: { title: 'fix(parser): handle empty input (#1)', state: 'OPEN', url: 'https://github.com/acme/app/pull/12', branch: 'opensrcer/1-b-ready', headRepo: 'first-timer/app', base: 'main', author: 'first-timer' },
         comments: [{ id: 1, author: 'maint', body: 'Can you also handle whitespace?', path: 'parser.ts', line: 1, diffHunk: null, createdAt: now, type: 'review', inReplyTo: null, isOwnComment: false }],
@@ -161,6 +173,96 @@ try {
     await page.getByText(/needs updating \(a rebase\)/).waitFor();
     await assertUsableControls(page, `${width} PR page`);
     await assertAccessible(page, `${width} PR page`);
+
+    // 7. Plain words, one set of run buttons, nothing to pay twice for, and
+    // controls a thumb can hit (40px on a phone).
+    lists = true;
+    async function thumbSized(locator, what) {
+      const box = await locator.boundingBox();
+      assert.ok(box, `${width}: ${what} is on screen`);
+      const min = width === 390 ? 40 : 24;
+      assert.ok(box.width >= min && box.height >= min, `${width}: ${what} is ${Math.round(box.width)}x${Math.round(box.height)}, under ${min}px`);
+    }
+    await page.goto(base + '/issues?repo=acme%2Fapp&issue=1');
+    const row = page.locator('#issue-row-1');
+    await row.getByText('Fix parser error', { exact: true }).waitFor();
+    assert.deepEqual(await row.locator('.tag').allTextContents(), ['new', 'bug', 'good first issue'], 'a label that repeats the category is shown once');
+    assert.equal(await row.getByRole('button', { name: 'Fix parser error' }).getAttribute('aria-expanded'), 'true');
+    assert.equal(await row.getByRole('button', { name: 'Fix it (you review first)', exact: true }).count(), 1, 'an expanded row shows its run buttons once');
+    assert.equal(await row.getByRole('button', { name: 'Preview patch', exact: true }).count(), 1);
+    assert.equal(await row.getByText('one file', { exact: true }).count(), 1, 'the scope is in plain words');
+    assert.equal(await row.getByText('leaf', { exact: true }).count(), 0);
+    const anyTime = page.getByRole('button', { name: 'Any time', exact: true });
+    assert.equal(await anyTime.evaluate(el => el.getBoundingClientRect().right <= el.closest('section').getBoundingClientRect().right), true, 'the Opened filters are not clipped');
+    for (const [what, locator] of [
+      ['Filters', page.getByRole('button', { name: 'Filters' })],
+      ['a language chip', page.getByRole('button', { name: 'javascript', exact: true })],
+      ['a label chip', page.getByRole('button', { name: 'Good first issue', exact: true })],
+      ['the issue number link', row.getByRole('link', { name: /Open on GitHub/ })],
+      ['Any time', anyTime],
+      ['onboarding dismiss', page.getByRole('button', { name: 'Dismiss onboarding', exact: true })],
+    ]) await thumbSized(locator, what);
+    await assertUsableControls(page, `${width} scanned issues`);
+    await assertAccessible(page, `${width} scanned issues`);
+
+    await page.goto(base + '/trigger');
+    const publishable = page.getByRole('button', { name: 'publishable (you review first)', exact: true });
+    assert.equal(await publishable.getAttribute('aria-pressed'), 'true', 'new runs default to publishable');
+    await page.getByText('Set up how runs are paid for in', { exact: false }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Start publishable run', exact: true }).isDisabled(), true, 'no run starts without a payment method');
+    assert.equal(await page.getByText(/start a worker/).count(), 0, 'no worker jargon');
+    for (const [what, locator] of [
+      ['the publishable toggle', publishable],
+      ['the preview toggle', page.getByRole('button', { name: 'preview', exact: true })],
+      ['the preview glossary button', page.getByRole('button', { name: /^preview.*what's this/ })],
+      ['View run history', page.getByRole('link', { name: 'View run history', exact: true })],
+    ]) await thumbSized(locator, what);
+    await assertAccessible(page, `${width} new run`);
+
+    await page.goto(base + '/dispatches?dispatch=b-ask');
+    await page.getByText('Suggested instead: ask on the issue first.', { exact: false }).waitFor();
+    assert.equal(await page.getByText('Pipelines', { exact: true }).count(), 0, 'the list is called Runs');
+    assert.equal(await page.getByText('deep', { exact: true }).count(), 0, 'no unexplained deep chip');
+    assert.equal(await page.locator('a[href="/dispatches?dispatch=b-dry"]').innerText().then(text => text.includes('b-dry')), false, 'no bare run ids on rows');
+    await page.getByText('Run ID (for support):', { exact: false }).waitFor();
+    const runLog = page.getByLabel('Run log', { exact: true });
+    for (const name of ['Download report', 'Show terminal colors', 'Search log']) {
+      const tool = page.getByRole('button', { name, exact: true });
+      await thumbSized(tool, name);
+      const [toolBox, logBox] = [await tool.boundingBox(), await runLog.boundingBox()];
+      assert.ok(toolBox.y + toolBox.height <= logBox.y + 1 || toolBox.y >= logBox.y + logBox.height, `${width}: ${name} does not cover the log`);
+    }
+    const steps = await page.evaluate(() => [...document.querySelectorAll('span')]
+      .filter(el => /^[✓○●×] (clone|explore|patch|test|PR)$/.test(el.textContent.trim()))
+      .map(el => Math.round(el.getBoundingClientRect().height)));
+    assert.equal(steps.length, 5);
+    assert.ok(steps.every(height => height < 30), `${width}: each run step stays on one line (${steps})`);
+    await thumbSized(page.getByRole('button', { name: 'copy comment', exact: true }), 'copy comment');
+    await assertUsableControls(page, `${width} runs`);
+    await assertAccessible(page, `${width} runs`);
+
+    await page.goto(base + '/prs');
+    await page.getByText('Needs your action', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('img', { name: 'Needs your action' }).count(), 0, 'no x glyph that reads as a close button');
+    await page.getByText(/a quick fix looks at the file being discussed; a deep fix explores the whole project first/).waitFor();
+    assert.equal(await page.getByText('Dashboard PRs', { exact: true }).count(), 0);
+    for (const name of [/^Inbox/, /^All PRs/, /^Opened with opensrcer/]) await thumbSized(page.getByRole('tab', { name }), `the ${name} tab`);
+    await assertAccessible(page, `${width} pull requests`);
+
+    reposReply = 'error';
+    await page.goto(base + '/repos');
+    const failure = page.getByRole('alert').filter({ hasText: "Couldn't load your repos from GitHub." });
+    await failure.waitFor();
+    assert.equal(await failure.getByText('Internal server error').count(), 0, 'a bare server error is not shown as the message');
+    const retry = failure.getByRole('button', { name: 'Retry', exact: true });
+    await thumbSized(retry, 'Retry');
+    await assertAccessible(page, `${width} repos error`);
+    reposReply = 'empty';
+    await retry.click();
+    await page.getByText('No repos here yet.', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('link', { name: 'Find a beginner issue', exact: true }).getAttribute('href'), '/issues');
+    assert.equal(await page.getByRole('link', { name: 'Discover projects', exact: true }).getAttribute('href'), '/discover');
+    await assertAccessible(page, `${width} repos empty`);
 
     assert.deepEqual(errors, [], `client errors ${width}`);
     await context.close();

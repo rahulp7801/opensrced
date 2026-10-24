@@ -895,10 +895,11 @@ function PipelineTimeline({ log, status, prUrl }: { log: string; status: string;
 
   return (
     // Wraps as whole steps on narrow screens; a step's mark and name never split.
-    <div className="flex flex-wrap items-center gap-x-1 gap-y-1.5">
+    // Phones drop the connector lines, which would otherwise start a wrapped row.
+    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5 sm:gap-x-1">
       {phases.map((p, i) => (
         <div key={p.label} className="flex items-center gap-1">
-          {i > 0 && <div className={cn("w-4 h-px", p.done || p.active ? "bg-signal/40" : "bg-border")} />}
+          {i > 0 && <div className={cn("w-4 h-px max-sm:hidden", p.done || p.active ? "bg-signal/40" : "bg-border")} />}
           <span
             className={cn(
               "flex items-center gap-1 whitespace-nowrap px-1.5 py-1 text-[11px] font-medium border leading-none",

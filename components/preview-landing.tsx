@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { InviteNotice } from "./invite-notice";
+import { RUN } from "./tour/data";
 
 // What a newcomer needs before anything else: what it does, in plain words.
 const STEPS = [
@@ -34,7 +35,7 @@ export function PreviewLanding() {
         ))}
       </ol>
       <p className="animate-fade-rise mx-auto mt-6 max-w-[600px] text-[14px] leading-[1.5] text-paper-muted" style={{ animationDelay: "280ms" }}>
-        You bring your own Anthropic API key; you pay your provider per run, usually cents (the tour&apos;s run cost $0.20).
+        You bring your own Anthropic API key; you pay your provider per run, usually cents (the tour&apos;s run cost ${RUN.cost.toFixed(2)}).
       </p>
       <p className="animate-fade-rise mt-8 inline-flex items-center gap-2 rounded-full bg-surface-3 px-4 py-1.5 text-[14px] font-medium text-paper" style={{ animationDelay: "320ms" }}>
         <span aria-hidden className="size-1.5 rounded-full bg-signal" />

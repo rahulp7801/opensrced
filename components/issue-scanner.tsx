@@ -328,27 +328,28 @@ export function IssueScanner() {
                       <div className="grid gap-4 px-5 py-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2 text-xs text-paper-muted">
-                            <a href={issue.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-paper-dim hover:text-signal">
+                            <a href={issue.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-paper-dim hover:text-signal max-sm:min-h-10 max-sm:min-w-10">
                               #{issue.number}<IconExternal />
                               <span className="sr-only">Open on GitHub</span>
                             </a>
                             <span title={issue.created_at}>Opened {fmtRelative(issue.created_at, now)}</span>
                             {now - Date.parse(issue.created_at) <= NEW_CUTOFF_MS && <span className="tag" data-tone="signal">new</span>}
                             <span className="tag" data-tone="info">{issue.category}</span>
-                            {issue.labels.slice(0, 3).map((label) => <span key={label} className="tag">{label}</span>)}
+                            {/* A label that only repeats the category ("bug" · "bug") is dropped. */}
+                            {issue.labels.filter((label) => label.toLowerCase() !== issue.category.toLowerCase()).slice(0, 3).map((label) => <span key={label} className="tag">{label}</span>)}
                           </div>
                           <button
                             type="button"
                             onClick={() => setExpandedNumber(expanded ? null : issue.number)}
                             aria-expanded={expanded}
                             aria-controls={`issue-detail-${issue.number}`}
-                            className="mt-2 flex w-full items-start gap-2 text-left"
+                            className="mt-2 flex w-full items-start gap-2 text-left max-sm:min-h-10"
                           >
                             <IconChevronDown className={cn("mt-0.5 shrink-0 text-paper-faint transition-transform", !expanded && "-rotate-90")} />
                             <span className="text-sm font-medium leading-snug text-paper">{issue.title}</span>
                           </button>
                           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-paper-muted">
-                            <span className="inline-flex items-center gap-1.5"><span className="text-paper-faint">Scope</span><ScopeBadge s={issue.scope} /></span>
+                            <span className="inline-flex items-center gap-1.5"><span className="text-paper-faint">Likely change</span><ScopeBadge s={issue.scope} /></span>
                             <span className="inline-flex items-center gap-1.5"><span className="text-paper-faint">Risk</span><SeverityChip s={issue.severity} /></span>
                             <span className="inline-flex items-center gap-1.5"><span className="text-paper-faint">Complexity</span><ComplexityPips value={issue.complexity} /></span>
                             <span><span className="text-paper-faint">Estimate</span> ~{fmtMinutes(issue.est_minutes)}</span>
@@ -369,14 +370,8 @@ export function IssueScanner() {
                       </div>
                       {expanded && (
                         <div id={`issue-detail-${issue.number}`} className="border-t border-border-soft bg-ink/30 px-5 py-5">
-                          <IssueDetail
-                            issue={issue}
-                            rec={rec}
-                            disabled={dispatching !== null}
-                            dispatching={dispatching?.number === issue.number ? dispatching.kind : null}
-                            onPreview={() => solve(issue.number, true)}
-                            onSolve={() => solve(issue.number, false)}
-                          />
+                          {/* The row above holds the run buttons; the detail only explains. */}
+                          <IssueDetail issue={issue} rec={rec} />
                         </div>
                       )}
                     </article>
@@ -409,7 +404,7 @@ function FilterGroup({ label, className, children }: { label: string; className?
   return (
     <fieldset className={className}>
       <legend className="mb-1.5 text-xs font-medium text-paper-faint">{label}</legend>
-      <div className="flex gap-1.5">{children}</div>
+      <div className="flex flex-wrap gap-1.5">{children}</div>
     </fieldset>
   );
 }
@@ -426,7 +421,7 @@ function FilterButton({ active, tone = "signal", onClick, children }: {
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "min-h-9 whitespace-nowrap rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+        "min-h-10 whitespace-nowrap rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
         active
           ? tone === "ok" ? "border-ok/45 bg-ok/10 text-ok" : "border-signal/45 bg-signal/10 text-signal"
           : "border-border bg-surface/50 text-paper-muted hover:border-border-strong hover:text-paper",
@@ -471,7 +466,7 @@ function recommendFor(issue: Issue): Recommendation {
   if (issue.scope.bucket === "refactor" || issue.scope.bucket === "unknown") {
     return { action: "preview", headline: "Preview first", reason: "Review a patch before publishing changes when the scope is broad or uncertain." };
   }
-  return { action: "solve", headline: "Solve & open PR", reason: "Explore the repository and generate a fix, then stop for your review. The draft PR opens only when you confirm it on the run page." };
+  return { action: "solve", headline: "Fix it, then review", reason: "The agent explores the repository and writes a fix, then stops for your review. A draft PR opens only when you confirm it on the run page." };
 }
 
 const ACTION_META: Record<ActionKind, { label: string; tooltip: string }> = {
@@ -481,7 +476,7 @@ const ACTION_META: Record<ActionKind, { label: string; tooltip: string }> = {
       "A practice run: generate a patch to read. It can't be published; run it again to publish.",
   },
   solve: {
-    label: "Solve & open PR",
+    label: "Fix it (you review first)",
     tooltip:
       "Explore the repository and generate a fix, then stop for your review. Nothing is posted until you confirm.",
   },
@@ -516,14 +511,12 @@ function ActionButton({
   disabled,
   dispatching,
   onClick,
-  large = false,
 }: {
   kind: ActionKind;
   recommended: boolean;
   disabled: boolean;
   dispatching: boolean;
   onClick: () => void;
-  large?: boolean;
 }) {
   const meta = ACTION_META[kind];
   // Three visual states: recommended (bold, colored), available (muted),
@@ -533,17 +526,13 @@ function ActionButton({
     preview: "border-paper-dim text-paper bg-surface-2",
     solve: "border-signal bg-signal/15 text-paper",
   }[kind];
-  const base = large
-    ? "min-h-11 px-4 py-2 text-xs"
-    : "min-h-10 px-3 py-2 text-xs";
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       title={meta.tooltip + (recommended ? "\n\nRecommended for this issue." : "")}
       className={cn(
-        "relative inline-flex items-center justify-center gap-1.5 rounded-md border font-medium transition-colors disabled:opacity-40",
-        base,
+        "relative inline-flex min-h-10 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-40",
         recommended
           ? `${recStyle} hover:brightness-125`
           : "border-border bg-surface text-paper-muted hover:text-paper hover:border-border-strong",
@@ -560,21 +549,7 @@ function ActionButton({
   );
 }
 
-function IssueDetail({
-  issue,
-  rec,
-  disabled,
-  dispatching,
-  onPreview,
-  onSolve,
-}: {
-  issue: Issue;
-  rec: Recommendation;
-  disabled: boolean;
-  dispatching: ActionKind | null;
-  onPreview: () => void;
-  onSolve: () => void;
-}) {
+function IssueDetail({ issue, rec }: { issue: Issue; rec: Recommendation }) {
   const body = (issue.body ?? "").trim() || "(issue has no body)";
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -603,23 +578,13 @@ function IssueDetail({
               {rec.reason}
             </div>
           </div>
+          <p className="mt-2 text-xs leading-relaxed text-paper-faint">
+            Use the buttons above. A preview is a practice run you can read but never publish. &ldquo;Fix it&rdquo; also stops for your review: the draft PR opens only when you confirm it on the run page.
+          </p>
         </div>
 
         <div>
-          <h4 className="mb-2 text-sm font-medium text-paper">Start a run</h4>
-          <div className="flex flex-col gap-2">
-            <ActionButton kind="solve" recommended={rec.action === "solve"}
-              disabled={disabled} dispatching={dispatching === "solve"} onClick={onSolve} large />
-            <ActionButton kind="preview" recommended={rec.action === "preview"}
-              disabled={disabled} dispatching={dispatching === "preview"} onClick={onPreview} large />
-          </div>
-          <div className="mt-2 text-xs leading-relaxed text-paper-faint">
-            A preview is a practice run you can read but never publish. Solve & open PR also stops for your review: the draft PR opens only when you confirm it on the run page.
-          </div>
-        </div>
-
-        <div>
-          <h4 className="mb-2 text-sm font-medium text-paper">Scope evidence</h4>
+          <h4 className="mb-2 text-sm font-medium text-paper">Why &ldquo;{SCOPE_LABEL[issue.scope.bucket]}&rdquo;</h4>
           <div className="text-xs leading-relaxed text-paper-muted">
             <p className="text-paper-dim">{issue.scope.reason}</p>
             {issue.scope.files.length > 0 && (
@@ -660,14 +625,6 @@ function ScopeBadge({ s }: { s: ScopeInfo }) {
     "new-file": "border-info/50 bg-info/10 text-info",
     unknown: "border-border bg-surface text-paper-muted",
   };
-  const label: Record<ScopeBucket, string> = {
-    doc: "doc",
-    leaf: "leaf",
-    "cross-file": "cross",
-    refactor: "refactor",
-    "new-file": "new file",
-    unknown: "?",
-  };
   const titleParts = [s.reason];
   if (s.files.length) titleParts.push(`files: ${s.files.slice(0, 5).join(", ")}`);
   if (s.symbols.length) titleParts.push(`symbols: ${s.symbols.slice(0, 5).join(", ")}`);
@@ -680,10 +637,20 @@ function ScopeBadge({ s }: { s: ScopeInfo }) {
         styles[s.bucket],
       )}
     >
-      {label[s.bucket]}
+      {SCOPE_LABEL[s.bucket]}
     </span>
   );
 }
+
+/** The scanner's guess at how much code a fix touches, in plain words. */
+const SCOPE_LABEL: Record<ScopeBucket, string> = {
+  doc: "docs only",
+  leaf: "one file",
+  "cross-file": "several files",
+  refactor: "many files",
+  "new-file": "a new file",
+  unknown: "unclear",
+};
 
 function SeverityChip({ s }: { s: "low" | "medium" | "high" | "critical" }) {
   const tone = { low: "muted", medium: "info", high: "signal", critical: "alert" } as const;

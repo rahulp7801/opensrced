@@ -321,7 +321,7 @@ try {
   for (const preview of [true, false]) {
     await page.goto(base + '/issues?repo=acme/app');
     const runResponse = page.waitForResponse(response => response.url().endsWith('/api/run/agentic'));
-    await page.getByRole('button', { name: preview ? 'Preview patch' : 'Solve & open PR', exact: true }).first().click();
+    await page.getByRole('button', { name: preview ? 'Preview patch' : 'Fix it (you review first)', exact: true }).first().click();
     await page.getByRole('button', { name: 'Starting…', exact: true }).waitFor();
     await runResponse;
     assert.equal(submissions.at(-1).dry_run, preview);

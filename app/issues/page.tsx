@@ -12,8 +12,8 @@ export default function IssuesPage() {
         title={<>Issues</>}
         description={
           <>
-            Scan a public GitHub repository for open issues, compare their scope and complexity,
-            then choose one to preview or solve. Nothing runs until you choose an action.
+            Pick a suggested beginner issue, or scan any public GitHub repository below. Compare how
+            big each fix looks, then choose one to preview or fix. Nothing runs until you choose an action.
           </>
         }
       />

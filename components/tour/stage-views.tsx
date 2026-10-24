@@ -19,6 +19,7 @@ import { DEMO_PUBLISH_STEPS, Published, Term } from "./chapters-fix";
 import type { ReactNode } from "react";
 import { DIAGNOSIS, PATCH_STATS, RISK } from "./data";
 import { projectRules, RULE_STATUS_LABEL, type RuleStatus } from "@/lib/project-rules";
+import { PRACTICE_INTRO } from "@/components/own-words";
 import { Inline } from "./kit";
 import { DEMO_REPO, RUN } from "./data";
 
@@ -123,10 +124,10 @@ export const stageScan: Chapter = {
   source: "Example scan; the verdicts are the scanner's own",
   headlines: [{ at: 0, text: "It only picks issues that are open to you." }],
   captions: [
-    { at: 0, text: "This is where beginners get stuck, and where Claude Code can't help: Claude Code starts once you already have an issue. Here, a repository's newest open issues are read and vetted for you." },
+    { at: 0, text: "Step one: an issue that's actually open to a newcomer. Claude Code assumes you already have one." },
     { at: SHOW_ALL_AT, text: "Show everything it found, including what it filtered out, and why." },
     { at: SHOW_ALL_AT + 600, spot: "scan-list", text: "Assigned to someone? Skip, they're on it. Someone already has a pull request open? Skip, help them instead. Already fixed but never closed? Skip. That one alone saves maintainers a pile of duplicate PRs." },
-    { at: SHOW_ALL_AT + 4200, spot: "scan-list", text: "Questions, wontfix or duplicate labels, and issues too vague to act on are flagged too, with the reason spelled out, so you know to pass on them." },
+    { at: SHOW_ALL_AT + 4200, spot: "scan-list", text: "Questions, wontfix and vague issues are flagged too, with the reason." },
     { at: SHOW_ALL_AT + 7200, text: "What's left is actually open to a newcomer, each with its scope, risk, complexity and a time estimate." },
     { at: SHOW_READY_AT, text: "Back to the ready ones. This is the contribution etiquette Claude Code assumes you already know." },
   ],
@@ -289,7 +290,7 @@ export const stageExplore: Chapter = {
     { at: 0, text: "Before changing anything, understand the code. Explore maps the repository straight from the source: no AI, nothing cloned, nothing installed." },
     { at: BUILT_AT, spot: "graph", text: "Files, functions, and the calls between them. (For the curious: it's parsed with tree-sitter.)" },
     { at: FIRST.turns[0].typeAt, spot: "ask", text: `Then ask the question you'd normally grep for: “${FIRST.turns[0].prompt}” The answer comes from the map and points to the files involved.` },
-    { at: SELECT_AT, spot: "graph", text: "Same thing on the map: click truncate() and its connections light up. One file, its options type, one test. You know the shape of the fix before an agent writes a line." },
+    { at: SELECT_AT, spot: "graph", text: "Same thing on the map: click truncate() and its connections light up. You know the shape of the fix before an agent writes a line." },
   ],
   View: StageExploreView,
 };
@@ -395,7 +396,7 @@ export const stageRefused: Chapter = {
   source: "Example: a fictional project whose guide bans AI",
   headlines: [{ at: 0, text: "And when the rules say no, it stops." }],
   captions: [
-    { at: 0, spot: "refusal", text: "And it says no. This project's contribution guide bans AI-written pull requests, so publishing is refused, quoting the guide. There's no confirm box and no Publish button; the preview is still yours to learn from. Same when someone else already has a pull request open on the issue. A project's rules are enforced, not left to the contributor to notice." },
+    { at: 0, spot: "refusal", text: "And it says no. This guide bans AI-written pull requests, so publishing is refused, quoting the guide, with no Publish button. Same when someone else already has a pull request open." },
   ],
   View: RefusedView,
 };
@@ -505,8 +506,8 @@ export const stageVerified: Chapter = {
   headlines: [{ at: 0, text: "It proves the fix works, in a locked box." }],
   captions: [
     { at: 0, text: "The centerpiece: it proves the fix works before you ever see it. Same issue, same real run, on the hosted site." },
-    { at: 600, text: "The tests run in a second machine with no passwords or keys, that can only reach package registries and GitHub. Whatever the repository's code does, it can't touch anything of yours." },
-    { at: VERIFY_AT, spot: "verify", text: "It runs the project's own declared tests on the final patch: all six pass. Then it undoes the fix and runs them again: the two new tests fail. So they really catch the bug; they aren't decorative." },
+    { at: 600, text: "In a second machine with no passwords or keys, that only reaches package registries and GitHub." },
+    { at: VERIFY_AT, spot: "verify", text: "It runs the project's own tests on the final patch: all six pass. Then it undoes the fix: the two new tests fail. So they really catch the bug." },
     { at: VERIFY_AT + 2600, spot: "verify", text: "For maintainers who ask: it re-ran node --test on the final patch, exit 0, 6 of 6; with the source change reverted, exit 1, the two new tests failing with \"The quick br…\" instead of \"The quick…\". Status verified, regression reproduced. With no runnable test it says unverified instead, and CI on the pull request is still the project's own." },
   ],
   View: VerifiedView,
@@ -555,8 +556,8 @@ export const stageProblem: Chapter = {
   source: "An illustration of AI pull requests maintainers describe",
   headlines: [{ at: 0, text: "Maintainers are drowning in AI pull requests nobody understood." }],
   captions: [
-    { at: 0, text: "Start with the worry in this room. AI tools made it easy to open a pull request, and maintainers are drowning in them: huge diffs, no tests, the project's rules ignored, opened by people who can't answer a single review question." },
-    { at: 400 + 2 * 700, text: "These are illustrations, but every maintainer here has seen them. The problem isn't AI. It's contributions nobody understood, tested, or checked against the project's rules." },
+    { at: 0, text: "Start with the worry in this room: maintainers are drowning in AI pull requests. Huge diffs, no tests, rules ignored, from people who can't answer one review question." },
+    { at: 400 + 2 * 700, text: "Illustrations, but every maintainer here has seen them. The problem isn't AI; it's contributions nobody understood." },
   ],
   View: ProblemView,
 };
@@ -597,7 +598,7 @@ export const stagePromise: Chapter = {
   headlines: [{ at: 0, text: "A contribution a maintainer would actually want." }],
   captions: [
     { at: 0, text: "opensrcer helps a beginner make the contribution a maintainer would actually want: tested, explained, and following the project's rules." },
-    { at: 300 + PILLARS.length * 600, text: "Everything from here is the real product; the run and the pull request are real. Every run stops for your review, and nothing posts until you confirm." },
+    { at: 300 + PILLARS.length * 600, text: "Everything from here is the real product, and a real run. Nothing posts until you confirm." },
   ],
   View: PromiseView,
 };
@@ -658,9 +659,9 @@ export const stageRules: Chapter = {
   source: "The real run behind pull request #7, in plain words",
   headlines: [{ at: 0, text: "It reads the project's rules first." }],
   captions: [
-    { at: 0, text: "One click on the issue started a run, in a throwaway machine with a hard spend cap and a time limit. The first thing it does is read the project's rules." },
-    { at: 2200, spot: "rules", text: "It reads the project's rules: the contribution guide and pull request template, the AI policy, whether commits need a sign-off. This repo has none of them, so it matches what the code already does: where tests live, how they run. A maintainer gets a patch that looks like their project." },
-    { at: 6600, text: "Then it reads the code around the bug and everything that calls it, and writes down the cause before the fix. Where it can't find the root cause, it stops and says so rather than guess." },
+    { at: 0, text: "One click starts the run, in a throwaway machine with a spend cap and a time limit." },
+    { at: 2200, spot: "rules", text: "It reads the project's rules first: contribution guide, PR template, AI policy, sign-off. This repo has none, so it follows what the code already does." },
+    { at: 6600, text: "Then it reads the code around the bug and writes down the cause before the fix. If it can't find the root cause, it says so rather than guess." },
   ],
   View: RulesView,
 };
@@ -716,7 +717,7 @@ export function withSignInStart(chapter: Chapter): Chapter {
     headlines: [{ at: 0, text: "No API bill: it runs on the Claude plan you already pay for." }, ...(chapter.headlines ?? []).map(later)],
     captions: [
       { at: 0, text: "One click starts the run. It runs on the Claude plan you already pay for, so there's no API bill." },
-      { at: SIGN_IN_PANEL_AT, spot: "sign-in", text: "You sign in on Claude's own page, inside the run's isolated machine. opensrcer never sees or keeps your Claude login; the session goes away with the machine. Hit your plan's limit? The run stops and says so. It switches to your API key only if you've turned that on, and that's off by default." },
+      { at: SIGN_IN_PANEL_AT, spot: "sign-in", text: "You sign in on Claude's own page, inside the run's machine; opensrcer never sees your login. Hit your plan's limit? The run stops. It switches to an API key only if you've turned that on." },
       ...chapter.captions.map(later),
     ],
     View,
@@ -849,7 +850,7 @@ function StageReviewView() {
               )}
               {section === "practice" && (
                 <Section title="Practice review" spot="practice">
-                  <p className="text-paper-muted">Practice review: maintainers will ask questions like these. Answer them now so you&apos;re ready.</p>
+                  <p className="text-paper-muted">{PRACTICE_INTRO}</p>
                   <div className="mt-2 space-y-3">
                     {PRACTICE.map((p, i) => {
                       const at = PRACTICE_TIMES[i];
@@ -914,9 +915,9 @@ export const stageReview: Chapter = {
   captions: [
     { at: 0, spot: "review-found", text: "It explains every change: what was wrong and what changed, in plain words." },
     { at: 2800, spot: "review-risk", text: "And what to double-check." },
-    { at: R.rules, spot: "rules-list", text: "Then this project's rules, one by one, and how each was handled. No contribution guide here, so it says to check the README; no template, sign-off or CLA needed; AI help disclosed; nobody else's pull request on the issue; tests verified. (For maintainers: this run predates the checklist, so it's shown as a run records it today.)" },
-    { at: R.chat, spot: "chat-answer", text: "Not sure what the change does? Ask, in plain English. Answers are based on the change and the project's rules, and labeled not verified, so you check them against the code. (This answer is an example.)" },
-    { at: R.own, spot: "own-words", text: "Before you can publish, you explain it in your own words: what was wrong, what changed, how you know it works. The AI checks it against the actual change, and pasting the AI's own text is rejected." },
+    { at: R.rules, spot: "rules-list", text: "Then this project's rules, one by one, and how each was handled. (For maintainers: this run predates the checklist, so it's shown as a run records it today.)" },
+    { at: R.chat, spot: "chat-answer", text: "Not sure what it does? Ask, in plain English. Answers are labeled not verified, so you check them against the code. (Example answer.)" },
+    { at: R.own, spot: "own-words", text: "Before you can publish, you explain it in your own words. The AI checks it against the actual change; pasting the AI's own text is rejected." },
     { at: R.results, spot: "own-words", text: "It goes into the pull request under “In the author's words”, so the maintainer reads the human's explanation, not the AI's." },
     { at: R.practice, spot: "practice", text: "Then two practice questions, the kind a maintainer would ask about this exact change. (Example questions and answers.)" },
     { at: R.publish, spot: "publish-steps", text: "Then it says exactly what publishing does, and you confirm you can explain it to reviewers. Publish stays locked until all of that is done." },

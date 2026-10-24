@@ -187,7 +187,7 @@ export const control: Chapter = {
   duration: 16000,
   source: "The Settings account section and the privacy page",
   captions: [
-    { at: 0, text: "You can leave whenever you like. One button in Settings stops your runs, disconnects your organizations, revokes tokens and signs you out." },
+    { at: 0, text: "You can leave whenever you like. One button in Settings stops your runs, disconnects your organizations, revokes its cached tokens and signs you out." },
     { at: 4800, text: "It tells you exactly what it will do before it does it, and what to revoke on GitHub if you want a clean break." },
     { at: 8600, text: "opensrcer runs no ads, analytics or tracking scripts. It keeps only your newest 100 runs and 20 code graphs, and never stores credentials in logs." },
   ],

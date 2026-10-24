@@ -127,7 +127,7 @@ export const run: Chapter = {
   label: "Watch it run",
   title: "Watch the agent work",
   duration: 28000,
-  source: "Replay of real runs on opensrcer-demo #2 · the PR #6 run took 69 s and $0.20 · ends the way runs end now: at review",
+  source: "Replay of real runs on opensrcer-demo #2 · the PR #6 run took 69 s and $0.20 · like every run, it stops for your review",
   captions: [
     { at: 0, text: "The run starts in a fresh, isolated virtual machine with a spend cap. What follows replays the real run, sped up." },
     { at: runAt(0.08), text: "The agent explores like a new contributor: it reads the code and the tests, and finds every caller before it changes anything." },
@@ -237,7 +237,7 @@ export const review: Chapter = {
   label: "Review the patch",
   title: "Review every line",
   duration: 20000,
-  source: "Real patch · opensrcer-demo PR #6 · publish step as it works since October 23",
+  source: "Real patch · opensrcer-demo PR #6",
   captions: [
     { at: 0, text: "Every run ends in something you can read in full: what the agent found, what it changed, and how to test it." },
     { at: 4300, text: "The risk notes say what to double-check, including what it deliberately left alone." },

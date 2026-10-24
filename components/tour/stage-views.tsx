@@ -77,7 +77,7 @@ function ScanView() {
                     <p className="flex flex-wrap items-center gap-1.5 text-[10.5px] text-paper-muted">
                       <span className="text-paper-dim">#{r.number}</span><span>Opened {r.opened}</span>
                       <span className="tag" data-tone="info">{r.category}</span>
-                      {r.labels.map((l) => <span key={l} className="tag">{l}</span>)}
+                      {r.labels.filter((l) => l !== r.category).map((l) => <span key={l} className="tag">{l}</span>)}
                     </p>
                     <p className="mt-0.5 truncate text-[13px] font-medium text-paper">{r.title}</p>
                     {!r.reason && (

@@ -263,13 +263,28 @@ export function StageDemo() {
   const View = step.chapter.View;
   return (
     <div ref={rootRef} role="region" aria-label="opensrcer stage demo" className="fixed inset-0 z-50 flex flex-col bg-ink p-4 sm:p-6">
+      {/* Made for a projector: on a phone the app would shrink past reading, so point to the tour. */}
+      <div className="absolute inset-0 z-[80] flex flex-col items-center justify-center gap-4 bg-ink px-6 text-center md:hidden">
+        <p className="text-[20px] font-semibold text-paper">The stage demo is made for a big screen.</p>
+        <p className="text-[16px] leading-[1.5] text-paper-muted">On a phone, the product tour shows the same run, sized to fit.</p>
+        <a href="/demo" className="btn-primary inline-flex min-h-11 items-center px-6 text-[16px]">Open the product tour</a>
+      </div>
       <div ref={stageRef} className="relative flex min-h-0 flex-1 items-center justify-center">
         <div ref={canvasRef} style={{ width: DESIGN.width, height: DESIGN.height, zoom: scale }} className="relative shrink-0 overflow-hidden rounded-[26px] border border-border-soft bg-surface shadow-[0_2px_4px_rgb(0_0_0/0.03),0_40px_100px_-30px_rgb(0_0_0/0.22)]">
           <InteractContext.Provider value={interact}>
             <TimeContext.Provider value={local}>
-              <div key={step.chapter.id} className="h-full animate-fade-rise motion-reduce:animate-none">
-                <View />
-              </div>
+              {started ? (
+                <div key={step.chapter.id} className="h-full animate-fade-rise motion-reduce:animate-none">
+                  <View />
+                </div>
+              ) : (
+                // Before the first step: a title card, so a projector shown early isn't an empty box.
+                <div className="flex h-full flex-col items-center justify-center bg-ink text-center">
+                  <p className="text-[28px] font-semibold tracking-[-0.01em] text-paper">opensrcer</p>
+                  <p className="display mt-4 text-[64px] leading-[1.04] text-paper">Issues in. Pull requests out.</p>
+                  <p className="mt-5 text-[22px] text-paper-muted">Your first open-source contribution, guided.</p>
+                </div>
+              )}
             </TimeContext.Provider>
           </InteractContext.Provider>
         </div>

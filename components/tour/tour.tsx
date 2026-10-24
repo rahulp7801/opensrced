@@ -455,6 +455,12 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
                 </div>
               )}
               {mode === "watch" && !cover && !ended && <WatchCursor canvasRef={canvasRef} zoom={scale ?? 1} />}
+              {waiting?.kind === "press" && (
+                // In sight even when the captions are below the fold; the captions announce it to screen readers.
+                <div aria-hidden className="pointer-events-none absolute left-1/2 top-2 z-10 -translate-x-1/2 animate-fade-rise whitespace-nowrap rounded-full bg-signal px-4 py-1.5 text-[13.5px] font-medium text-white shadow-[0_8px_24px_-6px_rgb(0_86_173/0.55)] motion-reduce:animate-none">
+                  Your turn: click “{waiting.label}”
+                </div>
+              )}
               {waiting?.kind === "next" && nextChapter && (
                 <button ref={nextRef} type="button" onClick={step} className="absolute bottom-4 right-4 z-10 inline-flex min-h-10 animate-fade-rise items-center gap-2 rounded-full bg-signal px-4 text-[13.5px] font-medium text-white shadow-[0_8px_24px_-6px_rgb(0_86_173/0.55)] transition hover:brightness-110 motion-reduce:animate-none">
                   Next: {nextChapter.label} <ArrowRight aria-hidden size={15} weight="bold" />

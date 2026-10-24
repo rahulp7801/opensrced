@@ -52,6 +52,8 @@ try {
       drafts++;
       return route.fulfill({ contentType: 'text/event-stream', body: sse(drafts === 1 ? [{ text: 'Incomplete draft' }, { error: 'Draft provider failed.' }] : drafts === 2 ? [{ text: 'Truncated draft' }] : [{ text: 'I added the empty-array guard.' }, { done: true }]) });
     }
+    // acme/app#1 is not a PR opensrcer opened, so there is no follow-up panel.
+    if (path === '/api/prs/lifecycle') return route.fulfill({ status: 404, json: { error: 'not found' } });
     if (path === '/api/prs/draft-reply') { explanations++; return route.fulfill({ contentType: 'text/event-stream', body: sse([{ text: 'I handled empty arrays.' }, { done: true }]) }); }
     return route.fulfill({ json: {} });
   });

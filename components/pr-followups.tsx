@@ -43,6 +43,8 @@ export function PrFollowups({ prUrl }: { prUrl: string }) {
     if (r.status === 404) { setView(null); return; } // not an opensrcer PR of this user
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.error ?? "Could not load follow-ups.");
+    // A malformed answer must not take the PR page down with it.
+    if (typeof data?.followups !== "boolean" || typeof data.state !== "string" || !Array.isArray(data.recent)) throw new Error("Could not load follow-ups.");
     setView(data as View);
   }, [prUrl]);
 

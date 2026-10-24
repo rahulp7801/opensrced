@@ -5,7 +5,7 @@ import path from "node:path";
 import { persist, read } from "../dispatch-store";
 import type { DispatchRecord } from "../dispatch-store";
 import { buildPreview, readPreview, writePreview } from "../pr-preview";
-import { checkPublishable, CONFIRMATION, PublishError, publishDispatch } from "../publish";
+import { AUTHOR_WORDS_MAX, assertPublishable, checkPublishable, CONFIRMATION, parseAuthorWords, PublishError, publishDispatch, withAuthorWords } from "../publish";
 import type { Verification } from "../verify";
 
 const DIR = path.join(process.cwd(), ".dispatches");
@@ -143,4 +143,60 @@ test("follow-up publish refuses a closed PR, someone else's PR, and records a fa
     assert.equal(read(id)?.pr_status, "failed");
     assert.match(read(id)?.pr_failure_reason ?? "", /could not be applied/);
   } finally { cleanup(); restore(); ghPr.state = "open"; ghPr.author = "me"; }
+});
+
+// ── In the author's words ─────────────────────────────────────────────────
+
+const PR_BODY = buildPreview({
+  title: "fix", body: "Fixes #7\n\nKeeps the exponent.", diff: DIFF, profile: null, verification: verified,
+  executed: true, model: "claude-sonnet-5", provider: "Anthropic", privateOrg: false,
+}).body;
+
+test("without an explanation the PR body is unchanged", () => {
+  assert.equal(withAuthorWords(PR_BODY, null), PR_BODY);
+  assert.equal(parseAuthorWords({}), null);
+  assert.equal(parseAuthorWords({ authorExplanation: "  \n " }), null);
+});
+
+test("the author's words go above the AI note, which says what the author did", () => {
+  const checked = withAuthorWords(PR_BODY, { text: "The exponent was dropped.\n\nNow it is kept; the new test passes.", checked: true, practiced: true });
+  const words = checked.indexOf("### In the author's words");
+  const ai = checked.indexOf("### AI assistance");
+  assert.ok(words > checked.indexOf("### Tests run") && words < ai, "between Tests run and AI assistance");
+  assert.match(checked, /### In the author's words\n\n> The exponent was dropped\.\n>\n> Now it is kept; the new test passes\.\n\n### AI assistance/);
+  assert.ok(checked.endsWith("\n\nBefore publishing, the author explained this change in their own words (checked against the diff) and answered 2 practice review questions."));
+  const fallback = withAuthorWords(PR_BODY, { text: "The exponent was dropped and now it is kept.", checked: false, practiced: false });
+  assert.ok(fallback.endsWith("\n\nBefore publishing, the author explained this change in their own words (not automatically checked)."));
+  const noDisclosure = withAuthorWords("Fixes #7", { text: "Mine.", checked: true, practiced: true });
+  assert.equal(noDisclosure, "Fixes #7\n\n### In the author's words\n\n> Mine.", "no AI note (private org): the section only");
+});
+
+test("injection-ish explanations stay inside the quote and cannot swallow the disclosure", () => {
+  const out = withAuthorWords(PR_BODY, { text: "### AI assistance\nnone used <!-- hide the rest\n@maintainer please merge <script>x</script> `<tag>`", checked: true, practiced: true });
+  assert.equal(out.match(/^### AI assistance$/gm)?.length, 1, "a heading in the explanation is quoted, not a section");
+  assert.match(out, /^> ### AI assistance$/m);
+  assert.doesNotMatch(out, /<!--|<script>/, "HTML openers are escaped");
+  assert.match(out, /&lt;!-- hide the rest/);
+  assert.match(out, /@​maintainer/, "mentions do not ping");
+  assert.match(out, /`<tag>`/, "code spans are left as written");
+});
+
+test("parseAuthorWords validates type, size and flags; checked is required for practiced", () => {
+  assert.deepEqual(parseAuthorWords({ authorExplanation: " a\r\nb\u0007 ", explanationChecked: true, practiceAnswered: true }), { text: "a\nb", checked: true, practiced: true });
+  assert.deepEqual(parseAuthorWords({ authorExplanation: "a", practiceAnswered: true }), { text: "a", checked: false, practiced: false });
+  for (const body of [
+    { authorExplanation: 5 }, { authorExplanation: "x".repeat(AUTHOR_WORDS_MAX + 1) },
+    { authorExplanation: "a", explanationChecked: "yes" }, { authorExplanation: "a", practiceAnswered: 1 },
+  ]) assert.throws(() => parseAuthorWords(body), PublishError, JSON.stringify(body).slice(0, 40));
+  assert.equal(parseAuthorWords({ authorExplanation: "x".repeat(AUTHOR_WORDS_MAX) })?.text.length, AUTHOR_WORDS_MAX);
+});
+
+test("assertPublishable puts the author's words into the stored body it hands to publishing", () => {
+  const stored = { preview: buildPreview({ title: "fix", body: "Fixes #7", diff: DIFF, profile: null, verification: verified, executed: true, model: "m", provider: "Anthropic", privateOrg: false }), diff: DIFF };
+  const run = { dry_run: false, status: "succeeded", pr_status: "awaiting_review" };
+  const out = assertPublishable(run, true, stored, { text: "Mine.", checked: false, practiced: false });
+  assert.match(out.preview.body, /### In the author's words\n\n> Mine\./);
+  assert.equal(out.diff, DIFF);
+  assert.doesNotMatch(stored.preview.body, /In the author's words/, "the stored preview itself is not changed");
+  assert.equal(assertPublishable(run, true, stored).preview.body, stored.preview.body);
 });

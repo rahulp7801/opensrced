@@ -15,7 +15,10 @@ export const GLOSSARY = {
   "merge conflict": "Someone changed the same lines since your branch was made, so Git can't combine them automatically. Updating your branch with the latest code (a rebase) and choosing which lines to keep fixes it.",
   preview: "A practice run: the agent writes and checks a fix so you can read it, but a preview can never be published. To send a pull request, run the issue again as a publishable run; it also stops for your review first.",
   verified: "opensrcer ran the project's own tests on the final patch and they passed. \"Not verified\" means no passing test run was observed, so read the change more carefully.",
-  "AI disclosure": "A short note opensrcer adds to every pull request saying an AI tool helped draft it, which model ran, and what was tested. Many projects require this.",
+  DCO: "The Developer Certificate of Origin: a short statement that you wrote the change or have the right to submit it. Projects that use it ask for a \"Signed-off-by\" line on every commit.",
+  CLA: "A Contributor License Agreement: a legal agreement some projects ask you to sign once before they can merge your work. Only you can sign it; opensrcer never signs it for you.",
+  "PR template": "The outline a project asks every pull request description to follow, such as a summary and how you tested the change. opensrcer gives it to the agent to fill in.",
+  "AI disclosure":"A short note opensrcer adds to every pull request saying an AI tool helped draft it, which model ran, and what was tested. Many projects require this.",
 } as const;
 
 export type GlossaryTerm = keyof typeof GLOSSARY;

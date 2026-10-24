@@ -35,6 +35,31 @@ export type PrPreview = {
   ask_first?: boolean;
   /** Reported variants and the test that covers each (null = not covered). */
   cases?: CaseCoverage[];
+  /** What the project asks and how this run handled it, for the review
+   *  screen's "This project's rules" (lib/project-rules.ts). Absent on older
+   *  previews, which the panel then reports as "not recorded". */
+  rules?: PreviewRules;
+  /** The agent's own diagnosis, for "Ask about this change". */
+  diagnosis?: string;
+};
+
+/** The other-open-PR check at run end. Publishing runs it again. */
+export type CompetingCheck = "none" | "found" | "unchecked" | "followup" | "no_issue";
+
+export type PreviewRules = {
+  /** The project has a PR template; the agent was told to fill it in. */
+  pr_template: boolean;
+  /** The template's headings, and how many of them the PR text contains. */
+  template_headings: { total: number; kept: number } | null;
+  /** AGENTS.md / CLAUDE.md was handed to the agent. */
+  agent_instructions: boolean;
+  /** opensrcer's own notes for this project (built-in profiles). */
+  notes: number;
+  /** Why maintainers ask for discussion first, or null. */
+  discuss_first: string | null;
+  competing_prs: CompetingCheck;
+  /** The AI-assistance note is in the PR body. */
+  disclosed: boolean;
 };
 
 export type PreviewInput = {
@@ -52,7 +77,27 @@ export type PreviewInput = {
   draftIssueComment?: string;
   askFirst?: boolean;
   cases?: CaseCoverage[];
+  /** The issue's or the guide's discuss-first reason. */
+  discussFirst?: string | null;
+  competingPrs?: CompetingCheck;
+  diagnosis?: string | null;
 };
+
+/** Markdown headings of a PR template, outside HTML comments. */
+export function templateHeadings(template: string): string[] {
+  return template.replace(/<!--[\s\S]*?-->/g, "").split(/\r?\n/)
+    .map((line) => /^#{1,6}[ \t]+(.+?)[ \t#]*$/.exec(line.trim())?.[1].trim() ?? "")
+    .filter(Boolean);
+}
+
+/** How many of the template's headings are also headings in the PR body
+ *  (case-insensitive). Null when the template has no headings. */
+function templateKept(template: string | null, body: string): PreviewRules["template_headings"] {
+  const headings = template ? templateHeadings(template) : [];
+  if (!headings.length) return null;
+  const inBody = new Set(templateHeadings(body).map((h) => h.toLowerCase()));
+  return { total: headings.length, kept: headings.filter((h) => inBody.has(h.toLowerCase())).length };
+}
 
 /** Compose the PR body: the agent's body (template checkboxes about AI use
  *  ticked), then host-observed "Tests run", then the AI-assistance note. */
@@ -83,6 +128,16 @@ export function buildPreview(input: PreviewInput): PrPreview {
     // existed carry a comment only when maintainers asked for discussion.
     ...(input.draftIssueComment ? { draft_issue_comment: input.draftIssueComment, ask_first: Boolean(input.askFirst) } : {}),
     ...(input.cases?.length ? { cases: input.cases } : {}),
+    rules: {
+      pr_template: Boolean(input.profile?.prTemplate),
+      template_headings: templateKept(input.profile?.prTemplate ?? null, input.body),
+      agent_instructions: Boolean(input.profile?.agentInstructions),
+      notes: input.profile?.notes.length ?? 0,
+      discuss_first: input.discussFirst ?? null,
+      competing_prs: input.competingPrs ?? "no_issue",
+      disclosed: disclose,
+    },
+    ...(input.diagnosis?.trim() ? { diagnosis: input.diagnosis.trim().slice(0, 2000) } : {}),
   };
 }
 

@@ -441,6 +441,7 @@ export function DispatchList() {
             {detail.status !== "running" && detail.has_preview && !prInfo && (
               <PublishPanel
                 dispatchId={detail.id}
+                repo={detail.repo_url ?? undefined}
                 dryRun={detail.dry_run}
                 rerun={detail.dry_run && detail.repo_url && detail.issue_number ? { repoUrl: detail.repo_url, issue: detail.issue_number } : undefined}
                 // The run's poll has stopped by now, so show the new PR here directly.

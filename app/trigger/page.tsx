@@ -11,9 +11,8 @@ export default function TriggerPage() {
         title={<>New run</>}
         description={
           <>
-            Paste a GitHub repo or issue URL. The AI agent will explore the codebase,
-            generate a fix and open a draft PR after the configured checks. Use Preview mode to see what
-            the agent finds without opening a PR.
+            Paste a GitHub repo or issue URL. The AI agent explores the codebase and writes a fix,
+            then stops so you can read it. Nothing is posted to GitHub until you confirm it.
           </>
         }
       />
@@ -40,8 +39,8 @@ export default function TriggerPage() {
             },
             {
               code: "03",
-              title: "Choose what to publish",
-              body: "Live mode opens a draft PR. Run the repository's own tests before merging.",
+              title: "You decide what to publish",
+              body: "A publishable run waits for you: read the change, confirm you can explain it, and only then does it open a draft PR from your account. A preview can only be read.",
             },
           ].map((step) => (
             <li key={step.code} className="grid grid-cols-[2rem_1fr] gap-2">

@@ -298,6 +298,13 @@ export function IssueScanner() {
               </div>
             </div>
 
+            {initialIssue && !scan.issues.some((i) => i.number === initialIssue) && (
+              <p role="status" className="border-b border-border-soft bg-info/5 px-5 py-3 text-xs text-info">
+                Issue #{initialIssue} is not in this scan (it may be closed, or older than the issues scanned).{" "}
+                <a href={`https://github.com/${scan.repo}/issues/${initialIssue}`} target="_blank" rel="noreferrer" className="underline">Open it on GitHub</a>{" "}
+                or pick one below.
+              </p>
+            )}
             {issues.length === 0 ? (
               <div className="px-5 py-12 text-center">
                 <p className="text-sm font-medium text-paper">No issues match these filters</p>
@@ -464,19 +471,19 @@ function recommendFor(issue: Issue): Recommendation {
   if (issue.scope.bucket === "refactor" || issue.scope.bucket === "unknown") {
     return { action: "preview", headline: "Preview first", reason: "Review a patch before publishing changes when the scope is broad or uncertain." };
   }
-  return { action: "solve", headline: "Solve & open PR", reason: "Explore the repository and generate a fix. A draft PR opens only after the configured checks pass." };
+  return { action: "solve", headline: "Solve & open PR", reason: "Explore the repository and generate a fix, then stop for your review. The draft PR opens only when you confirm it on the run page." };
 }
 
 const ACTION_META: Record<ActionKind, { label: string; tooltip: string }> = {
   preview: {
     label: "Preview patch",
     tooltip:
-      "Generate a patch without pushing code or opening a PR. Review and copy the patch in Dispatches.",
+      "A practice run: generate a patch to read. It can't be published; run it again to publish.",
   },
   solve: {
     label: "Solve & open PR",
     tooltip:
-      "Explore the repository, generate a fix, and open a draft PR if the configured checks pass.",
+      "Explore the repository and generate a fix, then stop for your review. Nothing is posted until you confirm.",
   },
 };
 
@@ -607,7 +614,7 @@ function IssueDetail({
               disabled={disabled} dispatching={dispatching === "preview"} onClick={onPreview} large />
           </div>
           <div className="mt-2 text-xs leading-relaxed text-paper-faint">
-            A preview creates a reviewable patch without pushing code. A solve opens a draft PR only after checks pass.
+            A preview is a practice run you can read but never publish. Solve & open PR also stops for your review: the draft PR opens only when you confirm it on the run page.
           </div>
         </div>
 

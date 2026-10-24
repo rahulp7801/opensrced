@@ -110,7 +110,7 @@ test("every new issue run drafts an ask-first comment; it is the suggestion only
     const plain = await finishRun({ ...base, dispatchDir: path.join(dir, "d_a") });
     assert.match(plain!.draft_issue_comment ?? "", /The parser drops the exponent\./);
     assert.match(plain!.draft_issue_comment ?? "", /Would a PR along these lines be welcome/);
-    assert.equal(plain!.ask_first, undefined, "optional when nobody asked for discussion");
+    assert.equal(plain!.ask_first, false, "optional when nobody asked for discussion");
     assert.doesNotMatch(plain!.warnings.join(" "), /discussion first/);
     const discuss = await finishRun({ ...base, dispatchDir: path.join(dir, "d_b"), issueLabels: ["needs discussion"] });
     assert.equal(discuss!.ask_first, true);

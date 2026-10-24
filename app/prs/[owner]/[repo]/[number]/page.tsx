@@ -5,6 +5,8 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
 import { PrFollowups } from "@/components/pr-followups";
+import { NextSteps } from "@/components/next-steps";
+import { Term } from "@/components/term";
 import { readJson, requestErrorMessage } from "@/lib/fetch-json";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
@@ -948,6 +950,7 @@ export default function PrDetailPage() {
               <span>
                 {pr.author} wants to merge <span className="text-info">{pr.branch}</span> into <span className="text-info">{pr.base}</span>
               </span>
+              <Term term="base branch">what does this mean?</Term>
               <a href={pr.url} target="_blank" rel="noopener" className="text-signal hover:underline">view on GitHub</a>
               <button
                 onClick={() => { setShowDiff(!showDiff); if (!prDiff) loadDiff(); }}
@@ -1000,6 +1003,12 @@ export default function PrDetailPage() {
               )}
             </div>
           )}
+
+          {/* First contribution? The draft, the wait, the etiquette. */}
+          <details className="rounded-2xl mt-4 border border-border-soft bg-surface px-4 py-3">
+            <summary className="min-h-6 cursor-pointer text-[13px] font-medium text-paper">New to this? What happens next, and how to answer reviewers</summary>
+            <div className="mt-3"><NextSteps heading="After your pull request opens" /></div>
+          </details>
 
           {/* Follow-up loop: events, opt-in, follow-up runs (opensrcer PRs only) */}
           <PrFollowups prUrl={pr.url} />

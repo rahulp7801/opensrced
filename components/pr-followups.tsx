@@ -7,6 +7,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { Term } from "./term";
 
 type Event = { kind: string; at: string; author?: string; body?: string; url?: string; path?: string; line?: number; changes_requested?: boolean; checks?: Array<{ name: string; url: string }> };
 type View = {
@@ -28,7 +29,7 @@ const LABEL: Record<string, string> = {
 function detail(e: Event): string {
   if (e.kind === "ci_failed") return (e.checks ?? []).map((c) => c.name).join(", ");
   if (e.kind === "comment") return `${e.author ?? "someone"}${e.changes_requested ? " requested changes" : ""}${e.path ? ` on ${e.path}${e.line ? `:${e.line}` : ""}` : ""}: ${(e.body ?? "").replace(/\s+/g, " ").slice(0, 160)}`;
-  if (e.kind === "conflict") return "the branch no longer merges cleanly; rebase it by hand or with the poller";
+  if (e.kind === "conflict") return "the project changed the same lines since your branch was made; the branch needs updating (a rebase) before it can merge";
   return "";
 }
 
@@ -93,7 +94,7 @@ export function PrFollowups({ prUrl }: { prUrl: string }) {
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-[13px] font-medium text-paper">Follow-ups</h2>
         <span className="text-[11px] text-paper-muted">
-          CI: {view.ci === "none" ? "no checks" : view.ci}{view.mergeable_state === "dirty" ? " · merge conflict" : ""}{view.state !== "open" ? ` · ${view.state}` : ""}
+          <Term term="CI">CI</Term>: {view.ci === "none" ? "no checks" : view.ci}{view.mergeable_state === "dirty" ? <> · <Term term="merge conflict" /></> : ""}{view.state !== "open" ? ` · ${view.state}` : ""}
         </span>
       </div>
       {events.length === 0 ? (

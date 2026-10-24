@@ -71,7 +71,7 @@ export const SECTIONS: NavSection[] = [
       {
         href: "/trigger",
         label: "New run",
-        title: "Point the agent at an issue and let it open a draft PR",
+        title: "Point the agent at an issue; it writes a fix for you to review before anything is posted",
       },
       {
         href: "/dispatches",

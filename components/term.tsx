@@ -24,7 +24,7 @@ export function Term({ term, children }: { term: GlossaryTerm; children?: React.
         <span className="sr-only">: what&apos;s this?</span>
       </button>
       {/* Always in the DOM so aria-controls resolves; shown only when open. */}
-      <span id={id} role="note" hidden={!open} className="my-1.5 block rounded-lg border border-border-soft bg-ink px-3 py-2 text-[12px] font-normal leading-relaxed text-paper-dim">
+      <span id={id} role="note" hidden={!open} className="my-1.5 block basis-full rounded-lg border border-border-soft bg-ink px-3 py-2 text-[12px] font-normal leading-relaxed text-paper-dim">
         <strong className="font-medium text-paper">{term.charAt(0).toUpperCase() + term.slice(1)}:</strong> {GLOSSARY[term]}
       </span>
     </>

@@ -3,6 +3,8 @@
 // Uses the GitHub search API — no API key cost.
 // tags=strict (default) → only "good first issue" label
 // tags=broad → also matches "beginner", "starter", "first-timers-only", "easy"
+// Only unassigned issues with no linked pull request: a beginner should not
+// start on work someone has claimed or already fixed in an open PR.
 
 import { NextRequest } from "next/server";
 import { requireSession } from "@/lib/require-session";
@@ -62,7 +64,7 @@ export async function GET(req: NextRequest) {
       while (next < plan.length && !signal.aborted) {
         const q = plan[next++];
         try {
-          const query = [`is:issue`, `is:open`, `label:${JSON.stringify(q.label)}`];
+          const query = [`is:issue`, `is:open`, `no:assignee`, `-linked:pr`, `label:${JSON.stringify(q.label)}`];
           if (q.language) query.push(`language:${JSON.stringify(q.language)}`);
           const params = new URLSearchParams({ q: query.join(" "), sort: "updated", order: "desc", per_page: String(perCall) });
           const raw = await githubApi<{ items: Array<{

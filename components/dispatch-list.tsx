@@ -10,6 +10,7 @@ import { cn, formatRelative } from "@/lib/utils";
 import { extractFirstDiff, parseSplitHunks, type DiffRow } from "@/lib/diff-view";
 import { findGitHubPullUrl } from "@/lib/github-pull-url";
 import { PublishPanel } from "./publish-panel";
+import { NextSteps } from "./next-steps";
 
 type PrStatus = "opened" | "failed" | "pending" | "tests_passed" | "tests_failed" | "awaiting_review" | "blocked" | "none";
 
@@ -161,7 +162,9 @@ export function DispatchList() {
         offset = data.log_size ?? 0;
         setDetail((prev) => {
           if (data.log_reset || !prev || prev.id !== data.id) return { ...data, log: chunk };
-          return { ...data, log: prev.log + chunk };
+          // A PR this page just published stays shown even if a poll answered first.
+          const keepPublished = !data.pr_url && prev.pr_url;
+          return { ...data, log: prev.log + chunk, ...(keepPublished ? { pr_url: prev.pr_url, pr_status: prev.pr_status } : {}) };
         });
         // A finished run whose log has been read to the end has nothing more to show.
         return !(data.status !== "running" && data.pr_status !== "pending" && chunk === "");
@@ -298,8 +301,8 @@ export function DispatchList() {
                       </span>
                     )}
                     {d.dry_run && (
-                      <span className="rounded-full ml-auto text-[11px] font-medium text-info border border-info/40 px-1 py-px leading-none">
-                        dry
+                      <span title="Preview: a practice run that can't be published" className="rounded-full ml-auto text-[11px] font-medium text-info border border-info/40 px-1 py-px leading-none">
+                        preview
                       </span>
                     )}
                   </div>
@@ -380,8 +383,8 @@ export function DispatchList() {
           <div className="rounded-2xl border border-border-soft bg-surface">
             {/* Header */}
             <div className="border-b border-border px-4 py-3">
-              <div className="flex items-center justify-between gap-4">
-                <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                <div className="min-w-[12rem] flex-1">
                   <div className="flex items-center gap-2">
                     <IconTrigger className="text-signal" />
                     {detail.repo_url ? (
@@ -411,7 +414,7 @@ export function DispatchList() {
                 </div>
                 <div className="flex items-center gap-2">
                   <StatusChip tone={detail.status === "running" ? "signal" : detail.pr_status === "opened" ? "ok" : (detail.pr_status === "failed" || detail.pr_status === "tests_failed") ? "alert" : toneFor(detail.status)}>
-                    {detail.status === "running" ? "live" : detail.pr_status === "opened" ? "PR opened" : detail.pr_status === "tests_failed" ? "tests failed" : detail.pr_status === "awaiting_review" ? "ready for review" : detail.pr_status === "blocked" ? "blocked" : detail.status}
+                    {detail.status === "running" ? "live" : detail.pr_status === "opened" ? "PR opened" : detail.pr_status === "tests_failed" ? "tests failed" : detail.pr_status === "awaiting_review" ? "waiting for your review" : detail.pr_status === "blocked" ? "blocked" : detail.status}
                   </StatusChip>
                   {detail.status === "running" && <CancelButton dispatchId={detail.id} />}
                   <RetryButton dispatch={detail} />
@@ -441,7 +444,13 @@ export function DispatchList() {
 
             {/* Publish gate: review the frozen preview, confirm, then publish. */}
             {detail.status !== "running" && detail.has_preview && !prInfo && (
-              <PublishPanel dispatchId={detail.id} />
+              <PublishPanel
+                dispatchId={detail.id}
+                dryRun={detail.dry_run}
+                rerun={detail.dry_run && detail.repo_url && detail.issue_number ? { repoUrl: detail.repo_url, issue: detail.issue_number } : undefined}
+                // The run's poll has stopped by now, so show the new PR here directly.
+                onPublished={(url) => setDetail((d) => (d && d.id === detail.id ? { ...d, pr_url: url, pr_status: "opened" } : d))}
+              />
             )}
 
             {/* PR banner */}
@@ -449,11 +458,19 @@ export function DispatchList() {
               const info = prInfo;
               if (!info) return null;
               return (
-                <div className="border-b border-ok/40 bg-ok/5 px-4 py-2.5 flex items-center gap-3">
-                  <span className="text-[13px] text-ok">PR #{info.prNumber} opened</span>
-                  <a href={info.url} target="_blank" rel="noreferrer" className="rounded-full ml-auto inline-flex items-center gap-1.5 border border-ok/50 bg-ok/10 text-ok hover:bg-ok/20 px-3 py-1 text-[12px]">
-                    Open on GitHub <IconExternal />
-                  </a>
+                <div className="border-b border-ok/40 bg-ok/5 px-4 py-3">
+                  <div role="status" className="flex flex-wrap items-center gap-3">
+                    <span className="text-[13px] font-medium text-ok">Draft PR #{info.prNumber} opened</span>
+                    <span className="ml-auto flex flex-wrap items-center gap-2">
+                      <Link href={`/prs/${info.repoFull}/${info.prNumber}`} className="rounded-full inline-flex min-h-8 items-center border border-signal/50 bg-signal/10 px-3 text-[12px] text-signal hover:bg-signal/20">
+                        Follow it here
+                      </Link>
+                      <a href={info.url} target="_blank" rel="noreferrer" className="rounded-full inline-flex min-h-8 items-center gap-1.5 border border-ok/50 bg-ok/10 text-ok hover:bg-ok/20 px-3 text-[12px]">
+                        Open on GitHub <IconExternal />
+                      </a>
+                    </span>
+                  </div>
+                  <div className="mt-3 border-t border-ok/20 pt-3"><NextSteps /></div>
                 </div>
               );
             })()}
@@ -1207,7 +1224,7 @@ function DiffPreviewFromLog({ log, prOpened, prUrl, dryRun }: { log: string; prO
                   </a>
                 ) : prOpened ? null : (
                   <span className="text-[11px] text-paper-faint">
-                    {dryRun ? "Preview only: no code will be pushed and no PR will open." : "A draft PR opens only after the configured checks pass."}
+                    {dryRun ? "Preview only: no code will be pushed and no PR will open." : "Nothing is posted until you publish it from the run page."}
                   </span>
                 )}
               </div>

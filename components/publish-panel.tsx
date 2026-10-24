@@ -2,10 +2,14 @@
 
 // The publish gate on the run page: the frozen preview (PR text, evidence,
 // warnings, blockers) and the only way to open a PR. Publishing needs an
-// explicit confirmation and uses exactly what is shown here.
+// explicit confirmation and uses exactly what is shown here. A preview-only
+// (dry) run can never publish; it offers to start the issue again as a
+// publishable run instead of leaving the reader at a dead end.
 
 import { useEffect, useState } from "react";
 import { copyText } from "@/lib/clipboard";
+import { publishSteps } from "@/lib/beginner-guide";
+import { Term } from "./term";
 
 type Preview = {
   title: string;
@@ -17,6 +21,8 @@ type Preview = {
   blockers: string[];
   warnings: string[];
   draft_issue_comment?: string;
+  /** Maintainers ask for discussion first: the comment is the suggested path. */
+  ask_first?: boolean;
   cases?: Array<{ variant: string; test: string | null }>;
   confirmation: string;
   publishable: boolean;
@@ -24,7 +30,14 @@ type Preview = {
   followup_pr?: string;
 };
 
-export function PublishPanel({ dispatchId, onPublished }: { dispatchId: string; onPublished?: (url: string) => void }) {
+export function PublishPanel({ dispatchId, dryRun = false, rerun, onPublished }: {
+  dispatchId: string;
+  /** The run was a preview: show how to get to a publishable run. */
+  dryRun?: boolean;
+  /** The issue this run was for, to start it again as a publishable run. */
+  rerun?: { repoUrl: string; issue: number };
+  onPublished?: (url: string) => void;
+}) {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -65,22 +78,34 @@ export function PublishPanel({ dispatchId, onPublished }: { dispatchId: string; 
 
   const v = preview.verification;
   const verdict = !preview.executed ? "not verified (no code was run)" : !v ? "not verified" : `${v.status} — ${v.reason}`;
+  const canPublish = preview.publishable && preview.blockers.length === 0;
+  const comment = preview.draft_issue_comment;
+  const commentBlock = comment && (
+    <>
+      <pre className="mt-1 whitespace-pre-wrap rounded-lg border border-border-soft bg-surface p-3 text-[11px] text-paper-muted">{comment}</pre>
+      <button className="mt-1 min-h-6 text-xs text-signal hover:underline" onClick={() => void copyText(comment).then(() => setCopied(true))}>
+        {copied ? "copied" : "copy comment"}
+      </button>
+    </>
+  );
   return (
-    <section aria-label="Review before publishing" className="border-b border-border px-4 py-3 text-[12px]">
+    <section aria-label={dryRun ? "Preview result" : "Review before publishing"} className="border-b border-border px-4 py-3 text-[12px]">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-[13px] font-medium text-paper">Review before publishing</h3>
-        <span className={v?.status === "verified" ? "text-ok" : "text-alert"}>Verification: {verdict}</span>
+        <h3 className="text-[13px] font-medium text-paper">{dryRun ? "Preview: read the fix" : "Review before publishing"}</h3>
+        <span className={v?.status === "verified" ? "text-ok" : "text-alert"}><Term term="verified">Verification</Term>: {verdict}</span>
       </div>
-      <p className="mt-1 text-paper-muted">
-        {preview.followup_pr ? (
-          <>Nothing has been pushed. Publishing adds one commit with exactly this patch to your pull request{" "}
-            <a href={preview.followup_pr} target="_blank" rel="noopener" className="text-signal hover:underline">{preview.followup_pr.replace("https://github.com/", "")}</a>{" "}
-            from your account ({preview.files.length} file{preview.files.length === 1 ? "" : "s"}). No comment is posted.</>
-        ) : (
-          <>Nothing has been posted. Publishing opens a draft PR from your account with exactly this patch and text
-            ({preview.files.length} file{preview.files.length === 1 ? "" : "s"}{preview.signoff ? ", signed off for the DCO" : ""}).</>
-        )}
-      </p>
+      {dryRun ? (
+        <div className="mt-2 rounded-lg border border-info/40 bg-info/5 px-3 py-2.5">
+          <p className="font-medium text-paper">This was a <Term term="preview">preview</Term>, so it can&apos;t be published.</p>
+          <p className="mt-1 text-paper-muted">
+            Nothing was posted anywhere. If the fix below looks right and you want to send it to the project, run this issue again
+            as a publishable run. It starts fresh (a new run, with its own cost), then stops here for your review: nothing is posted until you confirm.
+          </p>
+          {rerun && <RerunButton {...rerun} />}
+        </div>
+      ) : (
+        <p className="mt-1 text-paper-muted">Nothing has been posted yet. Read the change and the evidence below first.</p>
+      )}
       {preview.blockers.map((b) => <p key={b} role="alert" className="mt-2 text-alert">Blocked: {b}</p>)}
       {preview.warnings.map((w) => <p key={w} className="mt-2 text-paper-muted">Note: {w}</p>)}
       {preview.cases && preview.cases.length > 0 && (
@@ -94,34 +119,91 @@ export function PublishPanel({ dispatchId, onPublished }: { dispatchId: string; 
         </div>
       )}
       <details className="mt-2">
-        <summary className="cursor-pointer text-paper">PR text: {preview.title}</summary>
+        <summary className="min-h-6 cursor-pointer text-paper">PR text: {preview.title}</summary>
         <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg border border-border-soft bg-surface p-3 text-[11px] text-paper-muted">{preview.body}</pre>
       </details>
-      {preview.draft_issue_comment && (
+      {/* The suggested path where maintainers ask for discussion (and on older
+          previews, which drafted a comment only then); an option everywhere else. */}
+      {comment && (preview.ask_first !== false ? (
         <div className="mt-2">
           <p className="text-paper">Suggested instead: ask on the issue first. Post this yourself if it reads right:</p>
-          <pre className="mt-1 whitespace-pre-wrap rounded-lg border border-border-soft bg-surface p-3 text-[11px] text-paper-muted">{preview.draft_issue_comment}</pre>
-          <button className="mt-1 text-xs text-signal hover:underline" onClick={() => void copyText(preview.draft_issue_comment!).then(() => setCopied(true))}>
-            {copied ? "copied" : "copy comment"}
-          </button>
+          {commentBlock}
         </div>
-      )}
-      {preview.publishable && preview.blockers.length === 0 && (
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-paper">
-            <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="h-6 w-6 shrink-0" />
-            {preview.confirmation}
-          </label>
-          <button
-            onClick={publish}
-            disabled={!confirmed || pending}
-            className="rounded-full border border-ok/50 bg-ok/10 px-3 py-1 text-[12px] text-ok hover:bg-ok/20 disabled:opacity-50"
-          >
-            {pending ? "publishing…" : preview.followup_pr ? "Push follow-up commit" : "Publish draft PR"}
-          </button>
-          {error && <span role="alert" className="basis-full text-alert">{error}</span>}
-        </div>
+      ) : (
+        <details className="mt-2">
+          <summary className="min-h-6 cursor-pointer text-paper">Not sure the maintainers want this? Ask on the issue first (optional)</summary>
+          <p className="mt-1 text-paper-muted">
+            In busy projects a short comment before a pull request avoids duplicate work. opensrcer never posts it; copy it to the issue on GitHub if it reads right.
+          </p>
+          {commentBlock}
+        </details>
+      ))}
+      {canPublish && (
+        <>
+          <div className="mt-3 rounded-lg border border-border-soft bg-ink px-3 py-2.5">
+            <h4 className="font-medium text-paper">What happens when you publish</h4>
+            <ol className="mt-1.5 list-decimal space-y-1 pl-5 text-paper-dim">
+              {publishSteps({ files: preview.files.length, signoff: preview.signoff, followupPr: preview.followup_pr }).map((s) => <li key={s}>{s}</li>)}
+            </ol>
+            <p className="mt-2 flex flex-wrap items-center gap-x-3 text-paper-muted">
+              <span>Words used here:</span>
+              {preview.followup_pr ? (
+                <><Term term="pull request" />{preview.signoff && <Term term="sign-off" />}</>
+              ) : (
+                <><Term term="fork" /><Term term="branch" /><Term term="draft PR" /><Term term="AI disclosure" />{preview.signoff && <Term term="sign-off" />}</>
+              )}
+            </p>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-paper">
+              <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="h-6 w-6 shrink-0" />
+              {preview.confirmation}
+            </label>
+            <button
+              onClick={publish}
+              disabled={!confirmed || pending}
+              className="rounded-full border border-ok/50 bg-ok/10 px-3 py-1 text-[12px] text-ok hover:bg-ok/20 disabled:opacity-50"
+            >
+              {pending ? "publishing…" : preview.followup_pr ? "Push follow-up commit" : "Publish draft PR"}
+            </button>
+            {error && <span role="alert" className="basis-full text-alert">{error}</span>}
+          </div>
+        </>
       )}
     </section>
+  );
+}
+
+/** Start the same issue as a publishable (live) run. The new run still ends at
+ *  this review step; nothing is posted without the confirmation above. */
+function RerunButton({ repoUrl, issue }: { repoUrl: string; issue: number }) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function start() {
+    setPending(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/run/agentic", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ repo_url: repoUrl, issue_number: issue, dry_run: false }),
+        signal: AbortSignal.timeout(90_000),
+      });
+      const json = (await res.json().catch(() => ({}))) as { dispatch_id?: unknown; message?: string; error?: string };
+      if (!res.ok) throw new Error(json.message ?? json.error ?? "Could not start the run.");
+      if (typeof json.dispatch_id !== "string" || !json.dispatch_id.trim()) throw new Error("The server returned an invalid run response. Please try again.");
+      window.location.href = `/dispatches?dispatch=${encodeURIComponent(json.dispatch_id)}`;
+    } catch (e) {
+      setError(e instanceof Error && e.name === "TimeoutError" ? "Starting the run timed out. Please try again." : e instanceof Error ? e.message : String(e));
+      setPending(false);
+    }
+  }
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-3">
+      <button onClick={start} disabled={pending} className="min-h-8 rounded-full border border-signal/50 bg-signal/10 px-3 text-[12px] font-medium text-signal hover:bg-signal/20 disabled:opacity-50">
+        {pending ? "Starting…" : "Run again, ready to publish"}
+      </button>
+      {error && <span role="alert" className="text-alert">{error}</span>}
+    </div>
   );
 }

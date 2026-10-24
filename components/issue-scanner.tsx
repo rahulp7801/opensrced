@@ -328,7 +328,7 @@ export function IssueScanner() {
                       <div className="grid gap-4 px-5 py-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2 text-xs text-paper-muted">
-                            <a href={issue.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-paper-dim hover:text-signal max-sm:min-h-10 max-sm:min-w-10">
+                            <a href={issue.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-paper-dim hover:text-signal min-h-6 max-sm:min-h-10 max-sm:min-w-10">
                               #{issue.number}<IconExternal />
                               <span className="sr-only">Open on GitHub</span>
                             </a>

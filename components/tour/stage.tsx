@@ -375,9 +375,9 @@ const IF_ASKED = [
   "Big-repo replays: 4 real bugs the maintainers had already fixed (React, Flask, pydantic, vLLM), each started from just before their fix. In 2 the maintainers' own tests pass on opensrcer's fix; 2 were correct but narrower, and the preview now names the variants it didn't cover. (Flask's tests came from the issue itself, which the reporter wrote.)",
   "What it doesn't do: it doesn't run the project's own CI; CI on the pull request is still the project's. It can be wrong, which is why a person has to explain the change before anything is published.",
   "Caps: one open opensrcer pull request per project per person, and three a day.",
-  "Cost: about ten cents a run on an Anthropic API key, or your Claude plan.",
+  "Cost: about ten cents for a small fix like this one on an Anthropic API key, about 40 to 50 cents on the big projects, or your Claude plan instead.",
   "The graph on screen is for you; the agent works from the code itself. In the real run it looked up truncate's definition and read its test file before editing, and it has tools to find every caller.",
-  "opensrcer's own CI: unit tests, 7 browser smoke tests, a secret scan (gitleaks) and CodeQL on every change.",
+  "opensrcer's own CI: unit tests, 7 browser smoke tests, a secret scan (gitleaks) and CodeQL on every change to main.",
 ];
 
 function clock(ms: number): string {

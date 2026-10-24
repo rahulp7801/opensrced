@@ -260,7 +260,7 @@ function StageExploreView() {
         </div>
         {!built && t >= 700 && (
           <div className="mt-3 rounded-xl border border-border-soft bg-surface p-3">
-            <div className="flex items-center justify-between text-[12px]"><span className="text-paper">Parsing source files (tree-sitter AST)</span><span className="font-mono text-signal">{pct}%</span></div>
+            <div className="flex items-center justify-between text-[12px]"><span className="text-paper">Reading the source files</span><span className="font-mono text-signal">{pct}%</span></div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-3"><div className="h-full rounded-full bg-signal" style={{ width: `${pct}%` }} /></div>
           </div>
         )}

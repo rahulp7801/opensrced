@@ -175,41 +175,31 @@ function FindView() {
         {results && (
           <div className="mt-3">
             <Reveal at={3800}>
-              <p className="text-[12px] text-paper-muted"><span className="mono-label">discover</span> <Count to={6} at={3800} duration={600} /> repos · <span className="text-[18px] font-semibold text-signal"><Count to={14} at={3800} duration={900} /></span> issues after filters · <Count to={96} at={3800} duration={1100} /> total scanned</p>
+              <p className="flex items-baseline gap-2 text-[12px] text-paper-muted"><span className="text-[22px] font-semibold leading-none text-signal"><Count to={14} at={3800} duration={900} /></span><span className="text-paper">issues to look at</span> from <Count to={96} at={3800} duration={1100} /> open issues in <Count to={6} at={3800} duration={600} /> repositories</p>
             </Reveal>
-            <div className="mt-2 overflow-hidden rounded-xl border border-border-soft bg-surface">
-              <table className="w-full table-fixed text-left text-[11.5px]">
-                <thead className="border-b border-border-soft text-[10px] uppercase tracking-wide text-paper-faint">
-                  <tr>
-                    <th className="w-[34%] px-3 py-1.5 font-medium sm:w-[24%]">repo</th>
-                    <th className="px-2 py-1.5 font-medium">title</th>
-                    <th className="w-[64px] px-2 py-1.5 font-medium">scope</th>
-                    <th className="hidden w-[78px] px-2 py-1.5 font-medium md:table-cell">severity</th>
-                    <th className="hidden w-[92px] px-2 py-1.5 font-medium lg:table-cell">complexity</th>
-                    <th className="hidden w-[60px] px-2 py-1.5 font-medium md:table-cell">est.</th>
-                    <th className="w-[72px] px-2 py-1.5"><span className="sr-only">Actions</span></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {DISCOVER_ROWS.map((r, i) => {
-                    const lit = focus && "demo" in r;
-                    return (
-                      <Reveal as="tr" key={r.repo} at={4100 + i * 330} className={cn("border-b border-border-soft last:border-0 transition-colors duration-500", lit && "bg-signal/[0.08] shadow-[inset_3px_0_0_var(--color-signal)]")}>
-                        <td className="truncate px-3 py-1.5 font-medium text-paper">{r.repo}</td>
-                        <td className="truncate px-2 py-1.5 text-paper-dim"><span className="mr-1 text-paper-muted">#{r.number}</span>{r.title}</td>
-                        <td className="px-2 py-1.5"><StatusChip tone={SCOPE_TONE[r.scope] ?? "muted"}>{SCOPE_LABEL[r.scope] ?? r.scope}</StatusChip></td>
-                        <td className="hidden px-2 py-1.5 md:table-cell"><StatusChip tone={SEVERITY_TONE[r.severity]}>{r.severity}</StatusChip></td>
-                        <td className="hidden px-2 py-1.5 lg:table-cell"><Pips value={r.complexity} /></td>
-                        <td className="hidden px-2 py-1.5 font-mono text-paper-muted md:table-cell">{r.estimate}</td>
-                        <td className="px-2 py-1.5 text-right">
-                          <Press at={lit ? 9600 : null} className="whitespace-nowrap rounded-full border border-border px-2 py-0.5 text-[11px] text-paper-dim">open →</Press>
-                        </td>
-                      </Reveal>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <ul className="mt-2 space-y-1.5">
+              {DISCOVER_ROWS.map((r, i) => {
+                const lit = focus && "demo" in r;
+                return (
+                  <Reveal as="li" key={r.repo} at={4100 + i * 330} className={cn("flex items-center justify-between gap-3 rounded-xl border bg-surface px-3 py-2 transition-colors duration-500", lit ? "border-signal/50 bg-signal/[0.06]" : "border-border-soft")}>
+                    <div className="min-w-0">
+                      <p className="truncate text-[12.5px] font-medium text-paper">{r.title}</p>
+                      <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-paper-muted">
+                        <span className="text-paper-dim">{r.repo}</span>
+                        <span>#{r.number}</span>
+                        <span className="inline-flex items-center gap-1">Size <StatusChip tone={SCOPE_TONE[r.scope] ?? "muted"}>{SCOPE_LABEL[r.scope] ?? r.scope}</StatusChip></span>
+                        <span className="hidden items-center gap-1 sm:inline-flex">Difficulty <Pips value={r.complexity} /></span>
+                        <span className="hidden md:inline">about {r.estimate.replace("~", "")}</span>
+                      </p>
+                    </div>
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      <span className="hidden rounded-full border border-border px-2.5 py-0.5 text-[11px] text-paper-muted lg:inline">Save repo</span>
+                      <Press at={lit ? 9600 : null} label="Look at this issue" className="whitespace-nowrap rounded-full bg-paper px-2.5 py-0.5 text-[11px] font-medium text-surface">Look at this issue →</Press>
+                    </span>
+                  </Reveal>
+                );
+              })}
+            </ul>
           </div>
         )}
       </div>
@@ -226,8 +216,8 @@ export const find: Chapter = {
   source: "Example search · fictional repositories, plus the real demo repository",
   captions: [
     { at: 0, text: "Find: search public GitHub repositories by language and stars. Searching uses GitHub only and spends no AI credit." },
-    { at: 3800, text: "Each issue it finds is scored for scope, risk and complexity, with a time estimate, so you can see which ones an agent can realistically fix." },
-    { at: 7400, text: "This one is a contained bug in a single file, which makes it a good fit. Open it to see the evidence." },
+    { at: 3800, text: "Each issue it finds is sized up in plain words: how much code it likely touches, how hard it is, and about how long it takes, so you can see which ones an agent can realistically fix." },
+    { at: 7400, text: "This one is a contained bug in a single file, which makes it a good fit. Look at it to see the evidence." },
   ],
   View: FindView,
 };
@@ -402,7 +392,7 @@ function GraphPane() {
   return <CodeGraph buildAt={3700} />;
 }
 
-const PHASES = ["Cloning repository", "Parsing source files (tree-sitter AST)", "Writing output files", "Graph built"];
+const PHASES = ["Cloning repository", "Reading the source files", "Writing output files", "Graph built"];
 
 function UnderstandView() {
   const t = useT();

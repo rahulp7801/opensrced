@@ -299,8 +299,8 @@ export function DiscoverScanner() {
                   { k: "doc", label: "docs only" },
                   { k: "leaf", label: "one file" },
                   { k: "cross-file", label: "several files" },
-                  { k: "new-file", label: "new file" },
-                  { k: "refactor", label: "refactor" },
+                  { k: "new-file", label: "a new file" },
+                  { k: "refactor", label: "many files" },
                 ]}
                 value={scopeFilter}
                 onChange={(v) => setScopeFilter(v as typeof scopeFilter)}
@@ -553,9 +553,9 @@ function ScopeBadge({ s }: { s: ScopeInfo }) {
     doc: "docs only",
     leaf: "one file",
     "cross-file": "several files",
-    refactor: "refactor",
-    "new-file": "new file",
-    unknown: "not sure",
+    refactor: "many files",
+    "new-file": "a new file",
+    unknown: "unclear",
   };
   const title = [
     s.reason,

@@ -24,7 +24,8 @@ import { stageCompare, stageExplore, stageNotes, stageRefused, stageScan, stageS
  *  sets the pace between steps; this only stretches what plays by itself. */
 export const STAGE_PACE = 1.15;
 
-type Phase = { name: string; say: string; chapters: Chapter[] };
+/** `by`: when the presenter should reach this phase, for a talk of about 11 minutes (shown in the notes). */
+type Phase = { name: string; by: string; say: string; chapters: Chapter[] };
 
 // The tour's screens with the stage's speaker notes (and its versions of the review screens).
 const S = stageNotes({ choose, newRun, run, review, pr, respond, reply });
@@ -34,10 +35,10 @@ const SKIP = new Set(["Copy diff", "Commit msg"]);
 
 /** The four phases, and the one line each one is about (shown in the notes). */
 const PHASES: Phase[] = [
-  { name: "Find", say: "Why not just Claude Code: finding an issue that's actually open to a newcomer is the step it assumes you've already done.", chapters: [stageCompare, stageScan, S.choose] },
-  { name: "Understand", say: "Understand a repository you haven't cloned: a map of it, and plain-English answers about it.", chapters: [stageExplore] },
-  { name: "Fix", say: "One click starts an agent in a throwaway machine; you read the patch and decide whether to publish.", chapters: [S.run, stageVerified, S.review, stageRefused] },
-  { name: "Ship", say: "A draft pull request in your name, every GitHub step done right, and help with the follow-ups.", chapters: [withPrFacts(S.pr), withFixChat(S.respond), withQuestionChat(S.reply), stageSlop] },
+  { name: "Find", by: "0:00", say: "Why not just Claude Code: finding an issue that's actually open to a newcomer is the step it assumes you've already done.", chapters: [stageCompare, stageScan, S.choose] },
+  { name: "Understand", by: "2:15", say: "Understand a repository you haven't cloned: a map of it, and plain-English answers about it.", chapters: [stageExplore] },
+  { name: "Fix", by: "4:45", say: "One click starts an agent in a throwaway machine; you read the patch and decide whether to publish.", chapters: [S.run, stageVerified, S.review, stageRefused] },
+  { name: "Ship", by: "7:45", say: "A draft pull request in your name, every GitHub step done right, and help with the follow-ups.", chapters: [withPrFacts(S.pr), withFixChat(S.respond), withQuestionChat(S.reply), stageSlop] },
 ];
 
 const STEPS = PHASES.flatMap((phase, p) => phase.chapters.map((c) => ({ phase: p, chapter: pacedBy(c, STAGE_PACE) })));
@@ -424,6 +425,7 @@ export function StageNotes() {
         {PHASES.map((p, i) => (
           <button key={p.name} type="button" onClick={() => send("phase", i)} aria-current={s?.phase === i ? "step" : undefined} className={cn("min-h-11 rounded-xl border px-3 text-left text-[14px] transition", s?.phase === i ? "border-signal bg-signal text-white" : "border-border bg-surface text-paper hover:border-border-strong")}>
             <span className="font-mono text-[11px] opacity-75">{i + 1}</span> {p.name}
+            <span className="block font-mono text-[11px] opacity-75">by {p.by}</span>
           </button>
         ))}
       </nav>

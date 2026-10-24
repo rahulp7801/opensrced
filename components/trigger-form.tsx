@@ -55,17 +55,29 @@ export function TriggerForm() {
   const router = useRouter();
   const { toast } = useToast();
   const [repoUrl, setRepoUrl] = useState("");
-  const [dryRun, setDryRun] = useState(true);
+  // Publishable by default: it still stops for review before anything is
+  // posted, while a preview is a paid run that can never be published.
+  const [dryRun, setDryRun] = useState(false);
   const [notes, setNotes] = useState("");
   const [state, setState] = useState<SubmitState>({ kind: "idle" });
   // True when this run will be paid by the user's Claude plan through a
   // sign-in inside the run's worker (hosted, OPENSRCER_HOSTED_SUBSCRIPTION=1).
   const [claudeSignIn, setClaudeSignIn] = useState(false);
+  // False when no payment method is ready: the same check as the setup banner
+  // (components/api-key-gate.tsx). Null while unknown, so the form stays usable
+  // if the read fails; the server refuses an unpaid run either way.
+  const [paymentReady, setPaymentReady] = useState<boolean | null>(null);
   useEffect(() => {
-    fetch("/api/settings/keys").then((res) => (res.ok ? res.json() : null)).then((s: { hostedSubscription?: boolean; providerOrder?: string[]; offered?: string[] } | null) => {
-      const first = s?.providerOrder?.find((p) => s.offered?.includes(p));
-      setClaudeSignIn(Boolean(s?.hostedSubscription && first === "claude-subscription"));
-    }).catch(() => {});
+    function check() {
+      fetch("/api/settings/keys").then((res) => (res.ok ? res.json() : null)).then((s: { hostedSubscription?: boolean; providerOrder?: string[]; offered?: string[]; ready?: boolean; anthropic?: boolean } | null) => {
+        const first = s?.providerOrder?.find((p) => s.offered?.includes(p));
+        setClaudeSignIn(Boolean(s?.hostedSubscription && first === "claude-subscription"));
+        setPaymentReady(s ? Boolean(s.ready ?? s.anthropic) : null);
+      }).catch(() => {});
+    }
+    check();
+    window.addEventListener("opensrcer-keys-updated", check);
+    return () => window.removeEventListener("opensrcer-keys-updated", check);
   }, []);
   // A run started here can finish starting after the user has moved on;
   // only navigate if this form is still on screen.
@@ -184,7 +196,7 @@ export function TriggerForm() {
               onClick={() => setDryRun(true)}
               aria-pressed={dryRun}
               className={cn(
-                "px-4 py-2 text-[12px] font-medium",
+                "min-h-10 px-4 py-2 text-[12px] font-medium",
                 dryRun ? "bg-info/10 text-info" : "text-paper-muted hover:text-paper",
               )}
             >
@@ -195,7 +207,7 @@ export function TriggerForm() {
               onClick={() => setDryRun(false)}
               aria-pressed={!dryRun}
               className={cn(
-                "px-4 py-2 text-[12px] font-medium border-l border-border",
+                "min-h-10 px-4 py-2 text-[12px] font-medium border-l border-border",
                 !dryRun ? "bg-signal/10 text-signal" : "text-paper-muted hover:text-paper",
               )}
             >
@@ -218,11 +230,12 @@ export function TriggerForm() {
         <div className="mt-4 flex flex-wrap items-center gap-4">
           <button
             type="submit"
-            disabled={state.kind === "pending"}
+            disabled={state.kind === "pending" || paymentReady === false}
+            aria-describedby={paymentReady === false ? "run-payment-needed" : undefined}
             className={cn(
               "rounded-full group inline-flex items-center gap-3 border px-5 py-3 text-[13px] transition",
-              state.kind === "pending"
-                ? "border-border text-paper-muted"
+              state.kind === "pending" || paymentReady === false
+                ? "border-border text-paper-muted opacity-60"
                 : "border-signal bg-signal/10 text-paper hover:bg-signal/20",
             )}
           >
@@ -236,6 +249,13 @@ export function TriggerForm() {
             )}
           </button>
 
+          {paymentReady === false && state.kind !== "pending" && (
+            <p id="run-payment-needed" className="text-xs text-paper-muted">
+              Set up how runs are paid for in{" "}
+              <Link href="/crucible" className="text-signal underline underline-offset-2">Settings</Link>{" "}
+              before starting a run.
+            </p>
+          )}
           {state.kind === "ok" && (
             <div className="flex items-center gap-3 text-[12px]" aria-live="polite">
               <span className="text-ok flex items-center gap-1">
@@ -270,7 +290,7 @@ export function TriggerForm() {
         </div>
         <ol className="divide-y divide-border-soft px-4">
           {[
-            "Use an issue URL to start a worker. Repository URLs open the issue scanner.",
+            "Paste a link to one issue to start the AI agent on it. A link to a whole repository opens its issue list, so you can pick one first.",
             "Preview creates a patch to read. It can never be published; run the issue again to publish.",
             "A publishable run never posts by itself: it opens a draft PR from your GitHub account only after you read it and confirm.",
           ].map((item, index) => (
@@ -281,7 +301,7 @@ export function TriggerForm() {
           ))}
         </ol>
         <div className="border-t border-border px-4 py-3">
-          <Link href="/dispatches" className="text-xs text-signal hover:underline">
+          <Link href="/dispatches" className="inline-flex min-h-10 items-center text-xs text-signal hover:underline">
             View run history <span aria-hidden>→</span>
           </Link>
         </div>

@@ -231,6 +231,8 @@ export function PageHead({ title, description }: { title: string; description?: 
 
 /** Scope badge colours, as on Discover and the issue scanner. */
 export const SCOPE_TONE: Record<string, "ok" | "signal" | "info" | "alert"> = { doc: "ok", leaf: "signal", cross: "info", "new file": "info", refactor: "alert" };
+/** Scope in plain words, as components/issue-scanner.tsx labels it ("Likely change: one file"). */
+export const SCOPE_LABEL: Record<string, string> = { doc: "docs only", leaf: "one file", cross: "several files", "new file": "a new file", refactor: "many files" };
 export const SEVERITY_TONE: Record<string, "muted" | "info" | "signal" | "alert"> = { low: "muted", medium: "info", high: "signal", critical: "alert" };
 
 export function Pips({ value }: { value: number }) {

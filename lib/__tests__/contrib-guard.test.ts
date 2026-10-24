@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
-  aiBanReason, competingPrReason, discussFirstReason, draftIssueComment, fetchRepoPolicy, openPrsFromTimeline, prCaps, publishedInLastDay, type TimelineEvent,
+  aiBanReason, competingPrReason, discussFirstReason, draftIssueComment, fetchRepoPolicy, maintainerAiObjection, maintainerObjectionReason, openPrsFromTimeline, prCaps, publishedInLastDay, type TimelineEvent,
 } from "../contrib-guard";
 
 test("openPrsFromTimeline: recorded facebook/react#37837 timeline has 4 competing open PRs", () => {
@@ -83,3 +83,28 @@ test("aiBanReason and the drafted issue comment", () => {
   assert.match(comment, /AI assistance/);
   assert.match(draftIssueComment(null, false), /have not been able to run the tests/);
 });
+
+test("maintainerAiObjection: recorded pallets/flask#6093 timeline (a MEMBER asked for a human-written PR)", () => {
+  const events = JSON.parse(readFileSync(path.join(process.cwd(), "lib/__tests__/fixtures/flask-6093-timeline.json"), "utf8")) as TimelineEvent[];
+  const o = maintainerAiObjection(events);
+  assert.equal(o?.author, "davidism");
+  assert.equal(o?.excerpt, "Happy to review a human-written PR!");
+  assert.match(o!.url, /^https:\/\/github\.com\/pallets\/flask\/issues\/6093#issuecomment-/);
+  assert.match(maintainerObjectionReason(o)!, /^a maintainer asked for human-written work on this issue \(@davidism: "Happy to review a human-written PR!"\)/);
+});
+
+const comment = (association: string, body: string): TimelineEvent => ({ event: "commented", author_association: association, body, user: { login: "m" }, html_url: "u" });
+for (const [label, events, expected] of [
+  ["maintainer refuses AI PRs", [comment("OWNER", "Thanks. We don't accept AI-generated pull requests here.")], "We don't accept AI-generated pull requests here."],
+  ["collaborator: AI-written PRs will be closed", [comment("COLLABORATOR", "AI-written PRs will be closed without review.")], "AI-written PRs will be closed without review."],
+  ["the objection is found in a later sentence", [comment("MEMBER", "Good catch!\nPlease send a human-written fix.")], "Please send a human-written fix."],
+  ["a non-maintainer saying it does not count", [comment("CONTRIBUTOR", "Maintainers want a human-written PR.")], null],
+  ["a maintainer mentioning AI neutrally does not count", [comment("MEMBER", "I used Copilot to find where this is called. PRs welcome!")], null],
+  ["a plain welcome does not count", [comment("OWNER", "Happy to review a PR!")], null],
+  ["no comments", [], null],
+] as Array<[string, TimelineEvent[], string | null]>) {
+  test(`maintainerAiObjection: ${label}`, () => {
+    assert.equal(maintainerAiObjection(events)?.excerpt ?? null, expected);
+  });
+}
+test("maintainerObjectionReason: null without an objection", () => assert.equal(maintainerObjectionReason(null), null));

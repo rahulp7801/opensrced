@@ -6,7 +6,7 @@
 import { appendFile, readFile } from "node:fs/promises";
 import { buildPrContent, extractDiagnosis, extractFirstDiff, refusedPaths } from "./agentic-pr";
 import type { ContribProfile } from "./contrib-profile";
-import { aiBanReason, competingPrReason, discussFirstReason, draftIssueComment, openPrsForIssue } from "./contrib-guard";
+import { aiBanReason, competingPrReason, discussFirstReason, draftIssueComment, issueTimeline, maintainerAiObjection, maintainerObjectionReason, openPrsFromTimeline } from "./contrib-guard";
 import type { ExecOutcome } from "./exec-run";
 import { CLAUDE_AGENT_MODEL } from "./models";
 import { buildPreview, writePreview, type CompetingCheck, type PrPreview } from "./pr-preview";
@@ -61,7 +61,10 @@ export async function finishRun(input: FinishInput): Promise<PrPreview | null> {
   let competingPrs: CompetingCheck = input.issueNumber <= 0 ? "no_issue" : input.followup ? "followup" : "none";
   if (competingPrs === "none") {
     try {
-      const competing = competingPrReason(await openPrsForIssue(input.repoFull, input.issueNumber, input.token));
+      const events = await issueTimeline(input.repoFull, input.issueNumber, input.token);
+      const objection = maintainerObjectionReason(maintainerAiObjection(events));
+      if (objection) blockers.push(objection);
+      const competing = competingPrReason(openPrsFromTimeline(events));
       if (competing) { blockers.push(competing); competingPrs = "found"; }
     } catch {
       warnings.push("Could not check for other open PRs on this issue; publishing re-checks it.");

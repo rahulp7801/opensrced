@@ -1,5 +1,6 @@
 // Anti-slop guards, checked before spend and again at publish:
 //   - somebody's open PR already targets the issue (issue timeline API)
+//   - a maintainer asked for human-written work on the issue (same timeline)
 //   - the user already has an open opensrcer PR in this repository
 //   - the user hit the daily published-PR cap
 //   - the project asks contributors to discuss or get assigned first
@@ -14,7 +15,39 @@ import { classifyAiPolicy, type AiStance, type ContribProfile } from "./contrib-
 export type TimelineEvent = {
   event?: string;
   source?: { type?: string; issue?: { number?: number; html_url?: string; state?: string; pull_request?: unknown; user?: { login?: string } | null } };
+  // "commented" events
+  body?: string;
+  author_association?: string;
+  html_url?: string;
+  user?: { login?: string } | null;
 };
+
+// A maintainer turning AI-written work away on the issue itself (pallets/flask
+// #6093: "Happy to review a human-written PR!"). Only the project's own people
+// count, and the phrases are deliberately narrow: a false refusal costs one
+// draft; a miss costs the maintainer's goodwill.
+const MAINTAINER_ROLES = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
+const AI_OBJECTION = [
+  /\bhuman[- ](?:written|authored|made)\b/i,
+  /\b(?:no|not|don'?t|do not|won'?t|will not)\s+(?:accept(?:ing)?|want|take|merge|review)\b[^.\n]{0,40}\b(?:AI|LLM|ChatGPT|Copilot|AI[- ]generated|machine[- ]generated)\b/i,
+  /\b(?:AI|LLM)[- ](?:generated|written)\b[^.\n]{0,60}\b(?:not (?:welcome|accepted)|will be closed|won'?t be (?:accepted|merged|reviewed))\b/i,
+];
+
+/** The first maintainer comment on an issue that asks for human-written work
+ *  or refuses AI-generated PRs. Pure, for tests with a recorded fixture. */
+export function maintainerAiObjection(events: TimelineEvent[]): { author: string; excerpt: string; url: string } | null {
+  for (const e of events) {
+    if (e.event !== "commented" || !MAINTAINER_ROLES.has(e.author_association ?? "") || !e.body) continue;
+    const sentence = e.body.split(/(?<=[.!?])\s+|\n+/).find((s) => AI_OBJECTION.some((re) => re.test(s)));
+    if (sentence) return { author: e.user?.login ?? "a maintainer", excerpt: sentence.trim().slice(0, 200), url: e.html_url ?? "" };
+  }
+  return null;
+}
+
+export function maintainerObjectionReason(o: { author: string; excerpt: string } | null): string | null {
+  if (!o) return null;
+  return `a maintainer asked for human-written work on this issue (@${o.author}: "${o.excerpt}"). opensrcer won't open an AI-assisted pull request here; you can still use this preview to write the fix yourself`;
+}
 
 /** Open pull requests that cross-reference an issue, from its timeline.
  *  Pure, for tests with a recorded fixture. */
@@ -28,15 +61,15 @@ export function openPrsFromTimeline(events: TimelineEvent[]): Array<{ number: nu
   return [...seen.values()];
 }
 
-/** Every open PR that references the issue (anyone's). Up to 300 events. */
-export async function openPrsForIssue(repo: string, issue: number, token: string | undefined, signal?: AbortSignal) {
+/** An issue's timeline (cross-references and comments). Up to 300 events. */
+export async function issueTimeline(repo: string, issue: number, token: string | undefined, signal?: AbortSignal) {
   const events: TimelineEvent[] = [];
   for (let page = 1; page <= 3; page++) {
     const batch = await githubApi<TimelineEvent[]>(`/repos/${repo}/issues/${issue}/timeline?per_page=100&page=${page}`, token, undefined, signal);
     events.push(...batch);
     if (batch.length < 100) break;
   }
-  return openPrsFromTimeline(events);
+  return events;
 }
 
 export function competingPrReason(prs: Array<{ url: string }>): string | null {

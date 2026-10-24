@@ -36,7 +36,7 @@ import { ALLOWED_TOOLS, EXEC_TOOLS } from "./claude-tools";
 import { buildAgentInvocation, PROVIDER_LABELS, type AgentProvider } from "./agent-invocation";
 import { pipeCodexJson, planUnavailable } from "./codex-events";
 import { finalizeExec, prepareRepo, profileLogLine, setupExec, setupPromptNotes, type EvalHook, type ExecOutcome, type ExecSession } from "./exec-run";
-import { aiBanReason, competingPrReason, discussFirstReason, openPrsForIssue } from "./contrib-guard";
+import { aiBanReason, competingPrReason, discussFirstReason, issueTimeline, maintainerAiObjection, maintainerObjectionReason, openPrsFromTimeline } from "./contrib-guard";
 import { finishRun } from "./run-finish";
 import { triageIssue } from "./triage";
 import { CLAUDE_FAST_MODEL } from "./models";
@@ -678,8 +678,12 @@ async function spawnDispatch(
       if (ban && !opts.dryRun) throw new RunTargetError(`Refused: ${ban}. A preview (dry run) is still possible.`);
       if (ban) out.write(`[guard] preview only: ${ban}\n`);
       // A follow-up updates the user's own PR, which of course targets the issue.
-      if (!opts.allowClosedIssue && !opts.followupPr) {
-        const competing = competingPrReason(await openPrsForIssue(repoFull, target.issueNumber, token).catch(() => []));
+      if (!opts.followupPr) {
+        const events = await issueTimeline(repoFull, target.issueNumber, token).catch(() => []);
+        const objection = maintainerObjectionReason(maintainerAiObjection(events));
+        if (objection && !opts.dryRun) throw new RunTargetError(`Refused: ${objection}. A preview (dry run) is still possible.`);
+        if (objection) out.write(`[guard] preview only: ${objection}\n`);
+        const competing = opts.allowClosedIssue ? null : competingPrReason(openPrsFromTimeline(events));
         if (competing && !opts.dryRun) throw new RunTargetError(`Refused: ${competing}`);
         if (competing) out.write(`[guard] preview only: ${competing}\n`);
       }

@@ -8,7 +8,7 @@
 import { join } from "node:path";
 import { appendFile } from "node:fs/promises";
 import { createDraftPrFromLog, neutralizeMentions, type PrResult } from "./agentic-pr";
-import { aiBanReason, competingPrReason, openOpensrcerPrs, openPrsForIssue, prCaps, publishedInLastDay } from "./contrib-guard";
+import { aiBanReason, competingPrReason, issueTimeline, maintainerAiObjection, maintainerObjectionReason, openOpensrcerPrs, openPrsFromTimeline, prCaps, publishedInLastDay, type TimelineEvent } from "./contrib-guard";
 import { listAll, patch, read } from "./dispatch-store";
 import { forgetFinished } from "./dispatcher";
 import { readPreview, type PrPreview } from "./pr-preview";
@@ -118,9 +118,12 @@ export async function liveGuards(opts: {
   const ban = opts.preview.profile ? aiBanReason(opts.preview.profile) : null;
   if (ban) throw new PublishError(409, `Refused: ${ban}.`);
   if (opts.issue > 0) {
-    let competing: string | null;
-    try { competing = competingPrReason(await openPrsForIssue(opts.repoFull, opts.issue, opts.token)); }
-    catch { throw new PublishError(503, "Could not check for other open PRs on this issue. Try again."); }
+    let events: TimelineEvent[];
+    try { events = await issueTimeline(opts.repoFull, opts.issue, opts.token); }
+    catch { throw new PublishError(503, "Could not check this issue's open PRs and maintainer comments. Try again."); }
+    const objection = maintainerObjectionReason(maintainerAiObjection(events));
+    if (objection) throw new PublishError(409, `Refused: ${objection}.`);
+    const competing = competingPrReason(openPrsFromTimeline(events));
     if (competing) throw new PublishError(409, `Refused: ${competing}`);
   }
   const caps = prCaps();

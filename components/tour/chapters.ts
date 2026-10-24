@@ -29,6 +29,7 @@ export function pacedBy(chapter: Chapter, pace: number): Chapter {
     // Whole quarter-seconds, so the scrub bar's step lands on every chapter start.
     duration: Math.round((chapter.duration * pace) / 250) * 250,
     captions: chapter.captions.map((c) => ({ ...c, at: Math.round(c.at * pace) })),
+    headlines: chapter.headlines?.map((h) => ({ ...h, at: Math.round(h.at * pace) })),
     View,
   };
 }

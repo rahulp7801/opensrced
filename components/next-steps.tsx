@@ -12,7 +12,7 @@ export function NextSteps({ heading = "What happens next" }: { heading?: string 
         {AFTER_PUBLISH.map((step, i) => (
           <li key={step.title} className="grid grid-cols-[1.25rem_1fr] gap-1.5">
             <span className="font-mono text-paper-faint">{i + 1}.</span>
-            <span><span className="font-medium text-paper">{step.title}.</span> <span className="text-paper-dim">{step.body}</span></span>
+            <span><span className="font-medium text-paper">{step.title}{/[.?!]$/.test(step.title) ? "" : "."}</span> <span className="text-paper-dim">{step.body}</span></span>
           </li>
         ))}
       </ol>

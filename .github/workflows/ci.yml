@@ -117,6 +117,7 @@ jobs:
           node scripts/smoke-production.mjs
           node scripts/smoke-session.mjs
           node scripts/smoke-browser.mjs
+          node scripts/smoke-beginner.mjs
           node scripts/smoke-review.mjs
           node scripts/smoke-lists.mjs
           node scripts/smoke-graph-ui.mjs

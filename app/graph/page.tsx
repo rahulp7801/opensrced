@@ -652,7 +652,7 @@ export default function GraphPage() {
                   ) : (
                     <>
                       <p className="mt-2 text-[12px] text-paper-muted max-w-md mx-auto">
-                        Ask in plain English, like &quot;Where is the config read?&quot; Answers use your AI provider key and cite the files they&apos;re based on.
+                        Ask in plain English, like &quot;Where is the config read?&quot; Answers use your AI provider key and come from the code map: they point to the files involved, and say when the map can&apos;t answer.
                       </p>
                       <p className="mt-1.5 text-[11px] text-paper-muted max-w-md mx-auto">
                         Free map commands, no AI: &quot;trace handlePayment&quot;, &quot;impact UserService&quot;, &quot;explain src/api&quot;, &quot;path auth to billing&quot;.

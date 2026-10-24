@@ -69,7 +69,7 @@ const publicShare = await request(`/api/fixes/${share.id}`, '');
 assert.equal(publicShare.status, 200);
 assert.equal((await publicShare.json()).fix_response, 'Use a bounded parser.');
 rmSync(`.fixes/${share.id}.json`, { force: true });
-for (const path of ['/api/settings/keys', '/api/explore', '/api/fixes', '/api/prs/fix', '/api/prs/reply', '/api/prs/draft-reply', '/api/explain', '/api/prs/verify', '/api/prs/push', '/api/crucible/run/agentic', '/api/run/agentic', '/api/graph/query', '/api/graph/generate']) {
+for (const path of ['/api/settings/keys', '/api/explore', '/api/fixes', '/api/prs/fix', '/api/prs/reply', '/api/prs/draft-reply', '/api/explain', '/api/understand', '/api/prs/verify', '/api/prs/push', '/api/crucible/run/agentic', '/api/run/agentic', '/api/graph/query', '/api/graph/generate']) {
   const invalid = await request(path, alice, { method: 'POST', body: 'null' });
   assert.equal(invalid.status, 400, path + ' must reject invalid JSON values without crashing');
   await invalid.text();

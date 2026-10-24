@@ -46,9 +46,11 @@ for (const headers of [{}, {'next-router-prefetch': '1'}, {'x-middleware-subrequ
   await response.text();
 }
 // "Ask about this change" spends the user's key: never without a session.
-const anonymousExplain = await fetch(base + '/api/explain', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ question: 'why?' }), signal: AbortSignal.timeout(15000) });
-assert.equal(anonymousExplain.status, 401, 'anonymous explain must be blocked');
-await anonymousExplain.text();
+for (const path of ['/api/explain', '/api/understand']) {
+  const anonymous = await fetch(base + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ question: 'why?', step: 'questions' }), signal: AbortSignal.timeout(15000) });
+  assert.equal(anonymous.status, 401, `anonymous ${path} must be blocked`);
+  await anonymous.text();
+}
 // The graph viz route sets its own sandboxed CSP; the global one would replace it.
 const viz = await fetch(`${base}/api/graph/acme/app/viz`, { signal: AbortSignal.timeout(15000) });
 assert.ok(!viz.headers.get('content-security-policy')?.includes("default-src 'self'"), 'graph viz must keep its own CSP');

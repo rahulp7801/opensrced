@@ -372,10 +372,11 @@ export const pr: Chapter = {
 // ── Start from any link ───────────────────────────────────────────────────
 
 const ISSUE_URL = `https://github.com/${DEMO_REPO}/issues/2`;
+// components/trigger-form.tsx "Before you start", verbatim.
 const BEFORE = [
-  "Use an issue URL to start a worker. Repository URLs open the issue scanner.",
-  "Preview creates a patch for review without publishing it.",
-  "Live mode can open a draft PR and requires GitHub write access.",
+  "Paste a link to one issue to start the AI agent on it. A link to a whole repository opens its issue list, so you can pick one first.",
+  "Preview creates a patch to read. It can never be published; run the issue again to publish.",
+  "A publishable run never posts by itself: it opens a draft PR from your GitHub account only after you read it and confirm.",
 ];
 
 function NewRunView() {

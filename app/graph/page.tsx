@@ -539,12 +539,12 @@ export default function GraphPage() {
           {buildStatus === "building" && (() => {
             const last = buildMessages[buildMessages.length - 1];
             const pct = last?.percent ?? null;
-            const phase = last?.phase === "ast" ? "Parsing source files (tree-sitter AST)"
+            const phase = last?.phase === "ast" ? "Reading the source files"
               : last?.phase === "complete" ? "Graph built"
               : last?.phase === "writing" ? "Writing output files"
               : last?.text.includes("Cloning") ? "Cloning repository"
               : last?.text.includes("cached") ? "Using cached clone"
-              : "Building knowledge graph";
+              : "Building the map";
             return (
               <div className="mb-2">
                 <div className="flex items-center justify-between mb-1">
@@ -592,7 +592,7 @@ export default function GraphPage() {
           <div className="rounded-2xl xl:w-[55%] min-h-[300px] xl:min-h-0 border border-border-soft bg-ink/30 relative flex flex-col">
             <div className="flex items-center justify-between px-3 py-1.5 border-b border-border-soft bg-ink/50">
               <span className="text-xs text-paper-faint font-medium">
-                {engine === "crg" ? "code-review-graph" : "interactive graph"} — {owner}/{repo}
+                {engine === "crg" ? "map of a large repository" : "interactive map"} — {owner}/{repo}
               </span>
               {/* No "open fullscreen" link: as its own tab the graph HTML (built
                   from repository content) could navigate that tab; inside this
@@ -614,16 +614,16 @@ export default function GraphPage() {
                 Suggestions
               </span>
               {(engine === "crg"
-                ? ["what is the architecture?", "what are the main modules?", "how is this codebase structured?"]
-                : ["help", "stats", "god nodes", "recent", "explain src"]
-              ).map((cmd) => (
+                ? [["What does this repository do?", "what does this repository do?"], ["What are the main parts?", "what are the main modules?"], ["How is it structured?", "how is this codebase structured?"]]
+                : [["What does this repository do?", "What does this repository do?"], ["Where would I start reading?", "Where would a new contributor start reading?"], ["Most-connected code", "god nodes"], ["Overview", "stats"], ["All commands", "help"]]
+              ).map(([label, cmd]) => (
                 <button
-                  key={cmd}
+                  key={label}
                   onClick={() => quickQuery(cmd)}
                   disabled={isQuerying}
-                  className="rounded-full text-xs text-paper-dim border border-border-soft hover:border-signal/40 hover:text-signal px-2 py-1 transition disabled:opacity-50"
+                  className="inline-flex min-h-9 items-center rounded-full text-xs text-paper-dim border border-border-soft hover:border-signal/40 hover:text-signal px-3 transition disabled:opacity-50"
                 >
-                  {cmd}
+                  {label}
                 </button>
               ))}
             </div>
@@ -637,24 +637,25 @@ export default function GraphPage() {
               {results.length === 0 && (
                 <div className="rounded-2xl border border-border-soft bg-surface p-6 text-center">
                   <div className="serif text-[18px] text-paper">
-                    Query the knowledge graph
+                    Ask about this code
                   </div>
                   {engine === "crg" ? (
                     <>
                       <p className="mt-2 text-[11px] text-paper-muted max-w-md mx-auto">
-                        This repo uses code-review-graph (large repo mode).
-                        Ask any question in plain English about the codebase.
+                        This is a large repository, so questions are answered in plain English.
+                        Ask anything about the code.
                       </p>
                       <p className="mt-1.5 text-xs text-signal">
-                        These queries use your AI provider key. Graph commands are unavailable for large repositories.
+                        Answers use your AI provider key. The free map commands aren&apos;t available for repositories this large.
                       </p>
                     </>
                   ) : (
                     <>
-                      <p className="mt-2 text-[11px] text-paper-muted max-w-md mx-auto">
-                        Try: &quot;trace handlePayment&quot; or
-                        &quot;impact UserService&quot; or &quot;explain
-                        src/api&quot; or &quot;path auth to billing&quot;
+                      <p className="mt-2 text-[12px] text-paper-muted max-w-md mx-auto">
+                        Ask in plain English, like &quot;Where is the config read?&quot; Answers use your AI provider key and cite the files they&apos;re based on.
+                      </p>
+                      <p className="mt-1.5 text-[11px] text-paper-muted max-w-md mx-auto">
+                        Free map commands, no AI: &quot;trace handlePayment&quot;, &quot;impact UserService&quot;, &quot;explain src/api&quot;, &quot;path auth to billing&quot;.
                       </p>
                       <p className="mt-1.5 text-xs text-paper-faint">
                         Type{" "}
@@ -664,7 +665,7 @@ export default function GraphPage() {
                         >
                           help
                         </button>
-                        {" "}for all commands and examples. Plain English questions use your AI provider key.
+                        {" "}for all commands and examples.
                       </p>
                     </>
                   )}
@@ -675,7 +676,7 @@ export default function GraphPage() {
                 <div key={r._id} className="rounded-2xl border border-border-soft bg-surface">
                   <div className="px-3 py-2 border-b border-border-soft flex items-center gap-2">
                     <span className="text-xs font-medium text-signal">
-                      Q
+                      You asked
                     </span>
                     <span className="text-[12px] text-paper">
                       {r.query}
@@ -706,15 +707,18 @@ export default function GraphPage() {
                           </span>
                         )}
                         <span className="text-xs text-ok tabular-nums">
-                          ${(r.cost ?? 0).toFixed(4)}
+                          {r.cost ? `${r.cost.toFixed(4)}` : "free"}
                         </span>
                       </span>
                     )}
                   </div>
                   <div className="px-3 py-3 overflow-x-auto">
                     {r.status === "error" ? (
-                      <div className="text-[11px] text-alert whitespace-pre-wrap font-mono break-words">
+                      <div className="text-[12px] text-alert whitespace-pre-wrap break-words">
                         {r.response}
+                        {/\b(key|provider)\b/i.test(r.response) && (
+                          <a href="/crucible" className="mt-2 flex min-h-10 w-fit items-center rounded-full border border-signal/40 px-3 text-signal hover:bg-signal/10">Add a key in Settings →</a>
+                        )}
                       </div>
                     ) : r.response ? (
                       r.mode === "llm" ? (
@@ -756,7 +760,7 @@ export default function GraphPage() {
                       e.currentTarget.blur();
                     }
                   }}
-                  placeholder="trace, impact, explain, path, stats, or any symbol name..."
+                  placeholder="Ask a question in plain English, e.g. Where is the config read?"
                   disabled={isQuerying}
                   className="rounded-lg flex-1 bg-surface border border-border px-3 py-2.5 text-[12px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50 disabled:opacity-50"
                 />
@@ -765,7 +769,7 @@ export default function GraphPage() {
                   disabled={!query.trim() || isQuerying}
                   className="rounded-full border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-2.5 text-[12px] font-medium disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                 >
-                  {isQuerying ? "..." : "query"}
+                  {isQuerying ? "..." : "Ask"}
                 </button>
               </div>
             </form>
@@ -965,7 +969,7 @@ function FollowUps({
   return (
     <div className="px-3 py-2 border-t border-border-soft flex items-center gap-2 flex-wrap">
       <span className="text-xs text-paper-faint font-medium">
-        follow up:
+        Follow up:
       </span>
       {followUps.map((q) => (
         <button

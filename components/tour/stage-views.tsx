@@ -16,6 +16,7 @@ import { StatusChip } from "@/components/status-dot";
 import { AppWindow, LogLine, Pips, Press, Reveal, SCOPE_TONE, SEVERITY_TONE, TimeContext, Typed, progress, useFollow, useT, type Caption, type Chapter } from "./kit";
 import { CodeGraph, LIGHTS } from "./graph";
 import { REVIEW_PUBLISHED_AT } from "./chapters-fix";
+import { REPLY_SENT_AT } from "./chapters-ship";
 import { DEMO_REPO, RUN } from "./data";
 
 
@@ -339,9 +340,10 @@ export function stageNotes(base: { choose: Chapter; newRun: Chapter; run: Chapte
     reply: ship(base.reply, [
       { at: 0, text: "Not every comment needs code. For a question, it can draft an answer." },
       { at: 5600, text: "It's a draft. You edit it, you send it: you stay the one talking to the maintainer." },
-      { at: 15000, text: "Built so maintainers can trust it: a person is the author, it steers you to issues that are open to contribution, reads each project's contribution guide, and stays small and draft-first." },
-      { at: 16000, text: "And it proves its fixes: the project's own tests run in a machine that holds none of your keys, and the pull request shows the exact commands and that the new test fails without the fix. On a real React bug, its fix matched the one the maintainers merged." },
-      { at: 17500, text: "On your own machine it can run on your own Claude or ChatGPT subscription, so no API bill. Signing in with a subscription on the hosted site is coming; it isn't shipped yet." },
+      { at: REPLY_SENT_AT + 200, spot: "reply-note", text: "And the posted reply says so itself: drafted with AI assistance, reviewed and posted by you. Maintainers always know." },
+      { at: REPLY_SENT_AT + 3000, text: "Built so maintainers can trust it: a person is the author, it steers you to issues that are open to contribution, reads each project's contribution guide, and stays small and draft-first." },
+      { at: REPLY_SENT_AT + 4500, text: "And it proves its fixes: the project's own tests run in a machine that holds none of your keys, and the pull request shows the exact commands and that the new test fails without the fix. On a real React bug, its fix matched the one the maintainers merged." },
+      { at: REPLY_SENT_AT + 6000, text: "On your own machine it can run on your own Claude or ChatGPT subscription, so no API bill. Signing in with a subscription on the hosted site is coming; it isn't shipped yet." },
     ]),
   };
 }
@@ -386,6 +388,9 @@ function CompareView() {
             </Reveal>
           ))}
         </ol>
+        <Reveal at={GUIDED_AT + 400 + GUIDED.length * 600 + 300}>
+          <p className="mt-8 border-t border-white/20 pt-5 text-[17px] leading-snug text-white/80">Every run stops for your review. Nothing posts until you confirm.</p>
+        </Reveal>
       </Reveal>
     </div>
   );
@@ -540,12 +545,12 @@ function RefusedView() {
   return (
     <AppWindow path={`/dispatches?dispatch=c_example`} section="Fix" tab="Runs">
       <div className="p-6">
-        <div className="mx-auto max-w-[860px] overflow-hidden rounded-2xl border border-border-soft bg-surface">
+        <div data-spot="refusal" className="mx-auto max-w-[860px] overflow-hidden rounded-2xl border border-border-soft bg-surface">
           <div className="border-b border-border px-5 py-3">
             <p className="text-[13px] text-paper-muted">{BAN_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[11px] text-info">#412</span></p>
             <p className="mt-0.5 text-[17px] font-medium text-paper">Form reset doesn&apos;t clear validation errors</p>
           </div>
-          <Reveal at={400} spot="refusal" className="px-5 py-4 text-[15px]">
+          <Reveal at={400} className="px-5 py-4 text-[15px]">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <p className="text-[16px] font-medium text-paper">Review before publishing</p>
               <span className="text-alert">Verification: not verified (no code was run)</span>

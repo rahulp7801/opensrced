@@ -338,7 +338,7 @@ function Spotlight({ selector, strong, within }: { selector: string | null; stro
       const r = { left: Math.min(...rects.map((b) => b.left)), top: Math.min(...rects.map((b) => b.top)), right: Math.max(...rects.map((b) => b.right)), bottom: Math.max(...rects.map((b) => b.bottom)), width: 1 };
       const c = canvas.getBoundingClientRect();
       // Kept to the app window: a long list lights only the part on screen.
-      const small = r.bottom - r.top < SMALL;
+      const small = r.bottom - r.top < SMALL && r.right - r.left < SMALL * 3;
       const pad = small ? 0 : SPOT_PAD;
       const left = Math.max(r.left, c.left) - pad, top = Math.max(r.top, c.top) - pad;
       const right = Math.min(r.right, c.right) + pad, bottom = Math.min(r.bottom, c.bottom) + pad;

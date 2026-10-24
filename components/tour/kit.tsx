@@ -261,7 +261,7 @@ export function Inline({ text }: { text: string }) {
 export function LogLine({ text, spot }: { text: string; spot?: string }) {
   const cls = text.startsWith("[tool]") ? "text-[#64d2ff]"
     : text.startsWith("[agentic-pr] opened") ? "font-semibold text-[#30d158]"
-    : text.startsWith("[gitleaks] status=clean") ? "text-[#30d158]"
+    : text.startsWith("[gitleaks] status=clean") || text.startsWith("[verify] status=verified") ? "text-[#30d158]"
     : text.startsWith("[crucible-tests]") ? "text-[#ffd60a]"
     : text.startsWith("[") ? "text-[#8e8e93]"
     : text.startsWith("## ") ? "font-semibold text-white"

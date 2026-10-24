@@ -98,3 +98,33 @@ test("finishRun returns null when there is no patch", async () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("every new issue run drafts an ask-first comment; it is the suggestion only where maintainers ask", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "opensrcer-finish-"));
+  const realFetch = globalThis.fetch;
+  // No open PRs reference the issue.
+  globalThis.fetch = (async () => new Response("[]", { status: 200, headers: { "content-type": "application/json" } })) as typeof fetch;
+  try {
+    writeFileSync(path.join(dir, "run.log"), LOG);
+    const base = { repoFull: "o/r", issueNumber: 7, dispatchId: "d_a", logPath: path.join(dir, "run.log"), exec: null, profile: null, issueLabels: [] as string[], privateOrg: false };
+    const plain = await finishRun({ ...base, dispatchDir: path.join(dir, "d_a") });
+    assert.match(plain!.draft_issue_comment ?? "", /The parser drops the exponent\./);
+    assert.match(plain!.draft_issue_comment ?? "", /Would a PR along these lines be welcome/);
+    assert.equal(plain!.ask_first, undefined, "optional when nobody asked for discussion");
+    assert.doesNotMatch(plain!.warnings.join(" "), /discussion first/);
+    const discuss = await finishRun({ ...base, dispatchDir: path.join(dir, "d_b"), issueLabels: ["needs discussion"] });
+    assert.equal(discuss!.ask_first, true);
+    assert.match(discuss!.warnings.join(" "), /Maintainers ask for discussion first/);
+    const followup = await finishRun({ ...base, dispatchDir: path.join(dir, "d_c"), followup: true });
+    assert.equal(followup!.draft_issue_comment, undefined, "a follow-up already has its PR");
+  } finally {
+    globalThis.fetch = realFetch;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a finding run (no issue) drafts no issue comment", async () => {
+  const { preview } = await run(false);
+  assert.equal(preview!.draft_issue_comment, undefined);
+  assert.equal(preview!.ask_first, undefined);
+});

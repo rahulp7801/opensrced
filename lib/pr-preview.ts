@@ -27,9 +27,11 @@ export type PrPreview = {
   blockers: string[];
   /** Shown before publishing; the user decides. */
   warnings: string[];
-  /** For issues where maintainers ask to discuss first: a comment the user
-   *  can post themselves. Never posted by opensrcer. */
+  /** A comment asking on the issue before sending a PR, for the user to post
+   *  themselves. Never posted by opensrcer. */
   draft_issue_comment?: string;
+  /** Maintainers ask for discussion first: the comment is the suggested path. */
+  ask_first?: boolean;
   /** Reported variants and the test that covers each (null = not covered). */
   cases?: CaseCoverage[];
 };
@@ -47,6 +49,7 @@ export type PreviewInput = {
   blockers?: string[];
   warnings?: string[];
   draftIssueComment?: string;
+  askFirst?: boolean;
   cases?: CaseCoverage[];
 };
 
@@ -76,6 +79,7 @@ export function buildPreview(input: PreviewInput): PrPreview {
     blockers: [...(input.blockers ?? []), ...(input.verification?.status === "failed" ? [`verification failed: ${input.verification.reason}`] : [])],
     warnings,
     ...(input.draftIssueComment ? { draft_issue_comment: input.draftIssueComment } : {}),
+    ...(input.askFirst ? { ask_first: true } : {}),
     ...(input.cases?.length ? { cases: input.cases } : {}),
   };
 }

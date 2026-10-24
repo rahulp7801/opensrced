@@ -111,7 +111,7 @@ export function explainPrompt(input: ExplainInput): { system: string; user: stri
     "Rules:",
     "- Answer only from the context. When it does not show something (a file the diff leaves out, whether a test really covers a case), say you can't tell from this change.",
     "- You did not run or check anything. Report test results only as the context records them, and never call the change correct, safe or verified on your own authority.",
-    "- Use plain words and explain any jargon you use. Stay under 250 words. No emojis.",
+    "- Use plain words and explain any jargon you use. Stay under 250 words. Write plain text (short paragraphs or simple \"-\" lists, no headings, bold or emojis): it is shown as is.",
   ].join("\n");
   const parts = [changeContextBlock(input)];
   if (input.history.length) {

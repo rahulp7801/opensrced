@@ -59,10 +59,16 @@ const preview = {
   verification: { status: 'verified', reason: 'npm test passed' }, blockers: [], warnings: [],
   confirmation: "I've read this change and can explain it to reviewers.", draft_issue_comment: "Hi, I'd like to help with this.", ask_first: false,
 };
+runs['b-fallback'] = { ...run, id: 'b-fallback', dry_run: false, pr_status: 'awaiting_review' };
+// "Explain it in your own words": the AI's text, a wrong explanation and a right one.
+const AI_DIAGNOSIS = 'An empty input reaches parse unchecked, so parse reads the first item of an empty list and the caller crashes with a TypeError.';
+const WRONG_WORDS = 'The parser was slow on big inputs, so the change sorts the list first and caches it. The tests pass on my machine.';
+const OWN_WORDS = 'Parsing an empty list crashed because it took the first element without looking. Now it gives back null instead. The new test for an empty list passes.';
 const diff = '--- a/parser.ts\n+++ b/parser.ts\n@@ -1 +1 @@\n-return items[0];\n+return items[0] ?? null;\n';
 const previews = {
   'b-dry': { ...preview, publishable: false },
-  'b-ready': { ...preview, publishable: true, diff },
+  'b-ready': { ...preview, publishable: true, diff, diagnosis: AI_DIAGNOSIS },
+  'b-fallback': { ...preview, publishable: true, diff, diagnosis: AI_DIAGNOSIS },
   'b-ask': { ...preview, publishable: true, ask_first: true, warnings: ['Maintainers ask for discussion first: the issue is labeled "needs discussion".'] },
 };
 // "This project's rules": one stored preview per kind of project, as run-finish writes them now.
@@ -99,6 +105,9 @@ try {
     page.on('pageerror', error => errors.push(error.message));
     const starts = [];
     const explains = [];
+    const understands = [];
+    const publishBodies = [];
+    let understandDown = false;
     let publishes = 0;
     // Section 7 switches the list pages to these answers.
     let lists = false;
@@ -112,7 +121,7 @@ try {
       const m = /^\/api\/dispatches\/([^/]+)(\/preview|\/publish)?$/.exec(path);
       if (m) {
         if (m[2] === '/preview') return route.fulfill({ json: previews[m[1]] });
-        if (m[2] === '/publish') { publishes++; return route.fulfill({ json: { ok: true, pr_url: 'https://github.com/acme/app/pull/12', tests: 'passed' } }); }
+        if (m[2] === '/publish') { publishes++; publishBodies.push(route.request().postDataJSON()); return route.fulfill({ json: { ok: true, pr_url: 'https://github.com/acme/app/pull/12', tests: 'passed' } }); }
         // The whole log on every poll keeps the page polling: a publish must survive a poll answer.
         return route.fulfill({ json: { ...runs[m[1]], log, log_size: log.length } });
       }
@@ -131,6 +140,16 @@ try {
         pr: { title: 'fix(parser): handle empty input (#1)', state: 'OPEN', url: 'https://github.com/acme/app/pull/12', branch: 'opensrcer/1-b-ready', headRepo: 'first-timer/app', base: 'main', author: 'first-timer', body: 'Returns null on empty input.' },
         comments: [{ id: 1, author: 'maint', body: 'Can you also handle whitespace?', path: 'parser.ts', line: 1, diffHunk: null, createdAt: now, type: 'review', inReplyTo: null, isOwnComment: false }],
       } });
+      if (path === '/api/understand') {
+        const req = route.request().postDataJSON();
+        understands.push(req);
+        if (understandDown) return route.fulfill({ status: 502, json: { error: 'Anthropic is overloaded or unavailable right now. Please retry shortly.' } });
+        if (req.step === 'check') return route.fulfill({ json: req.explanation.includes('sorts the list')
+          ? { rootCause: false, change: false, evidence: true, mistakes: ['The change does not sort or cache anything; it returns null when the list is empty.'], tip: 'Say what happened with an empty list.', passed: false }
+          : { rootCause: true, change: true, evidence: true, mistakes: [], tip: 'Clear and complete.', passed: true } });
+        if (req.step === 'questions') return route.fulfill({ json: { questions: ['What happens when items is undefined rather than empty?', 'Why return null instead of throwing a clearer error?'] } });
+        if (req.step === 'feedback') return route.fulfill({ json: { feedback: 'That answers it and matches the diff.', followUp: 'Do callers already handle null?' } });
+      }
       if (path === '/api/explain') {
         explains.push(route.request().postDataJSON());
         return route.fulfill({ contentType: 'text/event-stream', body: sse([{ text: 'It returns null instead of crashing ' }, { text: 'when the list is empty.' }, { cost: 0.001, done: true }]) });
@@ -221,11 +240,59 @@ try {
     await chatLog.getByText('It returns null instead of crashing when the list is empty.', { exact: true }).waitFor();
     assert.equal(explains.length, 1, 'a reload shows the kept answer without asking again');
 
-    // 4. Publishing shows its result and what happens next, instead of nothing.
+    // 3d. Explain it in your own words, then the practice review, before Publish.
+    const publishButton = gate.getByRole('button', { name: 'Publish draft PR', exact: true });
     await gate.getByRole('checkbox').check();
-    await gate.getByRole('button', { name: 'Publish draft PR', exact: true }).click();
+    assert.equal(await publishButton.isDisabled(), true, 'the box alone does not unlock publishing');
+    await gate.getByText('To publish: explain the change in your own words, answer the practice review, and tick the box.', { exact: true }).waitFor();
+    const words = gate.getByRole('region', { name: 'Explain it in your own words' });
+    for (const prompt of ['What was wrong?', 'What did the change do?', 'How do you know it works?']) await words.getByText(prompt, { exact: true }).waitFor();
+    const explanation = words.getByLabel('Your explanation', { exact: true });
+    const checkButton = words.getByRole('button', { name: 'Check my explanation', exact: true });
+    await thumbSized(checkButton, 'Check my explanation');
+    await thumbSized(explanation, 'the explanation box');
+    await explanation.fill('Too short.');
+    assert.equal(await checkButton.isDisabled(), true, 'under 80 characters cannot be checked');
+    // The AI's own words are turned back before any model call.
+    await explanation.fill(AI_DIAGNOSIS);
+    await checkButton.click();
+    await words.getByText("This reads like the AI's description. Write it the way you'd explain it to a friend.", { exact: true }).waitFor();
+    assert.equal(understands.length, 0, 'a copy is not sent');
+    await words.getByText('5 checks left', { exact: true }).waitFor();
+    // A wrong explanation gets its mistakes.
+    await explanation.fill(WRONG_WORDS);
+    await checkButton.click();
+    await words.getByText("That's not quite it: The change does not sort or cache anything; it returns null when the list is empty.", { exact: true }).waitFor();
+    await words.getByText('What the change did: missing', { exact: true }).waitFor();
+    await words.getByText("Not there yet: fix what's above, then check again.", { exact: true }).waitFor();
+    await words.getByText('4 checks left', { exact: true }).waitFor();
+    assert.equal(await publishButton.isDisabled(), true);
+    // A right one passes and brings the practice review.
+    await explanation.fill(OWN_WORDS);
+    await checkButton.click();
+    await words.getByText('Your explanation covers the change.', { exact: true }).waitFor();
+    const practice = gate.getByRole('region', { name: 'Practice review' });
+    await practice.getByText("Practice review: maintainers will ask questions like these. Answer them now so you're ready.", { exact: true }).waitFor();
+    await practice.getByText('What happens when items is undefined rather than empty?', { exact: false }).waitFor();
+    assert.equal(understands.at(-1).step, 'questions');
+    assert.equal(await publishButton.isDisabled(), true, 'the practice review is answered first');
+    for (const [i, q] of ['What happens when items is undefined rather than empty?', 'Why return null instead of throwing a clearer error?'].entries()) {
+      await practice.getByLabel(`Your answer to: ${q}`, { exact: true }).fill(i ? 'Callers already check for null, and a throw would crash them again.' : 'Then items[0] throws too; the issue only covers empty lists.');
+      const send = practice.getByRole('button', { name: 'Send answer', exact: true }).first();
+      if (i === 0) await thumbSized(send, 'Send answer');
+      await send.click();
+      await practice.getByText('That answers it and matches the diff.', { exact: true }).nth(i).waitFor();
+    }
+    await practice.getByText('A reviewer might follow up: Do callers already handle null?', { exact: true }).first().waitFor();
+    assert.equal(await publishButton.isDisabled(), false, 'explained, practiced and confirmed: Publish is enabled');
+    await assertUsableControls(page, `${width} own words`);
+    await assertAccessible(page, `${width} own words`);
+
+    // 4. Publishing shows its result and what happens next, instead of nothing.
+    await publishButton.click();
     await page.getByText('Draft PR #12 opened', { exact: true }).waitFor();
     assert.equal(publishes, 1);
+    assert.deepEqual(publishBodies.at(-1), { confirmed: true, authorExplanation: OWN_WORDS, explanationChecked: true, practiceAnswered: true }, 'the explanation goes to the PR');
     assert.equal(await page.getByRole('button', { name: 'Publish draft PR' }).count(), 0, 'no second publish button');
     await page.getByRole('heading', { name: 'What happens next', exact: true }).waitFor();
     await page.getByText(/click "Ready for review" there/).waitFor();
@@ -237,6 +304,22 @@ try {
     // 5. Where maintainers ask to discuss first, the drafted comment is the suggestion.
     await page.goto(base + '/dispatches?dispatch=b-ask');
     await page.getByText('Suggested instead: ask on the issue first.', { exact: false }).waitFor();
+
+    // 5a. When the automatic check can't run, the written explanation is still
+    // required, the practice review is skipped, and publishing is not blocked.
+    understandDown = true;
+    await page.goto(base + '/dispatches?dispatch=b-fallback');
+    const fallbackGate = page.getByRole('region', { name: 'Review before publishing' });
+    const fallbackWords = fallbackGate.getByRole('region', { name: 'Explain it in your own words' });
+    await fallbackWords.getByLabel('Your explanation', { exact: true }).fill(OWN_WORDS);
+    await fallbackWords.getByRole('button', { name: 'Check my explanation', exact: true }).click();
+    await fallbackWords.getByText("The automatic check couldn't run. Your explanation will still be included in the PR.", { exact: true }).waitFor();
+    assert.equal(await fallbackGate.getByRole('region', { name: 'Practice review' }).count(), 0, 'no practice review without the check');
+    await fallbackGate.getByRole('checkbox').check();
+    await fallbackGate.getByRole('button', { name: 'Publish draft PR', exact: true }).click();
+    await page.getByText('Draft PR #12 opened', { exact: true }).waitFor();
+    assert.deepEqual(publishBodies.at(-1), { confirmed: true, authorExplanation: OWN_WORDS, explanationChecked: false, practiceAnswered: false }, 'marked as not automatically checked');
+    understandDown = false;
 
     // 5b. Each kind of project's rules, as the review screen states them.
     for (const [id, v] of Object.entries(ruleVariants)) {

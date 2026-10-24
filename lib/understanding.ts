@@ -140,6 +140,7 @@ export function questionsPrompt(change: ChangeInput) {
     "", UNTRUSTED, "",
     "Rules:",
     "- Each question is about THIS diff and names something specific in it (a function, a condition, a value, a behavior): an edge case it may miss, why this approach over an obvious alternative, or what it could break.",
+    "- Ask open questions (\"What happens when ...?\", \"Why ... instead of ...?\"), one point each. Do not claim the code has a bug or say what it returns unless the diff plainly shows it: trace the changed code step by step before you assume anything.",
     "- The author should be able to answer each in a few sentences. The PR text must not already answer it word for word.",
     "- No questions about style, formatting, tests in general, or process. Plain words, under 250 characters each.",
     "", JSON_ONLY,

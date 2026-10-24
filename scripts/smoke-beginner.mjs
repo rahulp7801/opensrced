@@ -272,7 +272,7 @@ try {
     await checkButton.click();
     await words.getByText('Your explanation covers the change.', { exact: true }).waitFor();
     const practice = gate.getByRole('region', { name: 'Practice review' });
-    await practice.getByText("Practice review: maintainers will ask questions like these. Answer them now so you're ready.", { exact: true }).waitFor();
+    await practice.getByText("Maintainers will ask questions like these. Answer them now so you're ready.", { exact: true }).waitFor();
     await practice.getByText('Reviewer: What happens when items is undefined rather than empty?', { exact: true }).waitFor();
     assert.equal(understands.at(-1).step, 'questions');
     assert.equal(await publishButton.isDisabled(), true, 'the practice review is answered first');

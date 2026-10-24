@@ -6,6 +6,7 @@ import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
 import { PrFollowups } from "@/components/pr-followups";
 import { NextSteps } from "@/components/next-steps";
+import { ChangeChat, STARTER_QUESTIONS } from "@/components/change-chat";
 import { Term } from "@/components/term";
 import { readJson, requestErrorMessage } from "@/lib/fetch-json";
 import { useToast } from "@/components/toast";
@@ -40,6 +41,8 @@ type PrInfo = {
   headRepo: string | null;
   base: string;
   author: string;
+  /** The PR description (capped by the server); absent from older responses. */
+  body?: string;
 };
 
 type FixState = {
@@ -163,12 +166,6 @@ export default function PrDetailPage() {
   const [verifyResult, setVerifyResult] = useState<VerifyResult>(null);
   const [verifying, setVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
-
-  // Ask/chat
-  const [askOpen, setAskOpen] = useState(false);
-  const [askInput, setAskInput] = useState("");
-  const [askMessages, setAskMessages] = useState<Array<{ role: "user" | "ai"; text: string }>>([]);
-  const [askLoading, setAskLoading] = useState(false);
 
   // Follow-up
   const [followUpComment, setFollowUpComment] = useState("");
@@ -398,7 +395,6 @@ export default function PrDetailPage() {
           break;
         case "Escape":
           setShowReplyFor(null);
-          setAskOpen(false);
           setShowShortcuts(false);
           break;
         case "?":
@@ -523,7 +519,6 @@ export default function PrDetailPage() {
     abortRef.current?.abort();
     abortRef.current = null;
     setFixState((prev) => prev && prev.status === "generating" ? { ...prev, status: "cancelled", step: "Cancelled" } : prev);
-    setAskLoading(false);
     setFollowUpGenerating(false);
     toast("Generation cancelled", "signal");
   }
@@ -837,42 +832,6 @@ export default function PrDetailPage() {
     }
   }
 
-  // ── Ask about change ───────────────────────────────────────────────
-
-  async function handleAsk() {
-    if (!askInput.trim() || !fixState?.response || askLoading) return;
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    const question = askInput.trim();
-    setAskInput("");
-    setAskMessages((prev) => [...prev, { role: "user", text: question }]);
-    setAskLoading(true);
-
-    try {
-      const res = await fetch("/api/prs/draft-reply", {
-        method: "POST",
-        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(100_000)]),
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          repo: repoFull,
-          pr_title: pr?.title,
-          comment_body: `Context — I generated this fix:\n\n${fixState.response.slice(0, 3000)}\n\nMy question: ${question}`,
-          comment_author: "me",
-        }),
-      });
-
-      setAskMessages(prev => [...prev, { role: "ai", text: "" }]);
-      await readTextResponse(res, text => {
-        if (!controller.signal.aborted) setAskMessages(prev => [...prev.slice(0, -1), { role: "ai", text }]);
-      });
-    } catch (err) {
-      if (controller.signal.aborted) return;
-      setAskMessages((prev) => [...prev, { role: "ai", text: `Error: ${err instanceof Error ? err.message : "failed"}` }]);
-    } finally {
-      setAskLoading(false);
-    }
-  }
 
   // ── Render ─────────────────────────────────────────────────────────
 
@@ -1005,6 +964,24 @@ export default function PrDetailPage() {
               )}
             </div>
           )}
+
+          {/* Ask about this change: the PR's own patch and description, plus a
+              follow-up fix once one is drafted here. Loads the diff on open. */}
+          <ChangeChat
+            storageKey={`pr:${repoFull}#${prNumber}`}
+            repo={repoFull}
+            title={pr.title}
+            onOpen={() => void loadDiff()}
+            starters={STARTER_QUESTIONS.filter((q) => !q.includes("project's rules"))}
+            caveat="Answers are based on this pull request's change; check them against the code."
+            context={{
+              description: [
+                pr.body ? `PR description:\n${pr.body}` : "",
+                fixState?.status === "done" && fixState.response ? `A follow-up fix drafted on this page (not pushed yet unless the page says so):\n${fixState.response}` : "",
+              ].filter(Boolean).join("\n\n"),
+              diff: prDiff ?? undefined,
+            }}
+          />
 
           {/* First contribution? The draft, the wait, the etiquette. */}
           <details className="rounded-2xl mt-4 border border-border-soft bg-surface px-4 py-3">
@@ -1527,68 +1504,6 @@ export default function PrDetailPage() {
                           <span className="ml-2 text-xs text-paper-faint">Attempt {fixRetryCount + 1}/3</span>
                         </div>
                       )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Ask about this change */}
-              {fixState.status === "done" && fixState.response && (
-                <div className="px-4 py-2 border-t border-border-soft">
-                  <button
-                    onClick={() => { setAskOpen(!askOpen); if (!askOpen && askMessages.length === 0) setAskMessages([]); }}
-                    className="rounded-full text-[11px] text-info border border-info/30 hover:bg-info/10 px-3 py-1 transition"
-                  >
-                    {askOpen ? "close chat" : "ask about this change"}
-                  </button>
-                  <span className="ml-2 text-xs text-paper-faint">
-                    Ask Claude to explain the reasoning, potential risks, or alternatives
-                  </span>
-
-                  {askOpen && (
-                    <div className="rounded-2xl mt-3 border border-border-soft bg-ink/30 max-h-[300px] flex flex-col">
-                      <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-[80px]">
-                        {askMessages.length === 0 && (
-                          <div className="text-xs text-paper-faint italic">
-                            Ask anything about the generated fix — why it chose this approach, what could go wrong, alternative approaches, etc.
-                          </div>
-                        )}
-                        {askMessages.map((msg, i) => (
-                          <div key={i} className={cn("text-[11px]", msg.role === "user" ? "text-paper" : "text-paper-dim")}>
-                            <span className={cn(
-                              "text-[11px] font-medium mr-1.5",
-                              msg.role === "user" ? "text-signal" : "text-info",
-                            )}>
-                              {msg.role === "user" ? "you" : "ai"}
-                            </span>
-                            <span className="whitespace-pre-wrap break-words">{msg.text}</span>
-                          </div>
-                        ))}
-                        {askLoading && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-info animate-pulse-signal">thinking...</span>
-                            <button onClick={cancelGeneration} className="text-xs text-paper-muted hover:text-alert transition">cancel</button>
-                          </div>
-                        )}
-                      </div>
-                      <div className="border-t border-border-soft p-2 flex gap-2">
-                        <input
-                          type="text"
-                          value={askInput}
-                          onChange={(e) => setAskInput(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAsk(); } }}
-                          placeholder="Why did you make this change?"
-                          disabled={askLoading}
-                          className="rounded-lg flex-1 bg-surface border border-border px-2.5 py-1.5 text-[11px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-info/50 disabled:opacity-50"
-                        />
-                        <button
-                          onClick={handleAsk}
-                          disabled={!askInput.trim() || askLoading}
-                          className="rounded-full border border-info/50 bg-info/10 text-info hover:bg-info/20 px-3 py-1.5 text-xs font-medium disabled:opacity-50 shrink-0 transition"
-                        >
-                          ask
-                        </button>
-                      </div>
                     </div>
                   )}
                 </div>

@@ -5,7 +5,7 @@
  * Sanitize text that will be interpolated into LLM prompts.
  * Strips control characters and common prompt injection patterns.
  */
-export function sanitizeForPrompt(input: string): string {
+export function sanitizeForPrompt(input: string, maxLength = 5000): string {
   const cleaned = input
     // CRLF and lone CR become newlines, so the collapse below sees them
     .replace(/\r\n?/g, "\n")
@@ -13,8 +13,8 @@ export function sanitizeForPrompt(input: string): string {
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
     // Collapse excessive whitespace
     .replace(/\n{4,}/g, "\n\n\n");
-  // Cap length — no prompt should need more than 5000 chars of user input
-  return capCodePoints(cleaned, 5000);
+  // Cap length — 5000 chars of user input by default; a diff may need more
+  return capCodePoints(cleaned, maxLength);
 }
 
 /**

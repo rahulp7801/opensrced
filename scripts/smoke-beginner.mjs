@@ -36,6 +36,15 @@ async function assertAccessible(page, label) {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, `overflow ${label}`);
 }
 
+/** One rule row: its visible status tag, its label and its exact text. */
+async function assertRow(box, label, tag, text) {
+  const item = box.getByRole('listitem').filter({ has: box.page().getByText(text, { exact: true }) });
+  assert.equal(await item.count(), 1, `one "${text}" row`);
+  const shown = await item.innerText();
+  assert.ok(shown.startsWith(tag), `"${text}" is tagged ${tag}: ${shown}`);
+  assert.ok(shown.includes(label), `"${text}" is under ${label}`);
+}
+const sse = events => events.map(event => `data: ${JSON.stringify(event)}\n\n`).join('');
 const now = new Date().toISOString();
 const log = ['[agentic-dispatcher] repo: acme/app', '## Diagnosis', '', 'An empty input reaches parse unchecked.', '',
   '```diff', '--- a/parser.ts', '+++ b/parser.ts', '@@ -1 +1 @@', '-return items[0];', '+return items[0] ?? null;', '```', ''].join('\n');
@@ -50,11 +59,35 @@ const preview = {
   verification: { status: 'verified', reason: 'npm test passed' }, blockers: [], warnings: [],
   confirmation: "I've read this change and can explain it to reviewers.", draft_issue_comment: "Hi, I'd like to help with this.", ask_first: false,
 };
+const diff = '--- a/parser.ts\n+++ b/parser.ts\n@@ -1 +1 @@\n-return items[0];\n+return items[0] ?? null;\n';
 const previews = {
   'b-dry': { ...preview, publishable: false },
-  'b-ready': { ...preview, publishable: true },
+  'b-ready': { ...preview, publishable: true, diff },
   'b-ask': { ...preview, publishable: true, ask_first: true, warnings: ['Maintainers ask for discussion first: the issue is labeled "needs discussion".'] },
 };
+// "This project's rules": one stored preview per kind of project, as run-finish writes them now.
+const verification = { status: 'verified', reason: '1 test command passed', regression: 'reproduced', plan: { setup: [], test: ['npm test'], lint: [] }, evidence: [] };
+const profile = { dco: false, cla: null, aiPolicy: { stance: 'unknown', source: null, excerpt: null }, aiTrailer: null, sources: ['CONTRIBUTING.md'] };
+const rules = { pr_template: true, template_headings: { total: 2, kept: 2 }, agent_instructions: false, notes: 0, discuss_first: null, competing_prs: 'none', disclosed: true };
+const ruleVariants = {
+  'r-dco': { profile: { ...profile, dco: true, sources: ['CONTRIBUTING.md', '.github/dco.yml'] }, signoff: true, rows: [
+    ['Sign-off (DCO)', 'Done', 'Required, added to your commit as you'], ['Contribution guide', 'Done', 'Read CONTRIBUTING.md and .github/dco.yml'], ['PR template', 'Done', "Followed the project's PR template"]] },
+  'r-cla': { profile: { ...profile, cla: 'React requires the Meta Contributor License Agreement, signed once at https://code.facebook.com/cla.' }, rows: [
+    ['CLA', 'Your action', 'Required: you must sign it yourself before maintainers can merge'], ['Sign-off (DCO)', 'Not needed', 'Not required']] },
+  'r-disclose': { profile: { ...profile, aiPolicy: { stance: 'disclose', source: 'CONTRIBUTING.md', excerpt: 'Please disclose AI assistance.' } }, rows: [
+    ['AI policy', 'Done', 'Asks contributors to disclose AI use: disclosure added'], ['Someone else\'s work', 'Done', 'No other open pull request targets this issue']] },
+  'r-ban': { profile: { ...profile, aiPolicy: { stance: 'ban', source: 'AI_POLICY.md', excerpt: 'We do not accept AI-generated contributions.' } },
+    blockers: ['this project does not accept AI-generated contributions (AI_POLICY.md: "We do not accept AI-generated contributions.")'], rows: [
+    ['AI policy', 'Blocked', 'Bans AI-generated contributions: publishing refused']] },
+  'r-discuss': { rules: { ...rules, discuss_first: 'the issue is labeled "needs discussion", so maintainers have not settled on a fix yet' }, ask_first: true, rows: [
+    ['Discuss first', 'Your action', 'Asks to discuss before a PR: a comment is drafted for you to post']] },
+  'r-unverified': { executed: true, verification: { ...verification, status: 'unverified', reason: 'no test command was declared' }, rows: [
+    ['Tests', 'Check', "Couldn't run tests: unverified"]] },
+};
+for (const [id, v] of Object.entries(ruleVariants)) {
+  runs[id] = { ...run, id, dry_run: false, pr_status: v.blockers ? 'blocked' : 'awaiting_review' };
+  previews[id] = { ...preview, publishable: true, diff, profile, rules, verification, ...v, rows: undefined };
+}
 
 try {
   for (const width of [1440, 390]) {
@@ -65,6 +98,7 @@ try {
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     const starts = [];
+    const explains = [];
     let publishes = 0;
     // Section 7 switches the list pages to these answers.
     let lists = false;
@@ -94,9 +128,14 @@ try {
       if (lists && path === '/api/prs/github') return route.fulfill({ json: { login: 'first-timer', prs: [{ repo: 'acme/app', title: 'Handle empty input', number: 12, url: 'https://github.com/acme/app/pull/12',
         state: 'OPEN', createdAt: now, updatedAt: now, branch: 'fix', base: 'main', additions: 2, deletions: 1, reviewDecision: 'CHANGES_REQUESTED', isDraft: false, commentCount: 1 }] } });
       if (path === '/api/prs/review') return route.fulfill({ json: {
-        pr: { title: 'fix(parser): handle empty input (#1)', state: 'OPEN', url: 'https://github.com/acme/app/pull/12', branch: 'opensrcer/1-b-ready', headRepo: 'first-timer/app', base: 'main', author: 'first-timer' },
+        pr: { title: 'fix(parser): handle empty input (#1)', state: 'OPEN', url: 'https://github.com/acme/app/pull/12', branch: 'opensrcer/1-b-ready', headRepo: 'first-timer/app', base: 'main', author: 'first-timer', body: 'Returns null on empty input.' },
         comments: [{ id: 1, author: 'maint', body: 'Can you also handle whitespace?', path: 'parser.ts', line: 1, diffHunk: null, createdAt: now, type: 'review', inReplyTo: null, isOwnComment: false }],
       } });
+      if (path === '/api/explain') {
+        explains.push(route.request().postDataJSON());
+        return route.fulfill({ contentType: 'text/event-stream', body: sse([{ text: 'It returns null instead of crashing ' }, { text: 'when the list is empty.' }, { cost: 0.001, done: true }]) });
+      }
+      if (path === '/api/prs/diff') return route.fulfill({ json: { diff } });
       if (path === '/api/prs/lifecycle') return route.fulfill({ json: { followups: false, state: 'open', ci: 'failed', mergeable_state: 'dirty', linked_issue: 1,
         recent: [{ kind: 'conflict', at: now }, { kind: 'ci_failed', at: now, checks: [{ name: 'lint', url: 'https://github.com/acme/app/actions/runs/1' }] }],
         pending_replies: 1, can_fix_ci: true, can_address_review: true } });
@@ -145,6 +184,43 @@ try {
     await assertUsableControls(page, `${width} publish gate`);
     await assertAccessible(page, `${width} publish gate`);
 
+    // 3b. This project's rules. This stored preview predates the rules record,
+    // so it claims only what it recorded (the sign-off) and says so for the rest.
+    const rulesBox = gate.getByRole('region', { name: "This project's rules" });
+    await rulesBox.getByText('Why this matters: maintainers set these rules, and following them is what makes a contribution welcome.', { exact: true }).waitFor();
+    await assertRow(rulesBox, 'Sign-off (DCO)', 'Done', 'Required, added to your commit as you');
+    await assertRow(rulesBox, 'CLA', 'Not recorded', 'Not recorded for this run.');
+    await assertRow(rulesBox, 'Tests', 'Done', "Ran the project's tests on the final patch (verified)");
+
+    // 3c. Ask about this change: a starter question, a streamed answer with
+    // its caveat, and the conversation kept across a reload.
+    const chatToggle = gate.getByRole('button', { name: 'Ask about this change', exact: true });
+    await thumbSized(chatToggle, 'Ask about this change');
+    assert.equal(await chatToggle.getAttribute('aria-expanded'), 'false');
+    await chatToggle.focus();
+    await page.keyboard.press('Enter');
+    assert.equal(await gate.getByRole('button', { name: 'Close the questions', exact: true }).getAttribute('aria-expanded'), 'true', 'the chat opens by keyboard');
+    await gate.getByText("Answers are based on this change and the project's rules; check them against the code.", { exact: false }).waitFor();
+    const starter = gate.getByRole('button', { name: "Explain this fix like I'm new to the project", exact: true });
+    await thumbSized(starter, 'a starter question');
+    await thumbSized(gate.getByLabel('Your question', { exact: true }), 'the question box');
+    await starter.click();
+    const chatLog = gate.getByRole('log', { name: 'Questions and answers' });
+    await chatLog.getByText('It returns null instead of crashing when the list is empty.', { exact: true }).waitFor();
+    await chatLog.getByText('AI answer (not verified)', { exact: true }).waitFor();
+    assert.equal(await chatLog.getAttribute('aria-busy'), 'false', 'the live region settles when the answer is complete');
+    assert.equal(explains.length, 1);
+    assert.equal(explains[0].question, "Explain this fix like I'm new to the project");
+    assert.match(explains[0].context.diff, /items\[0\] \?\? null/, 'the chat sends the frozen patch');
+    assert.match(explains[0].context.rules, /Sign-off \(DCO\): Required, added to your commit as you/, 'and the project rules');
+    assert.match(explains[0].context.verification, /verified/);
+    await assertUsableControls(page, `${width} change chat`);
+    await assertAccessible(page, `${width} change chat`);
+    await page.reload();
+    await gate.getByRole('button', { name: 'Ask about this change (1 asked)', exact: true }).click();
+    await chatLog.getByText('It returns null instead of crashing when the list is empty.', { exact: true }).waitFor();
+    assert.equal(explains.length, 1, 'a reload shows the kept answer without asking again');
+
     // 4. Publishing shows its result and what happens next, instead of nothing.
     await gate.getByRole('checkbox').check();
     await gate.getByRole('button', { name: 'Publish draft PR', exact: true }).click();
@@ -162,6 +238,15 @@ try {
     await page.goto(base + '/dispatches?dispatch=b-ask');
     await page.getByText('Suggested instead: ask on the issue first.', { exact: false }).waitFor();
 
+    // 5b. Each kind of project's rules, as the review screen states them.
+    for (const [id, v] of Object.entries(ruleVariants)) {
+      await page.goto(base + '/dispatches?dispatch=' + id);
+      const box = page.getByRole('region', { name: "This project's rules" });
+      for (const [label, tag, text] of v.rows) await assertRow(box, label, tag, text);
+      if (id === 'r-ban') assert.equal(await page.getByRole('button', { name: 'Publish draft PR' }).count(), 0, 'an AI ban leaves nothing to publish');
+      if (id === 'r-cla') await assertAccessible(page, `${width} CLA rules`);
+    }
+
     // 6. The PR page: next steps on request, follow-up words explained, no internal names.
     await page.goto(base + '/prs/acme/app/12');
     const help = page.getByText('New to this? What happens next, and how to answer reviewers', { exact: true });
@@ -173,6 +258,22 @@ try {
     await page.getByText(/needs updating \(a rebase\)/).waitFor();
     await assertUsableControls(page, `${width} PR page`);
     await assertAccessible(page, `${width} PR page`);
+    // The PR page's chat needs no follow-up fix first; opening it loads the PR's diff.
+    const diffLoaded = page.waitForRequest(request => new URL(request.url()).pathname === '/api/prs/diff');
+    const prChat = page.getByRole('button', { name: 'Ask about this change', exact: true });
+    await thumbSized(prChat, 'the PR page chat');
+    await prChat.click();
+    await diffLoaded;
+    await page.getByText("Answers are based on this pull request's change; check them against the code.", { exact: false }).waitFor();
+    assert.equal(await page.getByRole('button', { name: "Which of the project's rules apply, and did it follow them?" }).count(), 0, 'no rules question where no rules were recorded');
+    await page.getByRole('button', { name: 'What could this break?', exact: true }).click();
+    await page.getByRole('log', { name: 'Questions and answers' }).getByText('It returns null instead of crashing when the list is empty.', { exact: true }).waitFor();
+    const prAsk = explains.at(-1);
+    assert.equal(prAsk.repo, 'acme/app');
+    assert.match(prAsk.context.description, /PR description:\nReturns null on empty input\./);
+    assert.match(prAsk.context.diff, /items\[0\] \?\? null/);
+    await assertUsableControls(page, `${width} PR page chat`);
+    await assertAccessible(page, `${width} PR page chat`);
 
     // 7. Plain words, one set of run buttons, nothing to pay twice for, and
     // controls a thumb can hit (40px on a phone).

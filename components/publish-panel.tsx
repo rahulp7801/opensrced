@@ -9,15 +9,20 @@
 import { useEffect, useState } from "react";
 import { copyText } from "@/lib/clipboard";
 import { publishSteps } from "@/lib/beginner-guide";
+import { projectRules, rulesText, RULE_STATUS_LABEL, type RuleRow, type RuleStatus, type RulesPreview } from "@/lib/project-rules";
+import { cn } from "@/lib/utils";
+import { ChangeChat } from "./change-chat";
 import { Term } from "./term";
 
-type Preview = {
+type Preview = RulesPreview & {
   title: string;
   body: string;
   files: string[];
   signoff: boolean;
   executed: boolean;
-  verification: { status: string; reason: string } | null;
+  /** The frozen patch (GET /api/dispatches/<id>/preview). */
+  diff?: string;
+  diagnosis?: string;
   blockers: string[];
   warnings: string[];
   draft_issue_comment?: string;
@@ -30,8 +35,10 @@ type Preview = {
   followup_pr?: string;
 };
 
-export function PublishPanel({ dispatchId, dryRun = false, rerun, onPublished }: {
+export function PublishPanel({ dispatchId, repo, dryRun = false, rerun, onPublished }: {
   dispatchId: string;
+  /** The run's repository (owner/name or its GitHub URL), for "Ask about this change". */
+  repo?: string;
   /** The run was a preview: show how to get to a publishable run. */
   dryRun?: boolean;
   /** The issue this run was for, to start it again as a publishable run. */
@@ -79,6 +86,7 @@ export function PublishPanel({ dispatchId, dryRun = false, rerun, onPublished }:
   const v = preview.verification;
   const verdict = !preview.executed ? "not verified (no code was run)" : !v ? "not verified" : `${v.status} — ${v.reason}`;
   const canPublish = preview.publishable && preview.blockers.length === 0;
+  const rules = projectRules(preview);
   const comment = preview.draft_issue_comment;
   const commentBlock = comment && (
     <>
@@ -138,6 +146,18 @@ export function PublishPanel({ dispatchId, dryRun = false, rerun, onPublished }:
           {commentBlock}
         </details>
       ))}
+      <ProjectRules rows={rules} />
+      <ChangeChat
+        storageKey={`run:${dispatchId}`}
+        repo={repo}
+        title={preview.title}
+        context={{
+          description: `${preview.diagnosis ? `The agent's diagnosis:\n${preview.diagnosis}\n\n` : ""}PR text:\n${preview.body}`,
+          diff: preview.diff,
+          verification: `Verification: ${verdict}${v?.regression ? `; regression check: ${v.regression.replace(/_/g, " ")}` : ""}`,
+          rules: rulesText(rules),
+        }}
+      />
       {canPublish && (
         <>
           <div className="mt-3 rounded-lg border border-border-soft bg-ink px-3 py-2.5">
@@ -170,6 +190,38 @@ export function PublishPanel({ dispatchId, dryRun = false, rerun, onPublished }:
           </div>
         </>
       )}
+    </section>
+  );
+}
+
+const STATUS_TONE: Record<RuleStatus, string> = {
+  done: "border-ok/50 text-ok",
+  action: "border-signal/60 text-signal",
+  blocked: "border-alert/50 text-alert",
+  check: "border-signal/50 text-signal",
+  unknown: "border-border-strong text-paper-muted",
+  none: "border-border-strong text-paper-muted",
+};
+
+/** Each rule the project sets and how this run handled it (lib/project-rules.ts).
+ *  Rows that need the user, or that stop publishing, stand out. */
+function ProjectRules({ rows }: { rows: RuleRow[] }) {
+  return (
+    <section aria-labelledby="project-rules-heading" className="mt-3 rounded-lg border border-border-soft bg-ink px-3 py-2.5">
+      <h4 id="project-rules-heading" className="font-medium text-paper">This project&apos;s rules</h4>
+      <p className="mt-1 text-paper-muted">Why this matters: maintainers set these rules, and following them is what makes a contribution welcome.</p>
+      <ul className="mt-2 space-y-1.5">
+        {rows.map((r) => (
+          <li key={r.id} className={cn("rounded-lg border px-2.5 py-1.5", r.status === "action" ? "border-signal/50 bg-signal/5" : r.status === "blocked" ? "border-alert/50 bg-alert/5" : "border-border-soft")}>
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              <span className={cn("shrink-0 rounded-full border px-2 text-[11px] font-medium", STATUS_TONE[r.status])}>{RULE_STATUS_LABEL[r.status]}</span>
+              <span className="font-medium text-paper">{r.term ? <Term term={r.term}>{r.label}</Term> : r.label}:</span>
+              <span className={r.status === "action" || r.status === "blocked" ? "text-paper" : "text-paper-dim"}>{r.text}</span>
+            </div>
+            {r.detail && <p className="mt-0.5 break-words text-paper-muted">{r.detail}</p>}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

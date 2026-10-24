@@ -179,15 +179,15 @@ const PUBLISH_AT = 20200;
 export const REVIEW_CONFIRM_AT = CONFIRM_AT;
 export const REVIEW_PUBLISH_AT = PUBLISH_AT;
 export const REVIEW_PUBLISHED_AT = PUBLISH_AT + 500;
-const DEMO_PUBLISH_STEPS = publishSteps({ files: PATCH_STATS.files, signoff: false });
+export const DEMO_PUBLISH_STEPS = publishSteps({ files: PATCH_STATS.files, signoff: false });
 
 /** A term the app explains on tap (components/term.tsx), drawn as it looks. */
-function Term({ children }: { children: string }) {
+export function Term({ children }: { children: string }) {
   return <span className="underline decoration-dotted underline-offset-2">{children}</span>;
 }
 
 /** The run page after publishing (components/next-steps.tsx with lib/beginner-guide.ts). */
-function Published() {
+export function Published() {
   return (
     <div data-spot="next-steps" className="min-h-0 flex-1 overflow-hidden px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-2">

@@ -2,7 +2,7 @@
 
 // Tour act "Fix" (plus the pull request that opens "Ship"): starting a run, the
 // real run on issue #2, reviewing its patch, a run that cannot finish, the run
-// history, and the draft pull request it opened (rahulp7801/opensrcer-demo #6).
+// history, and the draft pull request it opened (rahulp7801/opensrcer-demo #7).
 
 import { cn } from "@/lib/utils";
 import { StatusChip, StatusDot } from "@/components/status-dot";
@@ -21,7 +21,7 @@ const STAGES: Array<{ name: string; from: number; to: number; skipped?: boolean 
   { name: "clone", from: 0, to: 0.05 },
   { name: "explore", from: 0.05, to: 0.38 },
   { name: "patch", from: 0.4, to: 0.66 },
-  { name: "test", from: 0.86, to: 0.88, skipped: true },
+  { name: "test", from: 0.68, to: 0.84 },
   { name: "review", from: 0.73, to: 0.94 },
 ];
 
@@ -80,7 +80,7 @@ function RunView() {
               <span className="truncate text-paper">{DEMO_REPO} <span className="text-paper-faint">#{ISSUE.number}</span></span>
                           </div>
             <p className="mt-1 truncate text-[11.5px] text-paper-dim">{ISSUE.title}</p>
-            <p className="mt-1 text-[11px] text-paper-muted">just now · <span className={done ? "" : "text-signal"}>{elapsed}</span> · {ready ? <span className="text-ok">waiting for your review <span className="text-paper-faint">· unverified</span></span> : "running"}</p>
+            <p className="mt-1 text-[11px] text-paper-muted">just now · <span className={done ? "" : "text-signal"}>{elapsed}</span> · {ready ? <span className="text-ok">waiting for your review <span className="text-paper-faint">· verified</span></span> : "running"}</p>
           </div>
           {PAST_RUNS.map((r) => (
             <div key={r.number} className="border-t border-border-soft px-3 py-2.5">
@@ -130,14 +130,15 @@ export const run: Chapter = {
   label: "Watch it run",
   title: "Watch the agent work",
   duration: 28000,
-  source: "Replay of real runs on opensrcer-demo #2 · the PR #6 run took 69 s and $0.20 · like every run, it stops for your review",
+  source: "Replay of the real run on opensrcer-demo #2 that became PR #7 · 53 s, $0.10, verified · like every run, it stops for your review",
   captions: [
     { at: 0, text: "The run starts in a fresh, isolated virtual machine with a spend cap. What follows replays the real run, sped up." },
     { at: runAt(0.08), text: "The agent explores like a new contributor: it reads the code and the tests, and finds every caller before it changes anything." },
     { at: runAt(0.3), text: "Before writing anything, it notes the project's conventions. There's no contribution guide here, so it matches the style the code already uses." },
     { at: runAt(0.4), text: "It writes down what's wrong and where, then the fix as a patch." },
     { at: runAt(0.72), text: "The run ends with everything frozen for review: the patch, the pull request text and the evidence. Nothing has been published." },
-    { at: runAt(0.93), spot: "log-preview", text: "69 seconds and 20 cents, end to end. No tests ran in this run, so it says so: unverified, for you to check." },
+    { at: runAt(0.70), text: "Then it proves the fix: it re-runs the project's own tests on the final patch in a machine with no keys, and again with the fix undone, where the new tests fail." },
+    { at: runAt(0.93), spot: "log-preview", text: "53 seconds and 10 cents, end to end, and verified." },
   ],
   View: RunView,
 };
@@ -237,11 +238,11 @@ function ReviewView() {
               <span className="text-[16px] text-paper-muted" aria-hidden>×</span>
             </div>
             {t >= REVIEW_PUBLISHED_AT ? <Published /> : <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-hidden px-4 py-3">
-              <Reveal at={2200}>
+              <Reveal at={2200} spot="review-found">
                 <p className="mono-label">What was found</p>
                 <p className="mt-1 text-[12px] leading-5 text-paper-dim"><Inline text={DIAGNOSIS} /></p>
               </Reveal>
-              <Reveal at={4300}>
+              <Reveal at={4300} spot="review-risk">
                 <p className="mono-label">Risk &amp; testing</p>
                 <ul className="mt-1 space-y-0.5 text-[11.5px] leading-5 text-paper-dim">
                   {RISK.map((r) => <li key={r} className="flex gap-1.5"><span className="text-paper-faint">·</span><span><Inline text={r} /></span></li>)}
@@ -265,7 +266,7 @@ function ReviewView() {
               </Reveal>
             </div>}
             <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-2 text-[11.5px]">
-              <Press at={13200} className="rounded-full border border-border px-2.5 py-0.5 text-paper-dim">{t >= 13200 ? "Copied ✓" : "Copy diff"}</Press>
+              <Press at={13200} className="rounded-full border border-border px-2.5 py-0.5 text-paper-dim">{t >= 13200 && t < 15200 ? "Copied ✓" : "Copy diff"}</Press>
               <Press at={14300} className="hidden rounded-full border border-border px-2.5 py-0.5 text-paper-dim sm:inline-flex">Commit msg</Press>
             </div>
             {/* The publish gate, as components/publish-panel.tsx shows it: nothing
@@ -292,11 +293,11 @@ export const review: Chapter = {
   label: "Review the patch",
   title: "Review every line",
   duration: REVIEW_PUBLISHED_AT + 8500,
-  source: "Real patch · opensrcer-demo PR #6",
+  source: "Real patch · opensrcer-demo PR #7",
   captions: [
     { at: 0, text: "Every run ends in something you can read in full: what the agent found, what it changed, and how to test it." },
     { at: 4300, text: "The risk notes say what to double-check, including what it deliberately left alone." },
-    { at: 7600, spot: "review-diff", text: "The patch is shown side by side: the one broken line out, a small, commented fix in, and new tests." },
+    { at: 7600, spot: "review-diff", text: "The patch is shown side by side: the one broken line out, a small fix in, and two new tests." },
     { at: 13200, text: "Copy the diff, or a ready-made commit message, if you'd rather apply it yourself." },
     { at: STEPS_AT, spot: "publish-steps", text: "Nothing is published until you say so, and it tells you exactly what publishing does, in plain words, before you confirm: one commit on a new branch, a draft pull request that says an AI tool helped, and nothing merged." },
     { at: CONFIRM_AT - 600, text: "A preview stops here. For a publishable run, you confirm you've read it and can explain it to reviewers." },
@@ -309,7 +310,7 @@ export const review: Chapter = {
 // ── 7. The draft pull request ─────────────────────────────────────────────
 
 function PrView() {
-  const scrollRef = useAutoScroll(3600, 9800);
+  const scrollRef = useAutoScroll(3600, 10500);
   return (
     <AppWindow host="github.com" path={`/${DEMO_REPO}/pull/${RUN.pr}`}>
       <div ref={scrollRef} className="h-full overflow-hidden bg-surface px-4 py-4 sm:px-7">
@@ -332,9 +333,9 @@ function PrView() {
             <p className="border-b border-border bg-surface-2/60 px-3 py-1.5 text-[11.5px] text-paper-muted"><span className="font-semibold text-paper">rahulp7801</span> commented just now</p>
             <div className="space-y-2.5 px-3 py-3 text-[12px] leading-[1.6] text-paper-dim">
               {PR_BODY.map((block, i) => (
-                <Reveal key={i} at={1400 + i * 900}>
+                <Reveal key={i} at={1400 + i * 700} spot={block.spot}>
                   {block.heading && <p className="mb-0.5 font-semibold text-paper">{block.heading}</p>}
-                  <p className={block.text.startsWith("Fixes") ? "font-medium text-paper" : undefined}><Inline text={block.text} /></p>
+                  <p className={block.text.startsWith("Fixes") || block.text.startsWith("Result:") ? "whitespace-pre-line font-medium text-paper" : "whitespace-pre-line"}><Inline text={block.text} /></p>
                 </Reveal>
               ))}
             </div>
@@ -359,7 +360,7 @@ export const pr: Chapter = {
   label: "Draft PR",
   title: "A draft pull request, in your name",
   duration: 13000,
-  source: "Real pull request · github.com/rahulp7801/opensrcer-demo/pull/6",
+  source: "Real pull request · github.com/rahulp7801/opensrcer-demo/pull/7",
   captions: [
     { at: 0, text: "When you publish, the draft pull request opens from your account, with your name on the commit." },
     { at: 3600, text: "The description explains the root cause, what changed and how to test it, written for the maintainer who has to review it." },
@@ -542,7 +543,7 @@ function HistoryView() {
       <div className="grid h-full gap-3 overflow-hidden p-3 sm:p-4 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)]">
         <div className="hidden overflow-hidden rounded-2xl border border-border-soft bg-surface lg:block">
           <div className="flex items-center justify-between border-b border-border-soft px-3 py-2 text-[12px]"><span className="font-medium text-paper">Runs</span><span className="font-mono text-paper-muted">{PAST_RUNS.length + 1}</span></div>
-          {[{ number: ISSUE.number, title: ISSUE.title, dry: false, duration: "1m 09s", status: "PR opened" }, ...PAST_RUNS].map((r, i) => (
+          {[{ number: ISSUE.number, title: ISSUE.title, dry: false, duration: "0m 53s", status: "PR opened" }, ...PAST_RUNS].map((r, i) => (
             <div key={r.number} className={cn("border-t border-border-soft px-3 py-2.5 first:border-0", i === 0 && "bg-surface-2/80")}>
               <p className="truncate text-[12px] text-paper">{DEMO_REPO} <span className="text-paper-faint">#{r.number}</span></p>
               <p className="mt-0.5 truncate text-[11.5px] text-paper-dim">{r.title}</p>
@@ -554,7 +555,7 @@ function HistoryView() {
           <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2.5 sm:px-4">
             <div className="min-w-0">
               <p className="truncate text-[14px] font-medium text-paper">{ISSUE.title}</p>
-              <p className="text-[11px] text-paper-muted">just now · 1m 09s · <span className="text-signal">${RUN.cost.toFixed(4)}</span></p>
+              <p className="text-[11px] text-paper-muted">just now · 0m 53s · <span className="text-signal">${RUN.cost.toFixed(4)}</span></p>
             </div>
             <Press at={7600} className="shrink-0 rounded-full border border-border px-2.5 py-0.5 text-[11.5px] text-paper-dim">Download report</Press>
           </div>

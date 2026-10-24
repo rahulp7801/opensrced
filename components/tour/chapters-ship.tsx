@@ -152,7 +152,7 @@ export const respond: Chapter = {
   label: "Fix a comment",
   title: "Answer the reviewer",
   duration: 22000,
-  source: "Example review comment on the real pull request #6",
+  source: "Example review comment on the real pull request #7",
   captions: [
     { at: 0, text: "Ship: when maintainers comment, your pull requests come back to one inbox." },
     { at: 3400, text: "Open one and every review comment is listed with its file and line." },
@@ -467,7 +467,7 @@ export const reply: Chapter = {
   label: "Answer a question",
   title: "Answer a reviewer's question",
   duration: REPLY_SENT_AT + 7500,
-  source: "Example question on the real pull request #6",
+  source: "Example question on the real pull request #7",
   captions: [
     { at: 0, text: "Not every comment needs code. When a reviewer asks a question, opensrcer recognizes it and offers to draft an answer." },
     { at: 5600, text: "The draft explains the trade-off in plain words and offers a follow-up instead of growing the change." },

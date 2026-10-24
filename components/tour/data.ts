@@ -1,6 +1,6 @@
 // Data the product tour replays. The issue, the run's tool calls, the patch and
 // the pull request are taken from a real run on the public demo repository
-// (rahulp7801/opensrcer-demo, issue #2 -> draft PR #6, October 20-21, 2026).
+// (rahulp7801/opensrcer-demo, issue #2 -> hosted, verified run -> draft PR #7, October 24, 2026).
 // Everything marked EXAMPLE is illustrative and labelled that way on screen.
 
 export const DEMO_REPO = "rahulp7801/opensrcer-demo";
@@ -26,69 +26,66 @@ export const ISSUE_BODY = [
 
 /** The run (real): duration, spend and the pull request it opened. */
 export const RUN = {
-  id: "c_1792549506303_25804b7e7f43",
-  seconds: 69,
-  cost: 0.2010,
+  id: "c_1792871013551_0adfa89a9f16",
+  seconds: 53,
+  cost: 0.0981,
   budget: 2,
-  pr: 6,
-  branch: "opensrcer/issue-2-25-16_9f59b5",
-  prTitle: "fix: keep truncate within max and cut on word boundaries",
+  pr: 7,
+  branch: "opensrcer/issue-2-0adfa89a9f16",
+  prTitle: "Fix truncate to respect max length and word boundaries",
 };
 
 /** The run log, as the Runs page streams it. `at` is the share of the run (0-1)
- *  when the line appears. The tool calls are the agent's real calls on this issue
- *  (re-run on October 22, 2026: 77 s, $0.22); the patch and PR are from PR #6. */
+ *  when the line appears. The lines are the real run's (October 24, 2026, hosted
+ *  with a test machine: 53 s, $0.098), shortened where they repeat. */
 export const RUN_LOG: Array<{ at: number; text: string }> = [
-  { at: 0.00, text: `[agentic-dispatcher] repo: ${DEMO_REPO}  issue: #2` },
-  { at: 0.015, text: "[agentic-dispatcher] guardrails: --max-budget-usd=2 · timeout=1800s" },
-  { at: 0.03, text: "I'll start by orienting on the repo and looking for contribution guidelines." },
-  { at: 0.050, text: "[tool] repo_info" },
-  { at: 0.072, text: "[tool] list_files CONTRIBUTING*" },
-  { at: 0.094, text: "[tool] list_files" },
-  { at: 0.116, text: "[tool] list_files .github/**" },
-  { at: 0.138, text: "[tool] read_file README.md" },
-  { at: 0.160, text: "[tool] read_file package.json" },
-  { at: 0.182, text: "[tool] read_file src/truncate.ts" },
-  { at: 0.204, text: "[tool] read_file test/text.test.ts" },
-  { at: 0.226, text: "[tool] read_file src/index.ts" },
-  { at: 0.248, text: "[tool] find_references truncate" },
-  { at: 0.270, text: "[tool] read_file src/slugify.ts" },
+  { at: 0.00, text: "[profile] dco=false cla=none template=no agent-rules=no ai-policy=unknown ai-trailer=none sources=none" },
+  { at: 0.01, text: "[exec] mode=remote (exec VM provided by the web app)" },
+  { at: 0.02, text: "[setup] no environment recipe for this repository; the agent installs what it needs" },
+  { at: 0.03, text: `[agentic-dispatcher] repo: ${DEMO_REPO}  issue: #2` },
+  { at: 0.04, text: "[agentic-dispatcher] guardrails: cap=budget --max-budget-usd=1 --max-turns=120 · timeout=1200s" },
+  { at: 0.06, text: "[tool] repo_info" },
+  { at: 0.08, text: "[tool] find_definition truncate" },
+  { at: 0.10, text: "[tool] read_file src/truncate.ts" },
+  { at: 0.12, text: "[tool] list_files test/**" },
+  { at: 0.14, text: "[tool] read_file test/text.test.ts" },
+  { at: 0.16, text: "[tool] read_file package.json" },
+  { at: 0.18, text: "[tool] grep ." },
+  { at: 0.20, text: "[tool] read_file README.md" },
   { at: 0.30, text: "## Conventions" },
-  { at: 0.32, text: "- No contribution guide found: no CONTRIBUTING*, no .github/, no templates." },
-  { at: 0.345, text: "- Matched what the repo already does: `area: summary` commit subjects," },
-  { at: 0.36, text: "  a JSDoc example on every exported helper, tests via `npm test`." },
+  { at: 0.32, text: "No contribution guide (CONTRIBUTING, PR template) found in this repo. Observed conventions from the codebase itself: tests live in `test/text.test.ts` using Node's built-in `node:test` + `node:assert/strict`, run via `npm test`. No lint/format config files are present." },
   { at: 0.40, text: "## Diagnosis" },
-  { at: 0.42, text: "`truncate` slices at a fixed index and appends the ellipsis after" },
-  { at: 0.44, text: "using the whole budget, so results are max + 1 characters and cut" },
-  { at: 0.46, text: "mid-word (src/truncate.ts:15)." },
-  { at: 0.52, text: "```diff" },
-  { at: 0.535, text: "--- a/src/truncate.ts" },
-  { at: 0.545, text: "+++ b/src/truncate.ts" },
-  { at: 0.56, text: "-  return text.slice(0, max) + ellipsis;" },
-  { at: 0.575, text: "+  const budget = max - ellipsis.length;" },
-  { at: 0.59, text: "+  …" },
-  { at: 0.60, text: "```" },
-  { at: 0.66, text: `[agentic-dispatcher] total_cost_usd=${0.200982.toFixed(6)}` },
-  { at: 0.68, text: "[agentic-dispatcher] exited · status=succeeded · exit=0" },
-  // A run now ends at a frozen preview, as lib/run-finish.ts prints it. Hosted
-  // runs cannot run the repository's tests, so verification is "not run"; the
-  // secret scan and the draft PR come only when the user publishes.
-  { at: 0.73, text: "[preview] ─────────────────────────────" },
-  { at: 0.80, text: `[preview] ready for review: "${RUN.prTitle}" (2 file(s), sign-off=false, verification=not run)` },
-  { at: 0.90, text: "[preview] nothing has been published; review the patch and evidence, then use Publish on the run page" },
+  { at: 0.42, text: "`truncate` in `src/truncate.ts:15` (original) simply did `text.slice(0, max) + ellipsis`, which never accounted for the ellipsis's length against `max`, and sliced at a fixed character offset with no awareness of word boundaries." },
+  { at: 0.48, text: "[tool] edit_file src/truncate.ts" },
+  { at: 0.50, text: "[tool] edit_file test/text.test.ts" },
+  { at: 0.53, text: "[tool] run_command node --version && node --experimental-strip-types --test \"test/**/*.test.ts\"" },
+  { at: 0.55, text: "All tests pass. No separate linter config found (no eslint/prettier config files), so no lint step to run." },
+  { at: 0.62, text: "[agentic-dispatcher] total_cost_usd=0.098148" },
+  { at: 0.64, text: "[agentic-dispatcher] exited · status=succeeded · exit=0" },
+  { at: 0.66, text: "[exec] final patch = git diff of the workspace (1481 bytes)" },
+  { at: 0.70, text: "[verify] re-running 1 test and 0 lint command(s) on the final patch" },
+  { at: 0.74, text: "[verify] status=verified regression=reproduced" },
+  { at: 0.76, text: "[verify] reason=declared tests pass, and fail with the source change reverted" },
+  { at: 0.78, text: "[verify] test: node --experimental-strip-types --test \"test/**/*.test.ts\"" },
+  { at: 0.79, text: "[verify]   exit=0 · 0.2s" },
+  { at: 0.81, text: "[verify] fail-before: (source change reverted) node --experimental-strip-types --test \"test/**/*.test.ts\"" },
+  { at: 0.82, text: "[verify]   exit=1 · 0.2s" },
+  { at: 0.86, text: "[preview] ─────────────────────────────" },
+  { at: 0.88, text: `[preview] ready for review: "${RUN.prTitle}" (2 file(s), sign-off=false, verification=verified)` },
+  { at: 0.92, text: "[preview] nothing has been published; review the patch and evidence, then use Publish on the run page" },
 ];
 
 /** "What was found" and "Risk & testing", from the run (real, lightly shortened). */
 export const DIAGNOSIS =
-  "`truncate` ignored both of its documented guarantees. `src/truncate.ts:15` sliced at a fixed index with no regard for word boundaries, then appended the ellipsis after using the whole `max` budget, so `truncate(\"The quick brown fox\", 12)` returned `\"The quick br…\"`: 13 characters, cut inside \"brown\".";
+  "`truncate` in `src/truncate.ts:15` simply did `text.slice(0, max) + ellipsis`: it never counted the ellipsis against `max`, so the result could be longer than `max`, and it sliced at a fixed offset with no awareness of word boundaries, so it could cut in the middle of a word. Both contradict the function's own documented contract.";
 
 export const RISK = [
-  "`npm test` covers four new cases: the word boundary from the issue, a custom ellipsis, a single oversized word, and a budget that lands on a space.",
-  "`find_references` shows no internal callers, so the blast radius is the public API.",
-  "Flagged for review: length is still counted in UTF-16 code units, as before.",
+  "The change is in the core slicing logic of `truncate`. The function is pure and self-contained, with no other call sites in `src/`.",
+  "Two new tests cover the issue's exact example and a cut that already lands on a space; all 6 tests pass.",
+  "When `max` is smaller than the ellipsis it's handled defensively, but not separately tested.",
 ];
 
-/** The real patch (PR #6), file by file, for the split view. `null` is a gap
+/** The real patch (PR #7), file by file, for the split view. `null` is a gap
  *  that keeps the two sides aligned, as the real split view draws it. */
 export const PATCH: Array<{ file: string; before: Array<string | null>; after: string[]; removed: number[]; added: number[] }> = [
   {
@@ -98,56 +95,59 @@ export const PATCH: Array<{ file: string; before: Array<string | null>; after: s
       "  const ellipsis = options.ellipsis ?? \"…\";",
       "  if (text.length <= max) return text;",
       "  return text.slice(0, max) + ellipsis;",
-      ...Array<null>(11).fill(null),
+      ...Array<null>(8).fill(null),
       "}",
     ],
     after: [
       "export function truncate(text: string, max: number, options: TruncateOptions = {}): string {",
       "  const ellipsis = options.ellipsis ?? \"…\";",
       "  if (text.length <= max) return text;",
+      "  if (max <= ellipsis.length) return ellipsis.slice(0, max);",
       "",
-      "  // The ellipsis counts toward `max`, so it has to come out of the budget first.",
       "  const budget = max - ellipsis.length;",
-      "  if (budget <= 0) return ellipsis.slice(0, Math.max(max, 0));",
-      "",
-      "  let head = text.slice(0, budget);",
-      "  if (!/\\s/.test(text.charAt(budget))) {",
-      "    const boundary = head.replace(/\\S*$/, \"\");",
-      "    if (boundary.trim().length > 0) head = boundary;",
+      "  let truncated = text.slice(0, budget);",
+      "  if (text[budget] !== \" \") {",
+      "    const lastSpace = truncated.lastIndexOf(\" \");",
+      "    if (lastSpace > 0) truncated = truncated.slice(0, lastSpace);",
       "  }",
-      "",
-      "  return head.replace(/\\s+$/, \"\") + ellipsis;",
+      "  return truncated.trimEnd() + ellipsis;",
       "}",
     ],
     removed: [3],
-    added: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+    added: [3, 4, 5, 6, 7, 8, 9, 10, 11],
   },
   {
     file: "test/text.test.ts",
     before: [],
     after: [
-      "test(\"truncate ends on a word boundary within max\", () => {",
+      "test(\"truncate ends on a word boundary and keeps the ellipsis within max\", () => {",
       "  const result = truncate(\"The quick brown fox\", 12);",
       "  assert.equal(result, \"The quick…\");",
       "  assert.ok(result.length <= 12);",
       "});",
+      "",
+      "test(\"truncate does not need to back up when the cut already lands on a space\", () => {",
+      "  assert.equal(truncate(\"The quick brown fox\", 10), \"The quick…\");",
+      "});",
     ],
     removed: [],
-    added: [0, 1, 2, 3, 4],
+    added: [0, 1, 2, 3, 4, 5, 6, 7, 8],
   },
 ];
 
-export const PATCH_STATS = { files: 2, additions: 35, deletions: 1 };
+export const PATCH_STATS = { files: 2, additions: 19, deletions: 1 };
 
-/** The pull request description (real, PR #6), as GitHub renders it. */
-export const PR_BODY: Array<{ heading?: string; text: string }> = [
-  { text: "`truncate` now never returns more than `max` characters and never splits a word." },
-  { heading: "Root cause", text: "`src/truncate.ts:15` sliced at a fixed index and appended the ellipsis after consuming the full `max` budget, so results were `max + ellipsis.length` characters long and could cut inside a word." },
-  { heading: "What changed", text: "The ellipsis length now comes out of `max` up front. If the cut lands inside a word, the partial word is dropped so the result ends on the previous word boundary. `truncate(\"The quick brown fox\", 12)` now returns `\"The quick…\"` (10 characters)." },
-  { heading: "Test plan", text: "`npm test`. Four new cases in `test/text.test.ts`, each also checking `result.length <= max`." },
+/** The pull request description (real, PR #7, byte for byte apart from the link markup),
+ *  as GitHub renders it. `spot` names what the stage can spotlight. */
+export const PR_BODY: Array<{ heading?: string; text: string; spot?: string }> = [
+  { heading: "Summary", text: "`truncate` could return strings longer than `max` (because the ellipsis wasn't counted) and could split a word mid-way, both contradicting the function's documented behavior." },
+  { heading: "Root cause", text: "`src/truncate.ts` sliced the input at a fixed offset of `max` characters and then appended the ellipsis on top, instead of reserving space for the ellipsis within the `max` budget, and it never looked for a word boundary before cutting." },
+  { heading: "What changed", text: "- Reserve `ellipsis.length` characters out of `max` before slicing (`budget = max - ellipsis.length`).\n- If the character right after the cut point is not whitespace (i.e., the cut falls inside a word), back up to the last space within the truncated slice so words aren't split.\n- Trim trailing whitespace before appending the ellipsis.\n- Guard the degenerate case where `max` is smaller than the ellipsis itself." },
+  { heading: "Tests", text: "Added two cases in `test/text.test.ts`: the exact example from the issue (`truncate(\"The quick brown fox\", 12) === \"The quick…\"`, length ≤ 12) and a case where the cut point already lands on a space (no word-boundary backup needed)." },
   { text: "Fixes #2" },
-  // Added by the publish step since October 23 (lib/disclosure.ts); PR #6 itself predates it.
-  { heading: "AI assistance", text: "This change was drafted with opensrcer, an AI coding tool, at the request of the PR author, who reviewed the diff and the test evidence before opening this PR and is responsible for it. Verification: Not verified: the tool could not run code for this change; no tests were run." },
+  { heading: "Tests run", text: "- `node --experimental-strip-types --test \"test/**/*.test.ts\"` — passed (0.2s)\n- Regression check: With the source change reverted (test changes kept) the tests fail; with it they pass." },
+  { text: "Result: verified (declared tests pass, and fail with the source change reverted).", spot: "pr-verified" },
+  { heading: "AI assistance", text: "This change was drafted with opensrcer, an AI coding tool, at the request of the PR author, who reviewed the diff and the test evidence before opening this PR and is responsible for it.\n- Model: claude-sonnet-5 (Anthropic), driven through Claude Code with repository-scoped tools.\n- Verification: The tool re-ran the commands under \"Tests run\" on the final patch: they pass, and the new test fails without the fix.", spot: "pr-ai" },
 ];
 
 // ── EXAMPLE data (illustrative, labelled on screen) ──────────────────────
@@ -165,16 +165,16 @@ export const DISCOVER_ROWS = [
 export const REVIEW_COMMENT = {
   author: "maintainer",
   path: "src/truncate.ts",
-  line: 24,
+  line: 23,
   body: "Nice fix. Could trailing punctuation be trimmed before the ellipsis too? \"The quick, brown\" at 11 gives \"The quick,…\".",
 };
 
 export const COMMENT_FIX = [
   "--- a/src/truncate.ts",
   "+++ b/src/truncate.ts",
-  "@@ -24,1 +24,1 @@",
-  "-  return head.replace(/\\s+$/, \"\") + ellipsis;",
-  "+  return head.replace(/[\\s,;:]+$/, \"\") + ellipsis;",
+  "@@ -23,1 +23,1 @@",
+  "-  return truncated.trimEnd() + ellipsis;",
+  "+  return truncated.replace(/[\\s,;:]+$/, \"\") + ellipsis;",
 ];
 
 export const VERIFY_CHECKS: Array<{ name: string; tone: "pass" | "warn"; detail: string }> = [
@@ -230,7 +230,7 @@ export const SUGGESTED = [
 /** EXAMPLE: notes typed into the New run form. */
 export const RUN_NOTES = "Keep the public API unchanged; add tests for the example in the issue.";
 
-/** EXAMPLE: a reviewer's question on PR #6, and the reply the agent drafts. */
+/** EXAMPLE: a reviewer's question on PR #7, and the reply the agent drafts. */
 export const QUESTION = {
   author: "maintainer",
   path: "src/truncate.ts",
@@ -264,11 +264,11 @@ export const REPORT = [
   `- **Repo:** ${DEMO_REPO}`,
   "- **Issue:** #2",
   "- **Status:** succeeded",
-  "- **Started:** 2026-10-21T02:25:16.448Z",
-  "- **Ended:** 2026-10-21T02:26:25.306Z",
-  "- **Duration:** 1m 09s",
-  "- **Cost:** $0.2010",
-  `- **PR:** [#6](https://github.com/${DEMO_REPO}/pull/6)`,
+  "- **Started:** 2026-10-24T19:43:51.479Z",
+  "- **Ended:** 2026-10-24T19:44:44.363Z",
+  "- **Duration:** 0m 53s",
+  "- **Cost:** $0.0981",
+  `- **PR:** [#7](https://github.com/${DEMO_REPO}/pull/7)`,
   "",
   "## Patch",
   "",

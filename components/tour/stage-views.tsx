@@ -256,7 +256,7 @@ function StageExploreView() {
               <div data-spot="graph" className="relative aspect-[3/2] w-full">
                 <CodeGraph buildAt={BUILT_AT + 100} lights={[{ at: SELECT_AT + 200, light: LIGHTS.select }]} />
                 <div className="absolute" style={TRUNCATE_NODE}>
-                  <Press at={SELECT_AT} label="truncate() on the graph" className="size-8 -translate-x-1/2 -translate-y-1/2 rounded-full">
+                  <Press at={SELECT_AT} label="truncate() on the graph" className="h-8 w-[104px] -translate-x-4 -translate-y-1/2 rounded-full">
                     <span className="sr-only">truncate()</span>
                   </Press>
                 </div>
@@ -305,8 +305,9 @@ export function stageNotes(base: { review: Chapter; pr: Chapter }) {
       { at: REVIEW_CONFIRM_AT - 1500, text: "You confirm you understand it." },
       { at: REVIEW_PUBLISH_AT, text: "A human publishes. Nothing is hidden." },
     ], [
-      { at: 0, text: "It explains every change: what was wrong, what changed and why, and what to double-check, in plain words." },
-      { at: 7600, spot: "review-diff", text: "Then the patch itself: the one broken line out, a small commented fix in, and new tests." },
+      { at: 0, spot: "review-found", text: "It explains every change: what was wrong, what changed and why, and what to double-check, in plain words." },
+      { at: 4300, spot: "review-risk", text: "And what to double-check, including what it deliberately left alone." },
+      { at: 7600, text: "Then the patch itself: the one broken line out, a small fix in, and two new tests." },
       { at: 13800, spot: "ask-first", text: "Not sure the maintainers even want this? It drafts a short comment for you to post on the issue first. It never posts anything for you." },
       { at: 15000, spot: "publish-steps", text: "Before you confirm, it says exactly what publishing does: one commit on a new branch, a draft pull request that says an AI tool helped, nothing merged." },
       { at: REVIEW_CONFIRM_AT - 600, text: "And you confirm you've read it and can explain it to reviewers. Maintainers review people, not tools: if you can't explain a change, you shouldn't send it." },
@@ -315,7 +316,8 @@ export function stageNotes(base: { review: Chapter; pr: Chapter }) {
     ]),
     pr: staged(base.pr, [{ at: 0, text: "The maintainer always knows AI helped." }], [
       { at: 0, spot: "pr-facts", text: "Every GitHub step done right: its own branch, commits under your private noreply email, the base branch past PRs were merged into, and a description that closes the issue." },
-      { at: 6200, spot: "pr-body", text: "And it discloses itself: an AI assistance section says who asked, which model, and what was and wasn't tested. Commits carry an Assisted-by trailer, and a sign-off where the project asks for one." },
+      { at: 5800, spot: "pr-verified", text: "The description shows the tests it ran and the result: verified." },
+      { at: 7400, spot: "pr-ai", text: "And it discloses itself: an AI assistance section says who asked, which model, and what was and wasn't tested. Commits carry an Assisted-by trailer, and a sign-off where the project asks for one." },
       { at: 9000, text: "It stays a draft until you mark it ready. The maintainer always knows." },
     ]),
   };
@@ -323,13 +325,14 @@ export function stageNotes(base: { review: Chapter; pr: Chapter }) {
 
 // ── Ship: what it did on GitHub, as the real pull request shows it ──────────
 
-// PR #6 on rahulp7801/opensrcer-demo, as GitHub reports it (gh pr view 6). No fork:
+// PR #7 on rahulp7801/opensrcer-demo, as GitHub reports it (gh pr view 7). No fork:
 // the demo repository is the user's own; on someone else's, it forks first.
 const PR_FACTS: Array<[string, string]> = [
   ["Branch", RUN.branch],
   ["Into", "main"],
   ["Commit author", "76501505+rahulp7801@users.noreply.github.com"],
   ["Status", "Draft, opened by rahulp7801"],
+  ["Commit", "1, with “Assisted-by: claude-sonnet-5 via opensrcer”"],
   ["Closes", "#2 (“Fixes #2” in the description)"],
 ];
 
@@ -454,15 +457,15 @@ export const stageSlop: Chapter = {
 
 // ── Fix: a verified run, now that tests run on the hosted site ──────────────
 
-// A real hosted run (rahulp7801/opensrcer-demo #3, a preview, 2026-10-24), in plain words.
-// Its log, for questions: "[verify] re-running 1 test and 0 lint command(s) on the final patch",
-// "status=verified regression=reproduced", "test: npm test exit=0 · 0.3s",
-// "fail-before: (source change reverted) npm test exit=1 · 0.2s".
+// The same real run (opensrcer-demo #2 -> PR #7, 2026-10-24), in plain words. Its log, for
+// questions: "[verify] re-running 1 test and 0 lint command(s) on the final patch",
+// "status=verified regression=reproduced", node --test exit=0 (6 pass), and with the source
+// change reverted exit=1 (2 fail: "The quick br…" instead of "The quick…").
 const PROOF = [
   { at: 600, text: "Started a separate test machine with no passwords or keys. It can only reach package registries and GitHub." },
   { at: 2200, text: "Installed what the project needs." },
   { at: 3800, text: "Ran the project's own tests on the fix: they pass.", verify: true },
-  { at: 5800, text: "Undid the fix and ran them again: they fail. So the new test really catches the bug.", verify: true },
+  { at: 5800, text: "Undid the fix and ran them again: the new tests fail. So they really catch the bug.", verify: true },
   { at: 8000, text: "Ready for your review. Nothing has been published." },
 ];
 const VERIFY_AT = 3800;
@@ -476,8 +479,8 @@ function VerifiedView() {
       <div className="flex h-full flex-col gap-4 p-5">
         <div className="flex items-start justify-between gap-3 rounded-2xl border border-border-soft bg-surface px-5 py-4">
           <div className="min-w-0">
-            <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[11px] text-info">#3</span> · preview</p>
-            <p className="mt-0.5 truncate text-[18px] font-medium text-paper">parseDuration returns NaN for compound durations like &quot;1h30m&quot;</p>
+            <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[11px] text-info">#2</span></p>
+            <p className="mt-0.5 truncate text-[18px] font-medium text-paper">truncate cuts mid-word and returns more than max characters</p>
           </div>
           {verified ? <StatusChip tone="ok">verified</StatusChip> : <StatusChip tone="signal">testing</StatusChip>}
         </div>
@@ -508,13 +511,13 @@ export const stageVerified: Chapter = {
   label: "Tests, verified",
   title: "Tests that prove the fix",
   duration: PROOF_DONE_AT + 2500,
-  source: "Real hosted run on opensrcer-demo #3 (preview)",
+  source: "The real run behind pull request #7",
   headlines: [{ at: 0, text: "It proves the fix works, in a locked box." }],
   captions: [
-    { at: 0, text: "The centerpiece: it proves the fix works before you ever see it. This is a real run on the hosted site, on another issue." },
+    { at: 0, text: "The centerpiece: it proves the fix works before you ever see it. Same issue, same real run, on the hosted site." },
     { at: 600, text: "The tests run in a second machine with no passwords or keys, that can only reach package registries and GitHub. Whatever the repository's code does, it can't touch anything of yours." },
-    { at: VERIFY_AT, spot: "verify", text: "It runs the project's own declared tests on the final patch: they pass. Then it undoes the fix and runs them again: they fail. So the new test really catches the bug; it isn't decorative." },
-    { at: VERIFY_AT + 2600, spot: "verify", text: "For maintainers who ask: it re-ran npm test on the final patch, exit 0; with the source change reverted, exit 1. Status verified, regression reproduced. With no runnable test it says unverified instead, and CI on the pull request is still the project's own." },
+    { at: VERIFY_AT, spot: "verify", text: "It runs the project's own declared tests on the final patch: all six pass. Then it undoes the fix and runs them again: the two new tests fail. So they really catch the bug; they aren't decorative." },
+    { at: VERIFY_AT + 2600, spot: "verify", text: "For maintainers who ask: it re-ran node --test on the final patch, exit 0, 6 of 6; with the source change reverted, exit 1, the two new tests failing with \"The quick br…\" instead of \"The quick…\". Status verified, regression reproduced. With no runnable test it says unverified instead, and CI on the pull request is still the project's own." },
   ],
   View: VerifiedView,
 };
@@ -611,15 +614,16 @@ export const stagePromise: Chapter = {
 
 // ── It reads the rules first ─────────────────────────────────────────────────
 
-// Run #2 on opensrcer-demo (the one that became PR #6), in plain words. Its log, for
-// questions: "[tool] list_files CONTRIBUTING*", "[tool] list_files .github/**", then
-// "## Conventions: No contribution guide found…; matched what the repo already does".
+// The real run on opensrcer-demo #2 that became PR #7, in plain words. Its log, for
+// questions: "[profile] dco=false cla=none template=no agent-rules=no ai-policy=unknown",
+// then "## Conventions: No contribution guide (CONTRIBUTING, PR template) found… tests live
+// in test/text.test.ts… No lint/format config files are present."
 const RULES_FEED: Array<{ at: number; text: string; rules?: true; points?: string[] }> = [
   { at: 600, text: "Started a throwaway machine with a spend cap and a time limit." },
   { at: 2200, text: "Looked for the project's contribution guide and pull request template.", rules: true },
-  { at: 3800, text: "None here, so it follows what the code already does:", rules: true, points: ["commit messages written as “area: summary”", "an example in the docs for every helper", "the project's own test suite"] },
-  { at: 6600, text: "Read the code around the bug, and everything that calls it." },
-  { at: 8600, text: "Found the cause: truncate cuts at a fixed point and then adds “…”, so the result is one character too long and can split a word." },
+  { at: 3800, text: "None here, so it follows what the code already does:", rules: true, points: ["new tests go in the project's existing test file", "the project's own test runner", "no lint or format rules to follow"] },
+  { at: 6600, text: "Read the code around the bug and its tests, and checked nothing else calls it." },
+  { at: 8600, text: "Found the cause: truncate cuts at a fixed point and then adds “…”, so the result can be longer than allowed and can split a word." },
 ];
 const RULES_DONE_AT = 8600;
 
@@ -661,11 +665,11 @@ export const stageRules: Chapter = {
   label: "Rules first",
   title: "It reads the project's rules first",
   duration: RULES_DONE_AT + 2500,
-  source: "The real run behind pull request #6, in plain words",
+  source: "The real run behind pull request #7, in plain words",
   headlines: [{ at: 0, text: "It reads the project's rules first." }],
   captions: [
     { at: 0, text: "One click on the issue started a run, in a throwaway machine with a hard spend cap and a time limit. The first thing it does is read the project's rules." },
-    { at: 2200, spot: "rules", text: "It looks for the contribution guide and the pull request template. This repo has none, so it matches what the code already does: commit style, docs, the project's own tests. A maintainer gets a patch that looks like their project." },
+    { at: 2200, spot: "rules", text: "It reads the project's rules: the contribution guide and pull request template, the AI policy, whether commits need a sign-off. This repo has none of them, so it matches what the code already does: where tests live, how they run. A maintainer gets a patch that looks like their project." },
     { at: 6600, text: "Then it reads the code around the bug and everything that calls it, and writes down the cause before the fix. Where it can't find the root cause, it stops and says so rather than guess." },
   ],
   View: RulesView,

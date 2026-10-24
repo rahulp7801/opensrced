@@ -5,7 +5,7 @@
 //   - the issue scanner's verdicts, with the reasons it gives verbatim
 //     (lib/issues.ts, drawn as components/issue-scanner.tsx draws them);
 //   - Explore's plain-English questions, which are answered from the repository's
-//     code graph, cite file paths and show their cost (app/api/graph/query);
+//     code graph, point to the files involved and show their cost (app/api/graph/query);
 //   - the graph view, where clicking a node picks out its connections.
 // The notes carry the pitch: the guided path for someone new to open source, and
 // why maintainers can trust what it sends them.
@@ -293,7 +293,7 @@ export const stageExplore: Chapter = {
   captions: [
     { at: 0, text: "An unfamiliar repository is the next wall a beginner hits. With Claude Code you'd clone it, install it and start reading. Here nothing is cloned or installed: Explore builds a map of it, parsed straight from the source, no AI involved." },
     { at: BUILT_AT, text: "Then ask about it in plain English, still without having cloned anything. No grep, no knowing where to look, and every answer shows what it cost." },
-    { at: FIRST.turns[0].typeAt, spot: "ask", text: `The big picture first: “${FIRST.turns[0].prompt}” The answer is built from the repository's own graph, cites the files it's based on, and shows what it cost.` },
+    { at: FIRST.turns[0].typeAt, spot: "ask", text: `The big picture first: “${FIRST.turns[0].prompt}” The answer comes from the repository's code map: it points to the files involved, says when the map can't answer, and shows what it cost.` },
     { at: FIRST.turns[1].typeAt, spot: "ask", text: `The question you'd normally answer by grepping around: “${FIRST.turns[1].prompt}”` },
     { at: SELECT_AT, spot: "graph", text: "Same thing on the map: click truncate() and its connections stand out. One file, its options type, and one test." },
     { at: LAST.turns[0].typeAt, spot: "ask", text: `And where your change would be tested: “${LAST.turns[0].prompt}” You know the shape of the fix before an agent writes a line.` },

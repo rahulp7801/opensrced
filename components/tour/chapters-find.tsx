@@ -450,7 +450,7 @@ export const understand: Chapter = {
     { at: 3600, text: "Files, symbols and the calls between them become a graph you can query." },
     { at: 5400, text: "Graph commands answer instantly and cost nothing. Impact shows what depends on truncate, and how risky a change would be." },
     { at: 8600, text: "Trace follows the connections in and out, so you know what a fix could touch before you make it." },
-    { at: 12000, text: "Or ask in plain English. Answers cite the files and lines they come from, and show what they cost." },
+    { at: 12000, text: "Or ask in plain English. Answers come from the code map: they point to the files involved, and show what they cost." },
     { at: 16800, text: "Follow-up suggestions keep the exploration going, one click each." },
   ],
   View: UnderstandView,

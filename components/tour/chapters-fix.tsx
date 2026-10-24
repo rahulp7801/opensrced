@@ -237,11 +237,11 @@ function ReviewView() {
               <span className="text-[16px] text-paper-muted" aria-hidden>×</span>
             </div>
             {t >= REVIEW_PUBLISHED_AT ? <Published /> : <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-hidden px-4 py-3">
-              <Reveal at={2200}>
+              <Reveal at={2200} spot="review-found">
                 <p className="mono-label">What was found</p>
                 <p className="mt-1 text-[12px] leading-5 text-paper-dim"><Inline text={DIAGNOSIS} /></p>
               </Reveal>
-              <Reveal at={4300}>
+              <Reveal at={4300} spot="review-risk">
                 <p className="mono-label">Risk &amp; testing</p>
                 <ul className="mt-1 space-y-0.5 text-[11.5px] leading-5 text-paper-dim">
                   {RISK.map((r) => <li key={r} className="flex gap-1.5"><span className="text-paper-faint">·</span><span><Inline text={r} /></span></li>)}
@@ -265,7 +265,7 @@ function ReviewView() {
               </Reveal>
             </div>}
             <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-2 text-[11.5px]">
-              <Press at={13200} className="rounded-full border border-border px-2.5 py-0.5 text-paper-dim">{t >= 13200 ? "Copied ✓" : "Copy diff"}</Press>
+              <Press at={13200} className="rounded-full border border-border px-2.5 py-0.5 text-paper-dim">{t >= 13200 && t < 15200 ? "Copied ✓" : "Copy diff"}</Press>
               <Press at={14300} className="hidden rounded-full border border-border px-2.5 py-0.5 text-paper-dim sm:inline-flex">Commit msg</Press>
             </div>
             {/* The publish gate, as components/publish-panel.tsx shows it: nothing

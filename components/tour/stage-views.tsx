@@ -256,7 +256,7 @@ function StageExploreView() {
               <div data-spot="graph" className="relative aspect-[3/2] w-full">
                 <CodeGraph buildAt={BUILT_AT + 100} lights={[{ at: SELECT_AT + 200, light: LIGHTS.select }]} />
                 <div className="absolute" style={TRUNCATE_NODE}>
-                  <Press at={SELECT_AT} label="truncate() on the graph" className="size-8 -translate-x-1/2 -translate-y-1/2 rounded-full">
+                  <Press at={SELECT_AT} label="truncate() on the graph" className="h-8 w-[104px] -translate-x-4 -translate-y-1/2 rounded-full">
                     <span className="sr-only">truncate()</span>
                   </Press>
                 </div>
@@ -305,8 +305,9 @@ export function stageNotes(base: { review: Chapter; pr: Chapter }) {
       { at: REVIEW_CONFIRM_AT - 1500, text: "You confirm you understand it." },
       { at: REVIEW_PUBLISH_AT, text: "A human publishes. Nothing is hidden." },
     ], [
-      { at: 0, text: "It explains every change: what was wrong, what changed and why, and what to double-check, in plain words." },
-      { at: 7600, spot: "review-diff", text: "Then the patch itself: the one broken line out, a small commented fix in, and new tests." },
+      { at: 0, spot: "review-found", text: "It explains every change: what was wrong, what changed and why, and what to double-check, in plain words." },
+      { at: 4300, spot: "review-risk", text: "And what to double-check, including what it deliberately left alone." },
+      { at: 7600, text: "Then the patch itself: the one broken line out, a small commented fix in, and new tests." },
       { at: 13800, spot: "ask-first", text: "Not sure the maintainers even want this? It drafts a short comment for you to post on the issue first. It never posts anything for you." },
       { at: 15000, spot: "publish-steps", text: "Before you confirm, it says exactly what publishing does: one commit on a new branch, a draft pull request that says an AI tool helped, nothing merged." },
       { at: REVIEW_CONFIRM_AT - 600, text: "And you confirm you've read it and can explain it to reviewers. Maintainers review people, not tools: if you can't explain a change, you shouldn't send it." },

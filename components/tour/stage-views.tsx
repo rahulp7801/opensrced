@@ -13,7 +13,7 @@
 import { ArrowUp, Sparkle } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { StatusChip } from "@/components/status-dot";
-import { AppWindow, LogLine, Pips, Press, Reveal, SCOPE_TONE, SEVERITY_TONE, TimeContext, Typed, progress, useFollow, useT, type Caption, type Chapter } from "./kit";
+import { AppWindow, LogLine, Pips, Press, Reveal, SCOPE_LABEL, SCOPE_TONE, SEVERITY_TONE, TimeContext, Typed, progress, useFollow, useT, type Caption, type Chapter } from "./kit";
 import { CodeGraph, LIGHTS } from "./graph";
 import { REVIEW_PUBLISHED_AT } from "./chapters-fix";
 import { REPLY_SENT_AT } from "./chapters-ship";
@@ -84,7 +84,7 @@ function ScanView() {
                     <p className="mt-0.5 truncate text-[13px] font-medium text-paper">{r.title}</p>
                     {!r.reason && (
                       <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] text-paper-muted">
-                        <span className="inline-flex items-center gap-1"><span className="text-paper-faint">Scope</span><StatusChip tone={SCOPE_TONE[r.scope!] ?? "muted"}>{r.scope}</StatusChip></span>
+                        <span className="inline-flex items-center gap-1"><span className="text-paper-faint">Likely change</span><StatusChip tone={SCOPE_TONE[r.scope!] ?? "muted"}>{SCOPE_LABEL[r.scope!] ?? r.scope}</StatusChip></span>
                         <span className="inline-flex items-center gap-1"><span className="text-paper-faint">Risk</span><StatusChip tone={SEVERITY_TONE[r.risk!]}>{r.risk}</StatusChip></span>
                         <span className="inline-flex items-center gap-1"><span className="text-paper-faint">Complexity</span><Pips value={r.complexity!} /></span>
                         <span><span className="text-paper-faint">Estimate</span> ~{r.estimate}</span>
@@ -98,7 +98,7 @@ function ScanView() {
                   ) : (
                     <span className="flex gap-1.5 text-[11px]">
                       <span className="rounded-full border border-border px-2.5 py-0.5 text-paper-dim">Preview patch</span>
-                      <span className="rounded-full border border-signal/40 bg-signal/10 px-2.5 py-0.5 font-medium text-signal">Solve &amp; open PR</span>
+                      <span className="rounded-full border border-signal/40 bg-signal/10 px-2.5 py-0.5 font-medium text-signal">Fix it (you review first)</span>
                     </span>
                   )}
                 </Reveal>

@@ -23,7 +23,7 @@ function InboxPhase() {
       <div className="flex gap-4 border-b border-border text-[12px]">
         <span className="border-b-2 border-signal pb-1.5 font-medium text-paper">Inbox <span className="ml-0.5 rounded-full bg-alert px-1.5 text-[10px] text-white">1</span></span>
         <span className="text-paper-muted">All PRs (1)</span>
-        <span className="hidden text-paper-muted sm:inline">Dashboard PRs</span>
+        <span className="hidden text-paper-muted sm:inline">Opened with opensrcer</span>
       </div>
       <Reveal at={500} className="mt-3 overflow-hidden rounded-xl border border-border-soft bg-surface">
         <p className="border-b border-border-soft px-3 py-2 text-[12px]"><span className="font-semibold text-signal">!</span> <span className="font-medium text-paper">Has comments</span> <span className="text-paper-muted">· Review feedback to address</span></p>

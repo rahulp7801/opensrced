@@ -5,7 +5,7 @@
 
 import { cn } from "@/lib/utils";
 import { StatusChip } from "@/components/status-dot";
-import { AppWindow, Inline, PageHead, Pips, Press, Reveal, SCOPE_TONE, SEVERITY_TONE, Typed, Count, progress, useAutoScroll, useT, type Chapter } from "./kit";
+import { AppWindow, Inline, PageHead, Pips, Press, Reveal, SCOPE_LABEL, SCOPE_TONE, SEVERITY_TONE, Typed, Count, progress, useAutoScroll, useT, type Chapter } from "./kit";
 import { DEMO_ISSUES, DEMO_REPO, DISCOVER_ROWS, ISSUE, ISSUE_BODY, SUGGESTED } from "./data";
 import { CodeGraph } from "./graph";
 
@@ -197,7 +197,7 @@ function FindView() {
                       <Reveal as="tr" key={r.repo} at={4100 + i * 330} className={cn("border-b border-border-soft last:border-0 transition-colors duration-500", lit && "bg-signal/[0.08] shadow-[inset_3px_0_0_var(--color-signal)]")}>
                         <td className="truncate px-3 py-1.5 font-medium text-paper">{r.repo}</td>
                         <td className="truncate px-2 py-1.5 text-paper-dim"><span className="mr-1 text-paper-muted">#{r.number}</span>{r.title}</td>
-                        <td className="px-2 py-1.5"><StatusChip tone={SCOPE_TONE[r.scope] ?? "muted"}>{r.scope}</StatusChip></td>
+                        <td className="px-2 py-1.5"><StatusChip tone={SCOPE_TONE[r.scope] ?? "muted"}>{SCOPE_LABEL[r.scope] ?? r.scope}</StatusChip></td>
                         <td className="hidden px-2 py-1.5 md:table-cell"><StatusChip tone={SEVERITY_TONE[r.severity]}>{r.severity}</StatusChip></td>
                         <td className="hidden px-2 py-1.5 lg:table-cell"><Pips value={r.complexity} /></td>
                         <td className="hidden px-2 py-1.5 font-mono text-paper-muted md:table-cell">{r.estimate}</td>
@@ -336,7 +336,7 @@ function ChooseView() {
                 </div>
                 <p className="mt-1 text-[13px] font-medium text-paper">{issue.title}</p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-paper-muted">
-                  <span>Scope <StatusChip tone={SCOPE_TONE[issue.scope]}>{issue.scope}</StatusChip></span>
+                  <span>Likely change <StatusChip tone={SCOPE_TONE[issue.scope]}>{SCOPE_LABEL[issue.scope] ?? issue.scope}</StatusChip></span>
                   <span className="hidden sm:inline">Risk <StatusChip tone={SEVERITY_TONE[issue.risk]}>{issue.risk}</StatusChip></span>
                   <span className="hidden sm:inline-flex items-center gap-1">Complexity <Pips value={issue.complexity} /></span>
                   <span>Estimate {issue.estimate}</span>
@@ -352,18 +352,18 @@ function ChooseView() {
                     <div className="space-y-2.5">
                       <Reveal at={4600} className="rounded-lg border border-border-soft bg-surface-2/60 p-2.5">
                         <p className="mono-label">Recommendation</p>
-                        <p className="mt-0.5 text-[12.5px] font-semibold text-paper">Solve &amp; open PR</p>
-                        <p className="text-[11px] leading-5 text-paper-muted">Explore the repository and generate a fix, then stop for your review. The draft PR opens only when you confirm it on the run page.</p>
+                        <p className="mt-0.5 text-[12.5px] font-semibold text-paper">Fix it, then review</p>
+                        <p className="text-[11px] leading-5 text-paper-muted">The agent explores the repository and writes a fix, then stops for your review. A draft PR opens only when you confirm it on the run page.</p>
                       </Reveal>
                       <Reveal at={6000} className="text-[11px] leading-5 text-paper-muted">
-                        <p className="mono-label">Scope evidence</p>
+                        <p className="mono-label">Why &apos;{SCOPE_LABEL[issue.scope] ?? issue.scope}&apos;</p>
                         <p>Files: <code className="font-mono text-paper">{issue.files.join(", ")}</code> · Symbols: <code className="font-mono text-paper">{issue.symbols.join(", ")}</code></p>
                         <p>high confidence · complexity {issue.complexity}/5 · about 30m</p>
                       </Reveal>
                       <Reveal at={7600} className="flex flex-wrap gap-2">
                         <Press at={null} className="rounded-full border border-border px-3 py-1 text-[12px] text-paper-dim">Preview patch</Press>
                         <Press at={null} className="rounded-full border border-signal bg-signal/15 px-3 py-1 text-[12px] font-medium text-signal">
-                          <span aria-hidden className="mr-1.5 size-1.5 rounded-full bg-signal" />Solve &amp; open PR
+                          <span aria-hidden className="mr-1.5 size-1.5 rounded-full bg-signal" />Fix it (you review first)
                         </Press>
                       </Reveal>
                     </div>

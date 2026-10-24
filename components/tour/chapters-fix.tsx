@@ -67,13 +67,12 @@ function RunView() {
     <AppWindow path={`/dispatches?dispatch=${RUN.id}`} section="Fix" tab="Runs">
       <div className="grid h-full gap-3 overflow-hidden p-3 sm:p-4 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)]">
         <div className="hidden overflow-hidden rounded-2xl border border-border-soft bg-surface lg:block">
-          <div className="flex items-center justify-between border-b border-border-soft px-3 py-2 text-[12px]"><span className="font-medium text-paper">Pipelines</span><span className="font-mono text-paper-muted">{PAST_RUNS.length + 1}</span></div>
+          <div className="flex items-center justify-between border-b border-border-soft px-3 py-2 text-[12px]"><span className="font-medium text-paper">Runs</span><span className="font-mono text-paper-muted">{PAST_RUNS.length + 1}</span></div>
           <div className="bg-surface-2/80 px-3 py-2.5">
             <div className="flex items-center gap-2 text-[12px]">
               <StatusDot tone={done ? "ok" : "signal"} />
               <span className="truncate text-paper">{DEMO_REPO} <span className="text-paper-faint">#{ISSUE.number}</span></span>
-              <span className="ml-auto rounded-full border border-info/40 px-1 text-[10px] text-info">deep</span>
-            </div>
+                          </div>
             <p className="mt-1 truncate text-[11.5px] text-paper-dim">{ISSUE.title}</p>
             <p className="mt-1 text-[11px] text-paper-muted">just now · <span className={done ? "" : "text-signal"}>{elapsed}</span> · {ready ? <span className="text-ok">waiting for your review <span className="text-paper-faint">· unverified</span></span> : "running"}</p>
           </div>
@@ -82,10 +81,7 @@ function RunView() {
               <div className="flex items-center gap-2 text-[12px]">
                 <StatusDot tone="ok" />
                 <span className="truncate text-paper">{DEMO_REPO} <span className="text-paper-faint">#{r.number}</span></span>
-                <span className="ml-auto flex gap-1">
-                  <span className="rounded-full border border-info/40 px-1 text-[10px] text-info">deep</span>
-                  {r.dry && <span className="rounded-full border border-info/40 px-1 text-[10px] text-info">preview</span>}
-                </span>
+                {r.dry && <span className="ml-auto rounded-full border border-info/40 px-1 text-[10px] text-info">preview</span>}
               </div>
               <p className="mt-1 truncate text-[11.5px] text-paper-dim">{r.title}</p>
               <p className="mt-1 text-[11px] text-paper-muted">1d ago · {r.duration} · {r.status === "PR opened" ? <span className="text-ok">PR opened <span className="text-paper-faint">· unverified</span></span> : r.status}</p>
@@ -371,7 +367,7 @@ const BEFORE = [
 
 function NewRunView() {
   const t = useT();
-  const live = t >= 5200;
+  const live = true; // the form defaults to publishable (you review first)
   const starting = t >= 11000 && t < 13300;
   const started = t >= 13300;
   // Brings the Start button into view on small screens; a no-op when it fits.
@@ -379,7 +375,7 @@ function NewRunView() {
   return (
     <AppWindow path="/trigger" section="Fix" tab="New run">
       <div ref={scrollRef} className="h-full overflow-hidden px-4 py-4 sm:px-6">
-        <PageHead title="New run" description="Paste a GitHub repo or issue URL. The AI agent will explore the codebase, generate a fix and open a draft PR after the configured checks." />
+        <PageHead title="New run" description="Paste a GitHub repo or issue URL. The AI agent explores the codebase and writes a fix, then stops so you can read it. Nothing is posted to GitHub until you confirm it." />
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
           <div className="min-w-0 space-y-3 rounded-2xl border border-border-soft bg-surface p-4">
             <div>
@@ -390,7 +386,7 @@ function NewRunView() {
               <p className="text-[12px] font-medium text-paper">Mode</p>
               <div className="mt-1 inline-flex overflow-hidden rounded-lg border border-border text-[12px]">
                 <span className={cn("px-3 py-1.5", !live ? "bg-info/10 text-info" : "text-paper-muted")}>preview</span>
-                <Press at={5200} className={cn("rounded-none border-l border-border px-3 py-1.5", live ? "bg-signal/10 text-signal" : "text-paper-muted")}>publishable (you review first)</Press>
+                <span className={cn("border-l border-border px-3 py-1.5", live ? "bg-signal/10 text-signal" : "text-paper-muted")}>publishable (you review first)</span>
               </div>
             </div>
             <div>
@@ -424,7 +420,7 @@ export const newRun: Chapter = {
   source: "The New run form, filled in for the demo issue (example notes)",
   captions: [
     { at: 0, text: "Ready to fix it. Paste any GitHub issue link into a new run, or start one straight from the issue list." },
-    { at: 5200, text: "Preview writes a patch without publishing anything. Live goes all the way to a draft pull request. We'll go live." },
+    { at: 5200, text: "A preview is a practice run you can read but never publish. A publishable run, the default, stops for your review too; a draft pull request opens only when you confirm." },
     { at: 6800, text: "Notes steer the agent, like a short brief for a new contributor." },
     { at: 11000, text: "Starting a run boots a fresh, isolated worker in the cloud, ready in seconds." },
   ],
@@ -450,7 +446,7 @@ function FailureView() {
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <Press at={9800} className="rounded-full border border-signal/40 bg-signal/10 px-2.5 py-0.5 text-[11.5px] text-signal">{retrying ? "retrying…" : "retry"}</Press>
-                <span className="hidden rounded-full border border-border px-2.5 py-0.5 text-[11.5px] text-paper-muted sm:inline">export</span>
+                <span className="hidden rounded-full border border-border px-2.5 py-0.5 text-[11.5px] text-paper-muted sm:inline">Download report</span>
               </div>
             </div>
             <ol className="mt-2 flex flex-wrap items-center gap-1 text-[10.5px] font-medium">
@@ -519,7 +515,7 @@ function HistoryView() {
     <AppWindow path={`/dispatches?dispatch=${RUN.id}`} section="Fix" tab="Runs">
       <div className="grid h-full gap-3 overflow-hidden p-3 sm:p-4 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)]">
         <div className="hidden overflow-hidden rounded-2xl border border-border-soft bg-surface lg:block">
-          <div className="flex items-center justify-between border-b border-border-soft px-3 py-2 text-[12px]"><span className="font-medium text-paper">Pipelines</span><span className="font-mono text-paper-muted">{PAST_RUNS.length + 1}</span></div>
+          <div className="flex items-center justify-between border-b border-border-soft px-3 py-2 text-[12px]"><span className="font-medium text-paper">Runs</span><span className="font-mono text-paper-muted">{PAST_RUNS.length + 1}</span></div>
           {[{ number: ISSUE.number, title: ISSUE.title, dry: false, duration: "1m 09s", status: "PR opened" }, ...PAST_RUNS].map((r, i) => (
             <div key={r.number} className={cn("border-t border-border-soft px-3 py-2.5 first:border-0", i === 0 && "bg-surface-2/80")}>
               <p className="truncate text-[12px] text-paper">{DEMO_REPO} <span className="text-paper-faint">#{r.number}</span></p>
@@ -534,7 +530,7 @@ function HistoryView() {
               <p className="truncate text-[14px] font-medium text-paper">{ISSUE.title}</p>
               <p className="text-[11px] text-paper-muted">just now · 1m 09s · <span className="text-signal">${RUN.cost.toFixed(4)}</span></p>
             </div>
-            <Press at={7600} className="shrink-0 rounded-full border border-border px-2.5 py-0.5 text-[11.5px] text-paper-dim">export</Press>
+            <Press at={7600} className="shrink-0 rounded-full border border-border px-2.5 py-0.5 text-[11.5px] text-paper-dim">Download report</Press>
           </div>
           <div className="term relative min-h-0 flex-1 overflow-hidden rounded-none">
             <div className="absolute right-2 top-2 z-10 flex items-center gap-1.5 text-[10.5px]">
@@ -545,8 +541,8 @@ function HistoryView() {
                 </span>
               ) : (
                 <>
-                  <span className="rounded border border-[#48484a] px-1.5 py-0.5 text-[#e8e8ed]">plain</span>
-                  <Press at={2200} className="rounded border border-[#48484a] px-1.5 py-0.5 text-[#e8e8ed]">search</Press>
+                  <span className="rounded border border-[#48484a] px-1.5 py-0.5 text-[#e8e8ed]">Show terminal colors</span>
+                  <Press at={2200} className="rounded border border-[#48484a] px-1.5 py-0.5 text-[#e8e8ed]">Search log</Press>
                 </>
               )}
             </div>

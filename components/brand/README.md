@@ -1,8 +1,9 @@
 # opensrcer brand system
 
-Warm paper, near-black ink, one cobalt signal; a heavy condensed display face
-that shouts, a quiet sans that explains; a few hand-drawn marks. Personal, not
-decorated. Everything here is CSS + SVG + a little React, no dependencies.
+Warm paper, near-black ink, one cobalt signal; a heavy, slightly condensed
+display face in sentence case, a quiet sans that explains; a code map and a
+pen-ring "o" as the signature, a few fine hand-drawn marks. Personal, calm,
+readable. Everything here is CSS + SVG + a little React, no dependencies.
 
 ## Tokens (app/globals.css `@theme`)
 
@@ -45,23 +46,26 @@ Easing: `--ease-pop` (a settle with a little overshoot: stickers, pills),
 
 - **Bricolage Grotesque** (`font-display`, `.display`, `.shout`): headlines.
   Width axis 75–100 via `font-stretch`; optical size is automatic, so big
-  sizes get the ink-trapped display cut. `.shout` = 800, 75% wide, uppercase,
-  line-height 0.84: the hero voice. `.display` = 750, 88% wide: page titles.
+  sizes get the ink-trapped display cut. `.display` = 750, 88% wide: headlines
+  and page titles. The landing hero is the same face at 800, 82% wide,
+  sentence case. `.shout` (800, 75%, uppercase) still exists for a single
+  word or number at most; never a whole hero.
 - **Instrument Sans** (`font-sans`, the default): everything you read.
 - **JetBrains Mono** (`font-mono`): code, logs, ids, receipts.
 - `.kicker`: 12.5px uppercase tracked label in the sans (section labels).
-- `.rise`: a load-time arrival (0.4em rise + fade, `--ease-arrive`); stagger
-  with `style={{ "--delay": "80ms" }}`. Hero lines only.
+- `.rise`: a load-time arrival (0.25em rise + fade, `--ease-arrive`); stagger
+  with `style={{ "--delay": "80ms" }}`. Hero lines only. Never blur type in.
 
 ## Components (components/brand)
 
 | Component | What | Motion |
 | --- | --- | --- |
-| `<Sticker tone="ink\|signal\|paper" tilt={-5} pop="load\|scroll\|none" delay>` | tilted pill over a headline; position it absolutely | pops (scale + rotate settle, `--ease-pop`) |
+| `<CodeMap label>` | **the signature**: eight small nodes, hairline edges, and one cobalt path that draws through them and lands in the ring-"o" (the function you're changing, named by `label`). Illustrative: always caption it in HTML with a true statement | hairlines fade in, nodes settle, the cobalt path draws, the ring lands (load) |
+| `<Sticker tone="ink\|signal\|paper" tilt={-2} pop="load\|scroll\|none" delay>` | small pill; one per view at most, tilt ≤ 2°, never covering text | pops (scale + rotate settle, `--ease-pop`) |
 | `<CtaPill href size="md\|sm">` | near-black pill + round cobalt arrow; one per view | arrow turns 45° and swells on hover |
 | `.pill` (class) | off-white nav/quiet pill, ≥40px tall; `aria-current="page"` inks it in | press scale |
-| `<Marquee items curved tone>` | ticker band in the shout voice; curved = SVG arc + textPath | drifts; curved one is also pushed by scroll; static under reduced motion |
-| `<Doodle doodle={loop} tone draw="load\|scroll\|none">` | hand-drawn marks: `loop`, `heroLoop`, `underline`, `arrow`, `nodes`, `circle`, `spark`, `o` (named exports of `doodle-data.ts`). Add `stretch` to fill a word's box exactly (circling, underlining) | stroke draws on through a mask |
+| `<Marquee items curved tone>` | ticker band. **Not used on the landing any more**; avoid `curved` (see Don't) | drifts; static under reduced motion |
+| `<Doodle doodle={loop} tone draw="load\|scroll\|none" weight={0.6} stretch>` | hand-drawn marks: `loop`, `heroLoop`, `underline`, `arrow`, `nodes`, `circle`, `spark`, `o` (named exports of `doodle-data.ts`). `weight` scales the pen (default fine 0.6; the wordmark uses 1). `stretch` fills a word's box exactly (underlining) | stroke draws on through a mask |
 | `<InkReveal text as>` | paragraph whose words fill pale cobalt → cobalt → ink as you scroll | CSS scroll timeline |
 | `<Wordmark draw>` | "opensrcer", the "o" a cobalt pen ring that doesn't quite close | ring draws on load |
 
@@ -87,9 +91,21 @@ Doodles are generated: edit the points in `scripts/gen-doodles.mjs` and run
 
 ## Do / don't
 
-- Do: one cobalt thing per view that matters most; stickers ≤ 3 per headline;
-  left-aligned, asymmetric layouts; big type doing the work.
+Balance: pleasing AND readable. Our signature is the code map and the ring-"o",
+not a studio-site pastiche.
+
+- Do: sentence-case display headlines with generous whitespace, left-aligned;
+  one cobalt word or thing per view; big type doing the work.
+- Do: the code map (`<CodeMap>`) as the hero motif; hand-drawn marks only as
+  quiet accents, fine pen (`weight` ≈ 0.5–0.6), at most one per section.
+- Do: body text ≥ 17px on desktop and ≥ 16px on phones, lines ≤ 70ch, a clear
+  heading → body → evidence hierarchy.
 - Do: hairline borders (`.card` is a hairline sheet, no shadow).
+- Don't: all-caps `.shout` heroes, piles of tilted stickers, or a curved
+  marquee band (that's another studio's signature). At most ONE small sticker
+  in a view, tilt ≤ 2°. If a ticker earns a place, it's one still, quiet line.
+- Don't: let any decoration overlap text you need to read (underline beneath
+  words, never a circle over them).
 - Don't: gradients, glass/blur panels, drop shadows on every block, emoji as
   section markers, centring everything, more than one CTA pill in view.
 - Don't: put `paper` text on `signal`; don't use `signal-dim` for readable text.

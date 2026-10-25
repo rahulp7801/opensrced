@@ -4,7 +4,6 @@ import { InviteNotice } from "./invite-notice";
 import { RUN } from "./tour/data";
 import { HeroHeadline } from "./landing";
 import { CtaPill } from "./brand/pill";
-import { Sticker } from "./brand/sticker";
 
 // What a newcomer needs before anything else: what it does, in plain words.
 const STEPS = [
@@ -18,36 +17,39 @@ const STEPS = [
  *  (components/landing.tsx) comes back when OPENSRCER_ACCESS is unset. */
 export function PreviewLanding() {
   return (
-    <HeroHeadline>
-      <div className="mt-12 grid gap-10 sm:mt-16 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:items-start">
-        <div className="rise" style={{ "--delay": "300ms" } as React.CSSProperties}>
-          <Sticker tone="signal" tilt={-3} delay={1200}>Private preview</Sticker>
-          <p className="mt-6 max-w-[34ch] text-[19px] leading-[1.45] text-paper-dim sm:text-[22px]">
+    <div className="overflow-x-clip">
+      <HeroHeadline>
+        <div className="rise" style={{ "--delay": "200ms" } as React.CSSProperties}>
+          <p className="mt-8 max-w-[38ch] text-[17px] leading-[1.55] text-paper-dim sm:text-[20px]">
             An agent drafts the fix, explains it in plain English, and nothing is posted until you&apos;ve reviewed it.
           </p>
-          <p className="mt-5 max-w-[48ch] text-[14px] leading-[1.5] text-paper-muted">
+          <p className="mt-4 max-w-[52ch] text-[16px] leading-[1.55] text-paper-muted">
             You bring your own Anthropic API key; you pay your provider per run, usually cents (the tour&apos;s run cost ${RUN.cost.toFixed(2)}).
+          </p>
+          <p className="mt-6 inline-flex items-center gap-2 rounded-full bg-surface px-3.5 py-1.5 text-[14px] font-medium text-paper">
+            <span aria-hidden className="size-1.5 rounded-full bg-signal" />
+            Private preview
           </p>
           <Suspense fallback={null}>
             <InviteNotice />
           </Suspense>
-          <div className="mt-8 flex flex-wrap items-center gap-3">
+          <div className="mt-7 flex flex-wrap items-center gap-3">
             <CtaPill href="/demo">Watch the product tour</CtaPill>
             <Link href="/login" className="pill min-h-12 px-5 text-[16px]">Have an invite? Sign in</Link>
           </div>
         </div>
-        <ol className="rise border-t-2 border-paper" style={{ "--delay": "380ms" } as React.CSSProperties}>
+      </HeroHeadline>
+      <section aria-label="How it works" className="px-5 pb-8 sm:px-8">
+        <ol className="mx-auto grid max-w-[1320px] gap-x-10 border-t-2 border-paper sm:grid-cols-3">
           {STEPS.map((step, i) => (
-            <li key={step.title} className="grid grid-cols-[56px_minmax(0,1fr)] gap-x-4 border-b border-border py-5">
-              <span aria-hidden className="shout text-[40px] text-signal">{String(i + 1).padStart(2, "0")}</span>
-              <div>
-                <p className="display text-[24px] leading-[1.05] text-paper">{step.title}</p>
-                <p className="mt-2 text-[15px] leading-[1.5] text-paper-muted">{step.text}</p>
-              </div>
+            <li key={step.title} className="border-b border-border py-6 sm:border-b-0">
+              <span aria-hidden className="display text-[28px] leading-none text-signal">{String(i + 1).padStart(2, "0")}</span>
+              <p className="display mt-3 text-[24px] leading-[1.1] text-paper">{step.title}</p>
+              <p className="mt-2 max-w-[44ch] text-[16px] leading-[1.55] text-paper-muted">{step.text}</p>
             </li>
           ))}
         </ol>
-      </div>
-    </HeroHeadline>
+      </section>
+    </div>
   );
 }

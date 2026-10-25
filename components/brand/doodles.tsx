@@ -17,6 +17,7 @@ import type { DoodleData } from "./doodle-data";
  * draw="scroll": draws as it crosses the viewport (scroll-timeline browsers).
  * draw="none": finished. Reduced motion or no support: finished.
  *
+ * weight: pen thickness (default a fine 0.6 of the generated marker).
  * stretch: fill the box exactly (circling or underlining a word whose box
  * isn't the doodle's shape); otherwise it keeps its proportions.
  */
@@ -27,6 +28,7 @@ export function Doodle({
   delay = 0,
   duration = 1100,
   stretch = false,
+  weight = 0.6,
   className,
   style,
 }: {
@@ -36,6 +38,9 @@ export function Doodle({
   delay?: number;
   duration?: number;
   stretch?: boolean;
+  /** Pen weight as a share of the generated stroke widths. The default is a
+   *  fine pen (0.6); 1 is the full marker the generator drew. */
+  weight?: number;
   className?: string;
   style?: React.CSSProperties;
 }) {
@@ -81,7 +86,7 @@ export function Doodle({
             </mask>
             <g mask={`url(#${id}-${i})`} fill="none" stroke="currentColor" strokeLinecap="round">
               {s.segs.map((seg) => (
-                <path key={seg.w} d={seg.d} strokeWidth={seg.w} />
+                <path key={seg.w} d={seg.d} strokeWidth={seg.w * weight} />
               ))}
             </g>
           </g>

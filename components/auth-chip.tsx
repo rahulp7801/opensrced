@@ -28,7 +28,7 @@ export function AuthChip({ localMode = false }: { localMode?: boolean }) {
   if (isLoading) {
     return (
       <div className="flex min-h-10 shrink-0 items-center px-4" aria-hidden>
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-paper-faint animate-pulse" />
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-paper-faint" />
       </div>
     );
   }

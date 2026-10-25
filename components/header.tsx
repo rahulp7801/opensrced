@@ -66,7 +66,7 @@ export function SiteHeader({ localMode = false, inviteOnly = false }: { localMod
             className="flex min-h-11 shrink-0 items-center rounded-full px-2 text-paper min-[1384px]:-ml-2"
           >
             {/* Signed in on a phone, the nav needs the room: the ring alone is the mark. */}
-            {signedIn && <Doodle doodle={o} draw="load" delay={150} duration={700} className="size-[26px] md:hidden" />}
+            {signedIn && <Doodle doodle={o} weight={0.85} draw="load" delay={150} duration={700} className="size-[24px] md:hidden" />}
             <Wordmark draw className={`${signedIn ? "hidden md:inline-flex" : ""} text-[28px]`} />
           </Link>
 

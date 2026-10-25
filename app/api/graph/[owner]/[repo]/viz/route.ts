@@ -64,9 +64,8 @@ export async function GET(
 </style></head><body><div class="msg">
   <h2>Graph too large for visualization</h2>
   <p>This repo produced a graph too large for the interactive HTML viewer.
-  The <span class="highlight">query engine still works</span> — use the
-  chat panel to run trace, impact, explain, and other commands.
-  All graph data is available.</p>
+  You can <span class="highlight">still ask about it</span> in plain English
+  in the chat panel. All graph data is available.</p>
 </div></body></html>`;
     return graphHtmlResponse(fallbackHtml);
   }

@@ -615,7 +615,7 @@ export default function GraphPage() {
               </span>
               {(engine === "crg"
                 ? [["What does this repository do?", "what does this repository do?"], ["What are the main parts?", "what are the main modules?"], ["How is it structured?", "how is this codebase structured?"]]
-                : [["What does this repository do?", "What does this repository do?"], ["Where would I start reading?", "Where would a new contributor start reading?"], ["Most-connected code", "god nodes"], ["Overview", "stats"], ["All commands", "help"]]
+                : [["What does this repository do?", "What does this repository do?"], ["Where would I start reading?", "Where would a new contributor start reading?"], ["What's the most important code?", "Which code is the most connected, and what breaks if it changes?"]]
               ).map(([label, cmd]) => (
                 <button
                   key={label}
@@ -647,26 +647,13 @@ export default function GraphPage() {
                         Ask anything about the code.
                       </p>
                       <p className="mt-2 max-w-md text-[14px] text-paper-muted">
-                        Answers use your AI provider key. The free map commands aren&apos;t available for repositories this large.
+                        Answers use your AI provider key.
                       </p>
                     </>
                   ) : (
                     <>
                       <p className="mt-3 max-w-md text-[16px] leading-[1.6] text-paper-muted">
                         Ask in plain English, like &quot;Where is the config read?&quot; Answers use your AI provider key and come from the code map: they point to the files involved, and say when the map can&apos;t answer.
-                      </p>
-                      <p className="mt-2 max-w-md text-[13px] leading-[1.6] text-paper-muted">
-                        Free map commands, no AI: &quot;trace handlePayment&quot;, &quot;impact UserService&quot;, &quot;explain src/api&quot;, &quot;path auth to billing&quot;.
-                      </p>
-                      <p className="mt-2 text-[13px] text-paper-muted">
-                        Type{" "}
-                        <button
-                          onClick={() => quickQuery("help")}
-                          className="link font-mono"
-                        >
-                          help
-                        </button>
-                        {" "}for all commands and examples.
                       </p>
                     </>
                   )}
@@ -770,13 +757,13 @@ export default function GraphPage() {
             </div>
             <ul className="ruled content-start self-start text-[16px]">
               {[
-                ["trace Symbol", "Follow calls and dependencies."],
-                ["impact Symbol", "Find affected callers and modules."],
-                ["explain src/api", "Summarize one area of the repository."],
-                ["path A to B", "Show how two symbols connect."],
-              ].map(([command, description]) => (
-                <li key={command} className="grid gap-1 py-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:gap-6">
-                  <code className="font-mono text-[14.5px] text-paper">{command}</code>
+                ["“What calls handlePayment?”", "Follow calls and dependencies."],
+                ["“What breaks if I change UserService?”", "Find affected callers and modules."],
+                ["“What does src/api do?”", "Summarize one area of the repository."],
+                ["“How does auth connect to billing?”", "Show how two parts connect."],
+              ].map(([question, description]) => (
+                <li key={question} className="grid gap-1 py-4 sm:grid-cols-[18rem_minmax(0,1fr)] sm:gap-6">
+                  <p className="text-paper">{question}</p>
                   <p className="text-paper-dim">{description}</p>
                 </li>
               ))}

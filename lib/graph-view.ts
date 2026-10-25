@@ -71,15 +71,32 @@ export function parseMarkdownBlocks(text: string): MdBlock[] {
   return blocks;
 }
 
+/** A map command, as the plain-English question shown to the user (null: not worth offering). */
+function asQuestion(command: string): string | null {
+  const [, verb, arg] = command.match(/^(trace|impact|explain) (.+)$/) ?? [];
+  if (verb === "trace") return `What calls ${arg}, and what does it call?`;
+  if (verb === "impact") return `What breaks if I change ${arg}?`;
+  if (verb === "explain") return `What does ${arg} do?`;
+  if (command === "god nodes") return "Which code is the most connected?";
+  if (command === "stats") return "Give me an overview of this repository.";
+  return null;
+}
+
 /**
- * Three next queries to offer under a finished answer.
- *
- * Every suggestion has to be a runnable query. `trace` and `impact` need a
- * symbol and `explain` needs a path, so a suggestion is only emitted once the
- * argument is known to be non-empty — a bare `trace` chip is a dead end the
- * user has to discover by clicking it.
+ * Three next questions to offer under a finished answer, in plain English: no
+ * one should have to learn commands to explore a repository.
  */
 export function generateFollowUps(query: string, response: string): string[] {
+  const questions = followUpCommands(query, response).map(asQuestion).filter((q): q is string => q !== null);
+  return [...new Set(questions)];
+}
+
+/**
+ * The next map commands, picked from what the answer named. `trace` and
+ * `impact` need a symbol and `explain` needs a path, so one is only emitted
+ * once its argument is known to be non-empty.
+ */
+function followUpCommands(query: string, response: string): string[] {
   const q = query.toLowerCase().trim();
   const out: string[] = [];
 

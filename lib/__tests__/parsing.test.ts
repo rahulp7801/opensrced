@@ -893,28 +893,28 @@ describe("generateFollowUps", () => {
 
   test("trace offers the matching impact and a symbol from the answer", () => {
     const out = generateFollowUps("trace parseConfig", RESPONSE);
-    assert.ok(out.includes("impact parseConfig"));
-    assert.ok(out.some((s) => s.startsWith("trace ") && s !== "trace parseConfig"));
+    assert.ok(out.includes("What breaks if I change parseConfig?"));
+    assert.ok(out.some((s) => s.startsWith("What calls ") && !s.includes("parseConfig")));
   });
 
   test("impact does not suggest impacting the same symbol back", () => {
     const out = generateFollowUps("impact parseConfig", RESPONSE);
-    assert.ok(!out.includes("impact parseConfig"));
-    assert.ok(out.includes("trace parseConfig"));
+    assert.ok(!out.includes("What breaks if I change parseConfig?"));
+    assert.ok(out.includes("What calls parseConfig, and what does it call?"));
   });
 
   test("path keeps the original casing of its endpoints", () => {
     // Symbol lookup is case-sensitive, so lowercasing the endpoints produced
     // suggestions that could not resolve.
     const out = generateFollowUps("path AuthService to BillingJob", "");
-    assert.ok(out.includes("impact AuthService"), out.join(" | "));
-    assert.ok(out.includes("trace BillingJob"), out.join(" | "));
+    assert.ok(out.includes("What breaks if I change AuthService?"), out.join(" | "));
+    assert.ok(out.includes("What calls BillingJob, and what does it call?"), out.join(" | "));
   });
 
   test("stats points at the busiest module the output named", () => {
     const stats = "GRAPH STATISTICS\n  Modules:\n    src/billing: 42\n    src/auth: 9";
-    assert.ok(generateFollowUps("stats", stats).includes("explain src/billing"));
-    assert.ok(generateFollowUps("stats", "no modules here").includes("explain src"));
+    assert.ok(generateFollowUps("stats", stats).includes("What does src/billing do?"));
+    assert.ok(generateFollowUps("stats", "no modules here").includes("What does src do?"));
   });
 });
 

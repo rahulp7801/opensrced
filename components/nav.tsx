@@ -4,12 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SECTIONS, isLinkActive } from "./nav-config";
 
-/** The four task sections as pills; the current one is inked in (.pill[aria-current]). */
+/** The four task sections as plain text beside the wordmark. The current one
+ *  is ink with a 2px ink rule sitting on the header's bottom hairline. */
 export function Nav() {
   const path = usePathname();
 
   return (
-    <nav aria-label="Main navigation" className="flex min-w-0 flex-1 items-center justify-center gap-0.5 sm:gap-1.5">
+    <nav aria-label="Main navigation" className="flex min-w-0 items-stretch gap-3 sm:gap-7">
       {SECTIONS.map((section) => {
         const active = section.links.some((l) => isLinkActive(path, l.href));
         return (
@@ -21,9 +22,7 @@ export function Nav() {
             title={section.title}
             aria-label={section.label}
             aria-current={active ? "page" : undefined}
-            // Quiet (no fill) until hovered or current, so four fit on a phone.
-            data-quiet
-            className="pill min-w-0 px-2.5 text-[13.5px] sm:px-4 sm:text-[14px]"
+            className="tab-link min-w-0 text-[14px]"
           >
             <span className="truncate">{section.label}</span>
           </Link>

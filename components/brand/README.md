@@ -62,8 +62,11 @@ Easing: `--ease-pop` (a settle with a little overshoot: stickers, pills),
 | --- | --- | --- |
 | `<CodeMap label>` | **the signature**: eight small nodes, hairline edges, and one cobalt path that draws through them and lands in the ring-"o" (the function you're changing, named by `label`). Illustrative: always caption it in HTML with a true statement | hairlines fade in, nodes settle, the cobalt path draws, the ring lands (load) |
 | `<Sticker tone="ink\|signal\|paper" tilt={-2} pop="load\|scroll\|none" delay>` | small pill; one per view at most, tilt ≤ 2°, never covering text | pops (scale + rotate settle, `--ease-pop`) |
-| `<CtaPill href size="md\|sm">` | near-black pill + round cobalt arrow; one per view | arrow turns 45° and swells on hover |
-| `.pill` (class) | off-white nav/quiet pill, ≥40px tall; `aria-current="page"` inks it in | press scale |
+| `<CtaPill href size="md\|sm">` | near-black pill + round cobalt arrow: the brand CTA, **landing hero and stage close only** | arrow turns 45° and swells on hover |
+| `.text-link` (class) | secondary actions as words: underlined, 40px tap height, cobalt on hover; external links get a trailing ↗ | colour |
+| `.tab-link` (class) | navigation as text (header nav, tab strips); `aria-current="page"` = ink text + 2px ink rule on the bar's hairline | colour |
+| `.fig-tag` (class) | the boxed `fig. 1` ahead of a mono figure caption (`font-mono text-[11.5px] text-paper-faint`) | none |
+| `.pill` (class) | off-white pill; only for toggles (filters, segmented controls) now, not links or statuses | press scale |
 | `<Marquee items curved tone>` | ticker band. **Not used on the landing any more**; avoid `curved` (see Don't) | drifts; static under reduced motion |
 | `<Doodle doodle={loop} tone draw="load\|scroll\|none" weight={0.6} stretch>` | hand-drawn marks: `loop`, `heroLoop`, `underline`, `arrow`, `nodes`, `circle`, `spark`, `o` (named exports of `doodle-data.ts`). `weight` scales the pen (default fine 0.6; the wordmark uses 1). `stretch` fills a word's box exactly (underlining) | stroke draws on through a mask |
 | `<InkReveal text as>` | paragraph whose words fill pale cobalt → cobalt → ink as you scroll | CSS scroll timeline |
@@ -100,7 +103,13 @@ not a studio-site pastiche.
   quiet accents, fine pen (`weight` ≈ 0.5–0.6), at most one per section.
 - Do: body text ≥ 17px on desktop and ≥ 16px on phones, lines ≤ 70ch, a clear
   heading → body → evidence hierarchy.
-- Do: hairline borders (`.card` is a hairline sheet, no shadow).
+- Do: hairline borders (`.card` is a hairline sheet, no shadow); ruled lists
+  rather than stacks of cards.
+- Do: per view, one primary action (a 10px-radius rectangle, or the CtaPill on
+  the landing hero), everything else a `.text-link`.
+- Do: editorial contrast: a run-in heading (a bold display claim running into a
+  quieter sans sentence at the same size), mono labels in a left rail, mono
+  receipts and figure captions for real facts.
 - Don't: all-caps `.shout` heroes, piles of tilted stickers, or a curved
   marquee band (that's another studio's signature). At most ONE small sticker
   in a view, tilt ≤ 2°. If a ticker earns a place, it's one still, quiet line.

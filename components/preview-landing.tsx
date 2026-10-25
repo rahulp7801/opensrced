@@ -40,11 +40,11 @@ export function PreviewLanding() {
         </div>
       </HeroHeadline>
       <section aria-label="How it works" className="px-5 pb-8 sm:px-8">
-        <ol className="mx-auto grid max-w-[1320px] gap-x-10 border-t-2 border-paper sm:grid-cols-3">
+        <ol className="mx-auto grid max-w-[1320px] gap-x-10 border-t border-border-soft sm:grid-cols-3">
           {STEPS.map((step, i) => (
-            <li key={step.title} className="border-b border-border py-6 sm:border-b-0">
-              <span aria-hidden className="display text-[28px] leading-none text-signal">{String(i + 1).padStart(2, "0")}</span>
-              <p className="display mt-3 text-[24px] leading-[1.1] text-paper">{step.title}</p>
+            <li key={step.title} className="border-b border-border-soft py-7 sm:border-b-0">
+              <span aria-hidden className="font-mono text-[12px] text-paper-faint">{i + 1}</span>
+              <p className="mt-2 font-display text-[22px] font-[650] leading-[1.2] text-paper [font-stretch:92%]">{step.title}</p>
               <p className="mt-2 max-w-[44ch] text-[16px] leading-[1.55] text-paper-muted">{step.text}</p>
             </li>
           ))}

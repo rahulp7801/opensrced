@@ -57,42 +57,45 @@ export function SiteHeader({ localMode = false, inviteOnly = false }: { localMod
     <>
       {/* Stickiness lives on the wrapper in app/layout.tsx, which pins this
           header and the section tab bar together. */}
-      {/* Solid paper, a hairline under it: no glass. */}
+      {/* Solid paper, a hairline under it: no glass. Wordmark left, the task
+          nav right beside it as plain text (the current one underlined on the
+          header's rule), help and account at the far right. */}
       <header className="border-b border-border-soft bg-ink">
-        <div className="mx-auto flex min-h-16 w-full max-w-[1320px] items-center gap-1 px-2 sm:gap-2 sm:px-6 min-[1384px]:px-0">
+        <div className="mx-auto flex min-h-14 w-full max-w-[1320px] items-stretch gap-3 px-3 sm:gap-6 sm:px-6 lg:gap-10 min-[1384px]:px-0">
           <Link
             href={signedIn ? "/discover" : "/"}
             aria-label="opensrcer home"
-            className="flex min-h-11 shrink-0 items-center rounded-full px-2 text-paper min-[1384px]:-ml-2"
+            className="flex shrink-0 items-center text-paper"
           >
             {/* Signed in on a phone, the nav needs the room: the ring alone is the mark. */}
-            {signedIn && <Doodle doodle={o} weight={0.85} draw="load" delay={150} duration={700} className="size-[24px] md:hidden" />}
-            <Wordmark draw className={`${signedIn ? "hidden md:inline-flex" : ""} text-[28px]`} />
+            {signedIn && <Doodle doodle={o} weight={0.85} draw="load" delay={150} duration={700} className="size-[22px] md:hidden" />}
+            <Wordmark draw className={`${signedIn ? "hidden md:inline-flex" : ""} text-[24px]`} />
           </Link>
 
           {signedIn ? (
             <Nav />
           ) : (
             <nav aria-label="Main navigation" className="ml-auto flex items-center">
-              <Link href="/demo" className="text-link mr-2 text-[14px]">Demo</Link>
+              <Link href="/demo" className="text-link text-[14px]">Demo</Link>
             </nav>
           )}
 
-          {signedIn && (
-            <button
-              ref={helpButtonRef}
-              onClick={() => setHelpOpen(!helpOpen)}
-              aria-label="Open help"
-              aria-expanded={helpOpen}
-              aria-controls="quick-help-dialog"
-              className="grid size-10 shrink-0 place-items-center rounded-full text-paper-muted transition hover:bg-surface hover:text-paper"
-              title="Help & quick reference"
-            >
-              <IconHelp size={18} />
-            </button>
-          )}
-
-          <AuthChip localMode={localMode} />
+          <div className={`${signedIn ? "ml-auto" : ""} flex shrink-0 items-center gap-1`}>
+            {signedIn && (
+              <button
+                ref={helpButtonRef}
+                onClick={() => setHelpOpen(!helpOpen)}
+                aria-label="Open help"
+                aria-expanded={helpOpen}
+                aria-controls="quick-help-dialog"
+                className="grid size-10 shrink-0 place-items-center rounded-[10px] text-paper-muted transition hover:bg-surface hover:text-paper"
+                title="Help & quick reference"
+              >
+                <IconHelp size={18} />
+              </button>
+            )}
+            <AuthChip localMode={localMode} />
+          </div>
         </div>
       </header>
 

@@ -16,7 +16,7 @@ export function AuthChip({ localMode = false }: { localMode?: boolean }) {
       <Link
         href="/crucible"
         aria-label="Local settings"
-        className="pill ml-auto shrink-0 gap-2 px-3 text-[12.5px] text-paper-muted"
+        className="ml-auto flex min-h-10 shrink-0 items-center gap-2 rounded-[10px] px-2.5 text-[13px] text-paper-muted transition hover:bg-surface hover:text-paper"
         title="Local development mode — open settings"
       >
         <span className="h-2 w-2 rounded-full bg-ok" aria-hidden />
@@ -37,7 +37,7 @@ export function AuthChip({ localMode = false }: { localMode?: boolean }) {
     return (
       <Link
         href="/login"
-        className="btn-primary ml-1 shrink-0 gap-2 px-4 text-[14px]"
+        className="btn-primary ml-2 shrink-0 gap-2 rounded-[10px] px-3.5 text-[14px]"
       >
         <GithubLogo aria-hidden size={17} weight="fill" />
         Sign in
@@ -50,11 +50,11 @@ export function AuthChip({ localMode = false }: { localMode?: boolean }) {
   const picture = safeAvatarUrl(user.picture);
 
   return (
-    <div className="ml-auto flex shrink-0 items-center gap-0.5">
+    <div className="flex shrink-0 items-center gap-0.5">
       <Link
         href="/crucible"
         aria-label={`Settings for ${display}`}
-        className="flex min-h-10 min-w-10 items-center justify-center gap-2 rounded-full px-2 transition hover:bg-surface"
+        className="flex min-h-10 min-w-10 items-center justify-center gap-2 rounded-[10px] px-2 transition hover:bg-surface"
         title={`${display} — manage connections`}
       >
         {picture ? (
@@ -77,11 +77,10 @@ export function AuthChip({ localMode = false }: { localMode?: boolean }) {
       <a
         href="/auth/logout"
         aria-label="Sign out"
-        className="flex min-h-10 min-w-10 items-center justify-center gap-2 whitespace-nowrap rounded-full px-2.5 text-[12.5px] text-paper-muted transition hover:bg-surface hover:text-alert"
+        className="flex min-h-10 min-w-10 items-center justify-center gap-2 whitespace-nowrap rounded-[10px] px-2.5 text-paper-muted transition hover:bg-surface hover:text-alert"
         title="Sign out"
       >
-        <IconSignOut size={16} />
-        <span className="hidden sm:inline">Sign out</span>
+        <IconSignOut size={17} />
       </a>
     </div>
   );

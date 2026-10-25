@@ -245,8 +245,7 @@ export function RepoMap({ buildAt, focusAt }: { buildAt: number; focusAt: number
 
   const f = reduce && t >= focusAt ? MAP_FOCUS_LENGTH : t - focusAt;
   const crumbs = prep?.snap.breadcrumb ?? [];
-  const depth = f < F.hold ? 0 : f < F.community ? 1 : f < F.fn ? crumbs.length - 1 : crumbs.length;
-  const crumb = depth === 0 ? prep?.snap.repo : crumbs.slice(0, Math.max(1, depth)).join(" › ");
+  const depth = f < F.community ? 1 : f < F.fn ? crumbs.length - 1 : crumbs.length;
   const chrome = Math.min(1, Math.max(0, (t - buildAt - 900) / 500));
   const stats = prep?.snap.stats;
   return (
@@ -257,7 +256,9 @@ export function RepoMap({ buildAt, focusAt }: { buildAt: number; focusAt: number
       {stats && (
         <>
           <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between gap-3 px-3 text-[11px]" style={{ height: TOP }}>
-            <span key={crumb} className="stage-tick truncate font-mono text-white/85">{crumb}</span>
+            <span className="truncate font-mono text-white/85">
+              {crumbs.slice(0, depth).map((c, i) => <span key={c} className="stage-tick">{i > 0 && <span className="mx-1.5 text-white/45">›</span>}{c}</span>)}
+            </span>
             <span className="shrink-0 text-white/60" style={{ opacity: chrome }}>
               {stats.nodes.toLocaleString("en-US")} nodes · {stats.edges.toLocaleString("en-US")} edges · {stats.communities} communities
             </span>
@@ -431,15 +432,36 @@ function draw(ctx: CanvasRenderingContext2D, p: Prepared, fr: Frame) {
   // back. Files first, then functions where they fit; none overlapping each other, the header
   // and legend bands, or the pane's sides.
   const placed: Box[] = [];
+  // What a label must not cover: every lit node with its halo (the function with its rings).
+  const lights = [...p.arrive.entries()].filter(([, at]) => f >= at - 150)
+    .map(([i]) => ({ i, x: sx(i), y: sy(i), r: radius(i) + (i === primary ? 10 : 6) }));
+  const covered = (b: Box, own: number) => lights.filter((o) => {
+    if (o.i === own) return false;
+    const dx = Math.max(b.x0 - o.x, 0, o.x - b.x1), dy = Math.max(b.y0 - o.y, 0, o.y - b.y1);
+    return dx * dx + dy * dy < o.r * o.r;
+  }).length;
   const label = (i: number, alpha: number, strong: boolean) => {
     if (alpha <= 0) return;
     const text = p.snap.nodes[i][1];
     ctx.font = `${strong ? 600 : 500} ${i === primary ? 14 : 11.5}px ${fr.mono}`;
     const tw = ctx.measureText(text).width;
-    const lx = sx(i) + radius(i) + (i === primary ? 9 : 6), ly = sy(i) + 4;
-    const box = { x0: lx - 3, y0: ly - 12, x1: lx + tw + 3, y1: ly + 4 };
-    if (box.x0 < EDGE || box.x1 > w - EDGE || box.y0 < TOP + 4 || box.y1 > h - BOTTOM - 4) return;
-    if (placed.some((b) => b.x0 < box.x1 && box.x0 < b.x1 && b.y0 < box.y1 && box.y0 < b.y1)) return;
+    const gap = radius(i) + (i === primary ? 9 : 6), cx = sx(i), cy = sy(i);
+    // Right, then the four corners, then left: the first spot that's free wins. The function's
+    // own label always shows: if no spot is free, it takes the one covering the fewest lit nodes.
+    const spots = [[cx + gap, cy + 4], [cx + gap * 0.7, cy - gap * 0.7], [cx + gap * 0.7, cy + gap * 0.7 + 10],
+      [cx - gap * 0.7 - tw, cy - gap * 0.7], [cx - gap * 0.7 - tw, cy + gap * 0.7 + 10], [cx - gap - tw, cy + 4]];
+    let best: { box: Box; lx: number; ly: number; n: number } | null = null;
+    for (const [lx, ly] of spots) {
+      const box = { x0: lx - 3, y0: ly - 12, x1: lx + tw + 3, y1: ly + 4 };
+      if (box.x0 < EDGE || box.x1 > w - EDGE || box.y0 < TOP + 4 || box.y1 > h - BOTTOM - 4) continue;
+      if (placed.some((b) => b.x0 < box.x1 && box.x0 < b.x1 && b.y0 < box.y1 && box.y0 < b.y1)) continue;
+      const n = covered(box, i);
+      if (n === 0) { drawLabel(box, lx, ly, text, alpha, strong); return; }
+      if (!best || n < best.n) best = { box, lx, ly, n };
+    }
+    if (best && i === primary) drawLabel(best.box, best.lx, best.ly, text, alpha, strong);
+  };
+  const drawLabel = (box: Box, lx: number, ly: number, text: string, alpha: number, strong: boolean) => {
     placed.push(box);
     ctx.fillStyle = rgba(BG, 0.86 * alpha);
     ctx.fillRect(box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0);

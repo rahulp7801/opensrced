@@ -286,7 +286,7 @@ export const stageExplore: Chapter = {
     { at: FOCUS_AT, text: "Know what your change touches before you touch it." },
   ],
   captions: [
-    { at: 0, text: "Before changing anything, understand the code. Explore maps the repository straight from the source: no AI, nothing cloned, nothing installed." },
+    { at: 0, text: "Before changing anything, understand the code. Explore maps the repository straight from its source code: no AI, and nothing to install on your machine." },
     { at: BUILT_AT, spot: "graph", text: "This is Flask: 2,169 nodes (files, functions, classes and their docstring notes) in 201 communities, and the links between them, mapped by the site's own graph builder. (The layout was computed for this talk from that real graph.)" },
     { at: FIRST.turns[0].typeAt, spot: "ask", text: `Then ask the question you'd normally grep for: “${FIRST.turns[0].prompt}” The answer comes from the map and points to the files involved.` },
     { at: FIRST.turns[0].doneAt, spot: "answer", text: "A real answer from the Explore page, trimmed for the slide: where it lives, and what breaks if you change it." },

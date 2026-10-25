@@ -166,7 +166,7 @@ export function ApiKeysForm() {
       {/* How runs are paid for */}
       <fieldset className="space-y-3" aria-describedby="payment-help">
         <legend className="text-[16px] font-semibold text-paper">Payment order</legend>
-        <p id="payment-help" className="text-[12.5px] leading-5 text-paper-muted">
+        <p id="payment-help" className="text-[14px] leading-[1.55] text-paper-muted">
           Runs try these in order. Your own subscription comes first, so you are not charged API prices by default.
         </p>
         {loading ? (
@@ -188,8 +188,8 @@ export function ApiKeysForm() {
                       {info.title}
                       <span className={`chip ${chip.tone === "ok" ? "chip-ok" : ""}`}>{chip.text}</span>
                     </p>
-                    <p className="mt-1 text-[12.5px] leading-5 text-paper-muted">{info.note}</p>
-                    {!isKey && detected && <p className="mt-1 text-[12.5px] leading-5 text-paper-dim">{status?.local ? "This machine: " : ""}{detected.detail}</p>}
+                    <p className="mt-1 text-[14px] leading-[1.55] text-paper-muted">{info.note}</p>
+                    {!isKey && detected && <p className="mt-1 text-[14px] leading-[1.55] text-paper-dim">{status?.local ? "This machine: " : ""}{detected.detail}</p>}
                   </div>
                   <div className="flex gap-1.5">
                     <button type="button" onClick={() => move(index, -1)} disabled={saving || index === 0}
@@ -205,7 +205,7 @@ export function ApiKeysForm() {
           </ol>
         )}
         {!loading && status && !status.local && (
-          <p className="text-[12.5px] leading-5 text-paper-muted">
+          <p className="text-[14px] leading-[1.55] text-paper-muted">
             {status.hostedSubscription
               ? "Hosted runs ask you to sign in to Claude inside each run's isolated worker. opensrcer never sees or keeps your Claude login."
               : "Subscription sign-in for hosted runs is not enabled on this deployment yet; runs use your API key."}
@@ -213,7 +213,7 @@ export function ApiKeysForm() {
           </p>
         )}
         {!loading && status?.local && (
-          <p className="text-[12.5px] leading-5 text-paper-muted">
+          <p className="text-[14px] leading-[1.55] text-paper-muted">
             Local mode uses the Claude Code and Codex logins already on this machine (<code className="font-mono">claude auth login</code>, <code className="font-mono">codex login</code>).{" "}
             <button type="button" onClick={recheck} disabled={checking} className="underline hover:text-paper disabled:opacity-50">
               {checking ? "Checking…" : "Check again"}
@@ -230,11 +230,11 @@ export function ApiKeysForm() {
           />
           <span>
             Use my API key when my plan is unavailable
-            <span className="block text-[12.5px] leading-5 text-paper-muted">Off by default, so API spend is never a surprise. Applies when you are signed out or hit your plan&apos;s usage limit.</span>
+            <span className="block text-[14px] leading-[1.55] text-paper-muted">Off by default, so API spend is never a surprise. Applies when you are signed out or hit your plan&apos;s usage limit.</span>
           </span>
         </label>
         {status && status.ready === false && status.problem && (
-          <p role="status" className="callout callout-alert px-3 py-2 text-[12.5px] leading-5 text-alert">{status.problem}</p>
+          <p role="status" className="callout callout-alert px-3 py-2 text-[14px] leading-[1.55] text-alert">{status.problem}</p>
         )}
       </fieldset>
 
@@ -295,7 +295,7 @@ export function ApiKeysForm() {
             )
           )}
         </div>
-        <div id="anthropic-help" className="text-[12.5px] leading-5 text-paper-muted">
+        <div id="anthropic-help" className="text-[14px] leading-[1.55] text-paper-muted">
           The fallback, or your first choice if you rank it first. Get one at{" "}
           <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" className="underline hover:text-paper-muted">
             console.anthropic.com
@@ -360,7 +360,7 @@ export function ApiKeysForm() {
             )
           )}
         </div>
-        <div id="gemini-help" className="text-[12.5px] leading-5 text-paper-muted">
+        <div id="gemini-help" className="text-[14px] leading-[1.55] text-paper-muted">
           Used for patch review and advisory analysis. Get one at{" "}
           <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="underline hover:text-paper-muted">
             aistudio.google.com

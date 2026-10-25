@@ -6,7 +6,8 @@
 //     (lib/issues.ts, drawn as components/issue-scanner.tsx draws them);
 //   - Explore's plain-English questions, which are answered from the repository's
 //     code graph, point to the files involved and show their cost (app/api/graph/query);
-//   - the graph view, where clicking a node picks out its connections.
+//   - the real pallets/flask graph and a real Explore answer, drawn on it for the stage
+//     (repo-map.tsx; demo only: the hops are the graph's own relations).
 // The notes carry the pitch: the guided path for someone new to open source, and
 // why maintainers can trust what it sends them.
 
@@ -14,7 +15,7 @@ import { ArrowUp, Sparkle } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { StatusChip } from "@/components/status-dot";
 import { AppWindow, Pips, Press, Reveal, SCOPE_LABEL, SCOPE_TONE, SEVERITY_TONE, TimeContext, Typed, progress, useFollow, useT, type Caption, type Chapter } from "./kit";
-import { CodeGraph, LIGHTS } from "./graph";
+import { MAP_FOCUS_LENGTH, RepoMap } from "./repo-map";
 import { DEMO_PUBLISH_STEPS, Published, Term } from "./chapters-fix";
 import type { ReactNode } from "react";
 import { DIAGNOSIS, PATCH_STATS, RISK } from "./data";
@@ -223,30 +224,32 @@ function AskPanel({ turns, text = GRAPH_PANEL }: { turns: TimedTurn[]; text?: Pa
   );
 }
 
+// Explore on a large real repository: pallets/flask, mapped by the site's own graph builder.
+const MAP_REPO = "pallets/flask";
+const MAP_PANEL: PanelText = { ...GRAPH_PANEL, placeholder: `Ask about ${MAP_REPO}…` };
 const BUILT_AT = 3600;
 const FIRST = schedule(BUILT_AT + 1600, [
   {
-    prompt: "Where is truncate used, and what breaks if I change it?",
-    answer: "truncate is defined in src/truncate.ts. Inside the repository it's only re-exported by src/index.ts and called by one test, so a change reaches the public API and that test, nothing else.",
-    cites: ["src/truncate.ts", "src/index.ts", "test/text.test.ts"], cost: "$0.0028",
+    // Asked on the real Explore page against the real graph (public/demo/flask-graph.json has the
+    // full answer). Shown as a verbatim excerpt, trimmed with "…"; the cites and cost are the run's.
+    prompt: "Where is render_template used, and what breaks if I change it?",
+    answer: "render_template is defined in src/flask/templating.py:L136 (rationale at L140). … Breaking Changes Would Affect: All view functions that use render_template() to return HTML responses",
+    cites: ["src/flask/templating.py", "tests/test_basic.py", "tests/test_signals.py", "examples/tutorial/flaskr/auth.py", "src/flask/sansio/app.py", "src/flask/app.py"], cost: "$0.0206",
   },
 ]);
-// Then the presenter clicks truncate() on the graph to see the same thing on the map.
-const SELECT_AT = FIRST.end + 600;
+// Then the stage draws that answer on the map.
+const FOCUS_AT = FIRST.end;
 const TURNS = FIRST.turns;
-
-// truncate() on the graph, as a share of its 600x400 viewBox, for the click target.
-const TRUNCATE_NODE = { left: `${(512 / 600) * 100}%`, top: `${(182 / 400) * 100}%` };
 
 function StageExploreView() {
   const t = useT();
   const built = t >= BUILT_AT;
   const pct = Math.round(progress(t, 700, BUILT_AT - 100) * 100);
   return (
-    <AppWindow path={`/graph?repo=${DEMO_REPO}`} section="Explore">
+    <AppWindow path={`/graph?repo=${MAP_REPO}`} section="Explore">
       <div className="flex h-full flex-col overflow-hidden px-4 py-3 sm:px-6">
         <div className="flex items-center gap-2">
-          <span className="min-w-0 flex-1 rounded-md border border-border bg-surface px-2.5 py-1 font-mono text-[12px] text-paper">{DEMO_REPO}</span>
+          <span className="min-w-0 flex-1 rounded-md border border-border bg-surface px-2.5 py-1 font-mono text-[12px] text-paper">{MAP_REPO}</span>
           <Press at={650} className="rounded-full bg-paper px-3 py-1 text-[12px] font-medium text-surface">{t >= 700 && !built ? "building..." : built ? "Rebuild graph" : "Build graph"}</Press>
           {built && <span className="text-[11.5px] text-ok">● ready · parsed, no AI</span>}
         </div>
@@ -258,17 +261,10 @@ function StageExploreView() {
         )}
         {built && (
           <div className="mt-3 grid min-h-0 flex-1 grid-cols-[57fr_43fr] gap-3">
-            <div className="flex min-h-0 items-center overflow-hidden rounded-xl border border-border-soft bg-surface p-2">
-              <div data-spot="graph" className="relative aspect-[3/2] w-full">
-                <CodeGraph buildAt={BUILT_AT + 100} lights={[{ at: SELECT_AT + 200, light: LIGHTS.select }]} />
-                <div className="absolute" style={TRUNCATE_NODE}>
-                  <Press at={SELECT_AT} label="truncate() on the graph" className="h-8 w-[104px] -translate-x-4 -translate-y-1/2 rounded-full">
-                    <span className="sr-only">truncate()</span>
-                  </Press>
-                </div>
-              </div>
+            <div data-spot="graph" className="relative min-h-0 overflow-hidden rounded-xl border border-border-soft">
+              <RepoMap buildAt={BUILT_AT + 100} focusAt={FOCUS_AT} />
             </div>
-            <AskPanel turns={TURNS} />
+            <AskPanel turns={TURNS} text={MAP_PANEL} />
           </div>
         )}
       </div>
@@ -281,20 +277,20 @@ export const stageExplore: Chapter = {
   act: "Find",
   label: "Explore the code",
   title: "Ask the code in plain English",
-  duration: SELECT_AT + 3500,
-  source: "Example session on the real demo repository",
-  provenance: [{ at: 0, text: "Real repository · example questions" }],
+  duration: FOCUS_AT + MAP_FOCUS_LENGTH + 2500,
+  source: "The real pallets/flask graph and a real Explore answer; the zoom is drawn for the stage",
+  provenance: [{ at: 0, text: "Real repository: pallets/flask · real answer" }],
   headlines: [
     { at: 0, text: "Understand the code before you change it." },
     { at: FIRST.turns[0].typeAt, text: "Ask about it in plain English." },
-    { at: FIRST.turns[0].doneAt, text: "Know what your change touches before you touch it." },
+    { at: FOCUS_AT, text: "Know what your change touches before you touch it." },
   ],
   captions: [
     { at: 0, text: "Before changing anything, understand the code. Explore maps the repository straight from the source: no AI, nothing cloned, nothing installed." },
-    { at: BUILT_AT, spot: "graph", text: "Files, functions, and the calls between them. (For the curious: it's parsed with tree-sitter.)" },
+    { at: BUILT_AT, spot: "graph", text: "This is Flask: 2,169 nodes (files, functions, classes and their docstring notes) in 201 communities, and the links between them, mapped by the site's own graph builder. (The layout was computed for this talk from that real graph.)" },
     { at: FIRST.turns[0].typeAt, spot: "ask", text: `Then ask the question you'd normally grep for: “${FIRST.turns[0].prompt}” The answer comes from the map and points to the files involved.` },
-    { at: FIRST.turns[0].doneAt, spot: "answer", text: "The payoff: a change reaches the public API and that one test, nothing else. Know what your change touches before you touch it." },
-    { at: SELECT_AT, spot: "graph", text: "Same thing on the map: click truncate() and its connections light up. You know the shape of the fix before an agent writes a line." },
+    { at: FIRST.turns[0].doneAt, spot: "answer", text: "A real answer from the Explore page, trimmed for the slide: where it lives, and what breaks if you change it." },
+    { at: FOCUS_AT, spot: "graph", text: "Drawn on the map for the talk: from all of Flask down to render_template(), then everything that depends on it in the graph, one, two and three hops out. Know what your change touches before you touch it." },
   ],
   View: StageExploreView,
 };
@@ -763,7 +759,7 @@ export function withSignInStart(chapter: Chapter): Chapter {
     headlines: [{ at: 0, text: "No API bill: it runs on the Claude plan you already pay for." }, ...(chapter.headlines ?? []).map(later)],
     provenance: [{ at: 0, text: "The sign-in step, as the site shows it" }, ...(chapter.provenance ?? []).map(later)],
     captions: [
-      { at: 0, text: "One click starts the run. It runs on the Claude plan you already pay for, so there's no API bill." },
+      { at: 0, text: "Back to our small demo repository, where the real run behind pull request #7 happened. One click starts the run. It runs on the Claude plan you already pay for, so there's no API bill." },
       { at: SIGN_IN_PANEL_AT, spot: "sign-in", text: "You sign in on Claude's own page, inside the run's machine; opensrcer never sees your login. Hit your plan's limit? The run stops. It switches to an API key only if you've turned that on." },
       ...chapter.captions.map(later),
     ],

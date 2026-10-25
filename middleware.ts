@@ -70,6 +70,8 @@ const PUBLIC_PATHS = new Set([
   // The stage demo and its speaker notes: the same simulated tour, for presenting.
   "/demo/stage",
   "/demo/stage/notes",
+  // The stage's repository map (components/tour/repo-map.tsx): a static snapshot of a public repo.
+  "/demo/flask-graph.json",
   // Public shared fix viewer + the single-fix read API behind it. The
   // enumeration endpoint that used to live at GET /api/fixes is gone — it
   // listed the most recent shares to anyone who asked, which made the
@@ -103,6 +105,8 @@ const UNCONFIGURED_PUBLIC_PATHS = new Set([
   // The stage demo and its speaker notes: the same simulated tour, for presenting.
   "/demo/stage",
   "/demo/stage/notes",
+  // The stage's repository map (components/tour/repo-map.tsx): a static snapshot of a public repo.
+  "/demo/flask-graph.json",
   "/fix",
   "/api/fixes",
 ]);
@@ -126,6 +130,8 @@ const PREVIEW_PUBLIC_PATHS = new Set([
   // The stage demo and its speaker notes: the same simulated tour, for presenting.
   "/demo/stage",
   "/demo/stage/notes",
+  // The stage's repository map (components/tour/repo-map.tsx): a static snapshot of a public repo.
+  "/demo/flask-graph.json",
   "/api/access",
   "/api/crucible/github/webhook",
   "/api/crucible/github/install-callback",

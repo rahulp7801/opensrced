@@ -15,6 +15,7 @@ import { ArrowRight, CaretLeft, CaretRight, CornersOut } from "@phosphor-icons/r
 import { cn } from "@/lib/utils";
 import { InteractContext, TimeContext, type Chapter, type Interact } from "./kit";
 import { pacedBy } from "./chapters";
+import { preloadRepoSnapshot } from "./repo-map";
 import { pr } from "./chapters-fix";
 import { stageExplore, stageNotes, stageProblem, stagePromise, stageRefused, stageReview, stageRules, stageScan, stageSlop, stageVerified, withPrFacts, withSignInStart } from "./stage-views";
 
@@ -66,6 +67,8 @@ export function StageDemo() {
   const [started, setStarted] = useState(false);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [scale, setScale] = useState(1);
+  // The Explore stop maps a large repository; fetch its snapshot while the talk opens.
+  useEffect(() => { preloadRepoSnapshot().catch(() => {}); }, []);
   const tRef = useRef(0);
   const waitingRef = useRef<Waiting | null>(null);
   const playingRef = useRef(false);

@@ -8,7 +8,7 @@ import Link from "next/link";
 export function SessionGate({ children, allowAnonymous = false }: { children: ReactNode; allowAnonymous?: boolean }) {
   const path = usePathname();
   if (allowAnonymous || ["/", "/login", "/demo", "/privacy"].includes(path) || path.startsWith("/fix/") || path.startsWith("/demo/")) return children;
-  return <Suspense fallback={<p className="p-8 text-sm text-paper-muted">Checking sign-in...</p>}><SignedIn>{children}</SignedIn></Suspense>;
+  return <Suspense fallback={<p className="p-8 text-[14px] text-paper-muted">Checking sign-in...</p>}><SignedIn>{children}</SignedIn></Suspense>;
 }
 
 function SignedIn({ children }: { children: ReactNode }) {
@@ -29,7 +29,7 @@ function SignedIn({ children }: { children: ReactNode }) {
       <>
         {!user && (
           <div className="mx-auto w-full max-w-[1200px] px-5 pt-4 sm:px-8">
-            <p role="alert" className="rounded-md border border-alert/40 bg-alert/10 px-4 py-3 text-sm text-alert">
+            <p role="alert" className="callout text-[14px]" data-tone="alert">
               {error ? "Could not confirm your sign-in." : "Your session has ended."} What you entered on this page is kept.{" "}
               <a href={`/auth/login?returnTo=${encodeURIComponent(returnTo)}`} className="font-medium underline underline-offset-2">Sign in again</a>
             </p>
@@ -42,11 +42,13 @@ function SignedIn({ children }: { children: ReactNode }) {
   if (isLoading) return <SessionLoading returnTo={returnTo} />;
   if (error) return <SessionLoading returnTo={returnTo} failed />;
   return (
-    <section className="m-auto w-full max-w-lg px-6 py-20">
-      <h1 className="display text-[40px] leading-[1.05] text-paper">Sign in to continue</h1>
-      <p className="mt-4 text-sm text-paper-muted">Connect your GitHub account to browse repositories, start runs, and view your activity.</p>
-      <Link href={`/login?returnTo=${encodeURIComponent(returnTo)}`} className="mt-6 inline-flex min-h-12 items-center rounded-md bg-signal px-5 py-3 text-sm font-medium text-ink hover:bg-signal-soft">Sign in with GitHub</Link>
-      <p className="mt-4"><Link href="/demo" className="text-sm text-paper-muted underline">Try the interactive demo</Link></p>
+    <section className="m-auto w-full max-w-xl px-6 py-20">
+      <h1 className="display text-[44px] leading-[0.95] tracking-[-0.025em] text-paper sm:text-[56px]">Sign in to continue</h1>
+      <p className="mt-5 text-[16px] leading-[1.6] text-paper-muted">Connect your GitHub account to browse repositories, start runs, and view your activity.</p>
+      <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3">
+        <Link href={`/login?returnTo=${encodeURIComponent(returnTo)}`} className="btn-primary min-h-12 px-6 text-[15px]">Sign in with GitHub</Link>
+        <Link href="/demo" className="link inline-flex min-h-10 items-center text-[14px]">Try the interactive demo</Link>
+      </div>
     </section>
   );
 }
@@ -61,22 +63,22 @@ function SessionLoading({ returnTo, failed = false }: { returnTo: string; failed
 
   if (timedOut) {
     return (
-      <section className="m-auto w-full max-w-lg px-6 py-20" role="alert">
-        <h1 className="display text-[40px] leading-[1.05] text-paper">{failed ? "Could not check sign-in" : "Sign-in check took too long"}</h1>
-        <p className="mt-4 text-sm leading-6 text-paper-muted">
+      <section className="m-auto w-full max-w-xl px-6 py-20" role="alert">
+        <h1 className="display text-[44px] leading-[0.95] tracking-[-0.025em] text-paper sm:text-[56px]">{failed ? "Could not check sign-in" : "Sign-in check took too long"}</h1>
+        <p className="mt-5 text-[16px] leading-[1.6] text-paper-muted">
           The authentication service did not respond. Reload this page or start a fresh GitHub sign-in.
         </p>
-        <div className="mt-6 flex flex-wrap gap-3">
+        <div className="mt-8 flex flex-wrap gap-3">
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="min-h-12 rounded-md bg-signal px-5 py-3 text-sm font-medium text-ink hover:bg-signal-soft"
+            className="btn-primary min-h-12 px-6 text-[15px]"
           >
             Reload page
           </button>
           <a
             href={`/auth/login?returnTo=${encodeURIComponent(returnTo)}`}
-            className="inline-flex min-h-12 items-center rounded-md border border-border px-5 py-3 text-sm text-paper hover:border-border-strong"
+            className="btn-quiet min-h-12 px-6 text-[15px]"
           >
             Sign in again
           </a>
@@ -85,9 +87,9 @@ function SessionLoading({ returnTo, failed = false }: { returnTo: string; failed
     );
   }
   return (
-    <section className="m-auto w-full max-w-lg px-6 py-20">
-      <h1 className="display text-[40px] leading-[1.05] text-paper">Checking sign-in...</h1>
-      <p className="mt-4 text-sm text-paper-muted" role="status">Waiting for the authentication service.</p>
+    <section className="m-auto w-full max-w-xl px-6 py-20">
+      <h1 className="display text-[44px] leading-[0.95] tracking-[-0.025em] text-paper sm:text-[56px]">Checking sign-in...</h1>
+      <p className="mt-5 text-[16px] text-paper-muted" role="status">Waiting for the authentication service.</p>
     </section>
   );
 }

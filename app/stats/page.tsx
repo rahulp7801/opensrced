@@ -12,7 +12,7 @@ export default function StatsPage() {
       />
 
       {/* Dispatch stats */}
-      <div className="mt-6">
+      <div>
         <StatsBoard />
       </div>
     </div>

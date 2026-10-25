@@ -1,0 +1,129 @@
+/* App surfaces, on top of the brand system (components/brand/README.md and
+   the classes in app/globals.css): fields, status chips, callouts, and the
+   pressed/selected states of .pill. Token names only, so the palette stays the
+   brand's. Every text colour here is >= 4.5:1 on the fill it sits on:
+   ok/alert/info on their -dim tints measure 5.7/5.3/5.6, and the mixes below
+   are lighter than the tint, so higher still. */
+
+@layer components {
+  /* ── Fields: an off-white sheet with a hairline edge; focus rings cobalt. */
+  .field {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    min-height: 2.75rem;
+    border-radius: 12px;
+    background: var(--color-surface);
+    box-shadow: inset 0 0 0 1px var(--color-border);
+    padding: 0.55rem 0.9rem;
+    font-size: 16px; /* 16px on phones: iOS zooms into anything smaller */
+    line-height: 1.5;
+    color: var(--color-paper);
+    transition: box-shadow 150ms;
+  }
+  @media (min-width: 640px) {
+    .field { font-size: 14.5px; }
+  }
+  .field::placeholder { color: var(--color-paper-faint); }
+  .field:hover { box-shadow: inset 0 0 0 1px var(--color-border-strong); }
+  .field:disabled { opacity: 0.55; cursor: not-allowed; }
+  textarea.field { resize: vertical; }
+  select.field {
+    appearance: none;
+    padding-right: 2.4rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%235e524a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.9rem center;
+  }
+  /* A field label: small, quiet, sentence case. */
+  .field-label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--color-paper-dim);
+  }
+
+  /* ── Status chips: a tinted pill whose colour names the state. Neutral
+     labels (repo labels, "private") stay on .tag. */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border-radius: 999px;
+    padding: 0.2rem 0.65rem;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+    background: var(--color-surface-2);
+    color: var(--color-paper-dim);
+  }
+  .chip[data-tone="ok"] { background: color-mix(in srgb, var(--color-ok-dim) 70%, var(--color-surface)); color: var(--color-ok); }
+  .chip[data-tone="alert"] { background: color-mix(in srgb, var(--color-alert-dim) 70%, var(--color-surface)); color: var(--color-alert); }
+  .chip[data-tone="info"] { background: color-mix(in srgb, var(--color-info-dim) 70%, var(--color-surface)); color: var(--color-info); }
+  .chip[data-tone="signal"] { background: var(--color-signal-faint); color: var(--color-signal); }
+
+  /* ── Callouts: a soft sheet for notes, warnings and results. */
+  .callout {
+    border-radius: 16px;
+    padding: 0.85rem 1rem;
+    background: var(--color-surface);
+    box-shadow: inset 0 0 0 1px var(--color-border-soft);
+    color: var(--color-paper-dim);
+  }
+  .callout[data-tone="alert"] { background: color-mix(in srgb, var(--color-alert-dim) 32%, var(--color-surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-alert) 28%, transparent); color: var(--color-alert); }
+  .callout[data-tone="ok"] { background: color-mix(in srgb, var(--color-ok-dim) 34%, var(--color-surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-ok) 26%, transparent); color: var(--color-paper-dim); }
+  .callout[data-tone="info"] { background: color-mix(in srgb, var(--color-info-dim) 34%, var(--color-surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-info) 24%, transparent); color: var(--color-paper-dim); }
+  .callout[data-tone="signal"] { background: color-mix(in srgb, var(--color-signal-faint) 70%, var(--color-surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-signal) 26%, transparent); color: var(--color-paper-dim); }
+
+  /* ── Pills as toggles and tabs: pressed/selected inks in like aria-current. */
+  .pill[aria-pressed="true"],
+  .pill[aria-pressed="true"]:hover,
+  .pill[aria-selected="true"],
+  .pill[aria-selected="true"]:hover { background: var(--color-paper); color: var(--color-ink); }
+  .pill:disabled { opacity: 0.5; cursor: not-allowed; }
+  /* On a sheet (.card) the off-white pill needs an edge to be seen. */
+  .pill[data-edge] { box-shadow: inset 0 0 0 1px var(--color-border); }
+  .pill[data-edge][aria-pressed="true"],
+  .pill[data-edge][aria-selected="true"] { box-shadow: none; }
+
+  /* Compact pills and buttons for dense rows; still 40px on phones. */
+  @media (min-width: 640px) {
+    .pill[data-size="sm"],
+    .btn-primary[data-size="sm"],
+    .btn-quiet[data-size="sm"],
+    .row-cta[data-size="sm"] {
+      min-height: 2.25rem;
+      padding: 0 0.9rem;
+      font-size: 13px;
+    }
+  }
+  .btn-primary:disabled,
+  .btn-quiet:disabled,
+  .row-cta:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-primary:disabled:hover { background: var(--color-paper); color: var(--color-ink); }
+  .btn-quiet:disabled:hover { background: var(--color-surface); }
+  .btn-quiet[data-tone="alert"] { color: var(--color-alert); }
+  .btn-quiet[data-tone="alert"]:hover { background: color-mix(in srgb, var(--color-alert-dim) 40%, var(--color-surface)); }
+
+  /* An inline text link in running copy. */
+  .link {
+    color: var(--color-signal);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--color-signal) 45%, transparent);
+    text-underline-offset: 3px;
+  }
+  .link:hover { text-decoration-color: currentColor; }
+}
+
+/* Unlayered so it beats the global :focus-visible outline: a field shows the
+   cobalt ring instead of a second outline around it. */
+.field:focus,
+.field:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--color-signal), 0 0 0 4px rgb(35 56 230 / 0.14);
+}
+
+input[type="checkbox"],
+input[type="radio"] { accent-color: var(--color-paper); }

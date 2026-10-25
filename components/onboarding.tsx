@@ -109,25 +109,26 @@ export function Onboarding({ localMode = false, inviteOnly = false }: { localMod
   }
 
   return (
-    <aside aria-label="Account setup" className="border-b border-border bg-surface/40">
-      <div className="mx-auto grid max-w-[1200px] grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 px-5 py-3 sm:grid-cols-[auto_1fr_auto_auto] sm:gap-4 sm:px-8">
-        <span className="col-start-1 row-start-1 shrink-0 text-[11px] font-medium font-medium text-signal sm:col-start-auto sm:row-start-auto">
+    <aside aria-label="Account setup" className="border-b border-border-soft bg-ink-2">
+      <div className="mx-auto grid max-w-[1200px] grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 px-5 py-3.5 sm:grid-cols-[auto_1fr_auto_auto] sm:gap-5 sm:px-8">
+        <span className="kicker col-start-1 row-start-1 shrink-0 text-signal sm:col-start-auto sm:row-start-auto">
           Step {currentStepNumber} of {STEPS.length}
         </span>
 
         {/* Current step */}
         <div className="col-start-1 row-start-2 min-w-0 sm:col-start-auto sm:row-start-auto">
-          <span className="text-[12px] font-medium text-paper">{currentStep.title}</span>
+          <span className="text-[14px] font-semibold text-paper">{currentStep.title}</span>
           {/* Shown on phones too: the why matters more than the title. */}
-          <span className="mt-0.5 block text-[11px] leading-relaxed text-paper-muted sm:ml-2 sm:mt-0 sm:inline">
-            <span aria-hidden className="hidden sm:inline">— </span>{currentStep.description(state)}
+          <span className="mt-0.5 block text-[13px] leading-[1.5] text-paper-muted">
+            {currentStep.description(state)}
           </span>
         </div>
 
         {/* CTA */}
         <Link
           href={currentStep.href}
-          className="col-start-2 row-start-2 inline-flex min-h-10 shrink-0 items-center rounded-md border border-signal/50 bg-signal/10 px-3 py-2 text-xs font-medium text-signal transition hover:bg-signal/20 sm:col-start-auto sm:row-start-auto"
+          className="row-cta col-start-2 row-start-2 shrink-0 sm:col-start-auto sm:row-start-auto"
+          data-size="sm"
         >
           {currentStep.cta}
         </Link>
@@ -135,7 +136,7 @@ export function Onboarding({ localMode = false, inviteOnly = false }: { localMod
         {/* Dismiss */}
         <button
           onClick={dismiss}
-          className="col-start-2 row-start-1 grid size-10 shrink-0 place-items-center justify-self-end rounded-full text-sm text-paper-muted hover:text-paper sm:col-start-auto sm:row-start-auto"
+          className="col-start-2 row-start-1 grid size-10 shrink-0 place-items-center justify-self-end rounded-full text-sm text-paper-muted hover:bg-surface-2 hover:text-paper sm:col-start-auto sm:row-start-auto"
           aria-label="Dismiss onboarding"
           title="Dismiss onboarding"
         >

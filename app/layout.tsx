@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Instrument_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+// App surfaces (fields, chips, callouts) on top of the brand classes; after globals so its layers order last.
+import "./app.css";
 import { SiteHeader } from "@/components/header";
 import { SectionNav } from "@/components/section-nav";
 import { SiteFooter } from "@/components/footer";

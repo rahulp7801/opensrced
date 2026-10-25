@@ -276,8 +276,9 @@ const FIRST = schedule(BUILT_AT + 1600, [
     cites: ["src/flask/templating.py", "tests/test_views.py", "tests/test_signals.py"], cost: "$0.0201",
   },
 ]);
-// Then the stage draws that answer on the map.
-const FOCUS_AT = FIRST.end;
+// The stage draws the answer on the map while it streams in, so both play at once.
+const FOCUS_AT = FIRST.turns[0].answerAt;
+const EXPLORE_END = Math.max(FIRST.end, FOCUS_AT + MAP_FOCUS_LENGTH);
 const TURNS = FIRST.turns;
 
 function StageExploreView() {
@@ -316,7 +317,7 @@ export const stageExplore: Chapter = {
   act: "Find",
   label: "Explore the code",
   title: "Ask the code in plain English",
-  duration: FOCUS_AT + MAP_FOCUS_LENGTH + 2500,
+  duration: EXPLORE_END + 2500,
   source: "The real pallets/flask graph and a real Explore answer; the zoom is drawn for the stage",
   provenance: [{ at: 0, text: "real answer · zoom drawn for the talk" }],
   headlines: [
@@ -328,8 +329,8 @@ export const stageExplore: Chapter = {
     { at: 0, text: "Before changing anything, understand the code. Explore maps the repository straight from its source code: no AI, and nothing to install on your machine." },
     { at: BUILT_AT, spot: "graph", text: "This is Flask: 2,169 nodes (files, functions, classes and their docstring notes) in 201 communities, and the links between them, mapped by the site's own graph builder. (The layout was computed for this talk from that real graph.)" },
     { at: FIRST.turns[0].typeAt, spot: "ask", text: `Then ask the question you'd normally grep for: “${FIRST.turns[0].prompt}” The answer comes from the map and points to the files involved.` },
-    { at: FIRST.turns[0].doneAt, spot: "answer", text: "A real answer from the Explore page, trimmed for the slide. It teaches: what it does in one line, where it lives, what to run if you change it, and one thing to try yourself." },
-    { at: FOCUS_AT, spot: "graph", text: "Drawn on the map for the talk: from all of Flask down to render_template(), then everything that depends on it in the graph, one, two and three hops out. Know what your change touches before you touch it." },
+    { at: FOCUS_AT, spot: "graph", text: "As the answer streams in, the map zooms from all of Flask down to render_template(), then lights everything that depends on it, one, two and three hops out." },
+    { at: FIRST.turns[0].doneAt, spot: "answer", text: "The answer teaches: what it does in one line, where it lives, what to run if you change it, and one thing to try yourself. Know what your change touches before you touch it." },
   ],
   View: StageExploreView,
 };

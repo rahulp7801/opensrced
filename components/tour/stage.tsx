@@ -47,9 +47,8 @@ const STEPS = PHASES.flatMap((phase, p) => phase.chapters.map((c) => ({ phase: p
 const STARTS = STEPS.reduce<number[]>((acc, _s, i) => [...acc, i === 0 ? 0 : acc[i - 1] + STEPS[i - 1].chapter.duration], []);
 const TOTAL = STARTS[STARTS.length - 1] + STEPS[STEPS.length - 1].chapter.duration;
 const PHASE_STARTS = PHASES.map((_p, i) => STARTS[STEPS.findIndex((s) => s.phase === i)]);
-// Figure numbers for the captions: every stop that shows an artefact (the app, or a labelled
-// illustration) gets the next number, in order.
-const FIGS = STEPS.reduce<number[]>((acc, s, i) => [...acc, (i ? acc[i - 1] : 0) + (!s.chapter.poster || s.chapter.provenance ? 1 : 0)], []);
+// Given to the app windows so they leave out their own address bar: the stage shows no URLs.
+const NO_URL = () => {};
 
 const DESIGN = { width: 1040, height: 560 };
 // Headlines are sized from the app frame, not the window: 3.4% of its width (about 59 px on a
@@ -77,8 +76,6 @@ export function StageDemo() {
   const [started, setStarted] = useState(false);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [scale, setScale] = useState(1);
-  // The app frame's address, for the caption above it (AppWindow reports it).
-  const [frameUrl, setFrameUrl] = useState<string | null>(null);
   // The presenter drives from the notes window and the keyboard; the on-screen controls show
   // only while the mouse moves (two seconds), or while one has focus.
   const [controls, setControls] = useState(false);
@@ -285,7 +282,6 @@ export function StageDemo() {
 
   const head = started ? step.chapter.headlines?.filter((h) => h.at <= local).at(-1) : undefined;
   const poster = !started || step.chapter.poster;
-  const provenance = started && !ended ? step.chapter.provenance?.filter((h) => h.at <= local).at(-1)?.text : undefined;
 
   const View = step.chapter.View;
   return (
@@ -300,23 +296,10 @@ export function StageDemo() {
       <div className="relative z-[70] mx-auto mb-5 shrink-0" style={{ width: DESIGN.width * scale, fontSize: DESIGN.width * scale * HEADLINE_OF_FRAME }}>
         <StageHeadline head={head} />
       </div>
-      {/* One honest caption above the frame: its figure number, the real address and where
-          what's on screen comes from. Posters without a source show nothing; the line keeps its height. */}
-      <p className="mx-auto mb-2 flex h-6 shrink-0 items-center gap-3 truncate font-mono text-[13px] tracking-[0.02em] text-paper-faint" style={{ width: DESIGN.width * scale }}>
-        {(() => {
-          const parts = [!poster && frameUrl, provenance].filter(Boolean);
-          return parts.length > 0 && (
-            <>
-              <span className="rounded-[3px] border border-border px-1.5 leading-5 text-paper-muted">fig. {FIGS[index]}</span>
-              <span key={parts.join()} className="stage-settle truncate">{parts.join(" · ")}</span>
-            </>
-          );
-        })()}
-      </p>
       <div ref={stageRef} className="relative flex min-h-0 flex-1 items-center justify-center">
         <div ref={canvasRef} style={{ width: DESIGN.width, height: DESIGN.height, zoom: scale }} className={cn("relative shrink-0 rounded-[12px] transition-[background-color,border-color] duration-500", poster ? "overflow-visible border border-transparent bg-ink" : "overflow-hidden border border-border bg-surface")}>
           <InteractContext.Provider value={interact}>
-            <FrameUrlContext.Provider value={setFrameUrl}>
+            <FrameUrlContext.Provider value={NO_URL}>
             <TimeContext.Provider value={local}>
               {started ? (
                 <div key={step.chapter.id} className="stage-enter h-full">

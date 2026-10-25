@@ -200,7 +200,7 @@ export function Published() {
       <p className="mt-3 text-[15px] font-medium text-paper">What happens next</p>
       <ol className="mt-2 grid grid-cols-2 gap-x-6 gap-y-2.5 text-[13px] leading-[1.5] text-paper-dim">
         {AFTER_PUBLISH.map((step, i) => (
-          <Reveal as="li" key={step.title} at={REVIEW_PUBLISHED_AT + 200 + i * 250} className="flex gap-2">
+          <Reveal as="li" key={step.title} at={REVIEW_PUBLISHED_AT + 200 + i * 80} className="flex gap-2">
             <span className="font-mono text-paper-faint">{i + 1}.</span>
             <span><strong className="font-semibold text-paper">{step.title}{/[?.!]$/.test(step.title) ? "" : "."}</strong> {step.body}</span>
           </Reveal>

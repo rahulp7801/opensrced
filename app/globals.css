@@ -241,3 +241,15 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
+
+/* ── Stage motion (components/tour/stage.tsx): one language, transforms and opacity only.
+   The reduced-motion rule above already zeroes these for presenters who ask. ── */
+@keyframes stage-enter { from { opacity: 0; transform: translateY(6px) scale(0.985); } to { opacity: 1; transform: none; } }
+@keyframes stage-headline { from { opacity: 0; transform: translateY(10px); filter: blur(6px); } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes stage-settle { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: none; } }
+@keyframes stage-tick { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
+.stage-enter { animation: stage-enter 0.42s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.stage-headline { animation: stage-headline 0.42s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.stage-headline-calm { animation: stage-headline 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.stage-settle { animation: stage-settle 0.38s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.stage-tick { display: inline-block; animation: stage-tick 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }

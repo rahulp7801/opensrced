@@ -387,16 +387,18 @@ function Redacted({ children }: { children: string }) {
 function MaintainerView() {
   return (
     <AppWindow path="/dispatches" section="Fix" tab="Runs">
-      <div className="flex h-full flex-col justify-center gap-4 p-6">
+      <div className="flex h-full justify-center px-6 pb-6 pt-[9%]">
+        <div className="w-full max-w-[860px] space-y-4">
         <Reveal at={MAINT_AT + 300}>
-          <p className="mx-auto max-w-[860px] text-[18px] leading-snug text-paper">On a real issue in a major open-source project, a maintainer replied asking for a human-written pull request. opensrcer read the thread and refused to publish.</p>
+          <p className="text-[18px] leading-snug text-paper">On a real issue in a major open-source project, a maintainer replied asking for a human-written pull request. opensrcer read the thread and refused to publish.</p>
         </Reveal>
-        <Reveal at={MAINT_AT + 1800} spot="maint" className="mx-auto w-full max-w-[860px] rounded-2xl border border-border-soft bg-surface px-5 py-4 text-[15px]">
+        <Reveal at={MAINT_AT + 1800} spot="maint" className="rounded-2xl border border-border-soft bg-surface px-5 py-4 text-[15px] shadow-[0_18px_40px_-24px_rgb(0_0_0/0.35)]">
           <p className="text-[16px] font-medium text-paper">Review before publishing</p>
           <p role="alert" className="mt-2 rounded-lg border border-alert/30 bg-alert/5 px-3 py-2.5 leading-relaxed text-alert">
             Blocked: a maintainer asked for human-written work on this issue (@<Redacted>{NAME_HIDDEN}</Redacted>: &quot;<Redacted>{QUOTE_HIDDEN}</Redacted>&quot;). opensrcer won&apos;t open an AI-assisted pull request here; you can still use this preview to write the fix yourself
           </p>
         </Reveal>
+        </div>
       </div>
     </AppWindow>
   );
@@ -453,7 +455,8 @@ const SLOP: Array<[string, string]> = [
   ["Untested", "It runs the project's tests in a machine with no credentials and re-runs them on the final patch; when the fix adds a test, it checks that test fails without the fix. No test it can run? It says unverified."],
   ["Sent in bulk", "Always a draft, with you as the author. One open pull request per project per person, and at most three a day."],
 ];
-const SLOP_STEP = 1600;
+const SLOP_STEP = 500;
+const SLOP_LINE_AT = 700 + 6 * SLOP_STEP + 400; // after the last row
 
 function SlopView() {
   return (
@@ -476,9 +479,9 @@ export const stageSlop: Chapter = {
   act: "Ship",
   label: "Not slop",
   title: "Why this isn't AI slop",
-  duration: 700 + SLOP.length * SLOP_STEP + 1500,
+  duration: SLOP_LINE_AT + 7500,
   source: "What opensrcer does today",
-  headlines: [{ at: 0, text: "Not more pull requests. Better ones." }],
+  headlines: [{ at: SLOP_LINE_AT, text: "Not more pull requests. Better ones." }],
   captions: [
     { at: 0, text: "Back to where we started: what slop is made of, and what opensrcer does about each." },
     { at: 700 + 2 * SLOP_STEP, text: "The heart of it: you can't publish what you can't explain, and the chat is there so you can." },
@@ -514,7 +517,7 @@ function VerifiedView() {
             <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[11px] text-info">#2</span></p>
             <p className="mt-0.5 truncate text-[18px] font-medium text-paper">truncate cuts mid-word and returns more than max characters</p>
           </div>
-          {verified ? <StatusChip tone="ok">verified</StatusChip> : <StatusChip tone="signal">testing</StatusChip>}
+          {verified ? <span className="stage-settle"><StatusChip tone="ok">verified</StatusChip></span> : <StatusChip tone="signal">testing</StatusChip>}
         </div>
         <ol className="space-y-3">
           {PROOF.filter((p) => !p.verify).slice(0, 2).map((p) => <ProofStep key={p.text} {...p} />)}
@@ -845,7 +848,7 @@ function StageReviewView() {
                   <p className="text-paper-muted">Why this matters: maintainers set these rules, and following them is what makes a contribution welcome.</p>
                   <ul className="mt-1 space-y-0.5">
                     {DEMO_RULES.map((row, i) => (
-                      <Reveal as="li" key={row.id} at={R.rules + 300 + i * 450} className="rounded-lg border border-border-soft bg-surface px-3 py-0.5 text-[12.5px] leading-snug">
+                      <Reveal as="li" key={row.id} at={R.rules + 300 + i * 80} className="rounded-lg border border-border-soft bg-surface px-3 py-0.5 text-[12.5px] leading-snug">
                         <p className="flex flex-wrap items-baseline gap-2"><span className={cn("rounded-full border px-2 text-[11.5px]", RULE_TONE[row.status])}>{RULE_STATUS_LABEL[row.status]}</span><span className="font-medium text-paper">{row.label}:</span><span className="text-paper-dim">{row.text}</span></p>
                         {row.detail && <p className="text-[11.5px] leading-snug text-paper-muted">{row.detail}</p>}
                       </Reveal>
@@ -879,7 +882,7 @@ function StageReviewView() {
                   <p className="mt-1 text-[12px] text-paper-muted">At least 80 characters ({typed.length}/2000). It goes into the pull request under &quot;In the author&apos;s words&quot;.</p>
                   <div className="mt-2 flex items-center gap-3">
                     <Press at={R.check} label="Check my explanation" className="rounded-full border border-signal/50 bg-signal/10 px-3 py-1 font-medium text-signal">Check my explanation</Press>
-                    <span className="text-paper-muted">{t >= R.check ? "4 checks left" : "5 checks left"}</span>
+                    <span key={t >= R.check ? "4" : "5"} className="stage-tick text-paper-muted">{t >= R.check ? "4 checks left" : "5 checks left"}</span>
                   </div>
                   {t >= R.results && (
                     <div className="mt-2 space-y-0.5">

@@ -271,7 +271,7 @@ export function StageDemo() {
         <p className="text-[16px] leading-[1.5] text-paper-muted">On a phone, the product tour shows the same run, sized to fit.</p>
         <a href="/demo" className="btn-primary inline-flex min-h-11 items-center px-6 text-[16px]">Open the product tour</a>
       </div>
-      <p key={headline ?? ""} aria-live="polite" className="relative z-[70] mb-3 min-h-[1.2em] shrink-0 animate-fade-rise text-balance text-center text-[clamp(22px,3vw,46px)] font-semibold leading-tight tracking-[-0.02em] text-paper motion-reduce:animate-none">
+      <p key={headline ?? ""} aria-live="polite" className={cn("relative z-[70] mb-3 min-h-[1.2em] shrink-0 text-balance text-center text-[clamp(22px,3vw,46px)] font-semibold leading-tight tracking-[-0.02em] text-paper", step.chapter.id === "slop" ? "stage-headline-calm" : "stage-headline")}>
         {headline}
       </p>
       <div ref={stageRef} className="relative flex min-h-0 flex-1 items-center justify-center">
@@ -279,7 +279,7 @@ export function StageDemo() {
           <InteractContext.Provider value={interact}>
             <TimeContext.Provider value={local}>
               {started ? (
-                <div key={step.chapter.id} className="h-full animate-fade-rise motion-reduce:animate-none">
+                <div key={step.chapter.id} className="stage-enter h-full">
                   <View />
                 </div>
               ) : (
@@ -300,7 +300,7 @@ export function StageDemo() {
           never covers it, a quiet arrow when the presenter can move on. */}
       <div className="relative mt-3 flex h-11 shrink-0 items-center justify-center">
         {/* Where what's on screen comes from: quiet, outside the app, never over it. */}
-        {provenance && <p className="absolute left-0 z-[70] max-w-[40%] truncate text-[13px] text-paper-muted">{provenance}</p>}
+        {provenance && <p key={provenance} className="stage-settle absolute left-0 z-[70] max-w-[40%] truncate rounded-full bg-ink px-3 py-1 text-[13px] text-paper-dim shadow-sm">{provenance}</p>}
         <div aria-hidden className="flex items-center gap-2">
           {PHASES.map((p, i) => (
             <span key={p.name} className={cn("h-1.5 rounded-full transition-all duration-500", i === step.phase ? "w-8 bg-signal" : i < step.phase ? "w-1.5 bg-signal/50" : "w-1.5 bg-border")} />
@@ -335,6 +335,7 @@ const SMALL = 48; // screen px: a target this short is ringed on its own edge, s
  *  follows the target as it moves (a pane scrolling, a card fading in). */
 function Spotlight({ selector, strong, within }: { selector: string | null; strong: boolean; within: RefObject<HTMLDivElement | null> }) {
   const [box, setBox] = useState<string | null>(null);
+  const [on, setOn] = useState(false);
   useEffect(() => {
     const measure = () => {
       const canvas = within.current;
@@ -344,7 +345,7 @@ function Spotlight({ selector, strong, within }: { selector: string | null; stro
       // A button waiting for its click is always on screen; the check is for what notes point at.
       const hidden = (el: Element) => !el.hasAttribute("data-waiting") && (el.getAttribute("aria-hidden") === "true" || (el.children.length > 0 && [...el.children].every((c) => c.getAttribute("aria-hidden") === "true")));
       const rects = selector && canvas ? [...canvas.querySelectorAll(selector)].filter((el) => !hidden(el)).map((el) => el.getBoundingClientRect()).filter((b) => b.width > 0) : [];
-      if (!canvas || rects.length === 0) { setBox(null); return; }
+      if (!canvas || rects.length === 0) { setOn(false); return; }
       const r = { left: Math.min(...rects.map((b) => b.left)), top: Math.min(...rects.map((b) => b.top)), right: Math.max(...rects.map((b) => b.right)), bottom: Math.max(...rects.map((b) => b.bottom)), width: 1 };
       const c = canvas.getBoundingClientRect();
       // Kept to the app window: a long list lights only the part on screen.
@@ -353,7 +354,8 @@ function Spotlight({ selector, strong, within }: { selector: string | null; stro
       const left = Math.max(r.left, c.left) - pad, top = Math.max(r.top, c.top) - pad;
       const right = Math.min(r.right, c.right) + pad, bottom = Math.min(r.bottom, c.bottom) + pad;
       const next = r.width > 0 && right > left && bottom > top ? `${left}|${top}|${right - left}|${bottom - top}|${small ? 1 : 0}` : null;
-      setBox((prev) => (prev === next ? prev : next));
+      setOn(next !== null);
+      if (next) setBox((prev) => (prev === next ? prev : next));
     };
     measure();
     if (!selector) return;
@@ -363,12 +365,12 @@ function Spotlight({ selector, strong, within }: { selector: string | null; stro
   if (!box) return null;
   const [left, top, width, height, small] = box.split("|").map(Number);
   const frame = { left, top, width, height };
-  const shape = cn("fixed z-[60] transition-all duration-300 ease-out motion-reduce:transition-none", small ? "rounded-[8px]" : "rounded-[16px]");
+  const shape = cn("fixed z-[60] transition-[left,top,width,height] duration-[350ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none", small ? "rounded-[8px]" : "rounded-[16px]");
   // A small target's ring sits on its own edge (inside), a big one's around it.
   const ring = small ? "inset 0 0 0 3px var(--color-signal), 0 0 22px 4px rgb(0 86 173 / 0.55)" : "inset 0 0 0 3px #fff, 0 0 0 6px var(--color-signal), 0 0 28px 8px rgb(0 86 173 / 0.5)";
   return (
-    <div aria-hidden className="pointer-events-none">
-      <div data-spotlight={strong ? "click" : "note"} className={shape} style={{ ...frame, boxShadow: `0 0 0 9999px rgb(0 0 0 / ${strong ? 0.62 : 0.45})` }} />
+    <div aria-hidden className={cn("pointer-events-none transition-opacity duration-300 ease-out motion-reduce:transition-none", on ? "opacity-100" : "opacity-0")}>
+      <div data-spotlight={on ? (strong ? "click" : "note") : undefined} className={shape} style={{ ...frame, boxShadow: `0 0 0 9999px rgb(0 0 0 / ${strong ? 0.62 : 0.45})` }} />
       <div className={cn(shape, "animate-pulse motion-reduce:animate-none")} style={{ ...frame, boxShadow: ring }} />
     </div>
   );

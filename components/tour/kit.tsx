@@ -32,7 +32,7 @@ export function Reveal({ at, children, className, as: Tag = "div", spot }: { at:
     <Tag
       data-spot={spot}
       aria-hidden={shown ? undefined : true}
-      className={cn("transition-[opacity,transform] duration-500 ease-out motion-reduce:transition-none", shown ? "opacity-100 translate-y-0" : "pointer-events-none translate-y-1.5 opacity-0", className)}
+      className={cn("transition-[opacity,transform] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none", shown ? "opacity-100 translate-y-0" : "pointer-events-none translate-y-1.5 opacity-0", className)}
     >
       {children}
     </Tag>

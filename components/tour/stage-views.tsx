@@ -93,9 +93,9 @@ function ScanView() {
                   {r.reason ? (
                     <p className="max-w-[300px] text-[13px] leading-[1.45] text-paper-dim">{r.reason}</p>
                   ) : (
-                    <span className="flex gap-4 text-[14px]">
+                    <span className="flex items-center gap-4 text-[14px]">
                       <span className="text-paper-dim underline decoration-border-strong underline-offset-4">Preview patch</span>
-                      <span className="font-medium text-signal underline decoration-signal/50 underline-offset-4">Fix it (you review first)</span>
+                      <span className="rounded-[10px] border border-border px-2.5 py-0.5 font-medium text-paper">Fix it (you review first)</span>
                     </span>
                   )}
                 </Reveal>
@@ -282,7 +282,7 @@ function StageExploreView() {
       <div className="flex h-full flex-col overflow-hidden px-4 py-3 sm:px-6">
         <div className="flex items-center gap-2">
           <span className="min-w-0 flex-1 rounded-md border border-border bg-surface px-2.5 py-1 font-mono text-[13px] text-paper">{MAP_REPO}</span>
-          <Press at={650} className="rounded-full bg-paper px-3 py-1 text-[13px] font-medium text-surface">{t >= 700 && !built ? "building..." : built ? "Rebuild graph" : "Build graph"}</Press>
+          <Press at={650} className="rounded-[10px] bg-paper px-3 py-1 text-[13px] font-medium text-surface">{t >= 700 && !built ? "building..." : built ? "Rebuild graph" : "Build graph"}</Press>
           {built && <span className="text-[13px] text-ok">● ready · parsed, no AI</span>}
         </div>
         {!built && t >= 700 && (
@@ -817,7 +817,7 @@ function SignInView() {
             <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[13px] text-info">#2</span></p>
             <p className="mt-0.5 truncate text-[18px] font-medium text-paper">truncate cuts mid-word and returns more than max characters</p>
           </div>
-          <Press at={SIGN_IN_PRESS_AT} className="shrink-0 rounded-full border border-signal/50 bg-signal/10 px-4 py-1.5 text-[14px] font-medium text-signal">Sign in with Claude &amp; start</Press>
+          <Press at={SIGN_IN_PRESS_AT} className="shrink-0 rounded-[10px] bg-paper px-4 py-1.5 text-[14px] font-medium text-ink">Sign in with Claude &amp; start</Press>
         </div>
         {t >= SIGN_IN_PRESS_AT && t < SIGN_IN_PANEL_AT && <p className="text-[15px] text-paper-muted">Starting your run… Claude&apos;s sign-in page opens here in a moment.</p>}
         <Reveal at={SIGN_IN_PANEL_AT} spot="sign-in" className="rounded-2xl border border-signal/30 bg-surface p-5">
@@ -826,7 +826,7 @@ function SignInView() {
           <div className="mt-3 flex flex-wrap items-center gap-2 text-[14px]">
             <span className="rounded-full border border-signal/40 px-3.5 py-1.5 text-signal">Open Claude sign-in ↗</span>
             <span className="min-w-[220px] flex-1 rounded-md border border-border bg-surface px-3 py-1.5 font-mono text-paper-faint">{t >= SIGN_IN_SENT_AT ? "••••••••" : "Paste code"}</span>
-            <span className="rounded-full bg-signal px-3.5 py-1.5 font-medium text-white">Send code</span>
+            <span className="rounded-[10px] bg-paper px-3.5 py-1.5 font-medium text-ink">Send code</span>
           </div>
           {t >= SIGN_IN_SENT_AT && <p className="mt-3 text-[15px] text-ok">Code sent. The run starts once Claude confirms the sign-in.</p>}
         </Reveal>
@@ -937,9 +937,9 @@ function StageReviewView() {
                 <Section title="This project's rules" spot="rules-list">
                   <ul className="mt-1">
                     {DEMO_RULES.map((row, i) => (
-                      <Reveal as="li" key={row.id} at={R.rules + 300 + i * 80} className="grid grid-cols-[96px_minmax(0,1fr)] items-baseline gap-3 border-b border-border-soft py-1.5 text-[14px] leading-snug">
-                        <span className={cn("font-mono text-[13px] lowercase", RULE_TONE[row.status])}>{RULE_STATUS_LABEL[row.status]}</span>
-                        <p><span className="font-medium text-paper">{row.label}:</span> <span className="text-paper-dim">{row.text}</span></p>
+                      <Reveal as="li" key={row.id} at={R.rules + 300 + i * 80} className="flex items-baseline justify-between gap-4 border-b border-border-soft py-1.5 text-[14px] leading-snug">
+                        <p><span className="font-medium text-paper">{row.label}</span> <span className="text-paper-dim">{row.text}</span></p>
+                        <span className={cn("shrink-0 font-mono text-[13px]", RULE_TONE[row.status])}>● {RULE_STATUS_LABEL[row.status]}</span>
                       </Reveal>
                     ))}
                   </ul>
@@ -949,9 +949,9 @@ function StageReviewView() {
                 <Section title="Ask about this change">
                   <p className="text-paper-muted">Not sure what the change does or why? Ask about it here.</p>
                   <p className="mt-1 text-[13px] text-paper-muted">Answers are based on this change and the project&apos;s rules; check them against the code. Each answer comes from one AI call that reads only what is shown here; it does not run the code.</p>
-                  <div className="mt-2 flex flex-wrap gap-1.5 text-[13px]">
-                    <Press at={R.chatPress} label={CHAT_QUESTION} className="rounded-full border border-info/50 px-3 py-1 text-info">{CHAT_QUESTION}</Press>
-                    {["What could this break?", "Which of the project's rules apply, and did it follow them?", "How do I explain this to a reviewer?"].map((q) => <span key={q} className="rounded-full border border-border px-3 py-1 text-paper-dim">{q}</span>)}
+                  <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[14px]">
+                    <Press at={R.chatPress} label={CHAT_QUESTION} className="text-paper underline decoration-border-strong underline-offset-4">→ {CHAT_QUESTION}</Press>
+                    {["What could this break?", "How do I explain this to a reviewer?"].map((q) => <span key={q} className="text-paper-dim">→ {q}</span>)}
                   </div>
                   {t >= R.chatPress + 400 && <p className="mt-2.5 text-paper"><span className="font-medium text-signal">You:</span> {CHAT_QUESTION}</p>}
                   {t >= R.answerAt && (
@@ -970,7 +970,7 @@ function StageReviewView() {
                   <p className="mt-1 min-h-[64px] rounded-lg border border-border bg-surface px-3 py-2 text-[14px] leading-6 text-paper">{typed}&nbsp;</p>
                   {t < R.results && <p className="mt-1 text-[13px] text-paper-muted">At least 80 characters ({typed.length}/2000). It goes into the pull request under &quot;In the author&apos;s words&quot;.</p>}
                   <div className="mt-2 flex items-center gap-3">
-                    <Press at={R.check} label="Check my explanation" className="rounded-full border border-signal/50 bg-signal/10 px-3 py-1 font-medium text-signal">Check my explanation</Press>
+                    <Press at={R.check} label="Check my explanation" className="rounded-[10px] border border-border px-3 py-1 font-medium text-paper">Check my explanation</Press>
                     <span key={t >= R.check ? "4" : "5"} className="stage-tick text-paper-muted">{t >= R.check ? "4 checks left" : "5 checks left"}</span>
                   </div>
                   {t >= R.results && (
@@ -995,7 +995,7 @@ function StageReviewView() {
                           <p className="text-paper"><span className="font-medium">Reviewer:</span> {p.q}</p>
                           <p className="mt-1 min-h-[30px] rounded-lg border border-border bg-surface px-3 py-1.5 text-[13.5px] text-paper"><Typed text={p.a} at={at.type} cps={45} />&nbsp;</p>
                           <div className="mt-1 flex items-center gap-3 text-[13px]">
-                            <Press at={at.send} label="Send answer" className="rounded-full border border-info/50 px-3 py-0.5 text-info">{t >= at.send ? "Send again" : "Send answer"}</Press>
+                            <Press at={at.send} label="Send answer" className="rounded-[10px] border border-border px-3 py-0.5 text-paper">{t >= at.send ? "Send again" : "Send answer"}</Press>
                             <span className="text-paper-muted">At least 20 characters.</span>
                           </div>
                           {t >= at.fb && <p className="mt-1 text-paper-dim"><span className="font-medium text-paper">Feedback:</span> {p.feedback}</p>}
@@ -1021,7 +1021,7 @@ function StageReviewView() {
                 I&apos;ve read this change and can explain it to reviewers.
               </Press>
               <span className="relative ml-auto">
-                <Press at={R.publishAt} label="Publish draft PR" className={cn("rounded-full border px-3 py-0.5 font-medium", t >= R.confirm ? "border-ok/40 bg-ok/10 text-ok" : "border-border text-paper-faint")}>
+                <Press at={R.publishAt} label="Publish draft PR" className={cn("rounded-[10px] px-3 py-1 font-medium", t >= R.confirm ? "bg-paper text-ink" : "bg-paper/35 text-ink")}>
                   {t >= R.publishAt ? `Draft PR #${RUN.pr} opened ↗` : "Publish draft PR"}
                 </Press>
               </span>

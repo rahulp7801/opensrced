@@ -196,20 +196,20 @@ export function AppWindow({ path, section, tab, children, label, host = "opensrc
       </div>}
       {section && (
         <>
-          <div className="flex items-center gap-1 border-b border-border-soft bg-surface px-3 py-2 sm:px-4">
-            <span className="flex items-center pr-2 text-paper"><Wordmark className="text-[15px]" /></span>
-            <span className="mx-auto flex gap-0.5 sm:gap-2">
+          <div className="flex items-stretch gap-1 border-b border-border-soft bg-surface px-3 sm:px-4">
+            <span className="flex items-center pr-4 text-paper"><Wordmark className="text-[15px]" /></span>
+            <span className="flex gap-1 sm:gap-3">
               {SECTIONS.map((s) => (
-                <MenuItem key={s} name={s} className={cn("inline-flex min-h-6 items-center rounded-md px-1.5 text-[12px] sm:px-2.5", s === section ? "font-medium text-paper" : "text-paper-muted")} />
+                <MenuItem key={s} name={s} className={cn("inline-flex min-h-9 items-center px-1.5 text-[12.5px]", s === section ? "font-medium text-paper shadow-[inset_0_-2px_0_var(--color-paper)]" : "text-paper-muted")} />
               ))}
             </span>
+            <span className="ml-auto" />
             <MenuItem name="Settings" className="grid size-6 place-items-center rounded-full bg-paper text-[11px] font-semibold text-surface hover:!bg-paper-2 hover:!text-surface">R</MenuItem>
           </div>
           {section !== "none" && SUBTABS[section].length > 0 && (
-            <div className="flex items-center gap-2 overflow-hidden border-b border-border-soft bg-surface px-3 py-1.5 sm:px-4">
-              <span className="text-[13px] font-semibold text-paper">{section}</span>
+            <div className="flex items-stretch gap-4 overflow-hidden border-b border-border-soft bg-surface px-3 sm:px-4">
               {SUBTABS[section].map((s) => (
-                <MenuItem key={s} name={s} className={cn("inline-flex min-h-6 items-center whitespace-nowrap rounded-full px-2.5 text-[11.5px]", s === tab ? "bg-surface-3 font-medium text-paper" : "text-paper-muted")} />
+                <MenuItem key={s} name={s} className={cn("inline-flex min-h-8 items-center whitespace-nowrap text-[12px]", s === tab ? "font-medium text-paper shadow-[inset_0_-2px_0_var(--color-paper)]" : "text-paper-muted")} />
               ))}
             </div>
           )}

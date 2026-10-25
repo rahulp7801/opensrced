@@ -231,12 +231,13 @@ export function DispatchList() {
   if (items.length === 0) {
     return (
       <div className="max-w-3xl">
-        {/* What will be here: one example row, faded and labelled as an example. */}
-        <div aria-hidden className="ruled opacity-45">
+        {/* What will be here: one example row, quieter (dashed rules, muted ink,
+            still AA) and labelled as an example. */}
+        <div aria-hidden className="ruled [&>*]:border-dashed">
           <div className="py-4">
             <div className="flex items-baseline gap-2">
               <span className="font-mono text-[11.5px] text-paper-faint">example</span>
-              <span className="text-[15.5px] font-semibold text-paper">Parser crashes on empty input</span>
+              <span className="text-[15.5px] font-semibold text-paper-muted">Parser crashes on empty input</span>
             </div>
             <p className="meta mt-1"><span>acme/app #1</span><span>would stop here for your review</span></p>
           </div>

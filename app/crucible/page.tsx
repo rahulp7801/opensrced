@@ -57,11 +57,12 @@ export default async function SettingsPage({
   return (
     <div className="mx-auto w-full max-w-[1100px] px-5 py-10 sm:px-8">
       <PageHeading
+        kicker="Your account"
         title={<>Settings</>}
         description="Manage provider credentials, GitHub access, and your account."
       />
 
-      <div className="mt-8 divide-y divide-border border-y border-border">
+      <div className="divide-y divide-border border-t-2 border-paper">
         <SettingsSection
           id="provider-heading"
           title="How runs are paid for"
@@ -80,17 +81,17 @@ export default async function SettingsPage({
               ? "Connect an organization only when you need to scan its private repositories."
               : "Public repositories work with your GitHub sign-in. Organization connections are not available on this deployment."}
         >
-          <div className="flex flex-wrap items-center justify-between gap-4 rounded-md border border-border-soft bg-surface/40 px-4 py-3">
+          <div className="card flex flex-wrap items-center justify-between gap-4 px-4 py-3">
             <div>
-              <p className="text-xs font-medium text-paper-muted">Signed in as</p>
-              <p className="mt-1 text-sm font-medium text-paper">
+              <p className="text-[12.5px] font-medium text-paper-muted">Signed in as</p>
+              <p className="mt-1 text-[14px] font-medium text-paper">
                 {localMode ? "Local workspace" : user?.name || user?.email || "GitHub account"}
               </p>
             </div>
             {canConnectOrgs && (
               <a
                 href="/api/crucible/connect"
-                className="inline-flex min-h-11 items-center rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-paper transition hover:bg-surface-2"
+                className="btn-quiet" data-size="sm"
               >
                 Connect organization
               </a>
@@ -98,36 +99,36 @@ export default async function SettingsPage({
           </div>
 
           {connectError && (
-            <div className="mt-4 rounded-md border border-alert/40 bg-alert/10 p-4 text-sm leading-6 text-alert" role="alert">
+            <div className="callout callout-alert mt-4 p-4 text-[14px] leading-6" role="alert">
               {connectError}
             </div>
           )}
 
           {localMode ? (
-            <div className="mt-5 rounded-md border border-border-soft bg-surface/30 p-5">
-              <h3 className="text-sm font-medium text-paper">Opening pull requests locally</h3>
-              <p className="mt-2 text-sm leading-6 text-paper-dim">
-                Add <code className="rounded-sm bg-ink px-1.5 py-0.5 font-mono text-xs text-signal">GITHUB_TOKEN</code> to <code className="rounded-sm bg-ink px-1.5 py-0.5 font-mono text-xs text-paper">.env.local</code>, then restart the development server.
+            <div className="card mt-5 p-5">
+              <h3 className="text-[14px] font-medium text-paper">Opening pull requests locally</h3>
+              <p className="mt-2 text-[14px] leading-6 text-paper-dim">
+                Add <code className="rounded-md bg-surface-2 px-1.5 py-0.5 font-mono text-[12.5px] text-signal">GITHUB_TOKEN</code> to <code className="rounded-md bg-surface-2 px-1.5 py-0.5 font-mono text-[12.5px] text-paper">.env.local</code>, then restart the development server.
               </p>
-              <p className="mt-2 text-xs leading-5 text-paper-muted">Private organization connections require hosted sign-in.</p>
+              <p className="mt-2 text-[12.5px] leading-5 text-paper-muted">Private organization connections require hosted sign-in.</p>
             </div>
           ) : (
             <div className="mt-6">
               <div className="flex items-center justify-between gap-3">
-                <h3 className="text-sm font-medium text-paper">Connected organizations</h3>
-                <span className="font-mono text-xs text-paper-muted">{orgs.length}</span>
+                <h3 className="text-[14px] font-medium text-paper">Connected organizations</h3>
+                <span className="font-mono text-[12.5px] text-paper-muted">{orgs.length}</span>
               </div>
               {orgs.length === 0 ? (
-                <p className="mt-3 rounded-md border border-dashed border-border px-4 py-5 text-sm leading-6 text-paper-muted">
+                <p className="mt-3 rounded-2xl border border-dashed border-border-strong px-5 py-5 text-[14px] leading-6 text-paper-muted">
                   No organizations connected. Public repository workflows are already available.
                 </p>
               ) : (
-                <ul className="mt-3 divide-y divide-border-soft overflow-hidden rounded-md border border-border bg-surface/30">
+                <ul className="card mt-3 divide-y divide-border-soft overflow-hidden">
                   {orgs.map((org) => (
                     <li key={org.installation_id} className="flex flex-wrap items-center justify-between gap-4 px-4 py-3.5">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-paper">{org.github_org}</p>
-                        <p className="mt-0.5 text-xs text-paper-muted">
+                        <p className="truncate text-[14px] font-medium text-paper">{org.github_org}</p>
+                        <p className="mt-0.5 text-[12.5px] text-paper-muted">
                           Verified {new Date(org.verified_at).toLocaleString()}
                         </p>
                       </div>
@@ -135,7 +136,7 @@ export default async function SettingsPage({
                         <DisconnectButton org={org.github_org} />
                         <Link
                           href={`/crucible/orgs/${org.github_org}`}
-                          className="inline-flex min-h-9 items-center text-sm font-medium text-paper-dim hover:text-paper"
+                          className="inline-flex min-h-9 items-center text-[14px] font-medium text-paper-dim hover:text-paper"
                         >
                           Open <span aria-hidden="true" className="ml-1">&rarr;</span>
                         </Link>
@@ -154,9 +155,9 @@ export default async function SettingsPage({
             title="Account"
             description="Remove opensrcer’s saved organization connections and end this session."
           >
-            <div className="rounded-md border border-alert/30 bg-alert/[0.04] p-5">
-              <h3 className="text-sm font-medium text-paper">Disconnect opensrcer</h3>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-paper-dim">
+            <div className="callout callout-alert p-5 sm:p-6">
+              <h3 className="text-[16px] font-semibold text-paper">Disconnect opensrcer</h3>
+              <p className="mt-2 max-w-2xl text-[14px] leading-6 text-paper-dim">
                 This removes saved organization connections, revokes cached installation tokens, and signs you out. To remove the GitHub OAuth grant too, revoke it in{" "}
                 <a
                   href="https://github.com/settings/applications"
@@ -192,11 +193,12 @@ function SettingsSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="grid gap-7 py-8 md:grid-cols-[240px_minmax(0,1fr)] md:gap-12" aria-labelledby={id}>
+    <section className="grid gap-7 py-10 md:grid-cols-[260px_minmax(0,1fr)] md:gap-14" aria-labelledby={id}>
+
       <div>
-        <h2 id={id} className="text-base font-medium text-paper">{title}</h2>
-        <p className="mt-2 text-sm leading-6 text-paper-muted">{description}</p>
-        {note && <p className="mt-4 text-xs leading-5 text-paper-faint">{note}</p>}
+        <h2 id={id} className="display text-[24px] leading-[1.05] text-paper">{title}</h2>
+        <p className="mt-3 text-[14px] leading-6 text-paper-muted">{description}</p>
+        {note && <p className="mt-4 text-[12.5px] leading-5 text-paper-muted">{note}</p>}
       </div>
       <div className="min-w-0">{children}</div>
     </section>

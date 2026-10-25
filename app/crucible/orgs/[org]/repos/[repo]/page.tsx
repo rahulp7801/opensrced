@@ -30,19 +30,9 @@ const SEVERITY_ORDER: Record<string, number> = {
 };
 
 function severityChip(sev: SecurityFinding["severity"]) {
-  const base = "inline-block px-1.5 py-0.5 text-xs font-mono border";
-  switch (sev) {
-    case "critical":
-      return `${base} border-alert/30 bg-alert/5 text-alert`;
-    case "high":
-      return `${base} border-orange-700 bg-orange-950/40 text-orange-200`;
-    case "medium":
-      return `${base} border-amber-300 bg-amber-50 text-amber-800`;
-    case "low":
-      return `${base} border-blue-700 bg-blue-950/40 text-blue-200`;
-    default:
-      return `${base} border-border-soft text-paper-muted`;
-  }
+  // Semantic tones only: critical and high are alerts, medium asks for a look, low is information.
+  const tone = { critical: "chip-alert", high: "chip-alert", medium: "chip-signal", low: "chip-info" }[sev as string] ?? "";
+  return `chip font-mono ${tone}`;
 }
 
 export const metadata = { title: "Security findings" };
@@ -93,7 +83,7 @@ export default async function RepoFindingsPage({
   const repoFull = `${org}/${repo}`;
 
   return (
-    <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 py-6">
+    <div className="mx-auto w-full max-w-[1200px] px-5 py-10 sm:px-8">
       <PageHeading
         title={<>{repoFull}</>}
         description={
@@ -106,14 +96,14 @@ export default async function RepoFindingsPage({
       />
 
       <div className="mt-4 flex items-center justify-between">
-        <div className="text-[12px] text-paper-muted">
+        <div className="text-[13px] text-paper-muted">
           <Link href={`/crucible/orgs/${org}`} className="hover:text-paper">
             ← repos in {org}
           </Link>
         </div>
         <Link
           href={`/explore?repo=${encodeURIComponent(repoFull)}`}
-          className="rounded-full flex items-center gap-1.5 border border-border hover:border-signal/50 hover:text-signal px-2.5 py-1 text-[11px] text-paper-muted transition"
+          className="btn-quiet flex gap-1.5" data-size="sm"
         >
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7" cy="7" r="4" /><path d="m13 13-3.5-3.5" /></svg>
           explore codebase
@@ -121,51 +111,51 @@ export default async function RepoFindingsPage({
       </div>
 
       {loadError && (
-        <div className="rounded-xl mt-4 border border-alert/30 bg-alert/5 p-3 text-[12.5px] text-alert">
+        <div className="callout callout-alert mt-4 p-3 text-[13.5px] text-alert">
           Failed to load findings: {loadError}
         </div>
       )}
 
       <section className="mt-6">
         <div className="flex items-center gap-3">
-          <span className="mono-label text-paper-muted">
+          <span className="kicker text-paper-muted">
             security findings ({findings.length})
           </span>
           {findings.length > 0 && (
-            <span className="text-xs tabular-nums text-paper-dim border border-border-soft px-1.5 py-0.5">
+            <span className="chip tabular-nums">
               {findings.filter(f => f.severity === "critical").length} critical · {findings.filter(f => f.severity === "high").length} high
             </span>
           )}
         </div>
         {findings.length === 0 ? (
-          <div className="rounded-2xl mt-2 border border-border-soft bg-surface p-4 text-[12px] text-paper-dim">
+          <div className="card mt-2 p-4 text-[13px] text-paper-dim">
             No open advisories or Dependabot alerts.
           </div>
         ) : (
-          <ul className="rounded-2xl mt-2 divide-y divide-border-soft border border-border-soft bg-surface">
+          <ul className="card mt-2 divide-y divide-border-soft">
             {findings.map((f) => (
               <li key={`${f.kind}-${f.id}`} className="px-4 py-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={severityChip(f.severity)}>{f.severity}</span>
-                      <span className="text-[10.5px] font-mono text-paper-muted">
+                      <span className="text-[12px] font-mono text-paper-muted">
                         {f.kind}
                       </span>
                       {f.cveId && (
-                        <span className="text-[10.5px] font-mono text-paper-muted">
+                        <span className="text-[12px] font-mono text-paper-muted">
                           {f.cveId}
                         </span>
                       )}
                       {f.affectedPackage && (
-                        <span className="text-[10.5px] font-mono text-paper-muted">
+                        <span className="text-[12px] font-mono text-paper-muted">
                           {f.affectedPackage}
                           {f.affectedVersions ? ` ${f.affectedVersions}` : ""}
                         </span>
                       )}
                     </div>
                     <div className="mt-1 text-[13px] text-paper">{f.summary}</div>
-                    <div className="mt-0.5 text-[11px] text-paper-muted">
+                    <div className="mt-0.5 text-[12px] text-paper-muted">
                       <a href={f.htmlUrl} target="_blank" rel="noreferrer" className="hover:text-paper">
                         view on github ↗
                       </a>
@@ -194,15 +184,15 @@ export default async function RepoFindingsPage({
       </section>
 
       <section className="mt-8">
-        <div className="mono-label text-paper-muted">
+        <div className="kicker text-paper-muted">
           open issues ({issues.length})
         </div>
         {issues.length === 0 ? (
-          <div className="rounded-2xl mt-2 border border-border-soft bg-surface p-4 text-[12px] text-paper-dim">
+          <div className="card mt-2 p-4 text-[13px] text-paper-dim">
             No open issues.
           </div>
         ) : (
-          <ul className="rounded-2xl mt-2 divide-y divide-border-soft border border-border-soft bg-surface">
+          <ul className="card mt-2 divide-y divide-border-soft">
             {issues.map((i) => (
               <li key={i.number} className="px-4 py-3 flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -214,14 +204,14 @@ export default async function RepoFindingsPage({
                       {i.labels.map((l) => (
                         <span
                           key={l}
-                          className="text-xs font-mono text-paper-muted border border-border-soft px-1.5"
+                          className="chip font-mono"
                         >
                           {l}
                         </span>
                       ))}
                     </div>
                   )}
-                  <div className="mt-0.5 text-[11px] text-paper-muted">
+                  <div className="mt-0.5 text-[12px] text-paper-muted">
                     <a href={i.htmlUrl} target="_blank" rel="noreferrer" className="hover:text-paper">
                       view on github ↗
                     </a>

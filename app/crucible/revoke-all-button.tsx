@@ -34,25 +34,25 @@ export function RevokeAllButton() {
         <button
           type="button"
           onClick={() => { setError(null); setState("confirm"); }}
-          className="text-[12px] text-alert hover:text-alert transition"
+          className="btn-quiet" data-tone="alert"
         >
           Disconnect all &amp; sign out
         </button>
-        {error && <p role="alert" className="text-xs text-alert">{error}</p>}
+        {error && <p role="alert" className="text-[12.5px] text-alert">{error}</p>}
       </div>
     );
   }
 
   if (state === "confirm") {
     return (
-      <div className="rounded-xl border border-alert/30 bg-alert/5 p-4 space-y-3">
+      <div className="callout callout-alert p-4 space-y-3">
         <div className="text-[13px] text-alert font-medium">
           Disconnect this account?
         </div>
-        <div className="text-[12px] text-paper-dim leading-relaxed">
+        <div className="text-[13px] text-paper-dim leading-relaxed">
           This will:
         </div>
-        <ul className="text-[12px] text-paper-dim leading-relaxed list-disc list-inside space-y-1">
+        <ul className="text-[13px] text-paper-dim leading-relaxed list-disc list-inside space-y-1">
           <li>Stop your active hosted runs before access is cleared</li>
           <li>Disconnect all GitHub organizations you&apos;ve connected</li>
           <li>Revoke all cached installation tokens immediately</li>
@@ -73,14 +73,14 @@ export function RevokeAllButton() {
           <button
             type="button"
             onClick={revoke}
-            className="rounded-full text-[12px] text-alert border border-alert/30 bg-alert/5 px-3 py-1.5 hover:bg-alert/10 transition"
+            className="btn-quiet text-alert" data-size="sm"
           >
             Stop runs, disconnect, and sign out
           </button>
           <button
             type="button"
             onClick={() => setState("idle")}
-            className="text-[12px] text-paper-muted hover:text-paper px-3 py-1.5 transition"
+            className="text-[13px] text-paper-muted hover:text-paper px-3 py-1.5 transition"
           >
             Cancel
           </button>
@@ -90,7 +90,7 @@ export function RevokeAllButton() {
   }
 
   return (
-    <div className="text-[12px] text-alert animate-pulse" role="status">
+    <div className="text-[13px] text-alert animate-pulse" role="status">
       Revoking all access and signing out…
     </div>
   );

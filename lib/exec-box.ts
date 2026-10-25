@@ -6,7 +6,7 @@
 // Backends, chosen by OPENSRCER_EXEC:
 //   auto (default)  docker when the daemon answers, else off (logged loudly)
 //   docker          a throwaway container: non-root, no capabilities, no host
-//                   mounts besides the read-only server script, port bound to
+//                   mounts (the server script is docker cp-ed in), port bound to
 //                   127.0.0.1. Credentials never enter it.
 //   host            explicit opt-in for single-user machines: the server runs
 //                   as a host process with a scrubbed env. NOT a boundary:

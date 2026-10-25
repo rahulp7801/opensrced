@@ -14,6 +14,10 @@ import { Wordmark } from "@/components/brand/wordmark";
 
 export const TimeContext = createContext(0);
 
+/** On the stage, the app frame's address goes in the caption above the frame (fig. N  URL ·
+ *  provenance) rather than in a fake URL bar inside it; the stage provides where to send it. */
+export const FrameUrlContext = createContext<((url: string) => void) | null>(null);
+
 /** Local time in the current chapter, in ms. */
 export function useT(): number {
   return useContext(TimeContext);
@@ -180,14 +184,16 @@ function MenuItem({ name, className, children }: { name: string; className: stri
 /** The opensrcer app, drawn in markup: browser chrome, the signed-in header
  *  with its four sections, the section's sub-tabs, then the page. */
 export function AppWindow({ path, section, tab, children, label, host = "opensrced.vercel.app" }: { path: string; section?: Section | "none"; tab?: string; children: ReactNode; label?: string; host?: string }) {
+  const toCaption = useContext(FrameUrlContext);
+  useEffect(() => { toCaption?.(`${host}${path}`); }, [toCaption, host, path]);
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center gap-2 border-b border-border-soft bg-ink-2 px-3 py-1.5 sm:px-4">
+      {!toCaption && <div className="flex items-center gap-2 border-b border-border-soft bg-ink-2 px-3 py-1.5 sm:px-4">
         <span className="mx-auto min-w-0 truncate text-center font-mono text-[12px] text-paper-faint">
           {host}{path}
         </span>
         {label && <span className="hidden shrink-0 text-[11px] text-paper-faint sm:inline">{label}</span>}
-      </div>
+      </div>}
       {section && (
         <>
           <div className="flex items-center gap-1 border-b border-border-soft bg-surface px-3 py-2 sm:px-4">

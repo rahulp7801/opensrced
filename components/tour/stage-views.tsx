@@ -322,7 +322,7 @@ export const stageExplore: Chapter = {
   title: "Ask the code in plain English",
   duration: FOCUS_AT + MAP_FOCUS_LENGTH + 2500,
   source: "The real pallets/flask graph and a real Explore answer; the zoom is drawn for the stage",
-  provenance: [{ at: 0, text: "pallets/flask · real answer · zoom drawn for the talk" }],
+  provenance: [{ at: 0, text: "real answer · zoom drawn for the talk" }],
   headlines: [
     { at: 0, text: "Understand the code before you change it." },
     { at: FIRST.turns[0].typeAt, text: "Ask about it in plain English." },
@@ -485,11 +485,11 @@ export const stageRefused: Chapter = {
 // The presenter's own statement (Rahul's words; no provenance pill): no logos, just the name.
 function BuiltView() {
   return (
-    <div className="flex h-full items-center justify-between gap-12 bg-ink">
-      <Reveal at={300}>
-        <p className="max-w-[560px] text-[24px] leading-[1.45] text-paper">I used GitHub Copilot mostly for scaffolding. What it drafted, I reviewed and own.</p>
-      </Reveal>
-      <CodeMap className="w-[320px] shrink-0" />
+    <div className="flex h-full items-center bg-ink">
+      <p className="max-w-[900px] font-display text-[52px] [text-wrap:pretty] font-[650] leading-[1.12] tracking-[-0.02em] text-paper [font-stretch:92%]">
+        <span className="stage-rise inline">Built the way it asks you to build.</span>{" "}
+        <span className="stage-rise inline font-sans font-[450] tracking-normal text-paper-muted [font-stretch:100%]" style={{ animationDelay: "500ms" }}>I used GitHub Copilot mostly for scaffolding; what it drafted, I reviewed and own.</span>
+      </p>
     </div>
   );
 }
@@ -502,7 +502,6 @@ export const stageBuilt: Chapter = {
   duration: 6500,
   source: "The presenter, on how opensrcer was built",
   poster: true,
-  headlines: [{ at: 0, text: "Built the way it asks you to build." }],
   captions: [
     { at: 0, text: "One more thing. I built opensrcer with an AI assistant too: GitHub Copilot, mostly for scaffolding. Everything it drafted, I reviewed and own. That's the same bar opensrcer holds every contributor to." },
   ],
@@ -523,7 +522,8 @@ const SLOP_LINE_AT = 700 + SLOP.length * SLOP_STEP + 400; // after the last row
 
 // The closing line, inked in word by word once the rows have had their moment.
 const CLOSE_AT = SLOP_LINE_AT + 2600;
-const CLOSE_LINES = ["Not more pull requests.", "Better ones."];
+const CLOSE_CLAIM = "Not more pull requests.";
+const CLOSE_REST = "Better ones: tested in a locked box, explained in your words, following each project's rules.";
 
 function SlopView() {
   const t = useT();
@@ -546,19 +546,19 @@ function SlopView() {
 }
 
 function CloseView() {
-  let i = 0;
+  const words = CLOSE_CLAIM.split(" ");
   return (
-    <div className="stage-enter relative flex h-full flex-col justify-end bg-ink pb-12">
+    <div className="stage-enter relative flex h-full flex-col justify-end bg-ink pb-10">
       <Wordmark className="absolute left-0 top-6 text-[40px] text-paper" />
-      <CodeMap className="absolute right-0 top-4 w-[360px]" />
-      <p className="display text-[100px] leading-[1] tracking-[-0.025em] text-paper">
-        {CLOSE_LINES.map((line, l) => (
-          <span key={line} className={cn("block", l === 1 && "text-signal [--ink-to:var(--color-signal)]")}>
-            {line.split(" ").map((word) => <span key={word + i} className="stage-ink" style={{ "--d": `${300 + i++ * 140}ms` } as React.CSSProperties}>{word} </span>)}
-          </span>
-        ))}
+      <CodeMap className="absolute right-0 top-4 w-[280px]" />
+      <p className="max-w-[720px] font-display text-[56px] [text-wrap:pretty] font-[650] leading-[1.08] tracking-[-0.02em] text-paper [font-stretch:92%]">
+        {words.map((word, i) => <span key={i} className="stage-ink" style={{ "--d": `${300 + i * 140}ms` } as React.CSSProperties}>{word} </span>)}
+        <span className="stage-rise font-sans font-[450] tracking-normal text-paper-muted [font-stretch:100%]" style={{ animationDelay: `${500 + words.length * 140}ms` }}>{CLOSE_REST}</span>
       </p>
-      <p className="mt-8 font-mono text-[20px] text-paper-muted">opensrced.vercel.app</p>
+      <div className="mt-9 flex items-baseline justify-between gap-6 border-t border-border pt-4">
+        <p className="font-mono text-[17px] text-paper-dim">github.com/{DEMO_REPO}/pull/{RUN.pr}</p>
+        <p className="text-[18px] text-paper">Rahul <span className="font-mono text-[16px] text-paper-muted">· @rahulp7801</span></p>
+      </div>
     </div>
   );
 }
@@ -1086,13 +1086,13 @@ export function StageTitle() {
   return (
     <div className="relative flex h-full flex-col justify-end bg-ink pb-10">
       <Wordmark draw className="absolute left-0 top-6 text-[40px] text-paper" />
-      <CodeMap className="absolute right-0 top-4 w-[380px]" />
+      <p className="absolute right-0 top-9 font-mono text-[14px] tracking-[0.02em] text-paper-faint">Demo · opensrced.vercel.app</p>
+      <CodeMap className="absolute right-0 top-20 w-[360px]" />
       <p className="kicker text-[16px] text-paper-muted">Your first open-source contribution, guided</p>
       <p className="display mt-5 text-[104px] leading-[0.98] tracking-[-0.025em] text-paper">
         <span className="rise block">Issues in.</span>
         <span className="rise block" style={{ "--delay": "120ms" } as React.CSSProperties}>Pull requests <span className="text-signal">out.</span></span>
       </p>
-      <p className="mt-8 font-mono text-[16px] text-paper-muted">opensrced.vercel.app</p>
     </div>
   );
 }

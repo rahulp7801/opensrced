@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { ArrowRight, CaretLeft, CaretRight, CornersOut } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
-import { InteractContext, TimeContext, type Caption, type Chapter, type Interact } from "./kit";
+import { FrameUrlContext, InteractContext, TimeContext, type Caption, type Chapter, type Interact } from "./kit";
 import { Doodle } from "@/components/brand/doodles";
 import { pass } from "@/components/brand/doodle-data";
 import { ArrowGlyph } from "@/components/brand/pill";
@@ -47,6 +47,9 @@ const STEPS = PHASES.flatMap((phase, p) => phase.chapters.map((c) => ({ phase: p
 const STARTS = STEPS.reduce<number[]>((acc, _s, i) => [...acc, i === 0 ? 0 : acc[i - 1] + STEPS[i - 1].chapter.duration], []);
 const TOTAL = STARTS[STARTS.length - 1] + STEPS[STEPS.length - 1].chapter.duration;
 const PHASE_STARTS = PHASES.map((_p, i) => STARTS[STEPS.findIndex((s) => s.phase === i)]);
+// Figure numbers for the captions: every stop that shows an artefact (the app, or a labelled
+// illustration) gets the next number, in order.
+const FIGS = STEPS.reduce<number[]>((acc, s, i) => [...acc, (i ? acc[i - 1] : 0) + (!s.chapter.poster || s.chapter.provenance ? 1 : 0)], []);
 
 const DESIGN = { width: 1040, height: 560 };
 // Headlines are sized from the app frame, not the window: 3.4% of its width (about 59 px on a
@@ -74,6 +77,8 @@ export function StageDemo() {
   const [started, setStarted] = useState(false);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [scale, setScale] = useState(1);
+  // The app frame's address, for the caption above it (AppWindow reports it).
+  const [frameUrl, setFrameUrl] = useState<string | null>(null);
   // The presenter drives from the notes window and the keyboard; the on-screen controls show
   // only while the mouse moves (two seconds), or while one has focus.
   const [controls, setControls] = useState(false);
@@ -292,12 +297,26 @@ export function StageDemo() {
         <a href="/demo" className="btn-primary inline-flex min-h-11 items-center px-6 text-[16px]">Open the product tour</a>
       </div>
       {/* The headline sits on the app's left edge, in the display face: big type does the work. */}
-      <div className="relative z-[70] mx-auto mb-6 shrink-0" style={{ width: DESIGN.width * scale, fontSize: DESIGN.width * scale * HEADLINE_OF_FRAME }}>
+      <div className="relative z-[70] mx-auto mb-5 shrink-0" style={{ width: DESIGN.width * scale, fontSize: DESIGN.width * scale * HEADLINE_OF_FRAME }}>
         <StageHeadline head={head} />
       </div>
+      {/* One honest caption above the frame: its figure number, the real address and where
+          what's on screen comes from. Posters without a source show nothing; the line keeps its height. */}
+      <p className="mx-auto mb-2 flex h-6 shrink-0 items-center gap-3 truncate font-mono text-[13px] tracking-[0.02em] text-paper-faint" style={{ width: DESIGN.width * scale }}>
+        {(() => {
+          const parts = [!poster && frameUrl, provenance].filter(Boolean);
+          return parts.length > 0 && (
+            <>
+              <span className="rounded-[3px] border border-border px-1.5 leading-5 text-paper-muted">fig. {FIGS[index]}</span>
+              <span key={parts.join()} className="stage-settle truncate">{parts.join(" · ")}</span>
+            </>
+          );
+        })()}
+      </p>
       <div ref={stageRef} className="relative flex min-h-0 flex-1 items-center justify-center">
-        <div ref={canvasRef} style={{ width: DESIGN.width, height: DESIGN.height, zoom: scale }} className={cn("relative shrink-0 rounded-[26px] transition-[background-color,border-color,box-shadow] duration-500", poster ? "overflow-visible border border-transparent bg-ink" : "overflow-hidden border border-border bg-surface shadow-[0_30px_80px_-40px_rgb(28_23_20/0.35)]")}>
+        <div ref={canvasRef} style={{ width: DESIGN.width, height: DESIGN.height, zoom: scale }} className={cn("relative shrink-0 rounded-[12px] transition-[background-color,border-color] duration-500", poster ? "overflow-visible border border-transparent bg-ink" : "overflow-hidden border border-border bg-surface")}>
           <InteractContext.Provider value={interact}>
+            <FrameUrlContext.Provider value={setFrameUrl}>
             <TimeContext.Provider value={local}>
               {started ? (
                 <div key={step.chapter.id} className="stage-enter h-full">
@@ -308,20 +327,18 @@ export function StageDemo() {
                 <StageTitle />
               )}
             </TimeContext.Provider>
+            </FrameUrlContext.Provider>
           </InteractContext.Provider>
         </div>
       </div>
       <Spotlight selector={spotOn} strong={waiting?.kind === "press"} within={canvasRef} />
 
-      {/* Under the app, on its left edge: where what's on screen comes from, the phase dots, and
-          (only while the mouse moves) the arrow to move on. */}
-      <div className="relative mx-auto mt-3 flex h-11 shrink-0 items-center justify-center" style={{ width: DESIGN.width * scale }}>
-        {provenance && <p key={provenance} className="stage-settle absolute left-0 z-[70] max-w-[48%] truncate rounded-full border border-border bg-surface px-3.5 py-1 text-[13px] font-medium text-paper-dim">{provenance}</p>}
-        <div aria-hidden className="flex items-center gap-2">
-          {PHASES.map((p, i) => (
-            <span key={p.name} className={cn("h-1.5 rounded-full transition-all duration-500", i === step.phase ? "w-8 bg-signal" : i < step.phase ? "w-1.5 bg-signal/50" : "w-1.5 bg-border")} />
-          ))}
-        </div>
+      {/* Under the app, on its left edge: which chapter this is, and (only while the mouse
+          moves) the arrow to move on. */}
+      <div className="relative mx-auto mt-3 flex h-11 shrink-0 items-center" style={{ width: DESIGN.width * scale }}>
+        <p className="font-mono text-[13px] tracking-[0.02em] text-paper-faint">
+          {started && <><span className="text-paper">{step.phase + 1}</span> / {PHASES.length}<span className="ml-3 text-paper">{PHASES[step.phase].name}</span></>}
+        </p>
         {waiting?.kind === "next" && !ended && (
           <button type="button" onClick={forward} aria-label="Next step" className={cn("absolute right-0 z-[70] grid size-11 place-items-center rounded-full bg-signal text-white transition-opacity duration-300 focus-visible:opacity-100", controls ? "opacity-100" : "opacity-0")}>
             <ArrowRight aria-hidden size={18} weight="bold" />
@@ -377,9 +394,8 @@ const SPOT_OFFSET = 6; // screen px between the target and its ring
 
 type Rect = { left: number; top: number; width: number; height: number };
 
-/** With no pointer on stage, what's being clicked or talked about is lit: the app window
- *  dims (only the window; the paper and the headline stay as they are) and a thin cobalt
- *  ring sits 6 px around the target. Between targets it fades out and in at the new place,
+/** With no pointer on stage, what's being clicked or talked about is ringed: a thin cobalt
+ *  line 6 px around the target, nothing dimmed, so every part of the screen stays readable. Between targets it fades out and in at the new place,
  *  rather than sliding; on one target it follows as the target moves (a pane scrolling). */
 function Spotlight({ selector, strong, within }: { selector: string | null; strong: boolean; within: RefObject<HTMLDivElement | null> }) {
   const [frame, setFrame] = useState<{ clip: Rect; box: Rect; key: string } | null>(null);
@@ -417,11 +433,11 @@ function Spotlight({ selector, strong, within }: { selector: string | null; stro
   if (!frame) return null;
   const { clip, box } = frame;
   return (
-    <div aria-hidden className="pointer-events-none fixed z-[60] overflow-hidden rounded-[26px]" style={clip}>
+    <div aria-hidden className="pointer-events-none fixed z-[60] overflow-hidden rounded-[16px]" style={clip}>
       <div
         data-spotlight={on ? (strong ? "click" : "note") : undefined}
         className={cn("absolute rounded-[12px] transition-opacity duration-[120ms] motion-reduce:transition-none", on ? "opacity-100" : "opacity-0")}
-        style={{ ...box, boxShadow: `0 0 0 2px var(--color-signal), 0 0 0 9999px rgb(28 23 20 / ${strong ? 0.5 : 0.32})` }}
+        style={{ ...box, boxShadow: "0 0 0 2px var(--color-signal)" }}
       />
     </div>
   );

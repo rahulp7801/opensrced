@@ -125,7 +125,7 @@ export function Landing({ primary, secondary }: { primary: Cta; secondary: Cta }
         </p>
         <div className="rise mt-9 flex flex-wrap items-center gap-3" style={{ "--delay": "280ms" } as React.CSSProperties}>
           <CtaPill href={primary.href}>{primary.label}</CtaPill>
-          <Link href={secondary.href} className="pill min-h-12 px-5 text-[16px]">{secondary.label}</Link>
+          <Link href={secondary.href} className="text-link ml-2 text-[16px]">{secondary.label}</Link>
         </div>
       </HeroHeadline>
 
@@ -236,7 +236,7 @@ export function Landing({ primary, secondary }: { primary: Cta; secondary: Cta }
           </h2>
           <div className="mt-10 flex flex-wrap items-center gap-3">
             <CtaPill href={primary.href}>{primary.label}</CtaPill>
-            <Link href={secondary.href} className="pill min-h-12 px-5 text-[16px]">{secondary.label}</Link>
+            <Link href={secondary.href} className="text-link ml-2 text-[16px]">{secondary.label}</Link>
             <Doodle doodle={arrow} draw="scroll" weight={0.55} className="ml-3 hidden w-[96px] -scale-x-100 -rotate-12 sm:block" />
           </div>
           <ul className="mt-20 grid gap-4 border-t border-border pt-6 text-[16px] text-paper-muted sm:grid-cols-3">

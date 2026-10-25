@@ -35,7 +35,7 @@ export function PreviewLanding() {
           </Suspense>
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <CtaPill href="/demo">Watch the product tour</CtaPill>
-            <Link href="/login" className="pill min-h-12 px-5 text-[16px]">Have an invite? Sign in</Link>
+            <Link href="/login" className="text-link ml-2 text-[16px]">Have an invite? Sign in</Link>
           </div>
         </div>
       </HeroHeadline>

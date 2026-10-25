@@ -74,7 +74,7 @@ export function SiteHeader({ localMode = false, inviteOnly = false }: { localMod
             <Nav />
           ) : (
             <nav aria-label="Main navigation" className="ml-auto flex items-center">
-              <Link href="/demo" className="pill">Demo</Link>
+              <Link href="/demo" className="text-link mr-2 text-[14px]">Demo</Link>
             </nav>
           )}
 

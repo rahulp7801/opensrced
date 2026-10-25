@@ -6,6 +6,9 @@ import { useCanUseApp } from "@/lib/use-current-user";
 import { Nav } from "./nav";
 import { AuthChip } from "./auth-chip";
 import { IconClose, IconHelp } from "./icons";
+import { Wordmark } from "./brand/wordmark";
+import { Doodle } from "./brand/doodles";
+import { o } from "./brand/doodle-data";
 
 export function SiteHeader({ localMode = false, inviteOnly = false }: { localMode?: boolean; inviteOnly?: boolean }) {
   // "signedIn" drives the app navigation, so it means "may use the app": during
@@ -54,36 +57,45 @@ export function SiteHeader({ localMode = false, inviteOnly = false }: { localMod
     <>
       {/* Stickiness lives on the wrapper in app/layout.tsx, which pins this
           header and the section tab bar together. */}
-      <header className="border-b border-border-soft bg-ink/80 backdrop-blur-xl backdrop-saturate-150">
-        <div className="mx-auto flex min-h-12 w-full max-w-[1200px] items-stretch px-2 sm:px-5">
+      {/* Solid paper, a hairline under it: no glass. Wordmark left, the task
+          nav right beside it as plain text (the current one underlined on the
+          header's rule), help and account at the far right. */}
+      <header className="border-b border-border-soft bg-ink">
+        <div className="mx-auto flex min-h-14 w-full max-w-[1320px] items-stretch gap-3 px-3 sm:gap-6 sm:px-6 lg:gap-10 min-[1384px]:px-0">
           <Link
             href={signedIn ? "/discover" : "/"}
             aria-label="opensrcer home"
-            className="group flex shrink-0 items-center gap-2 px-3 py-2"
+            className="flex shrink-0 items-center text-paper"
           >
-            <Mark />
-            <span className={`${signedIn ? "hidden md:inline" : ""} whitespace-nowrap text-[17px] font-semibold leading-none tracking-[-0.02em] text-paper`}>
-              opensrcer
-            </span>
+            {/* Signed in on a phone, the nav needs the room: the ring alone is the mark. */}
+            {signedIn && <Doodle doodle={o} weight={0.85} draw="load" delay={150} duration={700} className="size-[22px] md:hidden" />}
+            <Wordmark draw className={`${signedIn ? "hidden md:inline-flex" : ""} text-[24px]`} />
           </Link>
 
-          {signedIn ? <Nav /> : <nav aria-label="Main navigation" className="ml-auto flex items-center gap-5 px-4 text-[13px]"><Link href="/demo" className="text-paper-dim transition-colors hover:text-paper">Demo</Link></nav>}
-
-          {signedIn && (
-            <button
-              ref={helpButtonRef}
-              onClick={() => setHelpOpen(!helpOpen)}
-              aria-label="Open help"
-              aria-expanded={helpOpen}
-              aria-controls="quick-help-dialog"
-              className="flex items-center justify-center px-3 text-paper-muted transition hover:text-paper"
-              title="Help & quick reference"
-            >
-              <IconHelp size={17} />
-            </button>
+          {signedIn ? (
+            <Nav />
+          ) : (
+            <nav aria-label="Main navigation" className="ml-auto flex items-center">
+              <Link href="/demo" className="text-link text-[14px]">Demo</Link>
+            </nav>
           )}
 
-          <AuthChip localMode={localMode} />
+          <div className={`${signedIn ? "ml-auto" : ""} flex shrink-0 items-center gap-1`}>
+            {signedIn && (
+              <button
+                ref={helpButtonRef}
+                onClick={() => setHelpOpen(!helpOpen)}
+                aria-label="Open help"
+                aria-expanded={helpOpen}
+                aria-controls="quick-help-dialog"
+                className="grid size-10 shrink-0 place-items-center rounded-[10px] text-paper-muted transition hover:bg-surface hover:text-paper"
+                title="Help & quick reference"
+              >
+                <IconHelp size={18} />
+              </button>
+            )}
+            <AuthChip localMode={localMode} />
+          </div>
         </div>
       </header>
 
@@ -154,7 +166,8 @@ function HelpSection({ title, children }: { title: string; children: React.React
   );
 }
 
-/** A branch leaving the trunk: an issue becoming a pull request. */
+/** The previous mark (a branch leaving the trunk). The site header uses the
+ *  brand Wordmark now; this stays for the product tour, which imports it. */
 export function Mark() {
   return (
     <svg

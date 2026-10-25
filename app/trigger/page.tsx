@@ -11,44 +11,41 @@ export default function TriggerPage() {
         title={<>New run</>}
         description={
           <>
-            Paste a GitHub repo or issue URL. The AI agent explores the codebase and writes a fix,
-            then stops so you can read it. Nothing is posted to GitHub until you confirm it.
+            Paste an issue link: the agent writes a fix, then stops so you can read it before anything is posted.
           </>
         }
       />
 
-      <div className="mt-6">
-        <Suspense fallback={<div className="text-paper-muted text-[12px]">Loading...</div>}>
+      <div>
+        <Suspense fallback={<div className="text-paper-muted text-[13px]">Loading...</div>}>
           <TriggerForm />
         </Suspense>
       </div>
 
-      <section className="mt-12 border-t border-border py-8" aria-labelledby="run-workflow-heading">
-        <h2 id="run-workflow-heading" className="display text-[28px] leading-tight text-paper">What happens next</h2>
-        <ol className="mt-5 grid gap-5 md:grid-cols-3 md:gap-8">
+      <section className="mt-16 border-t border-border pt-10 pb-4" aria-labelledby="run-workflow-heading">
+        <h2 id="run-workflow-heading" className="display text-[32px] leading-none text-paper sm:text-[40px]">What happens next</h2>
+        <ol className="mt-8 grid gap-8 md:grid-cols-3 md:gap-10">
           {[
             {
-              code: "01",
+              code: "1",
               title: "Inspect the issue",
               body: "The agent reads the issue and the relevant parts of the repository.",
             },
             {
-              code: "02",
+              code: "2",
               title: "Generate a patch",
               body: "You get a proposed change and the agent's check results to review.",
             },
             {
-              code: "03",
+              code: "3",
               title: "You decide what to publish",
               body: "A publishable run waits for you: read the change, explain it in your own words, and only then does it open a draft PR from your account. A preview can only be read.",
             },
           ].map((step) => (
-            <li key={step.code} className="grid grid-cols-[2rem_1fr] gap-2">
-              <span className="pt-0.5 font-mono text-xs text-paper-muted">{step.code}</span>
-              <div>
-                <h3 className="text-sm font-medium text-paper">{step.title}</h3>
-                <p className="mt-1.5 text-sm leading-6 text-paper-dim">{step.body}</p>
-              </div>
+            <li key={step.code} className="border-t border-border pt-4">
+              <span className="label-mono">{step.code}</span>
+              <h3 className="mt-2 text-[17px] font-semibold tracking-[-0.01em] text-paper">{step.title}</h3>
+              <p className="mt-2 text-[16px] leading-[1.6] text-paper-dim">{step.body}</p>
             </li>
           ))}
         </ol>

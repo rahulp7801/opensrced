@@ -7,7 +7,13 @@
 import { useId, useState } from "react";
 import { GLOSSARY, type GlossaryTerm } from "@/lib/glossary";
 
-export function Term({ term, children }: { term: GlossaryTerm; children?: React.ReactNode }) {
+export function Term({ term, n, children }: {
+  term: GlossaryTerm;
+  /** A footnote number: shown as a superscript instead of the "?" mark, for
+   *  pages that define their words in a Notes block (the publish gate). */
+  n?: number;
+  children?: React.ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const id = useId();
   return (
@@ -22,11 +28,15 @@ export function Term({ term, children }: { term: GlossaryTerm; children?: React.
         className="inline-flex min-h-6 items-center gap-1 align-baseline text-inherit underline decoration-dotted decoration-paper-faint underline-offset-[3px] hover:decoration-signal max-sm:-mx-1.5 max-sm:-my-2 max-sm:min-h-10 max-sm:px-1.5 pointer-coarse:-mx-1.5 pointer-coarse:-my-2 pointer-coarse:min-h-10 pointer-coarse:px-1.5"
       >
         {children ?? term}
-        <span aria-hidden className="grid size-4 shrink-0 place-items-center rounded-full border border-border-strong text-[10px] font-semibold leading-none text-paper-muted no-underline">?</span>
+        {n !== undefined ? (
+          <sup aria-hidden className="-ml-0.5 font-mono text-[10px] font-normal text-paper-muted no-underline">{n}</sup>
+        ) : (
+          <span aria-hidden className="grid size-4 shrink-0 place-items-center rounded-full bg-surface-2 text-[10px] font-semibold leading-none text-paper-dim no-underline">?</span>
+        )}
         <span className="sr-only">: what&apos;s this?</span>
       </button>
       {/* Always in the DOM so aria-controls resolves; shown only when open. */}
-      <span id={id} role="note" hidden={!open} className="my-1.5 block basis-full rounded-lg border border-border-soft bg-ink px-3 py-2 text-[12px] font-normal leading-relaxed text-paper-dim">
+      <span id={id} role="note" hidden={!open} className="my-2 block basis-full rounded-xl bg-signal-faint/70 px-3.5 py-2.5 text-[13px] font-normal normal-case leading-relaxed tracking-normal text-paper-dim">
         <strong className="font-medium text-paper">{term.charAt(0).toUpperCase() + term.slice(1)}:</strong> {GLOSSARY[term]}
       </span>
     </>

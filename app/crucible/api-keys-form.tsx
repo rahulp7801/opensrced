@@ -165,14 +165,14 @@ export function ApiKeysForm() {
     <div className="space-y-7">
       {/* How runs are paid for */}
       <fieldset className="space-y-3" aria-describedby="payment-help">
-        <legend className="text-sm font-medium text-paper">Payment order</legend>
-        <p id="payment-help" className="text-xs leading-5 text-paper-muted">
+        <legend className="text-[16px] font-semibold text-paper">Payment order</legend>
+        <p id="payment-help" className="text-[14px] leading-[1.55] text-paper-muted">
           Runs try these in order. Your own subscription comes first, so you are not charged API prices by default.
         </p>
         {loading ? (
-          <p className="text-[11px] text-paper-faint">loading…</p>
+          <p className="text-[12px] text-paper-faint">loading…</p>
         ) : (
-          <ol className="divide-y divide-border-soft overflow-hidden rounded-md border border-border bg-surface/30">
+          <ol className="card divide-y divide-border-soft overflow-hidden">
             {order.map((provider, index) => {
               const info = PROVIDER_INFO[provider];
               const detected = status?.availability?.[provider];
@@ -183,21 +183,21 @@ export function ApiKeysForm() {
               return (
                 <li key={provider} className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
                   <div className="min-w-0 flex-1">
-                    <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-paper">
-                      <span className="font-mono text-xs text-paper-muted">{index + 1}.</span>
+                    <p className="flex flex-wrap items-center gap-2 text-[14px] font-medium text-paper">
+                      <span className="font-mono text-[12.5px] text-paper-muted">{index + 1}.</span>
                       {info.title}
-                      <span className={`rounded-full border px-1.5 py-0.5 text-xs ${chip.tone === "ok" ? "border-ok/30 text-ok" : "border-border text-paper-muted"}`}>{chip.text}</span>
+                      <span className={`chip ${chip.tone === "ok" ? "chip-ok" : ""}`}>{chip.text}</span>
                     </p>
-                    <p className="mt-1 text-xs leading-5 text-paper-muted">{info.note}</p>
-                    {!isKey && detected && <p className="mt-1 text-xs leading-5 text-paper-dim">{status?.local ? "This machine: " : ""}{detected.detail}</p>}
+                    <p className="mt-1 text-[14px] leading-[1.55] text-paper-muted">{info.note}</p>
+                    {!isKey && detected && <p className="mt-1 text-[14px] leading-[1.55] text-paper-dim">{status?.local ? "This machine: " : ""}{detected.detail}</p>}
                   </div>
                   <div className="flex gap-1.5">
                     <button type="button" onClick={() => move(index, -1)} disabled={saving || index === 0}
                       aria-label={`Move ${info.title} up`}
-                      className="min-h-9 rounded-md border border-border px-2.5 text-xs text-paper-muted hover:text-paper disabled:opacity-40">↑</button>
+                      className="btn-quiet" data-size="sm">↑</button>
                     <button type="button" onClick={() => move(index, 1)} disabled={saving || index === order.length - 1}
                       aria-label={`Move ${info.title} down`}
-                      className="min-h-9 rounded-md border border-border px-2.5 text-xs text-paper-muted hover:text-paper disabled:opacity-40">↓</button>
+                      className="btn-quiet" data-size="sm">↓</button>
                   </div>
                 </li>
               );
@@ -205,7 +205,7 @@ export function ApiKeysForm() {
           </ol>
         )}
         {!loading && status && !status.local && (
-          <p className="text-xs leading-5 text-paper-muted">
+          <p className="text-[14px] leading-[1.55] text-paper-muted">
             {status.hostedSubscription
               ? "Hosted runs ask you to sign in to Claude inside each run's isolated worker. opensrcer never sees or keeps your Claude login."
               : "Subscription sign-in for hosted runs is not enabled on this deployment yet; runs use your API key."}
@@ -213,43 +213,43 @@ export function ApiKeysForm() {
           </p>
         )}
         {!loading && status?.local && (
-          <p className="text-xs leading-5 text-paper-muted">
+          <p className="text-[14px] leading-[1.55] text-paper-muted">
             Local mode uses the Claude Code and Codex logins already on this machine (<code className="font-mono">claude auth login</code>, <code className="font-mono">codex login</code>).{" "}
             <button type="button" onClick={recheck} disabled={checking} className="underline hover:text-paper disabled:opacity-50">
               {checking ? "Checking…" : "Check again"}
             </button>
           </p>
         )}
-        <label className="flex items-start gap-2.5 text-sm text-paper">
+        <label className="flex items-start gap-2.5 text-[14px] text-paper">
           <input
             type="checkbox"
             checked={status?.keyFallback === true}
             onChange={(e) => void savePayment({ keyFallback: e.target.checked })}
             disabled={saving || loading}
-            className="h-6 w-6 shrink-0 accent-[var(--color-signal)]"
+            className="h-6 w-6 shrink-0"
           />
           <span>
             Use my API key when my plan is unavailable
-            <span className="block text-xs leading-5 text-paper-muted">Off by default, so API spend is never a surprise. Applies when you are signed out or hit your plan&apos;s usage limit.</span>
+            <span className="block text-[14px] leading-[1.55] text-paper-muted">Off by default, so API spend is never a surprise. Applies when you are signed out or hit your plan&apos;s usage limit.</span>
           </span>
         </label>
         {status && status.ready === false && status.problem && (
-          <p role="status" className="rounded-md border border-alert/30 bg-alert/5 px-3 py-2 text-xs leading-5 text-alert">{status.problem}</p>
+          <p role="status" className="callout callout-alert px-3 py-2 text-[14px] leading-[1.55] text-alert">{status.problem}</p>
         )}
       </fieldset>
 
       {/* Anthropic key */}
       <div className="space-y-2">
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex items-center gap-2 text-[14px]">
           <label htmlFor="anthropic-key" className="font-medium text-paper">Anthropic API key</label>
           {loading ? (
-            <span className="text-paper-faint text-[11px]">loading…</span>
+            <span className="text-paper-faint text-[12px]">loading…</span>
           ) : status?.anthropic ? (
-            <span className="rounded-full text-xs text-ok border border-ok/30 px-1.5 py-0.5">configured</span>
+            <span className="chip chip-ok">configured</span>
           ) : status ? (
-            <span className="text-xs text-paper-muted px-1.5 py-0.5">not configured</span>
+            <span className="text-[12.5px] text-paper-muted px-1.5 py-0.5">not configured</span>
           ) : (
-            <span className="rounded-full text-xs text-alert border border-alert/30 px-1.5 py-0.5">unavailable</span>
+            <span className="chip chip-alert">unavailable</span>
           )}
         </div>
         <div className="flex gap-2">
@@ -260,7 +260,7 @@ export function ApiKeysForm() {
             value={anthropicInput}
             onChange={(e) => setAnthropicInput(e.target.value)}
             placeholder={status?.anthropic ? "••••••• (replace)" : "sk-ant-api03-..."}
-            className="flex-1 min-w-0 bg-ink border border-border rounded-md px-3 py-3 text-base text-paper placeholder:text-paper-faint focus:border-signal"
+            className="field flex-1 min-w-0"
             autoComplete="off"
             spellCheck={false}
           />
@@ -271,14 +271,14 @@ export function ApiKeysForm() {
                   type="button"
                   onClick={() => clearKey("anthropic")}
                   disabled={saving}
-                  className="rounded-full text-[11px] text-alert border border-alert/30 bg-alert/5 px-2.5 py-1.5 disabled:opacity-50"
+                  className="btn-quiet text-alert" data-size="sm"
                 >
                   {saving ? "..." : "confirm"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setConfirmClear(null)}
-                  className="text-[11px] text-paper-muted hover:text-paper px-1.5 py-1.5"
+                  className="text-[12px] text-paper-muted hover:text-paper px-1.5 py-1.5"
                 >
                   cancel
                 </button>
@@ -288,14 +288,14 @@ export function ApiKeysForm() {
                 type="button"
                 onClick={() => setConfirmClear("anthropic")}
                 disabled={saving}
-                className="rounded-full text-[11px] text-paper-muted hover:text-alert border border-border px-2.5 py-1.5 disabled:opacity-50"
+                className="btn-quiet" data-size="sm"
               >
                 Clear
               </button>
             )
           )}
         </div>
-        <div id="anthropic-help" className="text-xs leading-5 text-paper-muted">
+        <div id="anthropic-help" className="text-[14px] leading-[1.55] text-paper-muted">
           The fallback, or your first choice if you rank it first. Get one at{" "}
           <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" className="underline hover:text-paper-muted">
             console.anthropic.com
@@ -305,16 +305,16 @@ export function ApiKeysForm() {
 
       {/* Gemini key */}
       <div className="space-y-2">
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex items-center gap-2 text-[14px]">
           <label htmlFor="gemini-key" className="font-medium text-paper">Gemini API key</label>
           {loading ? (
-            <span className="text-paper-faint text-[11px]">loading…</span>
+            <span className="text-paper-faint text-[12px]">loading…</span>
           ) : status?.gemini ? (
-            <span className="rounded-full text-xs text-ok border border-ok/30 px-1.5 py-0.5">configured</span>
+            <span className="chip chip-ok">configured</span>
           ) : status ? (
-            <span className="text-xs text-paper-muted px-1.5 py-0.5">not configured</span>
+            <span className="text-[12.5px] text-paper-muted px-1.5 py-0.5">not configured</span>
           ) : (
-            <span className="text-xs text-alert px-1.5 py-0.5">unavailable</span>
+            <span className="text-[12.5px] text-alert px-1.5 py-0.5">unavailable</span>
           )}
         </div>
         <div className="flex gap-2">
@@ -325,7 +325,7 @@ export function ApiKeysForm() {
             value={geminiInput}
             onChange={(e) => setGeminiInput(e.target.value)}
             placeholder={status?.gemini ? "••••••• (replace)" : "AIza..."}
-            className="flex-1 min-w-0 bg-ink border border-border rounded-md px-3 py-3 text-base text-paper placeholder:text-paper-faint focus:border-signal"
+            className="field flex-1 min-w-0"
             autoComplete="off"
             spellCheck={false}
           />
@@ -336,14 +336,14 @@ export function ApiKeysForm() {
                   type="button"
                   onClick={() => clearKey("gemini")}
                   disabled={saving}
-                  className="rounded-full text-[11px] text-alert border border-alert/30 bg-alert/5 px-2.5 py-1.5 disabled:opacity-50"
+                  className="btn-quiet text-alert" data-size="sm"
                 >
                   {saving ? "..." : "confirm"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setConfirmClear(null)}
-                  className="text-[11px] text-paper-muted hover:text-paper px-1.5 py-1.5"
+                  className="text-[12px] text-paper-muted hover:text-paper px-1.5 py-1.5"
                 >
                   cancel
                 </button>
@@ -353,14 +353,14 @@ export function ApiKeysForm() {
                 type="button"
                 onClick={() => setConfirmClear("gemini")}
                 disabled={saving}
-                className="rounded-full text-[11px] text-paper-muted hover:text-alert border border-border px-2.5 py-1.5 disabled:opacity-50"
+                className="btn-quiet" data-size="sm"
               >
                 Clear
               </button>
             )
           )}
         </div>
-        <div id="gemini-help" className="text-xs leading-5 text-paper-muted">
+        <div id="gemini-help" className="text-[14px] leading-[1.55] text-paper-muted">
           Used for patch review and advisory analysis. Get one at{" "}
           <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="underline hover:text-paper-muted">
             aistudio.google.com
@@ -370,7 +370,7 @@ export function ApiKeysForm() {
 
       {/* Agent budget per run */}
       <div className="space-y-2">
-        <div className="text-sm font-medium text-paper">Agent budget per run</div>
+        <div className="text-[16px] font-semibold text-paper">Agent budget per run</div>
         <div className="flex flex-wrap gap-1.5">
           {SPEND_OPTIONS.map((opt) => (
             <button
@@ -378,18 +378,16 @@ export function ApiKeysForm() {
               type="button"
               onClick={() => { budgetTouched.current = true; setMaxSpend(opt.value); }}
               aria-pressed={maxSpend === opt.value}
-              className={`text-sm min-h-11 rounded-md px-3 py-2 border transition ${
-                maxSpend === opt.value
-                  ? "border-signal/60 bg-signal/10 text-signal"
-                  : "border-border bg-surface/40 text-paper-muted hover:border-border-strong"
-              }`}
+              className="pill"
+              data-edge=""
             >
               {opt.label}
             </button>
           ))}
         </div>
-        <div className="text-xs text-paper-faint">
-          Caps a single agent run paid with your API key. Subscription runs are capped by steps and time instead. Review, chat, and other provider calls are billed separately.
+        <div className="text-[12.5px] text-paper-muted">
+          Caps a single agent run
+ paid with your API key. Subscription runs are capped by steps and time instead. Review, chat, and other provider calls are billed separately.
         </div>
       </div>
 
@@ -399,12 +397,12 @@ export function ApiKeysForm() {
           type="button"
           onClick={save}
           disabled={saving}
-          className="min-h-12 rounded-md bg-signal px-5 py-3 text-sm font-medium text-ink hover:bg-signal-soft disabled:opacity-50"
+          className="btn-primary"
         >
           {saving ? "Saving…" : "Save settings"}
         </button>
         {message && (
-          <span role="status" className={`text-sm ${message.ok ? "text-ok" : "text-alert"}`}>
+          <span role="status" className={`text-[14px] font-medium ${message.ok ? "text-ok" : "text-alert"}`}>
             {message.text}
           </span>
         )}

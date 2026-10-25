@@ -1,0 +1,297 @@
+/* App surfaces, on top of the brand system (components/brand/README.md and
+   the classes in app/globals.css): fields, status chips, callouts, and the
+   pressed/selected states of .pill. Token names only, so the palette stays the
+   brand's. Every text colour here is >= 4.5:1 on the fill it sits on:
+   ok/alert/info on their -dim tints measure 5.7/5.3/5.6, and the mixes below
+   are lighter than the tint, so higher still. */
+
+@layer components {
+  /* ── Fields: an off-white sheet with a hairline edge; focus rings cobalt. */
+  .field {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    min-height: 2.75rem;
+    border-radius: 12px;
+    background: var(--color-surface);
+    box-shadow: inset 0 0 0 1px var(--color-border);
+    padding: 0.55rem 0.9rem;
+    font-size: 16px; /* 16px on phones: iOS zooms into anything smaller */
+    line-height: 1.5;
+    color: var(--color-paper);
+    transition: box-shadow 150ms;
+  }
+  @media (min-width: 640px) {
+    .field { font-size: 14.5px; }
+  }
+  .field::placeholder { color: var(--color-paper-faint); }
+  .field:hover { box-shadow: inset 0 0 0 1px var(--color-border-strong); }
+  .field:disabled { opacity: 0.55; cursor: not-allowed; }
+  textarea.field { resize: vertical; }
+  select.field {
+    appearance: none;
+    padding-right: 2.4rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%235e524a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.9rem center;
+  }
+  /* A field label: small, quiet, sentence case. */
+  .field-label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--color-paper-dim);
+  }
+
+  /* ── A status is a dot and plain words ("● waiting for your review"), never
+     an outlined or filled pill. The tone colours the dot and the words; every
+     tone is >= 6.9:1 on the ground and the sheets. Neutral labels use .tag. */
+  .chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.45em;
+    font-size: 13.5px;
+    font-weight: 500;
+    line-height: 1.4;
+    white-space: nowrap;
+    color: var(--color-paper-dim);
+  }
+  .chip::before {
+    content: "";
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--color-border-strong);
+    transform: translateY(-0.1em);
+  }
+  .chip[data-tone="ok"], .chip-ok { color: var(--color-ok); }
+  .chip[data-tone="alert"], .chip-alert { color: var(--color-alert); }
+  .chip[data-tone="info"], .chip-info { color: var(--color-info); }
+  .chip[data-tone="signal"], .chip-signal { color: var(--color-signal); }
+  .chip[data-tone]::before, .chip-ok::before, .chip-alert::before, .chip-info::before, .chip-signal::before { background: currentColor; }
+
+  /* ── Metadata: one mono line, items joined by " · " (the separator is drawn
+     here, so markup lists the facts and nothing else). */
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    row-gap: 0.15rem;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--color-paper-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .meta > :not(:last-child)::after {
+    content: "·";
+    display: inline-block; /* keeps a link's underline off the separator */
+    margin-inline: 0.55em;
+    color: var(--color-paper-faint);
+  }
+  .meta > .tag:not(:last-child)::after { margin-left: calc(0.55em - 0.4em); }
+  .meta a { color: inherit; text-decoration: underline; text-decoration-color: var(--color-border); text-underline-offset: 3px; }
+  .meta a:hover { color: var(--color-signal); text-decoration-color: currentColor; }
+
+  /* ── A small label is mono, sentence case, faint: no uppercase tracked
+     cobalt kicker over every block. */
+  .label-mono {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    color: var(--color-paper-faint);
+  }
+
+  /* ── Figure captions on real artefacts (a diff, a log, the map): one mono
+     line led by the brand's boxed .fig-tag ("fig. 1"). */
+  .fig {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    row-gap: 0.25rem;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.04em;
+    line-height: 1.6;
+    color: var(--color-paper-faint);
+  }
+
+  /* ── In-page tabs: an underlined text strip on a hairline; the current tab
+     is ink with a 2px ink rule (not cobalt: the page keeps its one cobalt
+     thing for the work). */
+  .tab-strip {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 1.5rem;
+    border-bottom: 1px solid var(--color-border-soft);
+  }
+  .tab-strip > button,
+  .tab-strip > a {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.5em;
+    min-height: 2.75rem;
+    padding: 0.75rem 0 0.7rem;
+    font-size: 14.5px;
+    font-weight: 500;
+    color: var(--color-paper-muted);
+    transition: color 150ms, box-shadow 150ms;
+  }
+  .tab-strip > :hover { color: var(--color-paper); }
+  .tab-strip > [aria-selected="true"],
+  .tab-strip > [aria-current="page"] { color: var(--color-paper); box-shadow: inset 0 -2px 0 var(--color-paper); }
+  .tab-strip .tab-count { font-family: var(--font-mono); font-size: 12px; color: var(--color-paper-faint); font-variant-numeric: tabular-nums; }
+
+  /* ── Ruled lists: rows separated by hairlines, no card around them. Hovering
+     a row lays a sheet of lighter paper behind it that bleeds 16px past the
+     text column, so nothing shifts. data-open keeps it (a selected row). */
+  .ruled > * {
+    position: relative;
+    isolation: isolate;
+    border-top: 1px solid var(--color-border-soft);
+  }
+  .ruled > :last-child { border-bottom: 1px solid var(--color-border-soft); }
+  .ruled > *::before {
+    content: "";
+    position: absolute;
+    inset: 1px -16px;
+    z-index: -1;
+    border-radius: 12px;
+    background: var(--color-surface);
+    opacity: 0;
+    transition: opacity 150ms;
+    pointer-events: none;
+  }
+  .ruled > :hover::before,
+  .ruled > :focus-within::before,
+  .ruled > [data-open]::before { opacity: 1; }
+  /* A list header: a 15px title with a mono count. */
+  .list-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.25rem 1.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  /* ── Callouts: a soft sheet for notes, warnings and results. */
+  .callout {
+    border-radius: 16px;
+    padding: 0.85rem 1rem;
+    background: var(--color-surface);
+    box-shadow: inset 0 0 0 1px var(--color-border-soft);
+    color: var(--color-paper-dim);
+  }
+  .callout[data-tone="alert"], .callout-alert { background: color-mix(in srgb, var(--color-alert-dim) 32%, var(--color-surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-alert) 28%, transparent); color: var(--color-alert); }
+  .callout[data-tone="ok"], .callout-ok { background: color-mix(in srgb, var(--color-ok-dim) 34%, var(--color-surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-ok) 26%, transparent); color: var(--color-paper-dim); }
+  .callout[data-tone="info"], .callout-info { background: color-mix(in srgb, var(--color-info-dim) 34%, var(--color-surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-info) 24%, transparent); color: var(--color-paper-dim); }
+  .callout[data-tone="signal"], .callout-signal { background: color-mix(in srgb, var(--color-signal-faint) 70%, var(--color-surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-signal) 26%, transparent); color: var(--color-paper-dim); }
+
+  /* ── Pills as toggles and tabs: pressed/selected inks in like aria-current. */
+  .pill[aria-pressed="true"],
+  .pill[aria-pressed="true"]:hover,
+  .pill[aria-selected="true"],
+  .pill[aria-selected="true"]:hover { background: var(--color-paper); color: var(--color-ink); }
+  .pill:disabled { opacity: 0.5; cursor: not-allowed; }
+  /* On a sheet (.card) the off-white pill needs an edge to be seen. */
+  .pill[data-edge] { box-shadow: inset 0 0 0 1px var(--color-border); }
+  .pill[data-edge][aria-pressed="true"],
+  .pill[data-edge][aria-selected="true"] { box-shadow: none; }
+
+  /* Compact pills and buttons for dense rows; still 40px on phones. */
+  @media (min-width: 640px) {
+    .pill[data-size="sm"],
+    .btn-primary[data-size="sm"],
+    .btn-quiet[data-size="sm"] {
+      min-height: 2.25rem;
+      padding: 0 0.85rem;
+      font-size: 13.5px;
+    }
+  }
+  /* Disabled keeps its shape and fill, faded: the reason is written beside it. */
+  .btn-primary:disabled,
+  .btn-quiet:disabled,
+  .row-cta:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn-primary:disabled:hover { background: var(--color-paper); color: var(--color-ink); }
+  .btn-quiet:disabled:hover { background: transparent; box-shadow: inset 0 0 0 1px var(--color-border); }
+  .row-cta:disabled:hover { color: var(--color-paper); text-decoration-color: var(--color-border-strong); }
+
+  /* Links that leave the app say so with a trailing arrow, set out of flow so
+     the link's underline does not run under it. */
+  .text-link[target="_blank"],
+  .row-cta[target="_blank"] { position: relative; padding-right: 1.05em; }
+  .text-link[target="_blank"]::after,
+  .row-cta[target="_blank"]::after {
+    content: "↗";
+    position: absolute;
+    right: 0;
+    font-size: 0.85em;
+  }
+  .btn-quiet[data-tone="alert"] { color: var(--color-alert); }
+  .btn-quiet[data-tone="alert"]:hover { background: color-mix(in srgb, var(--color-alert-dim) 40%, var(--color-surface)); }
+
+  /* An inline text link in running copy. */
+  .link {
+    color: var(--color-signal);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--color-signal) 45%, transparent);
+    text-underline-offset: 3px;
+  }
+  .link:hover { text-decoration-color: currentColor; }
+
+  /* ── Writing paper: where you write in your own words. No box, a ruled
+     line under every line of text (drawn at the text's own line height, and
+     scrolling with it), and a rule at the bottom that turns cobalt while you
+     write. 17px, so phones don't zoom in. */
+  .paper-field {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    resize: vertical;
+    border: 0;
+    border-radius: 0;
+    border-bottom: 1px solid var(--color-border-strong);
+    padding: 0 0 2px;
+    font-size: 17px;
+    line-height: 1.75;
+    color: var(--color-paper);
+    background-color: transparent;
+    background-image: linear-gradient(to bottom, transparent calc(1.75em - 1px), var(--color-border-soft) calc(1.75em - 1px));
+    background-size: 100% 1.75em;
+    background-attachment: local;
+    transition: box-shadow 150ms, border-color 150ms;
+  }
+  .paper-field::placeholder { color: var(--color-paper-faint); }
+  .paper-field:disabled { opacity: 0.55; cursor: not-allowed; }
+}
+
+/* Unlayered so it beats the global :focus-visible outline: a field shows the
+   cobalt ring instead of a second outline around it. */
+.field:focus,
+.field:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--color-signal), 0 0 0 4px rgb(35 56 230 / 0.14);
+}
+/* Writing paper: the bottom rule turns 2px cobalt while you write. */
+.paper-field:focus,
+.paper-field:focus-visible {
+  outline: none;
+  border-bottom-color: var(--color-signal);
+  box-shadow: 0 1px 0 var(--color-signal);
+}
+
+/* Hand-drawn marks in the app stay quiet: one thin, even pen line, and at
+   most one per page, only in empty, success or 404 states. This replaces the
+   brand doodle's variable widths with a 2px screen stroke; the drawing mask is
+   untouched, so draw-on still works. */
+.doodle-thin g[mask] path {
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+}
+
+input[type="checkbox"],
+input[type="radio"] { accent-color: var(--color-paper); }

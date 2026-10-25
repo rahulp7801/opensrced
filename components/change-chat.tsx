@@ -124,39 +124,44 @@ export function ChangeChat({ storageKey, repo, title, context, starters = STARTE
     saveTurns(storageKey, []);
   }
 
-  const button = "inline-flex min-h-10 items-center rounded-full border px-3 text-[12px] disabled:opacity-50 sm:min-h-8";
   return (
-    <div className="mt-3 rounded-lg border border-info/40 bg-ink px-3 py-2.5 text-[12px]">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <button type="button" onClick={toggle} aria-expanded={open} aria-controls={panelId} className={`${button} border-info/50 bg-info/10 font-medium text-info hover:bg-info/20`}>
+    <div className="mt-5 text-[16px]">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0">
+        <span className="text-paper-muted">Not sure what the change does or why?</span>
+        <button type="button" onClick={toggle} aria-expanded={open} aria-controls={panelId} className="row-cta text-[15px]">
           {open ? "Close the questions" : "Ask about this change"}{turns.length > 0 && !open ? ` (${turns.length} asked)` : ""}
+          {!open && <span aria-hidden>→</span>}
         </button>
-        <span className="text-paper-muted">Not sure what the change does or why? Ask about it here.</span>
       </div>
-      <div id={panelId} hidden={!open} className="mt-2">
-        <p className="text-paper-muted">{caveat} Each answer comes from one AI call that reads only what is shown here; it does not run the code.</p>
-        <div role="group" aria-label="Starter questions" className="mt-2 flex flex-wrap gap-2">
+      <div id={panelId} hidden={!open} className="mt-3 border-l border-border-strong pl-4 sm:pl-5">
+        <p className="max-w-2xl text-[14px] text-paper-muted">{caveat} Each answer comes from one AI call that reads only what is shown here; it does not run the code.</p>
+        {/* Suggested questions: a plain list, each one a single click. */}
+        <div role="group" aria-label="Starter questions" className="mt-2 flex flex-col items-start">
           {starters.map((s) => (
-            <button key={s} type="button" disabled={pending} onClick={() => void ask(s)} className={`${button} border-border-soft text-paper hover:border-info/50 hover:text-info`}>{s}</button>
+            <button key={s} type="button" disabled={pending} onClick={() => void ask(s)} className="flex min-h-10 items-baseline gap-2 text-left text-[15px] text-paper transition-colors hover:text-signal disabled:opacity-50">
+              <span aria-hidden className="font-mono text-paper-faint">→</span>
+              <span>{s}</span>
+            </button>
           ))}
         </div>
         {/* Scrolls when long, so it takes focus for keyboard scrolling. */}
-        <div role="log" aria-live="polite" aria-busy={pending} aria-label="Questions and answers" tabIndex={turns.length ? 0 : -1} className="mt-2 max-h-[420px] overflow-y-auto">
-        <ol className="space-y-3">
+        <div role="log" aria-live="polite" aria-busy={pending} aria-label="Questions and answers" tabIndex={turns.length ? 0 : -1} className="mt-4 max-h-[420px] overflow-y-auto empty:hidden">
+        <ol className="space-y-4">
           {turns.map((t, i) => (
-            <li key={i} className="space-y-1">
-              <p className="text-paper"><span className="mr-1.5 font-medium text-signal">You:</span>{t.question}</p>
-              <div className="rounded-lg border border-border-soft bg-surface px-3 py-2 text-paper-dim">
-                <p className="text-[11px] font-medium text-info">AI answer (not verified)</p>
-                <p className="mt-1 whitespace-pre-wrap break-words">{t.answer || (pending && i === turns.length - 1 ? "Thinking…" : "")}</p>
+            <li key={i} className="space-y-2">
+              {/* The question in ink, the answer under it, labelled for what it is. */}
+              <p className="font-semibold text-paper"><span aria-hidden className="mr-2 font-mono font-normal text-paper-faint">→</span>{t.question}<span className="sr-only"> (you asked)</span></p>
+              <div className="text-paper-dim">
+                <p className="label-mono">AI answer (not verified)</p>
+                <p className="mt-1 whitespace-pre-wrap break-words leading-[1.65]">{t.answer || (pending && i === turns.length - 1 ? "Thinking…" : "")}</p>
               </div>
             </li>
           ))}
         </ol>
         </div>
-        {error && <p role="alert" className="mt-2 text-alert">{error}</p>}
-        <form className="mt-2 flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); void ask(input); }}>
-          <label htmlFor={inputId} className="basis-full text-paper">Your question</label>
+        {error && <p role="alert" className="mt-3 text-alert">{error}</p>}
+        <form className="mt-4 flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); void ask(input); }}>
+          <label htmlFor={inputId} className="label-mono basis-full">Your question</label>
           <textarea
             id={inputId}
             value={input}
@@ -166,15 +171,15 @@ export function ChangeChat({ storageKey, repo, title, context, starters = STARTE
             rows={2}
             disabled={pending}
             placeholder="Why did it change this line?"
-            className="min-h-10 min-w-0 flex-1 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-[12px] text-paper placeholder:text-paper-faint focus:border-info/50 focus:outline-none disabled:opacity-50"
+            className="field min-w-0 flex-1 basis-60"
           />
           {pending ? (
-            <button type="button" onClick={() => abort.current?.abort()} className={`${button} border-border text-paper-muted hover:text-alert`}>Stop</button>
+            <button type="button" onClick={() => abort.current?.abort()} className="btn-quiet" data-tone="alert">Stop</button>
           ) : (
-            <button type="submit" disabled={!input.trim()} className={`${button} border-info/50 bg-info/10 font-medium text-info hover:bg-info/20`}>Ask</button>
+            <button type="submit" disabled={!input.trim()} className="btn-quiet">Ask</button>
           )}
           {turns.length > 0 && !pending && (
-            <button type="button" onClick={clear} className={`${button} border-border-soft text-paper-muted hover:text-paper`}>Clear</button>
+            <button type="button" onClick={clear} className="text-link text-[14px]">Clear</button>
           )}
         </form>
       </div>

@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
 import { SECTIONS, isLinkActive } from "./nav-config";
 
+/** The four task sections as plain text beside the wordmark. The current one
+ *  is ink with a 2px ink rule sitting on the header's bottom hairline. */
 export function Nav() {
   const path = usePathname();
 
   return (
-    <nav aria-label="Main navigation" className="flex min-w-0 flex-1 items-stretch justify-center">
+    <nav aria-label="Main navigation" className="flex min-w-0 items-stretch gap-3 sm:gap-7">
       {SECTIONS.map((section) => {
         const active = section.links.some((l) => isLinkActive(path, l.href));
         return (
@@ -21,16 +22,9 @@ export function Nav() {
             title={section.title}
             aria-label={section.label}
             aria-current={active ? "page" : undefined}
-            className="group flex min-w-0 items-center justify-center px-2 sm:px-4"
+            className="tab-link min-w-0 text-[14px]"
           >
-            <span
-              className={cn(
-                "truncate text-[13px] transition-colors",
-                active ? "font-medium text-paper" : "text-paper-muted group-hover:text-paper",
-              )}
-            >
-              {section.label}
-            </span>
+            <span className="truncate">{section.label}</span>
           </Link>
         );
       })}

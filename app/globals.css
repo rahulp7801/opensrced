@@ -308,3 +308,8 @@
 /* ── Stage headline: a calm rise, no blur. The reduced-motion rule above leaves it in place. ── */
 @keyframes stage-rise { from { opacity: 0; transform: translateY(0.25em); } to { opacity: 1; transform: none; } }
 .stage-rise { animation: stage-rise 0.5s var(--ease-arrive, cubic-bezier(0.16, 1, 0.3, 1)) both; }
+
+/* ── While the stage demo is on screen, the site header, section bar and footer behind it are
+   hidden: they are covered anyway, and this keeps their links out of the tab order and stops
+   Next from prefetching them under the stage. ── */
+body:has([data-stage-root]) :is(header, footer, nav[aria-label$=" section"]):not([data-stage-root] *) { display: none; }

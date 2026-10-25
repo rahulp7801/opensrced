@@ -289,7 +289,7 @@ export function StageDemo() {
 
   const View = step.chapter.View;
   return (
-    <div ref={rootRef} role="region" aria-label="opensrcer stage demo" className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-ink p-4 sm:p-6">
+    <div ref={rootRef} data-stage-root="" role="region" aria-label="opensrcer stage demo" className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-ink p-4 sm:p-6">
       {/* Made for a projector: on a phone the app would shrink past reading, so point to the tour. */}
       <div className="absolute inset-0 z-[80] flex flex-col items-center justify-center gap-4 bg-ink px-6 text-center md:hidden">
         <p className="text-[20px] font-semibold text-paper">The stage demo is made for a big screen.</p>

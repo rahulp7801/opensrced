@@ -339,7 +339,10 @@ function Spotlight({ selector, strong, within }: { selector: string | null; stro
     const measure = () => {
       const canvas = within.current;
       // Every match, as one box: a run of log lines lights up together.
-      const rects = selector && canvas ? [...canvas.querySelectorAll(selector)].map((el) => el.getBoundingClientRect()).filter((b) => b.width > 0) : [];
+      // Not yet revealed (Reveal marks it aria-hidden, or every child is) means nothing to
+      // light yet: the ring waits for the content instead of framing empty space.
+      const hidden = (el: Element) => el.getAttribute("aria-hidden") === "true" || (el.children.length > 0 && [...el.children].every((c) => c.getAttribute("aria-hidden") === "true"));
+      const rects = selector && canvas ? [...canvas.querySelectorAll(selector)].filter((el) => !hidden(el)).map((el) => el.getBoundingClientRect()).filter((b) => b.width > 0) : [];
       if (!canvas || rects.length === 0) { setBox(null); return; }
       const r = { left: Math.min(...rects.map((b) => b.left)), top: Math.min(...rects.map((b) => b.top)), right: Math.max(...rects.map((b) => b.right)), bottom: Math.max(...rects.map((b) => b.bottom)), width: 1 };
       const c = canvas.getBoundingClientRect();

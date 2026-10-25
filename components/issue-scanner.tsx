@@ -205,10 +205,10 @@ export function IssueScanner() {
             void runScan(repoUrl.trim(), true);
           }
         }}
-        className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4 sm:flex-row sm:items-center"
+        className="card flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:rounded-full sm:py-2 sm:pl-6 sm:pr-2"
       >
         <label htmlFor="issue-repository" className="sr-only">GitHub repository</label>
-        <IconSearch className="hidden text-paper-muted sm:block" />
+        <IconSearch className="hidden shrink-0 text-paper-muted sm:block" />
         <input
           id="issue-repository"
           value={repoUrl}
@@ -216,57 +216,57 @@ export function IssueScanner() {
           placeholder="https://github.com/owner/repo or owner/repo"
           spellCheck={false}
           autoComplete="off"
-          className="min-h-11 w-full flex-1 rounded-md border border-border bg-ink px-3 text-base text-paper placeholder:text-paper-faint focus:border-signal sm:border-0 sm:bg-transparent"
+          className="field bg-ink-2 sm:flex-1 sm:bg-transparent sm:shadow-none"
         />
         <button
           type="submit"
           disabled={loading || !repoUrl.trim()}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-signal px-5 py-2 text-sm font-medium text-ink hover:bg-signal-soft disabled:opacity-50"
+          className="btn-primary min-h-11 px-6"
         >
           {loading ? "Scanning…" : "Scan issues"} <IconArrow />
         </button>
       </form>
 
       {loading && (
-        <div role="status" aria-live="polite" className="mt-4 flex items-start gap-3 rounded-md border border-border bg-surface/60 px-4 py-3">
-          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-signal animate-pulse" aria-hidden />
+        <div role="status" aria-live="polite" className="callout mt-4 flex items-start gap-3">
+          <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-signal animate-pulse" aria-hidden />
           <div>
-            <p className="text-sm font-medium text-paper">Scanning repository issues</p>
-            <p className="mt-0.5 text-xs text-paper-muted">Fetching recent and beginner-labeled issues. Large repositories can take up to a minute.</p>
+            <p className="text-[14px] font-semibold text-paper">Scanning repository issues</p>
+            <p className="mt-0.5 text-[13px] text-paper-muted">Fetching recent and beginner-labeled issues. Large repositories can take up to a minute.</p>
           </div>
         </div>
       )}
 
       {err && (
-        <div ref={errRef} role="alert" className="rounded-xl mt-3 border border-alert/40 bg-alert/5 p-3 text-[12px] text-alert">
+        <div ref={errRef} role="alert" className="callout mt-4 text-[13.5px]" data-tone="alert">
           {err}
         </div>
       )}
 
       {scan && (
         <>
-          <section aria-labelledby="scan-results-title" className="mt-6 overflow-hidden rounded-lg border border-border bg-surface/45">
-            <div className="border-b border-border-soft px-5 py-5">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <section aria-labelledby="scan-results-title" className="card mt-8 overflow-hidden">
+            <div className="border-b border-border-soft px-5 py-6 sm:px-6">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                  <p className="text-xs font-medium text-signal">Scan complete</p>
-                  <h2 id="scan-results-title" className="mt-1 text-lg font-semibold text-paper">{scan.repo}</h2>
-                  <p className="mt-1 text-sm text-paper-muted">
-                    <span className="font-medium text-paper">{scan.total}</span> open issue{scan.total === 1 ? "" : "s"};{" "}
-                    <span className="font-medium text-signal">{scan.solvable}</span> ready for an automated attempt.
+                  <p className="kicker text-signal">Scan complete</p>
+                  <h2 id="scan-results-title" className="display mt-2 break-all text-[28px] leading-none text-paper sm:text-[32px]">{scan.repo}</h2>
+                  <p className="mt-2.5 text-[14px] text-paper-muted">
+                    <span className="font-semibold text-paper">{scan.total}</span> open issue{scan.total === 1 ? "" : "s"};{" "}
+                    <span className="font-semibold text-signal">{scan.solvable}</span> ready for an automated attempt.
                   </p>
                   {scan.policy?.ai === "ban" && (
-                    <p role="alert" className="mt-2 max-w-2xl text-sm text-alert">
+                    <p role="alert" className="callout mt-3 max-w-2xl text-[13.5px]" data-tone="alert">
                       This project does not accept AI-generated contributions ({scan.policy.source}). Previews still work; publishing is refused.
                     </p>
                   )}
                   {scan.policy?.ai === "disclose" && (
-                    <p className="mt-2 max-w-2xl text-xs text-paper-muted">
+                    <p className="mt-2 max-w-2xl text-[13px] text-paper-muted">
                       This project asks contributors to disclose AI assistance ({scan.policy.source}); opensrcer adds that note to every PR.
                     </p>
                   )}
                   {scan.policy?.discussFirst && (
-                    <p className="mt-1 max-w-2xl text-xs text-paper-muted">Maintainers ask for discussion first: {scan.policy.discussFirst}.</p>
+                    <p className="mt-1 max-w-2xl text-[13px] text-paper-muted">Maintainers ask for discussion first: {scan.policy.discussFirst}.</p>
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
@@ -291,7 +291,7 @@ export function IssueScanner() {
                       { k: "any", label: "Any label" },
                       { k: "good-first", label: `Beginner (${goodFirstCount})` },
                     ] as const).map((option) => (
-                      <FilterButton key={option.k} active={beginner === option.k} tone="ok" onClick={() => setBeginner(option.k)}>{option.label}</FilterButton>
+                      <FilterButton key={option.k} active={beginner === option.k} onClick={() => setBeginner(option.k)}>{option.label}</FilterButton>
                     ))}
                   </FilterGroup>
                 </div>
@@ -299,16 +299,16 @@ export function IssueScanner() {
             </div>
 
             {initialIssue && !scan.issues.some((i) => i.number === initialIssue) && (
-              <p role="status" className="border-b border-border-soft bg-info/5 px-5 py-3 text-xs text-info">
+              <p role="status" className="border-b border-border-soft bg-info-dim/30 px-5 py-3 text-[13px] text-info sm:px-6">
                 Issue #{initialIssue} is not in this scan (it may be closed, or older than the issues scanned).{" "}
-                <a href={`https://github.com/${scan.repo}/issues/${initialIssue}`} target="_blank" rel="noreferrer" className="underline">Open it on GitHub</a>{" "}
+                <a href={`https://github.com/${scan.repo}/issues/${initialIssue}`} target="_blank" rel="noreferrer" className="underline underline-offset-2">Open it on GitHub</a>{" "}
                 or pick one below.
               </p>
             )}
             {issues.length === 0 ? (
-              <div className="px-5 py-12 text-center">
-                <p className="text-sm font-medium text-paper">No issues match these filters</p>
-                <p className="mx-auto mt-1 max-w-lg text-xs leading-relaxed text-paper-muted">
+              <div className="px-5 py-14 text-center">
+                <p className="text-[16px] font-semibold text-paper">No issues match these filters</p>
+                <p className="mx-auto mt-1.5 max-w-lg text-[13.5px] leading-relaxed text-paper-muted">
                   {beginner === "good-first"
                     ? "Include any label or widen the age and readiness filters."
                     : age === "recent" && filter === "solvable"
@@ -324,11 +324,11 @@ export function IssueScanner() {
                   const expanded = expandedNumber === issue.number;
                   const rec = recommendFor(issue);
                   return (
-                    <article id={`issue-row-${issue.number}`} key={issue.number} className={cn("transition-colors", expanded ? "bg-surface-2/55" : "hover:bg-surface-2/30", !issue.solvable && "opacity-70")}>
-                      <div className="grid gap-4 px-5 py-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                    <article id={`issue-row-${issue.number}`} key={issue.number} className={cn("transition-colors", expanded ? "bg-ink-2" : "hover:bg-ink-2", !issue.solvable && "opacity-70")}>
+                      <div className="grid gap-4 px-5 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                         <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-paper-muted">
-                            <a href={issue.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-paper-dim hover:text-signal min-h-6 max-sm:min-h-10 max-sm:min-w-10">
+                          <div className="flex flex-wrap items-center gap-2 text-[12.5px] text-paper-muted">
+                            <a href={issue.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-paper-dim hover:text-signal min-h-6 max-sm:min-h-10 max-sm:min-w-10">
                               #{issue.number}<IconExternal />
                               <span className="sr-only">Open on GitHub</span>
                             </a>
@@ -345,14 +345,14 @@ export function IssueScanner() {
                             aria-controls={`issue-detail-${issue.number}`}
                             className="mt-2 flex w-full items-start gap-2 text-left max-sm:min-h-10"
                           >
-                            <IconChevronDown className={cn("mt-0.5 shrink-0 text-paper-faint transition-transform", !expanded && "-rotate-90")} />
-                            <span className="text-sm font-medium leading-snug text-paper">{issue.title}</span>
+                            <IconChevronDown className={cn("mt-1 shrink-0 text-paper-muted transition-transform", !expanded && "-rotate-90")} />
+                            <span className="text-[16px] font-semibold leading-snug tracking-[-0.01em] text-paper">{issue.title}</span>
                           </button>
-                          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-paper-muted">
-                            <span className="inline-flex items-center gap-1.5"><span className="text-paper-faint">Likely change</span><ScopeBadge s={issue.scope} /></span>
-                            <span className="inline-flex items-center gap-1.5"><span className="text-paper-faint">Risk</span><SeverityChip s={issue.severity} /></span>
-                            <span className="inline-flex items-center gap-1.5"><span className="text-paper-faint">Complexity</span><ComplexityPips value={issue.complexity} /></span>
-                            <span><span className="text-paper-faint">Estimate</span> ~{fmtMinutes(issue.est_minutes)}</span>
+                          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12.5px] text-paper-muted">
+                            <span className="inline-flex items-center gap-1.5"><span>Likely change</span><ScopeBadge s={issue.scope} /></span>
+                            <span className="inline-flex items-center gap-1.5"><span>Risk</span><SeverityChip s={issue.severity} /></span>
+                            <span className="inline-flex items-center gap-1.5"><span>Complexity</span><ComplexityPips value={issue.complexity} /></span>
+                            <span>Estimate <span className="text-paper-dim">~{fmtMinutes(issue.est_minutes)}</span></span>
                             {issue.solvable ? <StatusChip tone="ok">Ready</StatusChip> : <StatusChip tone="muted">Needs review</StatusChip>}
                           </div>
                         </div>
@@ -365,11 +365,11 @@ export function IssueScanner() {
                               onPreview={() => solve(issue.number, true)}
                               onSolve={() => solve(issue.number, false)}
                             />
-                          ) : <p className="max-w-xs text-xs leading-relaxed text-paper-muted">{issue.reason}</p>}
+                          ) : <p className="max-w-xs text-[13px] leading-relaxed text-paper-muted">{issue.reason}</p>}
                         </div>
                       </div>
                       {expanded && (
-                        <div id={`issue-detail-${issue.number}`} className="border-t border-border-soft bg-ink/30 px-5 py-5">
+                        <div id={`issue-detail-${issue.number}`} className="border-t border-border-soft px-5 py-6 sm:px-6">
                           {/* The row above holds the run buttons; the detail only explains. */}
                           <IssueDetail issue={issue} rec={rec} />
                         </div>
@@ -403,30 +403,19 @@ function isGoodFirstIssue(issue: { labels: string[] }): boolean {
 function FilterGroup({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
   return (
     <fieldset className={className}>
-      <legend className="mb-1.5 text-xs font-medium text-paper-faint">{label}</legend>
+      <legend className="field-label">{label}</legend>
       <div className="flex flex-wrap gap-1.5">{children}</div>
     </fieldset>
   );
 }
 
-function FilterButton({ active, tone = "signal", onClick, children }: {
+function FilterButton({ active, onClick, children }: {
   active: boolean;
-  tone?: "signal" | "ok";
   onClick: () => void;
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "min-h-10 whitespace-nowrap rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
-        active
-          ? tone === "ok" ? "border-ok/45 bg-ok/10 text-ok" : "border-signal/45 bg-signal/10 text-signal"
-          : "border-border bg-surface/50 text-paper-muted hover:border-border-strong hover:text-paper",
-      )}
-    >
+    <button type="button" onClick={onClick} aria-pressed={active} className="pill" data-size="sm" data-edge="">
       {children}
     </button>
   );
@@ -519,31 +508,18 @@ function ActionButton({
   onClick: () => void;
 }) {
   const meta = ACTION_META[kind];
-  // Three visual states: recommended (bold, colored), available (muted),
-  // disabled (fades). The recommended one also carries a leading dot so
-  // colorblind users still spot it.
-  const recStyle = {
-    preview: "border-paper-dim text-paper bg-surface-2",
-    solve: "border-signal bg-signal/15 text-paper",
-  }[kind];
+  // Recommended: the row's cobalt action pill; the other is a quiet pill.
+  // The recommended one also carries a leading dot so colorblind users still
+  // spot it.
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       title={meta.tooltip + (recommended ? "\n\nRecommended for this issue." : "")}
-      className={cn(
-        "relative inline-flex min-h-10 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-40",
-        recommended
-          ? `${recStyle} hover:brightness-125`
-          : "border-border bg-surface text-paper-muted hover:text-paper hover:border-border-strong",
-      )}
+      className={recommended ? "row-cta" : "btn-quiet"}
+      data-size="sm"
     >
-      {recommended && (
-        <span
-          aria-hidden
-          className={cn("h-1.5 w-1.5 rounded-full", kind === "solve" ? "bg-signal" : "bg-paper-dim")}
-        />
-      )}
+      {recommended && <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current" />}
       {dispatching ? "Starting…" : meta.label}
     </button>
   );
@@ -554,38 +530,34 @@ function IssueDetail({ issue, rec }: { issue: Issue; rec: Recommendation }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div>
-        <h4 className="text-sm font-medium text-paper">Issue description</h4>
-        <div className="mt-2 max-h-[420px] overflow-y-auto whitespace-pre-wrap rounded-md border border-border-soft bg-ink/55 p-4 text-[13px] leading-relaxed text-paper-dim">
+        <h4 className="kicker text-paper-muted">Issue description</h4>
+        <div className="mt-3 max-h-[420px] overflow-y-auto whitespace-pre-wrap rounded-2xl bg-surface p-5 text-[14px] leading-[1.65] text-paper-dim shadow-[inset_0_0_0_1px_var(--color-border-soft)]">
           {body}
         </div>
       </div>
 
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-6">
         <div>
-          <h4 className="text-sm font-medium text-paper">Recommendation</h4>
-          <div className={cn(
-            "mt-2 rounded-md border p-3",
-            rec.action === "solve" ? "border-signal/50 bg-signal/5" :
-            "border-border-strong bg-surface-2",
-          )}>
+          <h4 className="kicker text-paper-muted">Recommendation</h4>
+          <div className="callout mt-3" data-tone={rec.action === "solve" ? "signal" : undefined}>
             <div className={cn(
-              "text-[13px] font-medium",
+              "text-[14.5px] font-semibold",
               rec.action === "solve" ? "text-signal" : "text-paper",
             )}>
               {rec.headline}
             </div>
-            <div className="mt-1.5 text-[11.5px] text-paper-muted leading-snug">
+            <div className="mt-1.5 text-[13px] leading-[1.55] text-paper-dim">
               {rec.reason}
             </div>
           </div>
-          <p className="mt-2 text-xs leading-relaxed text-paper-faint">
+          <p className="mt-3 text-[13px] leading-[1.55] text-paper-muted">
             Use the buttons above. A preview is a practice run you can read but never publish. &ldquo;Fix it&rdquo; also stops for your review: the draft PR opens only when you confirm it on the run page.
           </p>
         </div>
 
         <div>
-          <h4 className="mb-2 text-sm font-medium text-paper">Why &ldquo;{SCOPE_LABEL[issue.scope.bucket]}&rdquo;</h4>
-          <div className="text-xs leading-relaxed text-paper-muted">
+          <h4 className="kicker mb-3 text-paper-muted">Why &ldquo;{SCOPE_LABEL[issue.scope.bucket]}&rdquo;</h4>
+          <div className="text-[13px] leading-relaxed text-paper-muted">
             <p className="text-paper-dim">{issue.scope.reason}</p>
             {issue.scope.files.length > 0 && (
               <div className="mt-2">
@@ -617,26 +589,20 @@ function ScopeBadge({ s }: { s: ScopeInfo }) {
   // Tone map: doc/leaf are "safe" (green/muted), cross-file "caution",
   // refactor "danger" — drives at-a-glance risk reading. Title carries the
   // full reason + files/symbols so users can verify the guess.
-  const styles: Record<ScopeBucket, string> = {
-    doc: "border-ok/50 bg-ok/10 text-ok",
-    leaf: "border-signal/50 bg-signal/10 text-signal",
-    "cross-file": "border-info/50 bg-info/10 text-info",
-    refactor: "border-alert/50 bg-alert/10 text-alert",
-    "new-file": "border-info/50 bg-info/10 text-info",
-    unknown: "border-border bg-surface text-paper-muted",
+  const tones: Record<ScopeBucket, string | undefined> = {
+    doc: "ok",
+    leaf: "signal",
+    "cross-file": "info",
+    refactor: "alert",
+    "new-file": "info",
+    unknown: undefined,
   };
   const titleParts = [s.reason];
   if (s.files.length) titleParts.push(`files: ${s.files.slice(0, 5).join(", ")}`);
   if (s.symbols.length) titleParts.push(`symbols: ${s.symbols.slice(0, 5).join(", ")}`);
   titleParts.push(`confidence: ${s.confidence}`);
   return (
-    <span
-      title={titleParts.join(" · ")}
-      className={cn(
-        "inline-block text-[11px] font-medium border px-1.5 py-0.5 leading-none cursor-help",
-        styles[s.bucket],
-      )}
-    >
+    <span title={titleParts.join(" · ")} className="chip cursor-help" data-tone={tones[s.bucket]}>
       {SCOPE_LABEL[s.bucket]}
     </span>
   );
@@ -659,12 +625,12 @@ function SeverityChip({ s }: { s: "low" | "medium" | "high" | "critical" }) {
 
 function ComplexityPips({ value }: { value: number }) {
   return (
-    <span className="inline-flex gap-0.5 items-center" aria-label={`complexity ${value}/5`}>
+    <span className="inline-flex gap-[3px] items-center" aria-label={`complexity ${value}/5`}>
       {[1, 2, 3, 4, 5].map((i) => (
         <span
           key={i}
           className={cn(
-            "inline-block h-2.5 w-1.5",
+            "inline-block size-2 rounded-full",
             i <= value
               ? value >= 4
                 ? "bg-signal"
@@ -675,7 +641,7 @@ function ComplexityPips({ value }: { value: number }) {
           )}
         />
       ))}
-      <span className="ml-1.5 text-xs text-paper-muted tabular-nums">{value}/5</span>
+      <span className="ml-1.5 text-[12.5px] text-paper-muted tabular-nums">{value}/5</span>
     </span>
   );
 }

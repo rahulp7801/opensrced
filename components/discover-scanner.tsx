@@ -169,7 +169,7 @@ export function DiscoverScanner() {
       {/* Filter form */}
       <form
         onSubmit={(event) => { event.preventDefault(); void runDiscover(); }}
-        className="rounded-lg border border-border bg-surface p-4 sm:p-5"
+        className="card p-5 sm:p-6"
       >
         <div className="grid gap-4 sm:grid-cols-3">
           <LabeledSelect
@@ -193,14 +193,14 @@ export function DiscoverScanner() {
             type="number"
           />
         </div>
-        <div className="mt-4 grid gap-4 border-t border-border-soft pt-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+        <div className="mt-5 grid gap-4 border-t border-border-soft pt-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
           <details className="group">
-            <summary className="flex min-h-11 cursor-pointer list-none flex-col items-start justify-center gap-0.5 text-sm font-medium text-paper-dim hover:text-paper sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <summary className="flex min-h-11 cursor-pointer list-none flex-col items-start justify-center gap-0.5 text-[14px] font-medium text-paper-dim hover:text-paper sm:flex-row sm:items-center sm:justify-start sm:gap-4">
               <span className="inline-flex items-center gap-2">
                 Advanced filters
-                <IconChevronDown size={14} className="text-paper-faint transition-transform group-open:rotate-180" />
+                <IconChevronDown size={14} className="text-paper-muted transition-transform group-open:rotate-180" />
               </span>
-              <span className="text-xs font-normal text-paper-muted">How many repositories, and how recently updated</span>
+              <span className="text-[13px] font-normal text-paper-muted">How many repositories, and how recently updated</span>
             </summary>
             <div className="grid gap-4 pb-2 pt-3 sm:grid-cols-3">
               <LabeledInput
@@ -229,7 +229,7 @@ export function DiscoverScanner() {
           <button
             type="submit"
             disabled={loading || !minStars}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-paper px-5 py-2 text-sm font-semibold text-ink transition hover:bg-paper-2 disabled:opacity-50"
+            className="btn-primary min-h-11 px-6"
           >
             <IconSearch />
             {loading ? "Searching GitHub…" : "Search GitHub"}
@@ -239,38 +239,38 @@ export function DiscoverScanner() {
       </form>
 
       {loading && (
-        <div role="status" aria-live="polite" className="mt-4 flex items-start gap-3 rounded-md border border-border bg-surface/60 px-4 py-3">
-          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-signal animate-pulse" aria-hidden />
+        <div role="status" aria-live="polite" className="callout mt-4 flex items-start gap-3">
+          <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-signal animate-pulse" aria-hidden />
           <div>
-            <p className="text-sm font-medium text-paper">Searching GitHub</p>
-            <p className="mt-0.5 text-xs text-paper-muted">Checking repositories and their open issues. Larger searches can take up to a minute.</p>
+            <p className="text-[14px] font-semibold text-paper">Searching GitHub</p>
+            <p className="mt-0.5 text-[13px] text-paper-muted">Checking repositories and their open issues. Larger searches can take up to a minute.</p>
           </div>
         </div>
       )}
 
       {!!data?.warnings?.length && (
-        <div role="status" className="rounded-xl mt-4 border border-alert/30 bg-alert/5 p-3 text-[12px] text-alert">
+        <div role="status" className="callout mt-4 text-[13px]" data-tone="alert">
           Partial results: {data.warnings.join(" ")}
         </div>
       )}
 
       {err && (
-        <div role="alert" className="rounded-xl mt-3 flex flex-wrap items-center justify-between gap-3 border border-alert/40 bg-alert/5 p-3 text-[13px] text-alert">
+        <div role="alert" className="callout mt-4 flex flex-wrap items-center justify-between gap-3 text-[13.5px]" data-tone="alert">
           <span>The search didn&apos;t finish: {err}</span>
-          <button type="button" onClick={() => void runDiscover()} className="inline-flex min-h-10 items-center rounded-full border border-alert/40 px-4 font-medium hover:bg-alert/10">Try again</button>
+          <button type="button" onClick={() => void runDiscover()} className="btn-quiet" data-size="sm">Try again</button>
         </div>
       )}
 
       {data && (
         <>
           {/* Summary and filters */}
-          <div className="mt-6">
+          <div className="mt-10">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <span className="serif text-[40px] leading-none text-signal num-tabular">{filtered.length}</span>
-              <span className="text-[14px] text-paper">issues to look at</span>
-              <span className="text-[13px] text-paper-muted num-tabular">from {data.issue_count} open issues in {data.repo_count} repositories</span>
+              <span className="display text-[56px] leading-[0.85] text-signal num-tabular">{filtered.length}</span>
+              <span className="text-[16px] font-medium text-paper">issues to look at</span>
+              <span className="text-[13.5px] text-paper-muted num-tabular">from {data.issue_count} open issues in {data.repo_count} repositories</span>
             </div>
-            <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3">
+            <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3">
               <PillRow
                 label="Opened"
                 options={[
@@ -309,17 +309,13 @@ export function DiscoverScanner() {
                 type="button"
                 onClick={() => setSolvableOnly((v) => !v)}
                 aria-pressed={solvableOnly}
-                className={cn(
-                  "min-h-10 rounded-md border px-3 text-xs font-medium transition-colors",
-                  solvableOnly
-                    ? "border-signal/60 bg-signal/10 text-signal"
-                    : "border-border text-paper-muted hover:text-paper",
-                )}
+                className="pill"
+                data-size="sm"
               >
                 Only issues ready for a fix
               </button>
               {filtersNarrow && (
-                <button type="button" onClick={showAll} className="min-h-10 px-1 text-xs font-medium text-signal hover:underline">
+                <button type="button" onClick={showAll} className="link min-h-10 px-1 text-[13px] font-medium">
                   Show all
                 </button>
               )}
@@ -327,9 +323,9 @@ export function DiscoverScanner() {
           </div>
 
           {/* Results: one card per issue, its next step always in sight. */}
-          <ul className="mt-5 space-y-2">
+          <ul className="mt-6 space-y-2.5">
             {filtered.length === 0 ? (
-              <li className="rounded-2xl border border-border-soft bg-surface px-5 py-8 text-center text-[13px] text-paper-muted">
+              <li className="card px-5 py-10 text-center text-[14px] text-paper-muted">
                 {data.repo_count === 0
                   ? "No repositories matched. Lower the minimum stars or choose any language."
                   : data.issue_count === 0
@@ -337,7 +333,7 @@ export function DiscoverScanner() {
                     : (
                       <>
                         Every issue found is hidden by the filters above.{" "}
-                        <button type="button" onClick={showAll} className="font-medium text-signal hover:underline">Show all</button>
+                        <button type="button" onClick={showAll} className="link font-medium">Show all</button>
                       </>
                     )}
               </li>
@@ -348,24 +344,24 @@ export function DiscoverScanner() {
                 return (
                   <li
                     key={`${i.repo.fullName}#${i.number}`}
-                    className={cn("rounded-2xl border border-border-soft bg-surface px-4 py-3.5 sm:px-5", !i.solvable && "opacity-70")}
+                    className={cn("group card px-5 py-4 sm:px-6", !i.solvable && "opacity-70")}
                   >
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
-                        <Link href={href} className="text-[15px] font-medium leading-snug text-paper hover:text-signal">{i.title}</Link>
-                        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-paper-muted">
-                          <span className="text-paper-dim">{i.repo.fullName}</span>
+                        <Link href={href} className="text-[16px] font-semibold leading-snug tracking-[-0.01em] text-paper hover:text-signal">{i.title}</Link>
+                        <p className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] text-paper-muted">
+                          <span className="font-medium text-paper-dim">{i.repo.fullName}</span>
                           <span className="tabular-nums">★ {fmtStars(i.repo.stars)}</span>
                           {i.repo.language && <span>{i.repo.language}</span>}
                           <a href={i.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-signal">#{i.number}<IconExternal /></a>
                           <span title={i.created_at}>opened {fmtRelative(i.created_at, now)}</span>
                         </p>
-                        <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[12px] text-paper-muted">
+                        <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12.5px] text-paper-muted">
                           <span className="inline-flex items-center gap-1.5">Size <ScopeBadge s={i.scope} /></span>
                           <span className="inline-flex items-center gap-1.5">Difficulty <ComplexityPips value={i.complexity} /></span>
                           <span>about {fmtMinutes(i.est_minutes)}</span>
                           {i.labels.slice(0, 3).map((l) => (
-                            <span key={l} className="rounded border border-border-soft px-1.5 py-0.5 text-[11px] text-paper-muted">{l}</span>
+                            <span key={l} className="tag">{l}</span>
                           ))}
                         </p>
                       </div>
@@ -374,12 +370,14 @@ export function DiscoverScanner() {
                           type="button"
                           onClick={() => toggleBookmark(i.repo.fullName)}
                           aria-pressed={saved}
-                          className={cn("inline-flex min-h-10 items-center rounded-full border px-3 text-[12px] transition", saved ? "border-signal/40 text-signal" : "border-border text-paper-muted hover:text-paper")}
+                          className="pill"
+                          data-size="sm"
+                          data-edge=""
                           title={saved ? "Remove this repository from Saved repos" : "Save this repository for later"}
                         >
                           {saved ? "Saved" : "Save repo"}
                         </button>
-                        <Link href={href} className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-paper px-4 text-[13px] font-medium text-ink hover:bg-paper-2">
+                        <Link href={href} className="row-cta" data-size="sm">
                           Look at this issue
                           <IconArrow />
                         </Link>
@@ -395,17 +393,17 @@ export function DiscoverScanner() {
 
       {/* Bookmarked repos */}
       {bookmarks.length > 0 && (
-        <div className="rounded-2xl mt-4 border border-border-soft bg-surface px-4 py-3">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs font-medium text-signal">Saved repos</span>
-            <span className="text-xs text-paper-faint">{bookmarks.length} bookmarked</span>
+        <div className="card mt-6 px-5 py-4">
+          <div className="mb-3 flex items-baseline gap-2">
+            <span className="kicker text-signal">Saved repos</span>
+            <span className="text-[12.5px] text-paper-muted">{bookmarks.length} bookmarked</span>
           </div>
           <div className="flex flex-wrap gap-2">
             {bookmarks.map((repo) => (
-              <div key={repo} className="rounded-lg flex items-center gap-1.5 border border-border bg-ink/30 px-2.5 py-1 text-[11px]">
-                <Link href={`/issues?repo=${encodeURIComponent(repo)}`} className="text-paper hover:text-signal transition">{repo}</Link>
-                <Link href={`/trigger?repo=${repo}`} className="text-signal hover:underline text-xs">fix</Link>
-                <button onClick={() => toggleBookmark(repo)} className="text-paper-faint hover:text-alert text-xs transition ml-1">x</button>
+              <div key={repo} className="flex items-center gap-2 rounded-full bg-ink-2 py-1 pl-3.5 pr-1 text-[13px] shadow-[inset_0_0_0_1px_var(--color-border-soft)]">
+                <Link href={`/issues?repo=${encodeURIComponent(repo)}`} className="font-medium text-paper hover:text-signal">{repo}</Link>
+                <Link href={`/trigger?repo=${repo}`} className="link text-[12.5px]">fix</Link>
+                <button onClick={() => toggleBookmark(repo)} aria-label={`Remove ${repo} from saved repos`} className="grid size-7 place-items-center rounded-full text-[13px] text-paper-muted hover:bg-surface-2 hover:text-alert">x</button>
               </div>
             ))}
           </div>
@@ -413,16 +411,16 @@ export function DiscoverScanner() {
       )}
 
       {!data && !loading && (
-        <section className="mt-8 border-t border-border pt-7" aria-labelledby="starter-repositories">
+        <section className="mt-12 border-t border-border pt-10" aria-labelledby="starter-repositories">
           <div className="max-w-2xl">
-            <h2 id="starter-repositories" className="text-base font-medium text-paper">
+            <h2 id="starter-repositories" className="display text-[28px] leading-none text-paper sm:text-[32px]">
               Try a repository
             </h2>
-            <p className="mt-1 text-sm leading-6 text-paper-muted">
+            <p className="mt-3 text-[15px] leading-[1.6] text-paper-muted">
               Open a familiar project in the issue scanner, or use the filters above to search across GitHub.
             </p>
           </div>
-          <div className="mt-5 grid overflow-hidden rounded-2xl border border-border-soft bg-border-soft gap-px sm:grid-cols-3">
+          <div className="card mt-6 grid gap-px overflow-hidden bg-border-soft sm:grid-cols-3">
             {[
               { name: "astral-sh/ruff", lang: "Rust" },
               { name: "withastro/astro", lang: "TypeScript" },
@@ -431,15 +429,15 @@ export function DiscoverScanner() {
               <Link
                 key={repo.name}
                 href={`/issues?repo=${encodeURIComponent(`https://github.com/${repo.name}`)}`}
-                className="group flex min-h-20 items-center justify-between gap-4 bg-surface px-5 py-4 transition-colors hover:bg-ink-2"
+                className="group flex min-h-20 items-center justify-between gap-4 bg-surface px-6 py-5 transition-colors hover:bg-ink-2"
               >
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium text-paper group-hover:text-signal">
+                  <span className="block truncate text-[15px] font-semibold text-paper group-hover:text-signal">
                     {repo.name}
                   </span>
-                  <span className="mt-1 block text-xs text-paper-muted">{repo.lang}</span>
+                  <span className="mt-1 block text-[13px] text-paper-muted">{repo.lang}</span>
                 </span>
-                <IconArrow className="shrink-0 text-paper-faint transition-transform group-hover:translate-x-0.5 group-hover:text-signal" />
+                <IconArrow className="shrink-0 text-paper-muted transition-transform group-hover:translate-x-0.5 group-hover:text-signal" />
               </Link>
             ))}
           </div>
@@ -463,15 +461,15 @@ function LabeledInput({
   type?: "text" | "number";
 }) {
   return (
-    <label className="flex min-w-0 flex-col gap-1">
-      <span className="text-xs font-medium text-paper-dim">{label}</span>
+    <label className="flex min-w-0 flex-col">
+      <span className="field-label first-letter:uppercase">{label}</span>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         spellCheck={false}
-        className="min-h-11 min-w-0 rounded-md border border-border bg-ink px-3 py-2 text-base text-paper placeholder:text-paper-faint focus:border-signal"
+        className="field bg-ink-2"
       />
     </label>
   );
@@ -489,12 +487,12 @@ function LabeledSelect({
   options: Array<{ value: string; label: string }>;
 }) {
   return (
-    <label className="flex min-w-0 flex-col gap-1">
-      <span className="text-xs font-medium text-paper-dim">{label}</span>
+    <label className="flex min-w-0 flex-col">
+      <span className="field-label first-letter:uppercase">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="min-h-11 min-w-0 rounded-md border border-border bg-ink px-3 py-2 text-base text-paper focus:border-signal"
+        className="field bg-ink-2"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -518,20 +516,16 @@ function PillRow({
   onChange: (v: string) => void;
 }) {
   return (
-    <span role="group" aria-label={label} className="inline-flex flex-wrap items-center gap-1">
-      <span className="mr-1 text-xs font-medium text-paper-muted">{label}</span>
+    <span role="group" aria-label={label} className="inline-flex flex-wrap items-center gap-1.5">
+      <span className="mr-1 text-[12.5px] font-semibold text-paper-muted">{label}</span>
       {options.map((opt) => (
         <button
           key={opt.k}
           type="button"
           onClick={() => onChange(opt.k)}
           aria-pressed={value === opt.k}
-          className={cn(
-            "min-h-10 rounded-md border px-3 text-xs font-medium transition-colors",
-            value === opt.k
-              ? "border-signal/60 bg-signal/10 text-signal"
-              : "border-border text-paper-muted hover:text-paper",
-          )}
+          className="pill"
+          data-size="sm"
         >
           {opt.label}
         </button>
@@ -541,13 +535,13 @@ function PillRow({
 }
 
 function ScopeBadge({ s }: { s: ScopeInfo }) {
-  const styles: Record<ScopeBucket, string> = {
-    doc: "border-ok/50 bg-ok/10 text-ok",
-    leaf: "border-signal/50 bg-signal/10 text-signal",
-    "cross-file": "border-info/50 bg-info/10 text-info",
-    refactor: "border-alert/50 bg-alert/10 text-alert",
-    "new-file": "border-info/50 bg-info/10 text-info",
-    unknown: "border-border bg-surface text-paper-muted",
+  const tones: Record<ScopeBucket, string | undefined> = {
+    doc: "ok",
+    leaf: "signal",
+    "cross-file": "info",
+    refactor: "alert",
+    "new-file": "info",
+    unknown: undefined,
   };
   const label: Record<ScopeBucket, string> = {
     doc: "docs only",
@@ -566,13 +560,7 @@ function ScopeBadge({ s }: { s: ScopeInfo }) {
     .filter(Boolean)
     .join(" · ");
   return (
-    <span
-      title={title}
-      className={cn(
-        "inline-block text-[11px] font-medium border px-1.5 py-0.5 leading-none cursor-help",
-        styles[s.bucket],
-      )}
-    >
+    <span title={title} className="chip cursor-help" data-tone={tones[s.bucket]}>
       {label[s.bucket]}
     </span>
   );
@@ -580,12 +568,12 @@ function ScopeBadge({ s }: { s: ScopeInfo }) {
 
 function ComplexityPips({ value }: { value: number }) {
   return (
-    <span className="inline-flex gap-0.5 items-center" aria-label={`complexity ${value}/5`}>
+    <span className="inline-flex gap-[3px] items-center" aria-label={`complexity ${value}/5`}>
       {[1, 2, 3, 4, 5].map((i) => (
         <span
           key={i}
           className={cn(
-            "inline-block h-2.5 w-1.5",
+            "inline-block size-2 rounded-full",
             i <= value
               ? value >= 4
                 ? "bg-signal"
@@ -596,7 +584,7 @@ function ComplexityPips({ value }: { value: number }) {
           )}
         />
       ))}
-      <span className="ml-1.5 text-xs text-paper-muted tabular-nums">{value}/5</span>
+      <span className="ml-1.5 text-[12.5px] text-paper-muted tabular-nums">{value}/5</span>
     </span>
   );
 }

@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 import { parseRunTarget } from "@/lib/run-target";
 import { IconArrow } from "@/components/icons";
@@ -171,7 +170,7 @@ export function TriggerForm() {
     <div className="grid grid-cols-12 gap-6">
       <form
         onSubmit={submit}
-        className="col-span-12 rounded-md border border-border bg-surface p-5 sm:p-6 lg:col-span-8"
+        className="card col-span-12 p-6 sm:p-8 lg:col-span-8"
       >
         <Row
           htmlFor="run-repository"
@@ -185,20 +184,19 @@ export function TriggerForm() {
             placeholder="https://github.com/owner/repo or https://github.com/owner/repo/issues/123"
             spellCheck={false}
             autoComplete="off"
-            className="rounded-2xl w-full border border-border-soft bg-ink px-3 py-3 text-[14px] text-paper placeholder:text-paper-faint focus:border-signal focus:outline-none"
+            className="field bg-ink-2"
           />
         </Row>
 
         <Row label="Mode" hint={<>A <Term term="preview">preview</Term> is a practice run you can read but never publish. A publishable run stops for your review too; a draft PR opens only when you confirm.</>}>
-          <div className="flex w-fit gap-0 rounded-sm border border-border bg-ink" role="group" aria-label="Run mode">
+          {/* A segmented control: two pills in one well; the chosen one inks in. */}
+          <div className="flex w-full flex-col gap-1 rounded-[24px] bg-ink-2 p-1 shadow-[inset_0_0_0_1px_var(--color-border-soft)] sm:w-fit sm:flex-row" role="group" aria-label="Run mode">
             <button
               type="button"
               onClick={() => setDryRun(true)}
               aria-pressed={dryRun}
-              className={cn(
-                "min-h-10 px-4 py-2 text-[12px] font-medium",
-                dryRun ? "bg-info/10 text-info" : "text-paper-muted hover:text-paper",
-              )}
+              className="pill"
+              data-quiet={dryRun ? undefined : ""}
             >
               preview
             </button>
@@ -206,10 +204,8 @@ export function TriggerForm() {
               type="button"
               onClick={() => setDryRun(false)}
               aria-pressed={!dryRun}
-              className={cn(
-                "min-h-10 px-4 py-2 text-[12px] font-medium border-l border-border",
-                !dryRun ? "bg-signal/10 text-signal" : "text-paper-muted hover:text-paper",
-              )}
+              className="pill"
+              data-quiet={!dryRun ? undefined : ""}
             >
               publishable (you review first)
             </button>
@@ -223,48 +219,43 @@ export function TriggerForm() {
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
             placeholder="e.g. focus on security fixes, avoid license-encumbered files, skip tests/"
-            className="rounded-lg w-full border border-border bg-ink px-3 py-3 text-[13px] text-paper placeholder:text-paper-faint focus:border-signal focus:outline-none resize-none"
+            className="field resize-none bg-ink-2"
           />
         </Row>
 
-        <div className="mt-4 flex flex-wrap items-center gap-4">
+        <div className="mt-2 flex flex-wrap items-center gap-4 border-t border-border-soft pt-6">
           <button
             type="submit"
             disabled={state.kind === "pending" || paymentReady === false}
             aria-describedby={paymentReady === false ? "run-payment-needed" : undefined}
-            className={cn(
-              "rounded-full group inline-flex items-center gap-3 border px-5 py-3 text-[13px] transition",
-              state.kind === "pending" || paymentReady === false
-                ? "border-border text-paper-muted opacity-60"
-                : "border-signal bg-signal/10 text-paper hover:bg-signal/20",
-            )}
+            className="btn-primary group min-h-12 gap-3 px-6 text-[15px]"
           >
             {state.kind === "pending" ? (
               "Starting run..."
             ) : (
               <>
-                <span className="text-signal">{claudeSignIn ? `Sign in with Claude & ${dryRun ? "preview" : "start"}` : dryRun ? "Generate preview" : "Start publishable run"}</span>
-                <IconArrow size={14} className="text-signal transition-transform group-hover:translate-x-0.5" />
+                <span>{claudeSignIn ? `Sign in with Claude & ${dryRun ? "preview" : "start"}` : dryRun ? "Generate preview" : "Start publishable run"}</span>
+                <IconArrow size={15} className="transition-transform group-hover:translate-x-0.5" />
               </>
             )}
           </button>
 
           {paymentReady === false && state.kind !== "pending" && (
-            <p id="run-payment-needed" className="text-xs text-paper-muted">
+            <p id="run-payment-needed" className="text-[13.5px] text-paper-muted">
               Set up how runs are paid for in{" "}
-              <Link href="/crucible" className="text-signal underline underline-offset-2">Settings</Link>{" "}
+              <Link href="/crucible" className="link">Settings</Link>{" "}
               before starting a run.
             </p>
           )}
           {state.kind === "ok" && (
-            <div className="flex items-center gap-3 text-[12px]" aria-live="polite">
-              <span className="text-ok flex items-center gap-1">
+            <div className="flex items-center gap-3 text-[13.5px]" aria-live="polite">
+              <span className="flex items-center gap-1 font-medium text-ok">
                 <span aria-hidden>+</span> Run started
               </span>
               {state.dispatch_id && (
                 <a
                   href={`/dispatches?dispatch=${encodeURIComponent(state.dispatch_id)}`}
-                  className="text-signal hover:underline"
+                  className="link"
                 >
                   View live run
                 </a>
@@ -272,36 +263,36 @@ export function TriggerForm() {
             </div>
           )}
           {state.kind === "err" && (
-            <div className="text-[12px] text-alert flex items-center gap-1" role="alert">
+            <div className="flex items-center gap-1 text-[13.5px] text-alert" role="alert">
               <span aria-hidden>x</span> {state.message}
             </div>
           )}
           {state.kind === "pending" && (
-            <p className="basis-full text-xs text-paper-muted" role="status">
+            <p className="basis-full text-[13.5px] text-paper-muted" role="status">
               Starting an isolated worker. This can take up to 90 seconds.
             </p>
           )}
         </div>
       </form>
 
-      <aside className="col-span-12 overflow-hidden rounded-md border border-border bg-surface p-0 lg:col-span-4">
-        <div className="border-b border-border px-4 py-3">
-          <h2 className="text-sm font-medium text-paper">Before you start</h2>
+      <aside className="card col-span-12 self-start overflow-hidden lg:col-span-4">
+        <div className="px-6 pt-6">
+          <h2 className="display text-[24px] leading-none text-paper">Before you start</h2>
         </div>
-        <ol className="divide-y divide-border-soft px-4">
+        <ol className="mt-2 divide-y divide-border-soft px-6">
           {[
             "Paste a link to one issue to start the AI agent on it. A link to a whole repository opens its issue list, so you can pick one first.",
             "Preview creates a patch to read. It can never be published; run the issue again to publish.",
             "A publishable run never posts by itself: it opens a draft PR from your GitHub account only after you read it and confirm.",
           ].map((item, index) => (
-            <li key={item} className="grid grid-cols-[1.5rem_1fr] gap-2 py-4 text-xs leading-5 text-paper-muted">
-              <span className="font-mono text-paper-faint">{String(index + 1).padStart(2, "0")}</span>
+            <li key={item} className="grid grid-cols-[2rem_1fr] gap-2 py-4 text-[13.5px] leading-[1.55] text-paper-dim">
+              <span className="kicker pt-0.5 text-signal">{String(index + 1).padStart(2, "0")}</span>
               <span>{item}</span>
             </li>
           ))}
         </ol>
-        <div className="border-t border-border px-4 py-3">
-          <Link href="/dispatches" className="inline-flex min-h-10 items-center gap-1 text-xs text-signal hover:underline">
+        <div className="border-t border-border-soft px-6 py-3">
+          <Link href="/dispatches" className="link inline-flex min-h-10 items-center gap-1 text-[13.5px] font-medium">
             View run history <span aria-hidden>→</span>
           </Link>
         </div>
@@ -322,20 +313,20 @@ function Row({
   children: React.ReactNode;
 }) {
   return (
-    <div className="mb-6 grid grid-cols-12 gap-4 items-start">
-      <div className="col-span-12 md:col-span-3">
+    <div className="mb-7 grid grid-cols-12 items-start gap-x-6 gap-y-2.5">
+      <div className="col-span-12 md:col-span-4">
         {htmlFor ? (
-          <label htmlFor={htmlFor} className="text-[12px] font-medium text-paper">{label}</label>
+          <label htmlFor={htmlFor} className="text-[14.5px] font-semibold text-paper">{label}</label>
         ) : (
-          <div className="text-[12px] font-medium text-paper">{label}</div>
+          <div className="text-[14.5px] font-semibold text-paper">{label}</div>
         )}
         {hint && (
-          <div className="mt-1 text-[11px] leading-relaxed text-paper-muted">
+          <div className="mt-1 text-[13px] leading-[1.55] text-paper-muted">
             {hint}
           </div>
         )}
       </div>
-      <div className="col-span-12 md:col-span-9">{children}</div>
+      <div className="col-span-12 md:col-span-8">{children}</div>
     </div>
   );
 }

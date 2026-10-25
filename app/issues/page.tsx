@@ -19,15 +19,15 @@ export default function IssuesPage() {
       />
 
       {/* Suggested issues feed */}
-      <div className="mt-6">
-        <Suspense fallback={<div className="text-paper-muted text-[12px]">Loading suggestions...</div>}>
+      <div>
+        <Suspense fallback={<div className="text-paper-muted text-[13px]">Loading suggestions...</div>}>
           <SuggestedIssues />
         </Suspense>
       </div>
 
       {/* Manual scanner */}
-      <div className="mt-8">
-        <Suspense fallback={<div className="text-paper-muted text-[12px]">Loading...</div>}>
+      <div className="mt-12">
+        <Suspense fallback={<div className="text-paper-muted text-[13px]">Loading...</div>}>
           <IssueScanner />
         </Suspense>
       </div>

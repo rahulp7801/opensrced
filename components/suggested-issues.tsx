@@ -8,7 +8,6 @@ import {
   ChatCircle,
   FunnelSimple,
   GithubLogo,
-  Sparkle,
   SpinnerGap,
 } from "@phosphor-icons/react";
 import { pollJson } from "@/lib/poll-json";
@@ -129,24 +128,20 @@ export function SuggestedIssues() {
   }, [tags, selectedLangs]);
 
   return (
-    <section aria-labelledby="suggested-issues-title" className="overflow-hidden rounded-lg border border-border bg-surface/55">
-      <div className="flex flex-col gap-4 border-b border-border-soft px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
-          <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-md border border-signal/25 bg-signal/10 text-signal">
-            <Sparkle aria-hidden size={18} />
-          </span>
-          <div className="min-w-0">
-            <h2 id="suggested-issues-title" className="text-base font-semibold tracking-[-0.01em] text-paper">Suggested issues</h2>
-            <p className="mt-0.5 text-xs leading-relaxed text-paper-muted">
-              Beginner-friendly work from active public repositories: unassigned, with no linked pull request.
-              {filteredOut > 0 && <span title="Bounty, token-farming, social-media, and follow/star tasks are excluded."> {filteredOut} low-quality result{filteredOut === 1 ? "" : "s"} hidden.</span>}
-            </p>
-          </div>
+    <section aria-labelledby="suggested-issues-title" className="card overflow-hidden">
+      <div className="flex flex-col gap-4 border-b border-border-soft px-5 py-6 sm:flex-row sm:items-end sm:justify-between sm:px-6">
+        <div className="min-w-0">
+          <h2 id="suggested-issues-title" className="display text-[28px] leading-none text-paper sm:text-[32px]">Suggested issues</h2>
+          <p className="mt-2.5 max-w-2xl text-[13.5px] leading-[1.55] text-paper-muted">
+            Beginner-friendly work from active public repositories: unassigned, with no linked pull request.
+            {filteredOut > 0 && <span title="Bounty, token-farming, social-media, and follow/star tasks are excluded."> {filteredOut} low-quality result{filteredOut === 1 ? "" : "s"} hidden.</span>}
+          </p>
         </div>
         <button
           type="button"
           onClick={() => setExpanded((value) => !value)}
-          className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 self-start rounded-md border border-border px-3 py-1.5 text-xs font-medium text-paper-muted transition-colors hover:border-border-strong hover:text-paper sm:self-auto"
+          className="btn-quiet shrink-0 self-start sm:self-auto"
+          data-size="sm"
           aria-expanded={expanded}
           aria-controls="suggested-issues-filters"
         >
@@ -157,16 +152,16 @@ export function SuggestedIssues() {
       </div>
 
       {partial && !loading && (
-        <p role="status" className="border-b border-border-soft bg-info/5 px-5 py-2.5 text-xs text-info">
+        <p role="status" className="border-b border-border-soft bg-info-dim/30 px-5 py-3 text-[13px] text-info sm:px-6">
           Some GitHub searches timed out. These are the results that completed.
         </p>
       )}
 
       {expanded && (
-        <div id="suggested-issues-filters" className="grid gap-4 border-b border-border-soft bg-ink/25 px-5 py-4 lg:grid-cols-[1fr_auto] lg:items-end">
+        <div id="suggested-issues-filters" className="grid gap-5 border-b border-border-soft bg-ink-2 px-5 py-5 sm:px-6 lg:grid-cols-[1fr_auto] lg:items-end">
           <div className="space-y-4">
             <fieldset>
-              <legend className="mb-2 text-xs font-medium text-paper-muted">Languages</legend>
+              <legend className="field-label mb-2">Languages</legend>
               <div className="flex flex-wrap gap-1.5">
                 {LANGUAGES.map((language) => (
                   <button
@@ -174,12 +169,9 @@ export function SuggestedIssues() {
                     key={language}
                     onClick={() => toggleLang(language)}
                     aria-pressed={selectedLangs.includes(language)}
-                    className={cn(
-                      "min-h-10 rounded-md border px-3 py-1.5 text-xs capitalize transition-colors",
-                      selectedLangs.includes(language)
-                        ? "border-signal/45 bg-signal/10 font-medium text-signal"
-                        : "border-border bg-surface/50 text-paper-muted hover:border-border-strong hover:text-paper",
-                    )}
+                    className="pill capitalize"
+                    data-size="sm"
+                    data-edge=""
                   >
                     {language === "cpp" ? "C++" : language}
                   </button>
@@ -187,7 +179,7 @@ export function SuggestedIssues() {
               </div>
             </fieldset>
             <fieldset>
-              <legend className="mb-2 text-xs font-medium text-paper-muted">Issue labels</legend>
+              <legend className="field-label mb-2">Issue labels</legend>
               <div className="flex flex-wrap gap-1.5">
                 {([
                   { value: "strict" as const, label: "Good first issue", hint: "Exact maintainer label" },
@@ -199,12 +191,9 @@ export function SuggestedIssues() {
                     onClick={() => setTags(option.value)}
                     aria-pressed={tags === option.value}
                     title={option.hint}
-                    className={cn(
-                      "min-h-10 rounded-md border px-3 py-1.5 text-xs transition-colors",
-                      tags === option.value
-                        ? "border-ok/45 bg-ok/10 font-medium text-ok"
-                        : "border-border bg-surface/50 text-paper-muted hover:border-border-strong hover:text-paper",
-                    )}
+                    className="pill"
+                    data-size="sm"
+                    data-edge=""
                   >
                     {option.label}
                   </button>
@@ -216,7 +205,8 @@ export function SuggestedIssues() {
             type="button"
             onClick={() => fetchIssues(true)}
             disabled={loading || selectedLangs.length === 0}
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-signal/35 px-4 py-2 text-xs font-medium text-signal transition-colors hover:bg-signal/10 disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-quiet"
+            data-size="sm"
           >
             <SpinnerGap aria-hidden size={16} className={cn(loading && "animate-spin")} />
             {loading ? "Refreshing" : "Refresh results"}
@@ -226,45 +216,43 @@ export function SuggestedIssues() {
 
       <div aria-live="polite">
         {error && (
-          <div role="alert" className="flex flex-col gap-3 border-b border-alert/25 bg-alert/5 px-5 py-4 text-sm text-alert sm:flex-row sm:items-center sm:justify-between">
+          <div role="alert" className="flex flex-col gap-3 border-b border-border-soft bg-alert-dim/30 px-5 py-4 text-[13.5px] text-alert sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <span>{error}</span>
-            <button type="button" onClick={() => fetchIssues(true)} className="min-h-10 shrink-0 self-start rounded-md border border-alert/35 px-3 py-1.5 text-xs font-medium hover:bg-alert/10 sm:self-auto">
+            <button type="button" onClick={() => fetchIssues(true)} className="btn-quiet shrink-0 self-start sm:self-auto" data-size="sm">
               Try again
             </button>
           </div>
         )}
 
         {loading && issues.length === 0 && (
-          <div role="status" className="space-y-1 p-2">
+          <div role="status" className="divide-y divide-border-soft">
             <span className="sr-only">Finding suggested issues</span>
             {[1, 2, 3, 4].map((item) => (
-              <div key={item} className="flex animate-pulse items-center gap-3 rounded-md px-3 py-3.5">
-                <div className="size-8 shrink-0 rounded-md bg-surface-2" />
-                <div className="min-w-0 flex-1 space-y-2">
-                  <div className="h-3 w-2/3 rounded bg-surface-2" />
-                  <div className="h-2.5 w-1/3 rounded bg-surface-2" />
-                </div>
+              <div key={item} className="animate-pulse space-y-2.5 px-5 py-5 sm:px-6">
+                <div className="h-2.5 w-1/4 rounded-full bg-surface-2" />
+                <div className="h-3.5 w-2/3 rounded-full bg-surface-3" />
+                <div className="h-2.5 w-1/3 rounded-full bg-surface-2" />
               </div>
             ))}
           </div>
         )}
 
         {!loading && issues.length === 0 && !error && (
-          <div className="px-5 py-12 text-center">
-            <p className="text-sm font-medium text-paper">{selectedLangs.length === 0 ? "Choose a language to begin" : "No matching issues found"}</p>
-            <p className="mt-1 text-xs text-paper-muted">{selectedLangs.length === 0 ? "Select one or more languages in the filters above." : "Try more languages or include all beginner tags."}</p>
+          <div className="px-5 py-14 text-center">
+            <p className="text-[16px] font-semibold text-paper">{selectedLangs.length === 0 ? "Choose a language to begin" : "No matching issues found"}</p>
+            <p className="mt-1.5 text-[13.5px] text-paper-muted">{selectedLangs.length === 0 ? "Select one or more languages in the filters above." : "Try more languages or include all beginner tags."}</p>
           </div>
         )}
 
         {issues.length > 0 && (
           <div className="divide-y divide-border-soft">
             {issues.map((issue) => (
-              <article key={issue.url} className="group px-5 py-4 transition-colors hover:bg-surface-2/45">
+              <article key={issue.url} className="group px-5 py-5 transition-colors hover:bg-ink-2 sm:px-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-paper-muted">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12.5px] text-paper-muted">
                       <span className="font-medium text-paper-dim">{issue.repo}</span>
-                      <span className="text-paper-faint">#{issue.number}</span>
+                      <span>#{issue.number}</span>
                       {issue.language && <span className="tag" data-tone="info">{issue.language.toLowerCase()}</span>}
                       {issue.labels.slice(0, 2).map((label) => (
                         <span
@@ -276,8 +264,8 @@ export function SuggestedIssues() {
                         </span>
                       ))}
                     </div>
-                    <h3 className="mt-2 text-[15px] font-medium leading-snug text-paper transition-colors group-hover:text-signal-soft">{issue.title}</h3>
-                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-paper-faint">
+                    <h3 className="mt-2 text-[16px] font-semibold leading-snug tracking-[-0.01em] text-paper transition-colors group-hover:text-signal">{issue.title}</h3>
+                    <div className="mt-2 flex flex-wrap items-center gap-3 text-[12.5px] text-paper-muted">
                       <span>Updated {timeAgo(issue.updatedAt)}</span>
                       {issue.comments > 0 && <span className="inline-flex items-center gap-1"><ChatCircle aria-hidden size={14} />{issue.comments}</span>}
                       {issue.stars > 0 && <span>{issue.stars.toLocaleString()} stars</span>}
@@ -290,6 +278,7 @@ export function SuggestedIssues() {
                       rel="noreferrer"
                       aria-label={`Open ${issue.repo} issue ${issue.number} on GitHub`}
                       className="btn-quiet"
+                      data-size="sm"
                     >
                       <GithubLogo aria-hidden size={16} />
                       GitHub
@@ -301,6 +290,7 @@ export function SuggestedIssues() {
                       href={`/issues?repo=${encodeURIComponent(issue.repo)}&issue=${issue.number}`}
                       title="Check this issue, then preview or solve it"
                       className="row-cta"
+                      data-size="sm"
                     >
                       Fix issue
                       <ArrowRight aria-hidden size={15} />

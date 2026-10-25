@@ -142,6 +142,74 @@ const CALL_RELATIONS = new Set([
   "binds_method",
 ]);
 
+// ── Impact data for a plain-English question ──────────────────────────
+// "What breaks if I change X?" needs X's real dependents, not a summary of
+// the whole graph. Same rule as impactAnalysis plus re-exports (an index that
+// re-exports X breaks with it), 3 hops out.
+const DEPENDS_ON = new Set([...CALL_RELATIONS, "re_exports"]);
+
+/** The graph node a question is about: an exact label match for any word,
+ *  else a partial match only for identifier-looking words (snake_case,
+ *  dotted, camelCase, or ending in "()"), so plain words never match. */
+export function questionSubject(graph: GraphData, question: string): GraphNode | null {
+  const words = question.match(/[A-Za-z_][\w.]*(?:\(\))?/g) ?? [];
+  const bare = (s: string) => s.toLowerCase().replace(/\(\)$/, "").replace(/^\./, "");
+  for (const w of words) {
+    const exact = graph.nodes.find((n) => !/rationale/.test(n.id) && bare(n.label) === bare(w));
+    if (exact) return exact;
+  }
+  for (const w of words) {
+    if (!/[_.]|[a-z][A-Z]|\(\)$/.test(w)) continue;
+    const hit = graph.nodes.find((n) => !/rationale/.test(n.id) && bare(n.label).includes(bare(w)));
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/** Everything that depends on a node, by hop (1–3). */
+export function dependentsByHop(graph: GraphData, nodeId: string, maxHops = 3): GraphNode[][] {
+  const adj = buildAdjacency(graph);
+  const seen = new Set([nodeId]);
+  const hops: GraphNode[][] = [];
+  let frontier = [nodeId];
+  for (let d = 1; d <= maxHops && frontier.length; d++) {
+    const next: string[] = [];
+    for (const id of frontier) {
+      for (const e of adj.incoming.get(id) ?? []) {
+        if (!DEPENDS_ON.has(e.relation) || seen.has(e.source)) continue;
+        seen.add(e.source);
+        next.push(e.source);
+      }
+    }
+    if (!next.length) break;
+    hops.push(next.map((id) => adj.nodeMap.get(id)).filter((n): n is GraphNode => Boolean(n)));
+    frontier = next;
+  }
+  return hops;
+}
+
+/** Impact facts for the question's subject, as text for the model, or "". */
+export function impactContext(graph: GraphData, question: string): string {
+  const subject = questionSubject(graph, question);
+  if (!subject) return "";
+  const hops = dependentsByHop(graph, subject.id);
+  const all = hops.flat();
+  const files = new Set(all.map((n) => n.source_file).filter(Boolean));
+  const tests = [...files].filter((f) => /(^|\/)tests?\//.test(f));
+  const where = subject.source_file ? `${subject.source_file}${subject.source_location ? `:${subject.source_location}` : ""}` : "unknown file";
+  const lines = [
+    `IMPACT DATA for ${subject.label} (${where}), computed from the graph:`,
+    all.length
+      ? `${all.length} places depend on it within 3 hops, in ${files.size} files (${hops.map((h, i) => `${h.length} at hop ${i + 1}`).join(", ")}).`
+      : "Nothing in the graph depends on it.",
+  ];
+  hops.forEach((h, i) => {
+    if (h.length) lines.push(`Hop ${i + 1}: ${h.slice(0, 15).map((n) => `${n.label} (${n.source_file})`).join("; ")}${h.length > 15 ? `; and ${h.length - 15} more` : ""}`);
+  });
+  if (tests.length) lines.push(`Test files among them: ${tests.slice(0, 10).join(", ")}`);
+  return lines.join("\n");
+}
+
 export function traceFlow(graph: GraphData, symbol: string): string {
   const startNode = findNode(graph, symbol);
   if (!startNode)

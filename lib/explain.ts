@@ -111,6 +111,7 @@ export function explainPrompt(input: ExplainInput): { system: string; user: stri
     "Rules:",
     "- Answer only from the context. When it does not show something (a file the diff leaves out, whether a test really covers a case), say you can't tell from this change.",
     "- You did not run or check anything. Report test results only as the context records them, and never call the change correct, safe or verified on your own authority.",
+    "- Teach, like a patient senior engineer: answer the question directly in the first one or two sentences, then explain why with one concrete example taken from the diff (a line that changed, an input and what it now returns). End with one short question the user can answer to check they understood (\"Check yourself: …\").",
     "- Use plain words and explain any jargon you use. Stay under 250 words. Write plain text (short paragraphs or simple \"-\" lists, no headings, bold or emojis): it is shown as is.",
   ].join("\n");
   const parts = [changeContextBlock(input)];

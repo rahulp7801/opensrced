@@ -139,8 +139,8 @@ function prepare(snap: RepoSnapshot): Prepared {
   const order = [...byCommunity.entries()].sort((a, b) => b[1].length - a[1].length).map(([c]) => c);
   const colour = new Map(order.map((c, i) => {
     const hue = hexRgb(PALETTE[i % PALETTE.length]);
-    // The overview at 65% saturation; once the answer is drawn, the rest recedes to 35%.
-    return [c, { full: desat(hue, 0.65), muted: desat(hue, 0.35) }];
+    // The overview at 65% saturation; once the answer is drawn, the rest recedes to 20%.
+    return [c, { full: desat(hue, 0.65), muted: desat(hue, 0.2) }];
   }));
   const { primary, path, hops } = snap.focus;
   const hop = new Map<number, number>([[primary, 0], ...hops]);
@@ -347,7 +347,7 @@ function draw(ctx: CanvasRenderingContext2D, p: Prepared, fr: Frame) {
         b.moveTo(sx(i), sy(i));
         b.lineTo(sx(j), sy(j));
       }
-      b.strokeStyle = `rgba(28,23,20,${0.12 - 0.04 * recede})`;
+      b.strokeStyle = `rgba(28,23,20,${0.12 - 0.08 * recede})`;
       b.lineWidth = 0.6;
       b.stroke();
       // Nodes, one fill per community (notes in a fainter second pass).
@@ -355,7 +355,8 @@ function draw(ctx: CanvasRenderingContext2D, p: Prepared, fr: Frame) {
         const col = p.colour.get(c)!;
         const tone = mix(col.full, col.muted, recede);
         for (const notes of [0, 1]) {
-          b.fillStyle = rgba(tone, (notes ? 0.4 : 0.8) * (1 - 0.44 * recede));
+          // Receded, the rest of the repository is a quiet texture so the answer reads at a glance.
+          b.fillStyle = rgba(tone, (notes ? 0.4 : 0.8) * (1 - 0.72 * recede));
           b.beginPath();
           for (const i of ids) {
             if (p.note[i] !== notes || lit(i) || !onScreen(i)) continue;
@@ -375,21 +376,27 @@ function draw(ctx: CanvasRenderingContext2D, p: Prepared, fr: Frame) {
   if (reveal <= 0 || f < 0) return;
 
   const radius = (i: number) => p.size[i] * grow + (i === primary ? 3.5 : 1.5);
-  // The path, wave by wave outward from the function: a cobalt line, then the current.
+  // The path, wave by wave outward from the function: a gently bowed cobalt line (straight
+  // spokes read as a scribble), then the current along it.
   ctx.lineCap = "round";
   for (const { from, to, start, end } of p.drawn) {
     const u = 1 - Math.pow(1 - span(f, start, end), 3);
     if (u <= 0) continue;
-    const ax = sx(from), ay = sy(from);
-    const bx = ax + (sx(to) - ax) * u, by = ay + (sy(to) - ay) * u;
-    ctx.strokeStyle = ACCENT; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+    const ax = sx(from), ay = sy(from), bx = sx(to), by = sy(to);
+    // The bow: the control point sits off the midpoint, always to the same side of travel.
+    const cx = (ax + bx) / 2 - (by - ay) * 0.16, cy = (ay + by) / 2 + (bx - ax) * 0.16;
+    // Drawn up to `u`: the first part of the curve, split at u (de Casteljau).
+    const qx = ax + (cx - ax) * u, qy = ay + (cy - ay) * u;
+    const ex = qx + (cx + (bx - cx) * u - qx) * u, ey = qy + (cy + (by - cy) * u - qy) * u;
+    const stroke = () => { ctx.beginPath(); ctx.moveTo(ax, ay); ctx.quadraticCurveTo(qx, qy, ex, ey); ctx.stroke(); };
+    ctx.strokeStyle = ACCENT; ctx.lineWidth = 1.6;
+    stroke();
     // The current: slow (one loop every 4 s), low contrast, outward; off under reduced motion.
     if (u >= 1 && !reduce) {
       ctx.save();
       ctx.setLineDash([3, 13]); ctx.lineDashOffset = -((fr.wall % 4000) / 4000) * 16;
-      ctx.strokeStyle = "rgba(255,250,246,0.6)"; ctx.lineWidth = 1.2;
-      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+      ctx.strokeStyle = "rgba(255,250,246,0.6)"; ctx.lineWidth = 1;
+      stroke();
       ctx.restore();
     }
   }

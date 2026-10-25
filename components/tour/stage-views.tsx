@@ -200,7 +200,8 @@ function AskPanel({ turns, text = GRAPH_PANEL }: { turns: TimedTurn[]; text?: Pa
     const pane = scrollRef.current;
     const answer = pane?.querySelector<HTMLElement>("[data-spot=answer]");
     if (pane && answer && answer.offsetTop - pane.offsetTop < pane.scrollTop) pane.scrollTop = answer.offsetTop - pane.offsetTop - 8;
-    setScrolled((pane?.scrollTop ?? 0) > 1);
+    // A pixel or two of overflow slices nothing; fading then would hide the question for no reason.
+    setScrolled((pane?.scrollTop ?? 0) > 16);
   }, [beat, scrollRef]);
   const typing = turns.find((turn) => t >= turn.typeAt && t < turn.askAt + 150);
   return (

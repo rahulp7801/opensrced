@@ -239,10 +239,10 @@ export function DispatchList() {
           Start with a GitHub repository or issue. Preview mode lets you inspect the proposed patch before anything is published.
         </p>
         <div className="mt-7 flex flex-wrap items-center gap-3">
-          <Link href="/trigger" className="btn-primary min-h-11 px-6">
+          <Link href="/trigger" className="btn-primary">
             Start a run
           </Link>
-          <Link href="/issues" className="btn-quiet min-h-11 px-6">
+          <Link href="/issues" className="text-link">
             Browse issues
           </Link>
         </div>
@@ -474,8 +474,8 @@ export function DispatchList() {
                       <Link href={`/prs/${info.repoFull}/${info.prNumber}`} className="btn-primary" data-size="sm">
                         Follow it here
                       </Link>
-                      <a href={info.url} target="_blank" rel="noreferrer" className="btn-quiet" data-size="sm">
-                        Open on GitHub <IconExternal />
+                      <a href={info.url} target="_blank" rel="noreferrer" className="text-link text-[14px]">
+                        Open on GitHub
                       </a>
                     </span>
                   </div>
@@ -593,8 +593,8 @@ function SignInPanel({ dispatchId, url }: { dispatchId: string; url: string }) {
         This run uses your own Claude subscription. Sign in on Claude&apos;s page, then paste the code it shows you here.
       </p>
       <form onSubmit={submit} className="mt-3 flex flex-wrap items-center gap-2">
-        <a href={url} target="_blank" rel="noreferrer" className="btn-quiet">
-          Open Claude sign-in <IconExternal />
+        <a href={url} target="_blank" rel="noreferrer" className="text-link">
+          Open Claude sign-in
         </a>
         <label htmlFor={`sign-in-code-${dispatchId}`} className="sr-only">Sign-in code</label>
         <input
@@ -890,8 +890,7 @@ function ExportButton({ dispatch }: { dispatch: DispatchWithLog }) {
   return (
     <button
       onClick={download}
-      className="btn-quiet"
-      data-size="sm"
+      className="text-link text-[14px]"
       title="Saves the run's details, patch and full log as a Markdown file"
     >
       Download report

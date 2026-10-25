@@ -229,7 +229,7 @@ export function DiscoverScanner() {
           <button
             type="submit"
             disabled={loading || !minStars}
-            className="btn-primary min-h-11 px-6"
+            className="btn-primary"
           >
             <IconSearch />
             {loading ? "Searching GitHub…" : "Search GitHub"}
@@ -379,9 +379,8 @@ export function DiscoverScanner() {
                         >
                           {saved ? "Saved" : "Save repo"}
                         </button>
-                        <Link href={href} className="row-cta" data-size="sm">
-                          Look at this issue
-                          <IconArrow />
+                        <Link href={href} className="row-cta">
+                          Fix this issue <span aria-hidden>→</span>
                         </Link>
                       </div>
                     </div>

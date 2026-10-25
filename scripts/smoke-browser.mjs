@@ -438,7 +438,7 @@ try {
   const activeFindLabel = page.getByRole('link', { name: 'Find', exact: true }).getByText('Find', { exact: true });
   await activeFindLabel.waitFor();
   assert.equal(await activeFindLabel.isVisible(), true, 'active task label stays visible on mobile');
-  const suggestedFix = page.getByRole('link', { name: 'Fix issue', exact: true });
+  const suggestedFix = page.getByRole('link', { name: 'Fix this issue', exact: true });
   await suggestedFix.waitFor();
   assert.equal(await suggestedFix.evaluate(element => getComputedStyle(element).opacity), '1', 'suggested issue action stays visible on touch layouts');
   assert.equal(await page.getByText('Scan a repository.', { exact: true }).count(), 0, 'manual scan form does not repeat its empty instructions');

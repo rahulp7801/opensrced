@@ -505,7 +505,7 @@ export default function GraphPage() {
         <button
           type="submit"
           disabled={!parseRepo(repoUrl) || buildStatus === "building"}
-          className="btn-primary min-h-11 shrink-0 px-6"
+          className="btn-primary shrink-0"
         >
           {buildStatus === "building"
             ? "building..."
@@ -517,7 +517,7 @@ export default function GraphPage() {
           <button type="button" onClick={() => {
             buildRequest.current?.abort(new Error("Build cancelled."));
             queryRequest.current?.abort(new Error("Query cancelled."));
-          }} className="btn-quiet min-h-11 px-5">Cancel</button>
+          }} className="btn-quiet">Cancel</button>
         )}
         {buildStatus === "ready" && (
           <span className="chip chip-ok mb-2.5 self-end">

@@ -220,7 +220,7 @@ export function IssueScanner() {
         <button
           type="submit"
           disabled={loading || !repoUrl.trim()}
-          className="btn-primary min-h-11 px-6"
+          className="btn-primary"
         >
           {loading ? "Scanning…" : "Scan issues"} <IconArrow />
         </button>
@@ -512,18 +512,15 @@ function ActionButton({
   onClick: () => void;
 }) {
   const meta = ACTION_META[kind];
-  // Recommended: the row's cobalt action pill; the other is a quiet pill.
-  // The recommended one also carries a leading dot so colorblind users still
-  // spot it.
+  // Recommended: the row's one outlined button; the other is a text link.
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       title={meta.tooltip + (recommended ? "\n\nRecommended for this issue." : "")}
-      className={recommended ? "row-cta" : "btn-quiet"}
+      className={recommended ? "btn-quiet" : "text-link text-[14px]"}
       data-size="sm"
     >
-      {recommended && <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current" />}
       {dispatching ? "Starting…" : meta.label}
     </button>
   );

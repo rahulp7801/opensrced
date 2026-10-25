@@ -437,10 +437,9 @@ export default function PRsPage() {
                             <Link
                               href={`/prs/${pr.repo}/${pr.number}`}
                               className="row-cta"
-                              data-size="sm"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              review
+                              Review <span aria-hidden>→</span>
                             </Link>
                             <a
                               href={pr.url}
@@ -610,7 +609,7 @@ function InboxSection({ title, subtitle, color, prs, actionHint }: { title: stri
               <span className="font-mono text-ok tabular-nums">+{pr.additions}</span>
               <span className="font-mono text-alert tabular-nums">-{pr.deletions}</span>
               <span className="text-paper-muted sm:w-16 sm:text-right">{timeAgo(pr.updatedAt)}</span>
-              <span className="row-cta hidden opacity-0 transition group-hover:opacity-100 sm:inline-flex" data-size="sm">review</span>
+              <span aria-hidden className="row-cta hidden sm:inline-flex">Review →</span>
             </div>
           </Link>
         ))}
@@ -628,10 +627,10 @@ function EmptyPrState({ account }: { account?: string }) {
       </p>
       <Doodle doodle={circle} draw="load" className="doodle-thin pointer-events-none absolute right-10 top-10 hidden h-28 w-44 sm:block" />
       <div className="mt-7 flex flex-wrap gap-3">
-        <Link href="/discover" className="btn-primary min-h-11 px-6">
+        <Link href="/discover" className="btn-primary">
           Find an issue
         </Link>
-        <Link href="/issues" className="btn-quiet min-h-11 px-6">
+        <Link href="/issues" className="btn-quiet">
           Browse suggested issues
         </Link>
       </div>

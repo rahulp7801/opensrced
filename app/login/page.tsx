@@ -54,7 +54,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         ) : (
           <div className="mt-6 flex flex-wrap gap-3">
             {!preview && <Link href="/demo" className="btn-primary min-h-12 px-6">Explore the demo</Link>}
-            <a href="/api/health" className="btn-quiet min-h-12 px-6">Service status</a>
+            <a href="/api/health" className="text-link">Service status</a>
           </div>
         )}
 

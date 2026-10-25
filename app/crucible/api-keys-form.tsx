@@ -397,7 +397,7 @@ export function ApiKeysForm() {
           type="button"
           onClick={save}
           disabled={saving}
-          className="btn-primary min-h-11 px-6"
+          className="btn-primary"
         >
           {saving ? "Saving…" : "Save settings"}
         </button>

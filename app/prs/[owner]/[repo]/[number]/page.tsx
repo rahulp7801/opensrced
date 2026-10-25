@@ -1028,7 +1028,7 @@ export default function PrDetailPage() {
                   <button
                     onClick={handleFixAll}
                     disabled={isFixing || writesPending}
-                    className="row-cta" data-size="sm"
+                    className="btn-quiet" data-size="sm"
                   >
                     {isFixing && fixState?.commentId === "all" ? "generating fixes..." : `fix all ${actionableComments.length} comments`}
                   </button>
@@ -1159,7 +1159,7 @@ export default function PrDetailPage() {
                           <button
                             onClick={() => handleFix(c)}
                             disabled={isFixing || writesPending}
-                            className="row-cta"
+                            className="btn-quiet"
                             data-size="sm"
                           >
                             {fixState?.commentId === c.id && isFixing ? "generating..." : fixMode === "quick" ? "quick fix" : "deep fix"}
@@ -1312,7 +1312,7 @@ export default function PrDetailPage() {
                             if (c) handleFix(c);
                           }
                         }}
-                        className="row-cta" data-size="sm"
+                        className="btn-quiet" data-size="sm"
                       >
                         retry from scratch
                       </button>
@@ -1430,7 +1430,7 @@ export default function PrDetailPage() {
                         sharing.current = false;
                       }
                     }}
-                    className="row-cta" data-size="sm"
+                    className="btn-quiet" data-size="sm"
                   >
                     share fix
                   </button>
@@ -1537,7 +1537,7 @@ export default function PrDetailPage() {
                           <span className="whitespace-pre-wrap break-words">{pushMessage}</span>
                           <button
                             onClick={() => handlePush()}
-                            className="row-cta shrink-0" data-size="sm"
+                            className="btn-quiet shrink-0" data-size="sm"
                           >
                             retry
                           </button>
@@ -1594,7 +1594,7 @@ export default function PrDetailPage() {
                           <button
                             onClick={handleSendFollowUp}
                             disabled={!followUpComment.trim() || followUpGenerating || followUpSending || followUpSent}
-                            className={followUpSent ? "btn-quiet text-ok" : "row-cta"}
+                            className={followUpSent ? "btn-quiet text-ok" : "btn-quiet"}
                             data-size="sm"
                           >
                             {followUpSending ? "posting..." : followUpSent ? "sent" : "post comment to PR"}

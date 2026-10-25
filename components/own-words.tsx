@@ -177,7 +177,7 @@ export function OwnWords({ storageKey, repo, title, context, copySources, practi
           At least {OWN_WORDS.min} characters ({text.length}/{OWN_WORDS.max}). It goes into the pull request under &quot;In the author&apos;s words&quot;.
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button type="button" onClick={() => void check()} disabled={!lengthOk || busy !== null || checksLeft === 0} className="row-cta">
+          <button type="button" onClick={() => void check()} disabled={!lengthOk || busy !== null || checksLeft === 0} className="btn-quiet">
             {busy === "check" ? "Checking…" : "Check my explanation"}
           </button>
           <span className="text-[14px] text-paper-muted">{checksLeft === 1 ? "1 check left" : `${checksLeft} checks left`}</span>
@@ -211,7 +211,7 @@ export function OwnWords({ storageKey, repo, title, context, copySources, practi
           <p className="mt-3 max-w-2xl text-[16px] text-paper-dim">{PRACTICE_INTRO}</p>
           {busy === "questions" && <p role="status" className="mt-4 text-paper-muted">Writing 2 review questions about this change…</p>}
           {!s.questions && busy !== "questions" && (
-            <button type="button" onClick={() => void loadQuestions()} className="row-cta mt-4">Get the practice questions</button>
+            <button type="button" onClick={() => void loadQuestions()} className="btn-quiet mt-4">Get the practice questions</button>
           )}
           {s.questions?.map((q, i) => {
             const a = s.answers[i];
@@ -230,7 +230,7 @@ export function OwnWords({ storageKey, repo, title, context, copySources, practi
                   className="field mt-3 bg-ink-2"
                 />
                 <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <button type="button" onClick={() => void answer(i)} disabled={(a?.draft.trim().length ?? 0) < OWN_WORDS.answerMin || busy !== null} className="row-cta" data-size="sm">
+                  <button type="button" onClick={() => void answer(i)} disabled={(a?.draft.trim().length ?? 0) < OWN_WORDS.answerMin || busy !== null} className="btn-quiet" data-size="sm">
                     {busy === i ? "Sending…" : a?.sent ? "Send again" : "Send answer"}
                   </button>
                   <span className="text-[14px] text-paper-muted">At least {OWN_WORDS.answerMin} characters.</span>

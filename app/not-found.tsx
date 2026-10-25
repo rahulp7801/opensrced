@@ -17,10 +17,10 @@ export default function NotFound() {
           The address may be outdated, or the page may have moved.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
-          <Link href="/discover" className="btn-primary min-h-11 px-6">
+          <Link href="/discover" className="btn-primary">
             Browse repositories
           </Link>
-          <Link href="/" className="btn-quiet min-h-11 px-6">
+          <Link href="/" className="btn-quiet">
             Go home
           </Link>
         </div>

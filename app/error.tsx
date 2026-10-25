@@ -17,10 +17,10 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
           Retry the request. If it fails again, return to issue discovery and start from there.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
-          <button type="button" onClick={reset} className="btn-primary min-h-11 px-6">
+          <button type="button" onClick={reset} className="btn-primary">
             Try again
           </button>
-          <Link href="/issues" className="btn-quiet min-h-11 px-6">
+          <Link href="/issues" className="text-link">
             Browse issues
           </Link>
         </div>

@@ -2,12 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  ArrowRight,
-  ArrowSquareOut,
   CaretDown,
   ChatCircle,
   FunnelSimple,
-  GithubLogo,
   SpinnerGap,
 } from "@phosphor-icons/react";
 import { pollJson } from "@/lib/poll-json";
@@ -277,12 +274,9 @@ export function SuggestedIssues() {
                       target="_blank"
                       rel="noreferrer"
                       aria-label={`Open ${issue.repo} issue ${issue.number} on GitHub`}
-                      className="btn-quiet"
-                      data-size="sm"
+                      className="text-link text-[14px]"
                     >
-                      <GithubLogo aria-hidden size={16} />
                       GitHub
-                      <ArrowSquareOut aria-hidden size={13} />
                     </a>
                     {/* Through the scanner, which checks the issue (claimed, already fixed,
                         someone else's PR, the project's AI policy) before offering a run. */}
@@ -290,10 +284,8 @@ export function SuggestedIssues() {
                       href={`/issues?repo=${encodeURIComponent(issue.repo)}&issue=${issue.number}`}
                       title="Check this issue, then preview or solve it"
                       className="row-cta"
-                      data-size="sm"
                     >
-                      Fix issue
-                      <ArrowRight aria-hidden size={15} />
+                      Fix this issue <span aria-hidden>→</span>
                     </a>
                   </div>
                 </div>

@@ -141,10 +141,9 @@ export function PrTable({ prs }: { prs: PullRequest[] }) {
                       <Link
                         href={`/prs/${pr.repo}/${pr.pr_number}`}
                         className="row-cta"
-                        data-size="sm"
                         title="Review & fix comments"
                       >
-                        review
+                        Review <span aria-hidden>→</span>
                       </Link>
                       <a
                         href={pr.url}

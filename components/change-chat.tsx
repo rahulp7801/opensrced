@@ -171,7 +171,7 @@ export function ChangeChat({ storageKey, repo, title, context, starters = STARTE
           {pending ? (
             <button type="button" onClick={() => abort.current?.abort()} className="btn-quiet" data-tone="alert">Stop</button>
           ) : (
-            <button type="submit" disabled={!input.trim()} className="row-cta">Ask</button>
+            <button type="submit" disabled={!input.trim()} className="btn-quiet">Ask</button>
           )}
           {turns.length > 0 && !pending && (
             <button type="button" onClick={clear} className="btn-quiet">Clear</button>

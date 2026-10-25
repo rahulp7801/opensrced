@@ -128,9 +128,8 @@ export function Onboarding({ localMode = false, inviteOnly = false }: { localMod
         <Link
           href={currentStep.href}
           className="row-cta col-start-2 row-start-2 shrink-0 sm:col-start-auto sm:row-start-auto"
-          data-size="sm"
         >
-          {currentStep.cta}
+          {currentStep.cta} <span aria-hidden>→</span>
         </Link>
 
         {/* Dismiss */}

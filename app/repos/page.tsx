@@ -245,20 +245,18 @@ export default function ReposPage() {
                   <span>★ {repo.stars.toLocaleString()}</span>
                   {repo.updatedAt && <span className="text-paper-faint">{timeAgo(repo.updatedAt)}</span>}
                 </div>
-                <div className="flex w-full items-center gap-2 sm:w-auto">
+                <div className="flex w-full items-center gap-5 sm:w-auto">
                   <Link
                     href={`/graph?repo=${encodeURIComponent(repo.nameWithOwner)}`}
-                    className="btn-quiet"
-                    data-size="sm"
+                    className="text-link text-[14px]"
                   >
                     Graph
                   </Link>
                   <Link
                     href={`/issues?repo=${encodeURIComponent(repo.nameWithOwner)}`}
                     className="row-cta"
-                    data-size="sm"
                   >
-                    Issues
+                    Issues <span aria-hidden>→</span>
                   </Link>
                 </div>
               </div>

@@ -122,11 +122,11 @@ export function PrFollowups({ prUrl }: { prUrl: string }) {
           {view.followups && (
             <>
               <button onClick={() => void start("ci")} disabled={!view.can_fix_ci || busy !== null}
-                className="row-cta" data-size="sm">
+                className="btn-quiet" data-size="sm">
                 {busy === "ci" ? "starting…" : "Fix CI failure"}
               </button>
               <button onClick={() => void start("review")} disabled={!view.can_address_review || busy !== null}
-                className="row-cta" data-size="sm">
+                className="btn-quiet" data-size="sm">
                 {busy === "review" ? "starting…" : "Address review"}
               </button>
             </>

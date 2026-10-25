@@ -4,7 +4,7 @@
 // own graph builder (graphify) and exported as a snapshot (public/demo/flask-graph.json; see
 // RepoSnapshot). The layout was computed for the presentation from that real graph (the
 // snapshot's `layout` says how); graphify's own view lays it out live in the browser.
-// A canvas draws the dense overview (thousands of nodes coloured by community, faint edges) and
+// A canvas draws the dense overview (thousands of nodes coloured by community, hairline edges) on the paper and
 // then the stage's drawing of a real Explore answer on it: a semantic zoom from the whole
 // repository through the answer's community to its function, then back out as what depends on
 // it lights up hop by hop (the snapshot's path and hops, from the graph's real relations), and a
@@ -57,17 +57,14 @@ export const MAP_FOCUS_LENGTH = 7400;
 // then to the function, then out as the reach spreads wave by wave (hop 1, 2, 3), then settle.
 const F = { hold: 1000, community: 2800, fn: 4000, wave: [4200, 5100, 5600, 6200], out: [4400, 6400], legend: 6600 };
 
-// Dark, like graphify's own map, so the community colours carry.
-const BG: Rgb = [14, 16, 22];
-const ACCENT = "#4da3ff";
+const BG: Rgb = [255, 250, 246]; // the surface: the map sits on the paper, like the app
+const ACCENT = "#2338e6"; // signal
 // One colour per hop of the reach, warm and fading with distance.
-const HOP: Record<number, Rgb> = { 1: [255, 107, 107], 2: [255, 169, 77], 3: [255, 212, 59] };
-// Community colours: distinct and bright on the dark ground.
+const HOP: Record<number, Rgb> = { 1: [35, 56, 230], 2: [110, 124, 236], 3: [179, 187, 244] }; // signal → signal-dim
+// Community colours (the biggest communities take the first ones).
 const PALETTE = [
-  "#5b8ff9", "#f6903d", "#e8684a", "#5ad8a6", "#9270ca", "#f6bd16", "#ff9d4d", "#6dc8ec", "#ff99c3", "#269a99",
-  "#bdd2fd", "#e86452", "#61ddaa", "#7262fd", "#f08bb4", "#78d3f8", "#b6e3a8", "#ffd666", "#d3adf7", "#5cdbd3",
-  "#ff7875", "#95de64", "#69c0ff", "#ffc069", "#b37feb", "#87e8de",
-];
+  "#c8553d", "#d99a3c", "#6a994e", "#2f8f83", "#7b5ea7", "#c97b84", "#4f7ca8", "#b5652a", "#8c7a5b", "#9a6a8e",
+]; // ours: warm, a little muted, harmonising with the blush, the ink and the cobalt; still colourful
 // The chrome's bands, in CSS px: the header row on top and the legend row below stay clear.
 const TOP = 32;
 const BOTTOM = 30;
@@ -256,26 +253,26 @@ export function RepoMap({ buildAt, focusAt }: { buildAt: number; focusAt: number
     <div className="relative h-full w-full overflow-hidden" style={{ background: rgba(BG, 1) }}>
       <canvas ref={canvas} className="absolute inset-0 h-full w-full" role="img"
         aria-label={stats ? `Code graph of ${prep.snap.repo}: ${stats.nodes} nodes in ${stats.communities} communities${f >= 0 ? `, focused on ${crumbs.at(-1)} and what depends on it` : ""}` : "Code graph, loading"} />
-      {failed && <p className="absolute inset-0 grid place-items-center text-[13px] text-white/70">The map didn&apos;t load.</p>}
+      {failed && <p className="absolute inset-0 grid place-items-center text-[13px] text-paper-muted">The map didn&apos;t load.</p>}
       {stats && (
         <>
           <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between gap-3 px-3 text-[11px]" style={{ height: TOP }}>
-            <span className="truncate font-mono text-white/85">
-              {crumbs.slice(0, depth).map((c, i) => <span key={c} className="stage-tick">{i > 0 && <span className="mx-1.5 text-white/45">›</span>}{c}</span>)}
+            <span className="shrink-0 font-mono text-paper-dim">
+              {crumbs.slice(0, depth).map((c, i) => <span key={c} className="stage-tick">{i > 0 && <span className="mx-1.5 text-paper-faint">›</span>}{c}</span>)}
             </span>
-            <span className="shrink-0 text-white/60" style={{ opacity: chrome }}>
+            <span className="min-w-0 truncate text-right text-paper-muted" style={{ opacity: chrome }}>
               {stats.nodes.toLocaleString("en-US")} nodes · {stats.edges.toLocaleString("en-US")} edges · {stats.communities} communities
             </span>
           </div>
           {f >= F.legend && (
             <>
               {/* The one thing to take away, in plain words, from the real count. */}
-              <p className="stage-settle pointer-events-none absolute left-4 rounded-md bg-black/60 px-2.5 py-1 text-[12.5px] font-medium text-white/90" style={{ bottom: BOTTOM + 6 }}>
+              <p className="stage-settle pointer-events-none absolute left-4 rounded-full border border-border bg-surface px-3 py-1 text-[13px] font-medium text-paper" style={{ bottom: BOTTOM + 8 }}>
                 {prep.snap.focus.hops.length} places depend on it
-                <Doodle doodle={circle} draw="load" delay={500} duration={900} stretch tone="current" className="absolute -inset-x-3 -inset-y-2 h-[calc(100%+16px)] w-[calc(100%+24px)] text-[#8c97ff] opacity-80" />
+                <Doodle doodle={circle} draw="load" delay={500} duration={900} stretch tone="current" className="absolute -inset-x-3 -inset-y-2 h-[calc(100%+16px)] w-[calc(100%+24px)] text-signal" />
               </p>
-              <div className="stage-settle pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-end gap-4 px-3 text-[11px] text-white/75" style={{ height: BOTTOM }}>
-                <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-full border-2 border-white" />{crumbs.at(-1)}</span>
+              <div className="stage-settle pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-end gap-4 border-t border-border-soft bg-surface px-3 text-[13px] text-paper-dim" style={{ height: BOTTOM }}>
+                <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-full border-2 border-signal" />{crumbs.at(-1)}</span>
                 <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-4 rounded" style={{ background: ACCENT }} />Path</span>
                 <span className="inline-flex items-center gap-1.5">
                   <span className="inline-flex gap-0.5">{[1, 2, 3].map((k) => <span key={k} className="size-1.5 rounded-full" style={{ background: rgba(HOP[k], 1) }} />)}</span>
@@ -349,7 +346,7 @@ function draw(ctx: CanvasRenderingContext2D, p: Prepared, fr: Frame) {
         b.moveTo(sx(i), sy(i));
         b.lineTo(sx(j), sy(j));
       }
-      b.strokeStyle = `rgba(200,210,235,${0.11 - 0.04 * recede})`;
+      b.strokeStyle = `rgba(28,23,20,${0.12 - 0.04 * recede})`;
       b.lineWidth = 0.6;
       b.stroke();
       // Nodes, one fill per community (notes in a fainter second pass).
@@ -377,25 +374,20 @@ function draw(ctx: CanvasRenderingContext2D, p: Prepared, fr: Frame) {
   if (reveal <= 0 || f < 0) return;
 
   const radius = (i: number) => p.size[i] * grow + (i === primary ? 3.5 : 1.5);
-  // The path, wave by wave outward from the function: a glow under a bright core, then the current.
+  // The path, wave by wave outward from the function: a cobalt line, then the current.
   ctx.lineCap = "round";
   for (const { from, to, start, end } of p.drawn) {
     const u = 1 - Math.pow(1 - span(f, start, end), 3);
     if (u <= 0) continue;
     const ax = sx(from), ay = sy(from);
     const bx = ax + (sx(to) - ax) * u, by = ay + (sy(to) - ay) * u;
-    ctx.save();
-    ctx.shadowColor = ACCENT; ctx.shadowBlur = 10;
-    ctx.strokeStyle = rgba(hexRgb(ACCENT), 0.35); ctx.lineWidth = 4.5;
-    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
-    ctx.restore();
-    ctx.strokeStyle = ACCENT; ctx.lineWidth = 1.6;
+    ctx.strokeStyle = ACCENT; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
     // The current: slow (one loop every 4 s), low contrast, outward; off under reduced motion.
     if (u >= 1 && !reduce) {
       ctx.save();
       ctx.setLineDash([3, 13]); ctx.lineDashOffset = -((fr.wall % 4000) / 4000) * 16;
-      ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 1.4;
+      ctx.strokeStyle = "rgba(255,250,246,0.6)"; ctx.lineWidth = 1.2;
       ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
       ctx.restore();
     }
@@ -412,28 +404,22 @@ function draw(ctx: CanvasRenderingContext2D, p: Prepared, fr: Frame) {
       ctx.strokeStyle = rgba(col, 0.8 * (1 - u)); ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(sx(i), sy(i), radius(i) + 2 + u * 18, 0, Math.PI * 2); ctx.stroke();
     }
-    ctx.save();
-    ctx.shadowColor = rgba(col, 1); ctx.shadowBlur = 8 * Math.min(1, u * 2);
     ctx.fillStyle = rgba(col, Math.min(1, u * 2));
     ctx.beginPath(); ctx.arc(sx(i), sy(i), radius(i), 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
   }
 
-  // The answer's function: bright, ringed, a pulse when the camera arrives, then it breathes.
+  // The answer's function: an open cobalt ring (the wordmark's), a pulse when the camera arrives, then it breathes.
   {
     const pulse = Math.sin(Math.PI * span(f, F.fn - 200, F.fn + 500)); // one soft pulse as the camera arrives
-    const r = radius(primary) * (1 + 0.3 * pulse);
-    ctx.save();
-    ctx.shadowColor = "#ffffff"; ctx.shadowBlur = 14;
-    ctx.fillStyle = "#ffffff";
+    const r = radius(primary) * (1 + 0.3 * pulse) + 2;
+    ctx.fillStyle = rgba(BG, 1);
     ctx.beginPath(); ctx.arc(sx(primary), sy(primary), r, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-    ctx.strokeStyle = "rgba(255,255,255,0.9)"; ctx.lineWidth = 1.8;
-    ctx.beginPath(); ctx.arc(sx(primary), sy(primary), r + 4, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = ACCENT; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(sx(primary), sy(primary), r, 0, Math.PI * 2); ctx.stroke();
     if (f >= F.fn && !reduce) {
       for (const k of [0, 1]) {
         const v = ((fr.wall + k * 1100) % 2200) / 2200;
-        ctx.strokeStyle = `rgba(255,255,255,${(1 - v) * 0.45})`; ctx.lineWidth = 1.2;
+        ctx.strokeStyle = rgba(hexRgb(ACCENT), (1 - v) * 0.35); ctx.lineWidth = 1.2;
         ctx.beginPath(); ctx.arc(sx(primary), sy(primary), r + 5 + v * 22, 0, Math.PI * 2); ctx.stroke();
       }
     }
@@ -475,9 +461,9 @@ function draw(ctx: CanvasRenderingContext2D, p: Prepared, fr: Frame) {
   };
   const drawLabel = (box: Box, lx: number, ly: number, text: string, alpha: number, strong: boolean) => {
     placed.push(box);
-    ctx.fillStyle = rgba(BG, 0.86 * alpha);
+    ctx.fillStyle = rgba(BG, 0.92 * alpha);
     ctx.fillRect(box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0);
-    ctx.fillStyle = strong ? `rgba(255,255,255,${alpha})` : `rgba(225,228,236,${0.85 * alpha})`;
+    ctx.fillStyle = strong ? `rgba(28,23,20,${alpha})` : `rgba(70,60,54,${alpha})`;
     ctx.fillText(text, lx, ly);
   };
   label(primary, span(f, F.fn - 400, F.fn), true);
@@ -491,21 +477,10 @@ function draw(ctx: CanvasRenderingContext2D, p: Prepared, fr: Frame) {
     if (label(i, reachLabels, false)) named++;
   }
 
-  // Zoomed in, what the camera cuts off fades into the pane's edges; the header band stays clear.
-  const vignette = easeInOut(span(f, F.hold, F.community));
-  if (vignette > 0) {
-    const fade = (x0: number, y0: number, x1: number, y1: number, gx0: number, gy0: number, gx1: number, gy1: number) => {
-      const g = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
-      g.addColorStop(0, rgba(BG, vignette));
-      g.addColorStop(1, rgba(BG, 0));
-      ctx.fillStyle = g;
-      ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
-    };
-    ctx.fillStyle = rgba(BG, vignette);
+  // The breadcrumb's band stays clear once the camera moves.
+  const band = easeInOut(span(f, F.hold, F.community));
+  if (band > 0) {
+    ctx.fillStyle = rgba(BG, band);
     ctx.fillRect(0, 0, w, TOP);
-    fade(0, TOP, w, TOP + 22, 0, TOP, 0, TOP + 22);
-    fade(0, h - BOTTOM - 28, w, h, 0, h - BOTTOM + 4, 0, h - BOTTOM - 28);
-    fade(0, 0, 44, h, 0, 0, 44, 0);
-    fade(w - 44, 0, w, h, w, 0, w - 44, 0);
   }
 }

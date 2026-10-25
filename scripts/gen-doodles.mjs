@@ -134,6 +134,13 @@ const DOODLES = {
     viewBox: "0 0 60 60",
     strokes: [[ring(30, 31, 19, 52, 1.1), 12, 52, { land: 0.04, lift: 0.1 }]],
   },
+  // One pass of the pen, left to right: an underline under a phrase, or a strike through one.
+  pass: {
+    viewBox: "0 0 300 20",
+    strokes: [
+      [[[4, 12], [60, 9], [120, 11], [180, 8], [240, 10], [296, 7]], 7, 71, { land: 0.06, lift: 0.22 }],
+    ],
+  },
   // A tick, as a hand makes it: a short stroke down, then a long one up and away.
   check: {
     viewBox: "0 0 100 80",

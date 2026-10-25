@@ -15,13 +15,12 @@ import { ArrowRight, CaretLeft, CaretRight, CornersOut } from "@phosphor-icons/r
 import { cn } from "@/lib/utils";
 import { InteractContext, TimeContext, type Caption, type Chapter, type Interact } from "./kit";
 import { Doodle } from "@/components/brand/doodles";
-import { underline } from "@/components/brand/doodle-data";
-import { Sticker } from "@/components/brand/sticker";
+import { pass } from "@/components/brand/doodle-data";
 import { ArrowGlyph } from "@/components/brand/pill";
 import { pacedBy } from "./chapters";
 import { preloadRepoSnapshot } from "./repo-map";
 import { pr } from "./chapters-fix";
-import { StageTitle, stageExplore, stageNotes, stageProblem, stagePromise, stageRefused, stageReview, stageRules, stageScan, stageSlop, stageVerified, withPrFacts, withSignInStart } from "./stage-views";
+import { StageTitle, stageBuilt, stageExplore, stageNotes, stageProblem, stagePromise, stageRefused, stageReview, stageRules, stageScan, stageSlop, stageVerified, withPrFacts, withSignInStart } from "./stage-views";
 
 /** How much slower than written the stage plays its animations. The presenter
  *  sets the pace between steps; this only stretches what plays by itself. */
@@ -41,7 +40,7 @@ const PHASES: Phase[] = [
   { name: "Why", by: "0:00", say: "The problem every maintainer here knows, and the promise: contributions a maintainer would actually want.", chapters: [stageProblem, stagePromise] },
   { name: "Find", by: "1:05", say: "Pick an issue that's open to you, and understand the code before touching it.", chapters: [stageScan, stageExplore] },
   { name: "Prove", by: "2:50", say: "It follows the project's rules, stops when they say no, and proves the fix with the project's own tests.", chapters: [withSignInStart(stageRules), stageRefused, stageVerified] },
-  { name: "Ship", by: "5:40", say: "It explains every change, you confirm you understand it, a human publishes, and nothing is hidden.", chapters: [stageReview, withPrFacts(S.pr), stageSlop] },
+  { name: "Ship", by: "5:40", say: "It explains every change, you confirm you understand it, a human publishes, and nothing is hidden.", chapters: [stageReview, withPrFacts(S.pr), stageBuilt, stageSlop] },
 ];
 
 const STEPS = PHASES.flatMap((phase, p) => phase.chapters.map((c) => ({ phase: p, chapter: pacedBy(c, STAGE_PACE) })));
@@ -49,7 +48,7 @@ const STARTS = STEPS.reduce<number[]>((acc, _s, i) => [...acc, i === 0 ? 0 : acc
 const TOTAL = STARTS[STARTS.length - 1] + STEPS[STEPS.length - 1].chapter.duration;
 const PHASE_STARTS = PHASES.map((_p, i) => STARTS[STEPS.findIndex((s) => s.phase === i)]);
 
-const DESIGN = { width: 1180, height: 620 };
+const DESIGN = { width: 1040, height: 560 };
 // Headlines are sized from the app frame, not the window: 3.4% of its width (about 59 px on a
 // 1920 screen). The longest headline is then 88% of the frame, so none ever wraps into a
 // second line that would shrink the frame between stops.
@@ -75,6 +74,15 @@ export function StageDemo() {
   const [started, setStarted] = useState(false);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [scale, setScale] = useState(1);
+  // The presenter drives from the notes window and the keyboard; the on-screen controls show
+  // only while the mouse moves (two seconds), or while one has focus.
+  const [controls, setControls] = useState(false);
+  useEffect(() => {
+    let id = 0;
+    const show = () => { setControls(true); window.clearTimeout(id); id = window.setTimeout(() => setControls(false), 2000); };
+    window.addEventListener("mousemove", show);
+    return () => { window.removeEventListener("mousemove", show); window.clearTimeout(id); };
+  }, []);
   // The Explore stop maps a large repository; fetch its snapshot while the talk opens.
   useEffect(() => { preloadRepoSnapshot().catch(() => {}); }, []);
   const tRef = useRef(0);
@@ -268,10 +276,9 @@ export function StageDemo() {
   // The spotlight: on the button a click stop waits for, otherwise on what the current note is about.
   const currentAt = Math.max(-1, ...step.chapter.captions.filter((c) => c.at <= local).map((c) => c.at));
   const noteSpot = step.chapter.captions.find((c) => c.at === currentAt && c.spot)?.spot;
-  const spotOn = waiting?.kind === "press" ? "[data-waiting]" : noteSpot && !ended ? `[data-spot="${noteSpot}"]` : null;
+  const spotOn = waiting?.kind === "press" ? "[data-waiting]" : waiting?.kind === "next" || ended ? null : noteSpot ? `[data-spot="${noteSpot}"]` : null;
 
   const head = started ? step.chapter.headlines?.filter((h) => h.at <= local).at(-1) : undefined;
-  const headline = head?.text;
   const poster = !started || step.chapter.poster;
   const provenance = started && !ended ? step.chapter.provenance?.filter((h) => h.at <= local).at(-1)?.text : undefined;
 
@@ -285,8 +292,8 @@ export function StageDemo() {
         <a href="/demo" className="btn-primary inline-flex min-h-11 items-center px-6 text-[16px]">Open the product tour</a>
       </div>
       {/* The headline sits on the app's left edge, in the display face: big type does the work. */}
-      <div className="relative z-[70] mx-auto mb-4 shrink-0" style={{ width: DESIGN.width * scale, fontSize: DESIGN.width * scale * HEADLINE_OF_FRAME }}>
-        <StageHeadline key={headline ?? ""} head={head} />
+      <div className="relative z-[70] mx-auto mb-6 shrink-0" style={{ width: DESIGN.width * scale, fontSize: DESIGN.width * scale * HEADLINE_OF_FRAME }}>
+        <StageHeadline head={head} />
       </div>
       <div ref={stageRef} className="relative flex min-h-0 flex-1 items-center justify-center">
         <div ref={canvasRef} style={{ width: DESIGN.width, height: DESIGN.height, zoom: scale }} className={cn("relative shrink-0 rounded-[26px] transition-[background-color,border-color,box-shadow] duration-500", poster ? "overflow-visible border border-transparent bg-ink" : "overflow-hidden border border-border bg-surface shadow-[0_30px_80px_-40px_rgb(28_23_20/0.35)]")}>
@@ -306,26 +313,25 @@ export function StageDemo() {
       </div>
       <Spotlight selector={spotOn} strong={waiting?.kind === "press"} within={canvasRef} />
 
-      {/* Which of the four phases this is (dots, no words), and, outside the app so it
-          never covers it, a quiet arrow when the presenter can move on. */}
-      <div className="relative mt-3 flex h-11 shrink-0 items-center justify-center">
-        {/* Where what's on screen comes from: quiet, outside the app, never over it. */}
-        {provenance && <p key={provenance} className="stage-settle absolute left-0 z-[70] max-w-[40%] truncate rounded-full border border-border bg-surface px-3.5 py-1 text-[13px] font-medium text-paper-dim">{provenance}</p>}
+      {/* Under the app, on its left edge: where what's on screen comes from, the phase dots, and
+          (only while the mouse moves) the arrow to move on. */}
+      <div className="relative mx-auto mt-3 flex h-11 shrink-0 items-center justify-center" style={{ width: DESIGN.width * scale }}>
+        {provenance && <p key={provenance} className="stage-settle absolute left-0 z-[70] max-w-[48%] truncate rounded-full border border-border bg-surface px-3.5 py-1 text-[13px] font-medium text-paper-dim">{provenance}</p>}
         <div aria-hidden className="flex items-center gap-2">
           {PHASES.map((p, i) => (
             <span key={p.name} className={cn("h-1.5 rounded-full transition-all duration-500", i === step.phase ? "w-8 bg-signal" : i < step.phase ? "w-1.5 bg-signal/50" : "w-1.5 bg-border")} />
           ))}
         </div>
         {waiting?.kind === "next" && !ended && (
-          <button type="button" onClick={forward} aria-label="Next step" className="stage-settle absolute right-0 z-[70] grid size-11 place-items-center rounded-full bg-signal text-white transition-transform duration-200 hover:scale-105">
+          <button type="button" onClick={forward} aria-label="Next step" className={cn("absolute right-0 z-[70] grid size-11 place-items-center rounded-full bg-signal text-white transition-opacity duration-300 focus-visible:opacity-100", controls ? "opacity-100" : "opacity-0")}>
             <ArrowRight aria-hidden size={18} weight="bold" />
           </button>
         )}
       </div>
 
       {!started && (
-        // Only before the first step, for the presenter: how to drive it.
-        <div className="pointer-events-auto absolute inset-x-0 bottom-8 mx-auto flex w-fit flex-wrap items-center justify-center gap-2 rounded-full border border-border bg-surface px-2 py-2 text-[13px] text-paper-muted">
+        // Only before the first step, for the presenter, and only while the mouse moves: how to drive it.
+        <div className={cn("pointer-events-auto absolute inset-x-0 bottom-8 mx-auto flex w-fit flex-wrap items-center justify-center gap-2 rounded-full border border-border bg-surface px-2 py-2 text-[13px] text-paper-muted transition-opacity duration-300 focus-within:opacity-100", controls ? "opacity-100" : "opacity-0")}>
           <button type="button" onClick={forward} className="cta-pill" data-size="sm">Begin<span className="cta-pill-arrow"><ArrowGlyph size={13} /></span></button>
           <button type="button" onClick={toggleFullscreen} className="pill" data-quiet><CornersOut aria-hidden size={14} weight="bold" />Full screen</button>
           <button type="button" onClick={openNotes} className="pill" data-quiet>Speaker notes</button>
@@ -336,42 +342,47 @@ export function StageDemo() {
   );
 }
 
-/** A stop's headline in the display face, with at most one personal touch: a word underlined
- *  by hand, or a sticker slapped on the end (both from what the stop already says). */
+/** A stop's headline in the display face, at most one hand underline under a phrase. When it
+ *  changes, the old line fades out (150 ms) before the new one rises in. */
 function StageHeadline({ head }: { head?: Caption }) {
-  if (!head) return <p aria-live="polite" className="display min-h-[1.05em]" />;
-  const { text, mark, sticker } = head;
+  const [shown, setShown] = useState(head);
+  const [leaving, setLeaving] = useState(false);
+  useEffect(() => {
+    if (head === shown) return;
+    if (!shown) { setShown(head); return; }
+    setLeaving(true);
+    const id = window.setTimeout(() => { setShown(head); setLeaving(false); }, 150);
+    return () => window.clearTimeout(id);
+  }, [head, shown]);
+  const text = shown?.text ?? "";
+  const mark = shown?.mark;
   const at = mark ? text.indexOf(mark) : -1;
   return (
-    <p aria-live="polite" className="display stage-headline min-h-[1.05em] whitespace-nowrap leading-[1.02] tracking-[-0.02em] text-paper">
+    <p key={text} aria-live="polite" className={cn("display min-h-[1.05em] whitespace-nowrap leading-[1.02] tracking-[-0.02em] text-paper", leaving ? "opacity-0 transition-opacity duration-150 motion-reduce:transition-none" : "stage-rise")}>
       {at < 0 ? text : (
         <>
           {text.slice(0, at)}
           <span className="relative inline-block whitespace-nowrap">
             {mark}
-            <Doodle doodle={underline} draw="load" delay={420} duration={800} stretch className="absolute -bottom-[0.13em] left-0 h-[0.15em] w-full opacity-80" />
+            <Doodle doodle={pass} draw="load" delay={450} duration={700} stretch className="absolute -bottom-[0.12em] left-0 h-[0.12em] w-full" />
           </span>
           {text.slice(at + (mark?.length ?? 0))}
         </>
-      )}
-      {sticker && (
-        <Sticker tone={sticker.tone ?? "ink"} tilt={sticker.tilt ?? -2} pop="none" className="stage-settle relative -top-[0.3em] ml-[0.35em] align-middle text-[max(13px,0.29em)]">
-          {sticker.text}
-        </Sticker>
       )}
     </p>
   );
 }
 
-const SPOT_PAD = 10; // screen px around the target
-const SMALL = 48; // screen px: a target this short is ringed on its own edge, so the ring stays off its neighbours
+const SPOT_OFFSET = 6; // screen px between the target and its ring
 
-/** With no pointer on stage, what's being clicked or talked about is lit: the rest of
- *  the screen dims and a thick ring sits around the target. Drawn in screen pixels,
- *  outside the scaled canvas, so it reads from the back of a room at any size. It
- *  follows the target as it moves (a pane scrolling, a card fading in). */
+type Rect = { left: number; top: number; width: number; height: number };
+
+/** With no pointer on stage, what's being clicked or talked about is lit: the app window
+ *  dims (only the window; the paper and the headline stay as they are) and a thin cobalt
+ *  ring sits 6 px around the target. Between targets it fades out and in at the new place,
+ *  rather than sliding; on one target it follows as the target moves (a pane scrolling). */
 function Spotlight({ selector, strong, within }: { selector: string | null; strong: boolean; within: RefObject<HTMLDivElement | null> }) {
-  const [box, setBox] = useState<string | null>(null);
+  const [frame, setFrame] = useState<{ clip: Rect; box: Rect; key: string } | null>(null);
   const [on, setOn] = useState(false);
   useEffect(() => {
     const measure = () => {
@@ -383,32 +394,35 @@ function Spotlight({ selector, strong, within }: { selector: string | null; stro
       const hidden = (el: Element) => !el.hasAttribute("data-waiting") && (el.getAttribute("aria-hidden") === "true" || (el.children.length > 0 && [...el.children].every((c) => c.getAttribute("aria-hidden") === "true")));
       const rects = selector && canvas ? [...canvas.querySelectorAll(selector)].filter((el) => !hidden(el)).map((el) => el.getBoundingClientRect()).filter((b) => b.width > 0) : [];
       if (!canvas || rects.length === 0) { setOn(false); return; }
-      const r = { left: Math.min(...rects.map((b) => b.left)), top: Math.min(...rects.map((b) => b.top)), right: Math.max(...rects.map((b) => b.right)), bottom: Math.max(...rects.map((b) => b.bottom)), width: 1 };
       const c = canvas.getBoundingClientRect();
       // Kept to the app window: a long list lights only the part on screen.
-      const small = r.bottom - r.top < SMALL && r.right - r.left < SMALL * 3;
-      const pad = small ? 0 : SPOT_PAD;
-      const left = Math.max(r.left, c.left) - pad, top = Math.max(r.top, c.top) - pad;
-      const right = Math.min(r.right, c.right) + pad, bottom = Math.min(r.bottom, c.bottom) + pad;
-      const next = r.width > 0 && right > left && bottom > top ? `${left}|${top}|${right - left}|${bottom - top}|${small ? 1 : 0}` : null;
-      setOn(next !== null);
-      if (next) setBox((prev) => (prev === next ? prev : next));
+      const left = Math.max(Math.min(...rects.map((b) => b.left)), c.left) - SPOT_OFFSET;
+      const top = Math.max(Math.min(...rects.map((b) => b.top)), c.top) - SPOT_OFFSET;
+      const right = Math.min(Math.max(...rects.map((b) => b.right)), c.right) + SPOT_OFFSET;
+      const bottom = Math.min(Math.max(...rects.map((b) => b.bottom)), c.bottom) + SPOT_OFFSET;
+      if (right <= left || bottom <= top) { setOn(false); return; }
+      const clip = { left: c.left, top: c.top, width: c.width, height: c.height };
+      const box = { left: left - c.left, top: top - c.top, width: right - left, height: bottom - top };
+      const key = [clip.left, clip.top, clip.width, clip.height, box.left, box.top, box.width, box.height].map(Math.round).join("|");
+      setFrame((prev) => (prev?.key === key ? prev : { clip, box, key }));
+      setOn(true);
     };
-    measure();
+    // A new target: fade out, then appear at its place.
+    setOn(false);
     if (!selector) return;
-    const id = window.setInterval(measure, 100);
-    return () => window.clearInterval(id);
+    let id = 0;
+    const start = window.setTimeout(() => { measure(); id = window.setInterval(measure, 100); }, 120);
+    return () => { window.clearTimeout(start); window.clearInterval(id); };
   }, [selector, within]);
-  if (!box) return null;
-  const [left, top, width, height, small] = box.split("|").map(Number);
-  const frame = { left, top, width, height };
-  const shape = cn("fixed z-[60] transition-[left,top,width,height] duration-[350ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none", small ? "rounded-[8px]" : "rounded-[16px]");
-  // A small target's ring sits on its own edge (inside), a big one's around it.
-  const ring = small ? "inset 0 0 0 3px var(--color-signal), 0 0 22px 4px rgb(35 56 230 / 0.4), 0 0 48px 14px rgb(255 250 246 / 0.35)" : "inset 0 0 0 3px var(--color-surface), 0 0 0 6px var(--color-signal), 0 0 28px 8px rgb(35 56 230 / 0.3), 0 0 64px 20px rgb(255 250 246 / 0.3)";
+  if (!frame) return null;
+  const { clip, box } = frame;
   return (
-    <div aria-hidden className={cn("pointer-events-none transition-opacity duration-300 ease-out motion-reduce:transition-none", on ? "opacity-100" : "opacity-0")}>
-      <div data-spotlight={on ? (strong ? "click" : "note") : undefined} className={shape} style={{ ...frame, boxShadow: `0 0 0 9999px rgb(28 23 20 / ${strong ? 0.5 : 0.32})` }} />
-      <div className={cn(shape, "animate-pulse motion-reduce:animate-none")} style={{ ...frame, boxShadow: ring }} />
+    <div aria-hidden className="pointer-events-none fixed z-[60] overflow-hidden rounded-[26px]" style={clip}>
+      <div
+        data-spotlight={on ? (strong ? "click" : "note") : undefined}
+        className={cn("absolute rounded-[12px] transition-opacity duration-[120ms] motion-reduce:transition-none", on ? "opacity-100" : "opacity-0")}
+        style={{ ...box, boxShadow: `0 0 0 2px var(--color-signal), 0 0 0 9999px rgb(28 23 20 / ${strong ? 0.5 : 0.32})` }}
+      />
     </div>
   );
 }

@@ -11,7 +11,7 @@
 // The notes carry the pitch: the guided path for someone new to open source, and
 // why maintainers can trust what it sends them.
 
-import { ArrowUp, Sparkle } from "@phosphor-icons/react";
+import { ArrowUp } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { StatusChip } from "@/components/status-dot";
 import { AppWindow, Pips, Press, Reveal, SCOPE_LABEL, SCOPE_TONE, SEVERITY_TONE, TimeContext, Typed, progress, useFollow, useT, type Caption, type Chapter } from "./kit";
@@ -19,7 +19,7 @@ import { MAP_FOCUS_LENGTH, RepoMap } from "./repo-map";
 import { DEMO_PUBLISH_STEPS, Published, Term } from "./chapters-fix";
 import { useEffect, useState, type ReactNode } from "react";
 import { Doodle } from "@/components/brand/doodles";
-import { arrow, check } from "@/components/brand/doodle-data";
+import { arrow, check, o, pass } from "@/components/brand/doodle-data";
 import { Wordmark } from "@/components/brand/wordmark";
 import { DIAGNOSIS, PATCH_STATS, RISK } from "./data";
 import { projectRules, RULE_STATUS_LABEL, type RuleStatus } from "@/lib/project-rules";
@@ -65,11 +65,11 @@ function ScanView() {
         <div className="rounded-xl border border-border-soft bg-surface">
           <div className="flex items-end justify-between gap-4 border-b border-border-soft px-4 py-3">
             <div>
-              <p className="text-[11px] font-medium text-signal">Scan complete</p>
+              <p className="text-[13px] font-medium text-signal">Scan complete</p>
               <p className="text-[16px] font-semibold text-paper">{SCAN_REPO}</p>
-              <p className="text-[12px] text-paper-muted"><span className="font-medium text-paper">{SCAN.length}</span> open issues; <span className="font-medium text-signal">{READY.length}</span> ready for an automated attempt.</p>
+              <p className="text-[13px] text-paper-muted"><span className="font-medium text-paper">{SCAN.length}</span> open issues; <span className="font-medium text-signal">{READY.length}</span> ready for an automated attempt.</p>
             </div>
-            <div className="text-[11px]">
+            <div className="text-[13px]">
               <p className="mb-1 text-paper-muted">Readiness</p>
               <div className="inline-flex overflow-hidden rounded-lg border border-border">
                 <Press at={SHOW_READY_AT} className={cn("px-2.5 py-1", !all ? "bg-paper font-medium text-surface" : "text-paper-dim")}>Ready ({READY.length})</Press>
@@ -84,14 +84,14 @@ function ScanView() {
               return (
                 <Reveal key={r.number} at={at} className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-2.5", r.reason && "opacity-70")}>
                   <div className="min-w-0">
-                    <p className="flex flex-wrap items-center gap-1.5 text-[10.5px] text-paper-muted">
+                    <p className="flex flex-wrap items-center gap-1.5 text-[13px] text-paper-muted">
                       <span className="text-paper-dim">#{r.number}</span><span>Opened {r.opened}</span>
                       <span className="tag" data-tone="info">{r.category}</span>
                       {r.labels.filter((l) => l !== r.category).map((l) => <span key={l} className="tag">{l}</span>)}
                     </p>
                     <p className="mt-0.5 truncate text-[13px] font-medium text-paper">{r.title}</p>
                     {!r.reason && (
-                      <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] text-paper-muted">
+                      <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-paper-muted">
                         <span className="inline-flex items-center gap-1"><span className="text-paper-faint">Likely change</span><StatusChip tone={SCOPE_TONE[r.scope!] ?? "muted"}>{SCOPE_LABEL[r.scope!] ?? r.scope}</StatusChip></span>
                         <span className="inline-flex items-center gap-1"><span className="text-paper-faint">Risk</span><StatusChip tone={SEVERITY_TONE[r.risk!]}>{r.risk}</StatusChip></span>
                         <span className="inline-flex items-center gap-1"><span className="text-paper-faint">Complexity</span><Pips value={r.complexity!} /></span>
@@ -99,12 +99,12 @@ function ScanView() {
                         <StatusChip tone="ok">Ready</StatusChip>
                       </p>
                     )}
-                    {r.reason && <p className="mt-1 text-[10.5px]"><StatusChip tone="muted">Needs review</StatusChip></p>}
+                    {r.reason && <p className="mt-1 text-[13px]"><StatusChip tone="muted">Needs review</StatusChip></p>}
                   </div>
                   {r.reason ? (
-                    <p className="max-w-[300px] text-[11px] leading-[1.45] text-paper-dim">{r.reason}</p>
+                    <p className="max-w-[300px] text-[13px] leading-[1.45] text-paper-dim">{r.reason}</p>
                   ) : (
-                    <span className="flex gap-1.5 text-[11px]">
+                    <span className="flex gap-1.5 text-[13px]">
                       <span className="rounded-full border border-border px-2.5 py-0.5 text-paper-dim">Preview patch</span>
                       <span className="rounded-full border border-signal/40 bg-signal/10 px-2.5 py-0.5 font-medium text-signal">Fix it (you review first)</span>
                     </span>
@@ -127,7 +127,7 @@ export const stageScan: Chapter = {
   duration: SHOW_READY_AT + 3000,
   source: "Example scan; the verdicts are the scanner's own",
   provenance: [{ at: 0, text: "Example scan · the scanner's own verdicts" }],
-  headlines: [{ at: 0, text: "It only picks issues that are open to you.", mark: "open to you" }],
+  headlines: [{ at: 0, text: "It only picks issues that are open to you." }],
   captions: [
     { at: 0, text: "Step one: an issue that's actually open to a newcomer. Claude Code assumes you already have one." },
     { at: SHOW_ALL_AT, text: "Show everything it found, including what it filtered out, and why." },
@@ -207,19 +207,21 @@ function AskPanel({ turns, text = GRAPH_PANEL }: { turns: TimedTurn[]; text?: Pa
   const scrollRef = useFollow(beat);
   // Once the conversation has scrolled, what leaves at the top fades out instead of being sliced.
   const [scrolled, setScrolled] = useState(false);
-  useEffect(() => { setScrolled((scrollRef.current?.scrollTop ?? 0) > 1); }, [beat, scrollRef]);
+  useEffect(() => {
+    const pane = scrollRef.current;
+    const answer = pane?.querySelector<HTMLElement>("[data-spot=answer]");
+    if (pane && answer && answer.offsetTop - pane.offsetTop < pane.scrollTop) pane.scrollTop = answer.offsetTop - pane.offsetTop - 8;
+    setScrolled((pane?.scrollTop ?? 0) > 1);
+  }, [beat, scrollRef]);
   const typing = turns.find((turn) => t >= turn.typeAt && t < turn.askAt + 150);
-  const costs = turns.every((turn) => turn.cost);
-  const spent = turns.filter((turn) => t >= turn.doneAt).reduce((sum, turn) => sum + Number((turn.cost ?? "$0").slice(1)), 0);
   return (
     <section data-spot="ask" aria-label="Ask in plain English" className="flex h-full min-h-0 flex-col rounded-xl border border-border-soft bg-surface">
       <div className="flex items-center gap-2 border-b border-border-soft px-4 py-2.5">
-        <span className="grid size-7 place-items-center rounded-lg bg-signal text-white"><Sparkle aria-hidden size={15} weight="fill" /></span>
+        <Doodle doodle={o} className="size-6 shrink-0 text-signal" />
         <div className="min-w-0 flex-1">
           <p className="text-[15px] font-semibold leading-tight text-paper">{text.title}</p>
-          <p className="text-[12px] leading-tight text-paper-muted">{text.subtitle}</p>
+          <p className="text-[13px] leading-tight text-paper-muted">{text.subtitle}</p>
         </div>
-        {costs && <span className="font-mono text-[12px] text-ok">${spent.toFixed(4)}</span>}
       </div>
       <div ref={scrollRef} className={cn("min-h-0 flex-1 space-y-3 overflow-hidden px-4 py-3", scrolled && "[mask-image:linear-gradient(to_bottom,transparent_0,transparent_20px,#000_72px)]")}>
         {/* The intro gives way once a question is asked, as in a chat, so the answer has the room. */}
@@ -235,8 +237,8 @@ function AskPanel({ turns, text = GRAPH_PANEL }: { turns: TimedTurn[]; text?: Pa
               <div data-spot="answer" className="mr-4 rounded-2xl rounded-tl-md border border-border-soft bg-surface px-3 py-2.5 text-[14px] leading-[1.5] text-paper">
                 {turn.lesson ? <LessonTyped lesson={turn.lesson} at={turn.answerAt} cps={ANSWER_CPS} /> : <Typed text={turn.answer} at={turn.answerAt} cps={ANSWER_CPS} />}
                 <Reveal at={turn.doneAt} className="mt-2 flex flex-wrap items-center gap-1.5">
-                  {turn.cites.map((c) => <span key={c} className="rounded-md bg-signal/10 px-1.5 py-0.5 font-mono text-[11.5px] text-signal">{c}</span>)}
-                  {turn.cost && <span className="ml-auto font-mono text-[11.5px] text-paper-muted">{turn.cost}</span>}
+                  {turn.cites.map((c) => <span key={c} className="rounded-md bg-signal/10 px-1.5 py-0.5 font-mono text-[13px] text-signal">{c}</span>)}
+                  {turn.cost && <span className="ml-auto font-mono text-[13px] text-paper-muted">{turn.cost}</span>}
                 </Reveal>
               </div>
             )}
@@ -268,7 +270,6 @@ const BUILT_AT = 3600;
 // full answer). The lesson's lines verbatim, trimmed with "…"; the cites and cost are the run's.
 const MAP_LESSON: Lesson = [
   ["In short:", "render_template() converts template names into rendered HTML strings. It's used by 31 places across Flask—mainly route handlers that return templated pages—and changing it could break any view that displays dynamic content."],
-  ["Where it lives:", "src/flask/templating.py:L136"],
   ["If you change it:", "… Run tests/test_views.py and tests/test_signals.py first—they directly test template rendering and context injection"],
   ["Try this:", "Open src/flask/templating.py and look at the _render() function just above render_template() at L123 to see what it actually does."],
 ];
@@ -291,18 +292,18 @@ function StageExploreView() {
     <AppWindow path={`/graph?repo=${MAP_REPO}`} section="Explore">
       <div className="flex h-full flex-col overflow-hidden px-4 py-3 sm:px-6">
         <div className="flex items-center gap-2">
-          <span className="min-w-0 flex-1 rounded-md border border-border bg-surface px-2.5 py-1 font-mono text-[12px] text-paper">{MAP_REPO}</span>
-          <Press at={650} className="rounded-full bg-paper px-3 py-1 text-[12px] font-medium text-surface">{t >= 700 && !built ? "building..." : built ? "Rebuild graph" : "Build graph"}</Press>
-          {built && <span className="text-[11.5px] text-ok">● ready · parsed, no AI</span>}
+          <span className="min-w-0 flex-1 rounded-md border border-border bg-surface px-2.5 py-1 font-mono text-[13px] text-paper">{MAP_REPO}</span>
+          <Press at={650} className="rounded-full bg-paper px-3 py-1 text-[13px] font-medium text-surface">{t >= 700 && !built ? "building..." : built ? "Rebuild graph" : "Build graph"}</Press>
+          {built && <span className="text-[13px] text-ok">● ready · parsed, no AI</span>}
         </div>
         {!built && t >= 700 && (
           <div className="mt-3 rounded-xl border border-border-soft bg-surface p-3">
-            <div className="flex items-center justify-between text-[12px]"><span className="text-paper">Reading the source files</span><span className="font-mono text-signal">{pct}%</span></div>
+            <div className="flex items-center justify-between text-[13px]"><span className="text-paper">Reading the source files</span><span className="font-mono text-signal">{pct}%</span></div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-3"><div className="h-full rounded-full bg-signal" style={{ width: `${pct}%` }} /></div>
           </div>
         )}
         {built && (
-          <div className="mt-3 grid min-h-0 flex-1 grid-cols-[57fr_43fr] gap-3">
+          <div className="mt-3 grid min-h-0 flex-1 grid-cols-[52fr_48fr] gap-3">
             <div data-spot="graph" className="relative min-h-0 overflow-hidden rounded-xl border border-border-soft">
               <RepoMap buildAt={BUILT_AT + 100} focusAt={FOCUS_AT} />
             </div>
@@ -321,7 +322,7 @@ export const stageExplore: Chapter = {
   title: "Ask the code in plain English",
   duration: FOCUS_AT + MAP_FOCUS_LENGTH + 2500,
   source: "The real pallets/flask graph and a real Explore answer; the zoom is drawn for the stage",
-  provenance: [{ at: 0, text: "Real repository: pallets/flask · real answer" }],
+  provenance: [{ at: 0, text: "pallets/flask · real answer · zoom drawn for the talk" }],
   headlines: [
     { at: 0, text: "Understand the code before you change it." },
     { at: FIRST.turns[0].typeAt, text: "Ask about it in plain English." },
@@ -352,7 +353,7 @@ function staged(chapter: Chapter, headlines: Caption[], captions: Caption[]): Ch
 /** The review and the pull request as the stage tells them. */
 export function stageNotes(base: { pr: Chapter }) {
   return {
-    pr: withProvenance(staged(base.pr, [{ at: 0, text: "The maintainer always knows AI helped.", sticker: { text: "Real PR #7", tone: "signal", tilt: -2 } }], [
+    pr: withProvenance(staged(base.pr, [{ at: 0, text: "The maintainer always knows AI helped." }], [
       { at: 0, spot: "pr-facts", text: "Every GitHub step done right: its own branch, your private noreply email, the right base branch, and a description that closes the issue." },
       { at: 5800, spot: "pr-verified", text: "The description shows the tests it ran and the result: verified." },
       { at: 7400, spot: "pr-ai", text: "And it discloses itself: who asked, which model, what was and wasn't tested, plus an Assisted-by trailer and a sign-off where the project asks." },
@@ -386,13 +387,13 @@ export function withPrFacts(chapter: Chapter): Chapter {
     return (
       <div className="relative h-full">
         <Inner />
-        {t < FACTS_GONE_AT + 400 && <div style={{ opacity: 1 - progress(t, FACTS_GONE_AT, FACTS_GONE_AT + 400) }}><Reveal at={FACTS_AT} spot="pr-facts" className="absolute bottom-5 right-5 z-10 w-[400px] rounded-2xl border border-border-soft bg-surface/95 p-4 shadow-[0_20px_50px_-20px_rgb(0_0_0/0.35)] backdrop-blur">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-signal">What it did on GitHub</p>
+        {t < FACTS_GONE_AT + 400 && <div style={{ opacity: 1 - progress(t, FACTS_GONE_AT, FACTS_GONE_AT + 400) }}><Reveal at={FACTS_AT} spot="pr-facts" className="absolute bottom-5 right-5 z-10 w-[360px] rounded-2xl border border-border bg-surface p-4">
+          <p className="text-[13px] font-semibold uppercase tracking-[0.08em] text-signal">What it did on GitHub</p>
           <dl className="mt-2 space-y-1.5">
             {PR_FACTS.map(([k, v], i) => (
-              <Reveal key={k} at={FACTS_AT + 300 + i * 450} className="grid grid-cols-[110px_minmax(0,1fr)] gap-2 text-[12.5px]">
+              <Reveal key={k} at={FACTS_AT + 300 + i * 450} className="grid grid-cols-[110px_minmax(0,1fr)] gap-2 text-[13px]">
                 <dt className="text-paper-muted">{k}</dt>
-                <dd className="break-all font-mono text-[11.5px] text-paper">{v}</dd>
+                <dd className="break-words font-mono text-[13px] text-paper">{v}</dd>
               </Reveal>
             ))}
           </dl>
@@ -425,14 +426,11 @@ function Redacted({ children }: { children: string }) {
 function MaintainerView() {
   return (
     <AppWindow path="/dispatches" section="Fix" tab="Runs">
-      <div className="flex h-full justify-center px-6 pb-6 pt-[9%]">
-        <div className="w-full max-w-[860px] space-y-4">
-        <Reveal at={MAINT_AT + 300}>
-          <p className="text-[18px] leading-snug text-paper">On a real issue in a major open-source project, a maintainer replied asking for a human-written pull request. opensrcer read the thread and refused to publish.</p>
-        </Reveal>
-        <Reveal at={MAINT_AT + 1800} spot="maint" className="rounded-2xl border border-border-soft bg-surface px-5 py-4 text-[15px] shadow-[0_18px_40px_-24px_rgb(0_0_0/0.35)]">
-          <p className="text-[16px] font-medium text-paper">Review before publishing</p>
-          <p role="alert" className="mt-2 rounded-lg border border-alert/30 bg-alert/5 px-3 py-2.5 leading-relaxed text-alert">
+      <div className="flex h-full justify-center px-6 pb-6 pt-[6%]">
+        <div className="w-full max-w-[820px]">
+        <Reveal at={MAINT_AT + 600} spot="maint" className="rounded-2xl border border-border bg-surface px-6 py-5">
+          <p className="text-[19px] font-medium text-paper">Review before publishing</p>
+          <p role="alert" className="mt-3 rounded-lg border border-alert/30 bg-alert/5 px-4 py-3 text-[19px] leading-relaxed text-alert">
             Blocked: a maintainer asked for human-written work on this issue (@<Redacted>{NAME_HIDDEN}</Redacted>: &quot;<Redacted>{QUOTE_HIDDEN}</Redacted>&quot;). opensrcer won&apos;t open an AI-assisted pull request here; you can still use this preview to write the fix yourself
           </p>
         </Reveal>
@@ -449,7 +447,7 @@ function RefusedView() {
       <div className="p-6">
         <div data-spot="refusal" className="mx-auto max-w-[860px] overflow-hidden rounded-2xl border border-border-soft bg-surface">
           <div className="border-b border-border px-5 py-3">
-            <p className="text-[13px] text-paper-muted">{BAN_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[11px] text-info">#412</span></p>
+            <p className="text-[13px] text-paper-muted">{BAN_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[13px] text-info">#412</span></p>
             <p className="mt-0.5 text-[17px] font-medium text-paper">Form reset doesn&apos;t clear validation errors</p>
           </div>
           <Reveal at={400} className="px-5 py-4 text-[15px]">
@@ -473,7 +471,7 @@ export const stageRefused: Chapter = {
   title: "When it says no",
   duration: MAINT_AT + 7500,
   source: "Example: a fictional project whose guide bans AI; then a real issue, names hidden",
-  headlines: [{ at: 0, text: "And when the rules say no, it stops." }, { at: MAINT_AT, text: "It listens to maintainers, even in the comments.", sticker: { text: "Names hidden", tone: "paper", tilt: 2 } }],
+  headlines: [{ at: 0, text: "And when the rules say no, it stops." }, { at: MAINT_AT, text: "It listens to maintainers, even in the comments." }],
   provenance: [{ at: 0, text: "Example project" }, { at: MAINT_AT, text: "Real issue · names hidden" }],
   captions: [
     { at: 0, spot: "refusal", text: "And it says no. This guide bans AI-written pull requests, so publishing is refused, quoting the guide, with no Publish button. Same when someone else already has a pull request open." },
@@ -482,19 +480,46 @@ export const stageRefused: Chapter = {
   View: RefusedView,
 };
 
+// ── How it was built ──────────────────────────────────────────────────────
+
+// The presenter's own statement (Rahul's words; no provenance pill): no logos, just the name.
+function BuiltView() {
+  return (
+    <div className="flex h-full items-center justify-between gap-12 bg-ink">
+      <Reveal at={300}>
+        <p className="max-w-[560px] text-[24px] leading-[1.45] text-paper">I used GitHub Copilot mostly for scaffolding. What it drafted, I reviewed and own.</p>
+      </Reveal>
+      <CodeMap className="w-[320px] shrink-0" />
+    </div>
+  );
+}
+
+export const stageBuilt: Chapter = {
+  id: "built",
+  act: "Ship",
+  label: "How it was built",
+  title: "Built the way it asks you to build",
+  duration: 6500,
+  source: "The presenter, on how opensrcer was built",
+  poster: true,
+  headlines: [{ at: 0, text: "Built the way it asks you to build." }],
+  captions: [
+    { at: 0, text: "One more thing. I built opensrcer with an AI assistant too: GitHub Copilot, mostly for scaffolding. Everything it drafted, I reviewed and own. That's the same bar opensrcer holds every contributor to." },
+  ],
+  View: BuiltView,
+};
+
 // ── Close: why this isn't AI slop ───────────────────────────────────────────
 
 // Each row is something opensrcer does today (on the hosted site unless it says otherwise).
+// The three the talk has shown; the notes window carries the rest if asked.
 const SLOP: Array<[string, string]> = [
-  ["Nobody asked for it", "Steers you to issues that are open to you: it flags assigned, already-fixed and vague issues, and refuses where the guide bans AI or a maintainer on the issue asks for human-written work."],
-  ["Someone's already on it", "It won't publish while another pull request targets the issue."],
-  ["The sender can't explain it", "Nothing publishes until you explain the change in your own words, checked against the diff, and answer a practice review. The chat helps you get there."],
-  ["Hidden AI", "Every pull request says who asked, which model, and what was and wasn't tested."],
-  ["Untested", "It runs the project's tests in a machine with no credentials and re-runs them on the final patch; when the fix adds a test, it checks that test fails without the fix. No test it can run? It says unverified."],
-  ["Sent in bulk", "Always a draft, with you as the author. One open pull request per project per person, and at most three a day."],
+  ["Nobody asked for it", "It steers you to issues that are open to you, and refuses where the guide bans AI or a maintainer asks for human-written work."],
+  ["The sender can't explain it", "Nothing publishes until you explain the change in your own words and answer a practice review."],
+  ["Untested", "It runs the project's tests on the final patch, and checks the new test fails without the fix."],
 ];
 const SLOP_STEP = 500;
-const SLOP_LINE_AT = 700 + 6 * SLOP_STEP + 400; // after the last row
+const SLOP_LINE_AT = 700 + SLOP.length * SLOP_STEP + 400; // after the last row
 
 // The closing line, inked in word by word once the rows have had their moment.
 const CLOSE_AT = SLOP_LINE_AT + 2600;
@@ -504,13 +529,15 @@ function SlopView() {
   const t = useT();
   if (t >= CLOSE_AT) return <CloseView />;
   return (
-    <div className="flex h-full flex-col justify-center bg-ink px-12 py-10">
-      <Reveal at={150}><p className="display text-[34px] leading-tight tracking-[-0.02em] text-paper">What makes an AI pull request slop, and what opensrcer does about it</p></Reveal>
-      <div className="mt-6 divide-y divide-border rounded-[22px] border border-border bg-surface">
+    <div className="flex h-full flex-col justify-center bg-ink">
+      <div className="divide-y divide-border">
         {SLOP.map(([problem, answer], i) => (
-          <Reveal key={problem} at={700 + i * SLOP_STEP} className="grid grid-cols-[260px_minmax(0,1fr)] items-baseline gap-6 px-6 py-3.5">
-            <p className="text-[18px] font-semibold text-alert">{problem}</p>
-            <p className="text-[18px] leading-[1.4] text-paper">{answer}</p>
+          <Reveal key={problem} at={700 + i * SLOP_STEP} className="grid grid-cols-[320px_minmax(0,1fr)] items-baseline gap-10 py-7">
+            <p className="relative w-fit text-[22px] font-medium text-paper-faint">
+              {problem}
+              {t >= 700 + i * SLOP_STEP + 450 && <Doodle doodle={pass} draw="load" duration={600} tone="current" stretch className="absolute left-[-3%] top-[52%] h-[0.32em] w-[106%] text-paper-muted" />}
+            </p>
+            <p className="text-[20px] leading-[1.4] text-paper">{answer}</p>
           </Reveal>
         ))}
       </div>
@@ -521,16 +548,17 @@ function SlopView() {
 function CloseView() {
   let i = 0;
   return (
-    <div className="stage-enter relative flex h-full flex-col justify-center bg-ink px-16">
-      <Wordmark className="absolute left-16 top-12 text-[30px] text-paper" />
-      <CodeMap className="absolute right-12 top-14 w-[420px]" />
-      <p className="display text-[96px] leading-[1.02] tracking-[-0.025em] text-paper">
+    <div className="stage-enter relative flex h-full flex-col justify-end bg-ink pb-12">
+      <Wordmark className="absolute left-0 top-6 text-[40px] text-paper" />
+      <CodeMap className="absolute right-0 top-4 w-[360px]" />
+      <p className="display text-[100px] leading-[1] tracking-[-0.025em] text-paper">
         {CLOSE_LINES.map((line, l) => (
           <span key={line} className={cn("block", l === 1 && "text-signal [--ink-to:var(--color-signal)]")}>
             {line.split(" ").map((word) => <span key={word + i} className="stage-ink" style={{ "--d": `${300 + i++ * 140}ms` } as React.CSSProperties}>{word} </span>)}
           </span>
         ))}
       </p>
+      <p className="mt-8 font-mono text-[20px] text-paper-muted">opensrced.vercel.app</p>
     </div>
   );
 }
@@ -543,11 +571,11 @@ export const stageSlop: Chapter = {
   duration: SLOP_LINE_AT + 7500,
   source: "What opensrcer does today",
   poster: true,
-  headlines: [{ at: SLOP_LINE_AT, text: "Not more pull requests. Better ones." }, { at: CLOSE_AT, text: "" }],
+  headlines: [{ at: 0, text: "What slop is made of, and what opensrcer does instead." }, { at: CLOSE_AT, text: "" }],
   captions: [
     { at: 0, text: "Back to where we started: what slop is made of, and what opensrcer does about each." },
-    { at: 700 + 2 * SLOP_STEP, text: "The heart of it: you can't publish what you can't explain, and the chat is there so you can." },
-    { at: 700 + 5 * SLOP_STEP, text: "It's built to make better contributors, not more pull requests. Thank you." },
+    { at: 700 + 1 * SLOP_STEP, text: "The heart of it: you can't publish what you can't explain, and the chat is there so you can. (The rest, if asked: one pull request per project, drafts only, and every PR says what was and wasn't tested.)" },
+    { at: CLOSE_AT, text: "It's built to make better contributors, not more pull requests. Thank you." },
   ],
   View: SlopView,
 };
@@ -558,13 +586,15 @@ export const stageSlop: Chapter = {
 // questions: "[verify] re-running 1 test and 0 lint command(s) on the final patch",
 // "status=verified regression=reproduced", node --test exit=0 (6 pass), and with the source
 // change reverted exit=1 (2 fail: "The quick br…" instead of "The quick…").
-const PROOF = [
+const PROOF: Array<{ at: number; text: string; verify?: true; receipt?: string }> = [
   { at: 600, text: "Started a separate test machine with no passwords or keys. It can only reach package registries and GitHub." },
   { at: 2200, text: "Installed what the project needs." },
-  { at: 3800, text: "Ran the project's own tests on the fix: they pass.", verify: true },
-  { at: 5800, text: "Undid the fix and ran them again: the new tests fail. So they really catch the bug.", verify: true },
+  { at: 3800, text: "Ran the project's own tests on the fix: they pass.", verify: true, receipt: "node --test · exit 0 · 6/6 pass" },
+  { at: 5800, text: "Undid the fix and ran them again: the new tests fail. So they really catch the bug.", verify: true, receipt: "fix reverted · node --test · exit 1 · 2 fail" },
   { at: 8000, text: "Ready for your review. Nothing has been published." },
 ];
+// The tick, drawn by hand beside the proof that the new tests catch the bug.
+const TICK_AT = 5800 + 1400;
 const VERIFY_AT = 3800;
 const PROOF_DONE_AT = 8000;
 
@@ -576,20 +606,16 @@ function VerifiedView() {
       <div className="flex h-full flex-col gap-4 p-5">
         <div className="flex items-start justify-between gap-3 rounded-2xl border border-border-soft bg-surface px-5 py-4">
           <div className="min-w-0">
-            <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[11px] text-info">#2</span></p>
+            <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[13px] text-info">#2</span></p>
             <p className="mt-0.5 truncate text-[18px] font-medium text-paper">truncate cuts mid-word and returns more than max characters</p>
           </div>
-          {verified ? (
-            <span className="relative">
-              <span className="stage-settle"><StatusChip tone="ok">verified</StatusChip></span>
-              <Doodle doodle={check} draw="load" delay={250} duration={700} tone="current" className="absolute -left-9 -top-2 h-7 w-9 text-ok opacity-80" />
-            </span>
-          ) : <StatusChip tone="signal">testing</StatusChip>}
+          {verified ? <span className="stage-settle"><StatusChip tone="ok">verified</StatusChip></span> : <StatusChip tone="signal">testing</StatusChip>}
         </div>
-        <ol className="space-y-3">
+        <ol className="space-y-2.5">
           {PROOF.filter((p) => !p.verify).slice(0, 2).map((p) => <ProofStep key={p.text} {...p} />)}
-          <li data-spot="verify" className="space-y-3">
+          <li data-spot="verify" className="relative space-y-2.5">
             {PROOF.filter((p) => p.verify).map((p) => <ProofStep key={p.text} {...p} />)}
+            {t >= TICK_AT && <Doodle doodle={check} draw="load" duration={800} className="absolute bottom-3 right-6 h-[64px] w-[80px] text-signal" />}
           </li>
           <ProofStep {...PROOF[PROOF.length - 1]} />
         </ol>
@@ -598,11 +624,15 @@ function VerifiedView() {
   );
 }
 
-function ProofStep({ at, text }: { at: number; text: string }) {
+function ProofStep({ at, text, verify, receipt }: { at: number; text: string; verify?: true; receipt?: string }) {
   return (
-    <Reveal at={at} className="flex items-start gap-3 rounded-xl border border-border-soft bg-surface px-4 py-3 text-[17px] leading-snug text-paper">
-      <span aria-hidden className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-ok/15 text-[13px] font-semibold text-ok">✓</span>
-      <span>{text}</span>
+    <Reveal at={at} className="flex items-start gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-[17px] leading-snug text-paper">
+      {/* A tick only where something was checked; the other steps are just what happened. */}
+      {verify ? <span aria-hidden className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-ok/15 text-[13px] font-semibold text-ok">✓</span> : <span aria-hidden className="mt-2.5 size-1.5 shrink-0 rounded-full bg-border-strong" />}
+      <span className="min-w-0">
+        {text}
+        {receipt && <span className="mt-2 block w-fit rounded-md bg-surface-2 px-2.5 py-1 font-mono text-[16px] text-paper-dim">{receipt}</span>}
+      </span>
     </Reveal>
   );
 }
@@ -637,20 +667,17 @@ const SLOP_PRS: Array<{ title: string; size: string; flags: string[] }> = [
 
 function ProblemView() {
   return (
-    <div className="flex h-full flex-col justify-center bg-ink px-14 py-10">
+    <div className="flex h-full flex-col justify-center bg-ink py-6">
       <div className="relative rounded-[22px] border border-border bg-surface">
-        <p className="kicker absolute right-5 top-4 text-paper-faint">Illustration</p>
         <p className="border-b border-border-soft px-6 py-4 text-[16px] font-semibold text-paper">Pull requests <span className="ml-2 font-normal text-paper-muted">214 open</span></p>
         <ul className="divide-y divide-border-soft">
           {SLOP_PRS.map((pr, i) => (
             <Reveal as="li" key={pr.title} at={400 + i * 700} className="flex items-center justify-between gap-6 px-6 py-4">
               <div className="min-w-0">
-                <p className="truncate text-[18px] font-medium text-paper">{pr.title}</p>
-                <p className="mt-1.5 flex flex-wrap gap-2">
-                  {pr.flags.map((f) => <span key={f} className="rounded-full bg-alert/10 px-3 py-0.5 text-[16px] font-medium text-alert">{f}</span>)}
-                </p>
+                <p className="truncate text-[22px] font-medium text-paper">{pr.title}</p>
+                <p className="mt-1 text-[16px] text-alert">{pr.flags.join(" · ")}</p>
               </div>
-              <span className="shrink-0 font-mono text-[14px] text-paper-muted">{pr.size}</span>
+              <span className="shrink-0 text-right font-mono text-[18px] text-paper-muted">{pr.size}</span>
             </Reveal>
           ))}
         </ul>
@@ -666,6 +693,7 @@ export const stageProblem: Chapter = {
   title: "What maintainers are drowning in",
   duration: 400 + SLOP_PRS.length * 700 + 1500,
   source: "An illustration of AI pull requests maintainers describe",
+  provenance: [{ at: 0, text: "Illustration" }],
   poster: true,
   headlines: [{ at: 0, text: "Maintainers are drowning in AI pull requests nobody understood.", mark: "nobody understood" }],
   captions: [
@@ -685,17 +713,18 @@ const PILLARS: Array<[string, string]> = [
 
 function PromiseView() {
   return (
-    <div className="flex h-full flex-col justify-center bg-ink px-16 py-10">
-      <div className="divide-y divide-border">
+    <div className="flex h-full flex-col justify-center bg-ink">
+      <p className="kicker text-[16px] text-paper-muted">A contribution a maintainer would actually want</p>
+      <div className="mt-4 divide-y divide-border">
         {PILLARS.map(([title, text], i) => (
-          <Reveal key={title} at={300 + i * 600} className="grid grid-cols-[minmax(0,1fr)_400px] items-baseline gap-10 py-5">
-            <p className="display text-[64px] leading-none tracking-[-0.02em] text-paper">{title}<span className="text-signal">.</span></p>
-            <p className="text-[20px] leading-snug text-paper-dim">{text}</p>
+          <Reveal key={title} at={150 + i * 600} className="grid grid-cols-[minmax(0,1fr)_360px] items-baseline gap-10 py-5">
+            <p className="display text-[80px] leading-none tracking-[-0.025em] text-paper">{title}{i === PILLARS.length - 1 ? <span className="text-signal">.</span> : "."}</p>
+            <p className="text-[19px] leading-snug text-paper-dim">{text}</p>
           </Reveal>
         ))}
       </div>
-      <Reveal at={300 + PILLARS.length * 600 + 300} className="mt-8">
-        <p className="text-[20px] text-paper-muted">Every run stops for your review. Nothing posts until you confirm.</p>
+      <Reveal at={150 + PILLARS.length * 600 + 300} className="mt-6">
+        <p className="text-[19px] text-paper-muted">Every run stops for your review. Nothing posts until you confirm.</p>
       </Reveal>
     </div>
   );
@@ -706,13 +735,12 @@ export const stagePromise: Chapter = {
   act: "Start",
   label: "The promise",
   title: "Contributions a maintainer would want",
-  duration: 300 + PILLARS.length * 600 + 2000,
+  duration: 150 + PILLARS.length * 600 + 2150,
   source: "What opensrcer is for",
   poster: true,
-  headlines: [{ at: 0, text: "A contribution a maintainer would actually want." }],
   captions: [
     { at: 0, text: "opensrcer helps a beginner make the contribution a maintainer would actually want: tested, explained, and following the project's rules." },
-    { at: 300 + PILLARS.length * 600, text: "Everything from here is the real product, and a real run. Nothing posts until you confirm." },
+    { at: 150 + PILLARS.length * 600, text: "Everything from here is the real product, and a real run. Nothing posts until you confirm." },
   ],
   View: PromiseView,
 };
@@ -735,14 +763,14 @@ const RULES_DONE_AT = 8600;
 function RulesView() {
   return (
     <AppWindow path={`/dispatches?dispatch=${RUN.id}`} section="Fix" tab="Runs">
-      <div className="flex h-full flex-col gap-4 p-5">
-        <div className="rounded-2xl border border-border-soft bg-surface px-5 py-4">
-          <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[11px] text-info">#2</span></p>
+      <div className="flex h-full flex-col gap-3 p-4">
+        <div className="rounded-2xl border border-border bg-surface px-5 py-3">
+          <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[13px] text-info">#2</span></p>
           <p className="mt-0.5 truncate text-[18px] font-medium text-paper">truncate cuts mid-word and returns more than max characters</p>
         </div>
-        <ol className="space-y-3">
+        <ol className="space-y-2">
           <RulesStep {...RULES_FEED[0]} />
-          <li data-spot="rules" className="space-y-3">
+          <li data-spot="rules" className="space-y-2">
             {RULES_FEED.filter((s) => s.rules).map((s) => <RulesStep key={s.text} {...s} />)}
           </li>
           {RULES_FEED.slice(3).map((s) => <RulesStep key={s.text} {...s} />)}
@@ -754,11 +782,11 @@ function RulesView() {
 
 function RulesStep({ at, text, points }: { at: number; text: string; points?: string[] }) {
   return (
-    <Reveal at={at} className="flex items-start gap-3 rounded-xl border border-border-soft bg-surface px-4 py-3 text-[17px] leading-snug text-paper">
-      <span aria-hidden className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-ok/15 text-[13px] font-semibold text-ok">✓</span>
+    <Reveal at={at} className="flex items-start gap-3 rounded-xl border border-border bg-surface px-4 py-2 text-[16px] leading-snug text-paper">
+      <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-border-strong" />
       <span>
         {text}
-        {points && <span className="mt-1.5 block text-[15px] text-paper-dim">{points.map((p) => <span key={p} className="block">· {p}</span>)}</span>}
+        {points && <span className="mt-1 block text-[15px] text-paper-dim">{points.join(" · ")}</span>}
       </span>
     </Reveal>
   );
@@ -772,7 +800,7 @@ export const stageRules: Chapter = {
   duration: RULES_DONE_AT + 2500,
   source: "The real run behind pull request #7, in plain words",
   provenance: [{ at: 0, text: "Real run · Oct 24" }],
-  headlines: [{ at: 0, text: "It reads the project's rules first.", sticker: { text: "Real run", tone: "ink", tilt: -2 } }],
+  headlines: [{ at: 0, text: "It reads the project's rules first." }],
   captions: [
     { at: 0, text: "One click starts the run, in a throwaway machine with a spend cap and a time limit." },
     { at: 2200, spot: "rules", text: "It reads the project's rules first: contribution guide, PR template, AI policy, sign-off. This repo has none, so it follows what the code already does." },
@@ -797,7 +825,7 @@ function SignInView() {
       <div className="flex h-full flex-col gap-4 p-5">
         <div className="flex items-center justify-between gap-4 rounded-2xl border border-border-soft bg-surface px-5 py-4">
           <div className="min-w-0">
-            <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[11px] text-info">#2</span></p>
+            <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[13px] text-info">#2</span></p>
             <p className="mt-0.5 truncate text-[18px] font-medium text-paper">truncate cuts mid-word and returns more than max characters</p>
           </div>
           <Press at={SIGN_IN_PRESS_AT} className="shrink-0 rounded-full border border-signal/50 bg-signal/10 px-4 py-1.5 text-[14px] font-medium text-signal">Sign in with Claude &amp; start</Press>
@@ -881,7 +909,7 @@ const PRACTICE_TIMES = [{ q: 35000, type: 35800, send: 38600, fb: 39200 }, { q: 
 
 function Section({ title, children, spot }: { title: string; children: ReactNode; spot?: string }) {
   return (
-    <div data-spot={spot} className="animate-fade-rise rounded-xl border border-border-soft bg-ink px-4 py-2.5 text-[13px] motion-reduce:animate-none">
+    <div data-spot={spot} className="animate-fade-rise rounded-xl border border-border-soft bg-ink px-4 py-2.5 text-[15px] motion-reduce:animate-none">
       <p className="text-[15px] font-medium text-paper">{title}</p>
       <div className="mt-1.5">{children}</div>
     </div>
@@ -894,11 +922,11 @@ function StageReviewView() {
   const typed = OWN_WORDS_TEXT.slice(0, Math.max(0, Math.min(OWN_WORDS_TEXT.length, Math.floor(((t - R.ownTypeAt) / 1000) * 40))));
   return (
     <AppWindow path={`/dispatches?dispatch=${RUN.id}`} section="Fix" tab="Runs">
-      <div className="absolute inset-0 bg-ink/80 p-3 backdrop-blur-sm">
+      <div className="absolute inset-0 bg-ink p-3">
         <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-border-soft bg-surface">
           <div className="border-b border-border px-4 py-2.5">
             <p className="truncate text-[15px] font-medium text-paper">{RUN.prTitle}</p>
-            <p className="text-[12px] text-paper-muted">{PATCH_STATS.files} files changed · <span className="text-ok">+{PATCH_STATS.additions}</span> · <span className="text-alert">-{PATCH_STATS.deletions}</span> · <span className="text-ok">verified</span></p>
+            <p className="text-[13px] text-paper-muted">{PATCH_STATS.files} files changed · <span className="text-ok">+{PATCH_STATS.additions}</span> · <span className="text-alert">-{PATCH_STATS.deletions}</span> · <span className="text-ok">verified</span></p>
           </div>
           {t >= PUBLISHED_AT ? <Published /> : (
             <div className="min-h-0 flex-1 overflow-hidden px-4 py-3">
@@ -919,9 +947,9 @@ function StageReviewView() {
                   <p className="text-paper-muted">Why this matters: maintainers set these rules, and following them is what makes a contribution welcome.</p>
                   <ul className="mt-1 space-y-0.5">
                     {DEMO_RULES.map((row, i) => (
-                      <Reveal as="li" key={row.id} at={R.rules + 300 + i * 80} className="rounded-lg border border-border-soft bg-surface px-3 py-0.5 text-[12.5px] leading-snug">
-                        <p className="flex flex-wrap items-baseline gap-2"><span className={cn("rounded-full border px-2 text-[11.5px]", RULE_TONE[row.status])}>{RULE_STATUS_LABEL[row.status]}</span><span className="font-medium text-paper">{row.label}:</span><span className="text-paper-dim">{row.text}</span></p>
-                        {row.detail && <p className="text-[11.5px] leading-snug text-paper-muted">{row.detail}</p>}
+                      <Reveal as="li" key={row.id} at={R.rules + 300 + i * 80} className="rounded-lg border border-border-soft bg-surface px-3 py-0.5 text-[13px] leading-snug">
+                        <p className="flex flex-wrap items-baseline gap-2"><span className={cn("rounded-full border px-2 text-[13px]", RULE_TONE[row.status])}>{RULE_STATUS_LABEL[row.status]}</span><span className="font-medium text-paper">{row.label}:</span><span className="text-paper-dim">{row.text}</span></p>
+                        {row.detail && <p className="text-[13px] leading-snug text-paper-muted">{row.detail}</p>}
                       </Reveal>
                     ))}
                   </ul>
@@ -930,15 +958,15 @@ function StageReviewView() {
               {section === "chat" && (
                 <Section title="Ask about this change">
                   <p className="text-paper-muted">Not sure what the change does or why? Ask about it here.</p>
-                  <p className="mt-1 text-[12px] text-paper-muted">Answers are based on this change and the project&apos;s rules; check them against the code. Each answer comes from one AI call that reads only what is shown here; it does not run the code.</p>
-                  <div className="mt-2 flex flex-wrap gap-1.5 text-[12.5px]">
+                  <p className="mt-1 text-[13px] text-paper-muted">Answers are based on this change and the project&apos;s rules; check them against the code. Each answer comes from one AI call that reads only what is shown here; it does not run the code.</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5 text-[13px]">
                     <Press at={R.chatPress} label={CHAT_QUESTION} className="rounded-full border border-info/50 px-3 py-1 text-info">{CHAT_QUESTION}</Press>
                     {["What could this break?", "Which of the project's rules apply, and did it follow them?", "How do I explain this to a reviewer?"].map((q) => <span key={q} className="rounded-full border border-border px-3 py-1 text-paper-dim">{q}</span>)}
                   </div>
                   {t >= R.chatPress + 400 && <p className="mt-2.5 text-paper"><span className="font-medium text-signal">You:</span> {CHAT_QUESTION}</p>}
                   {t >= R.answerAt && (
                     <div data-spot="chat-answer" className="mt-1.5 rounded-lg border border-border-soft bg-surface px-3 py-2">
-                      <p className="text-[12px] text-info">AI answer (not verified)</p>
+                      <p className="text-[13px] text-info">AI answer (not verified)</p>
                       <p className="mt-1 text-[14px] leading-6 text-paper"><Typed text={CHAT_ANSWER} at={R.answerAt} cps={80} /></p>
                     </div>
                   )}
@@ -950,7 +978,7 @@ function StageReviewView() {
                   <ul className="mt-1 list-disc pl-5 text-paper-dim"><li>What was wrong?</li><li>What did the change do?</li><li>How do you know it works?</li></ul>
                   <p className="mt-2 text-paper">Your explanation</p>
                   <p className="mt-1 min-h-[64px] rounded-lg border border-border bg-surface px-3 py-2 text-[14px] leading-6 text-paper">{typed}&nbsp;</p>
-                  <p className="mt-1 text-[12px] text-paper-muted">At least 80 characters ({typed.length}/2000). It goes into the pull request under &quot;In the author&apos;s words&quot;.</p>
+                  <p className="mt-1 text-[13px] text-paper-muted">At least 80 characters ({typed.length}/2000). It goes into the pull request under &quot;In the author&apos;s words&quot;.</p>
                   <div className="mt-2 flex items-center gap-3">
                     <Press at={R.check} label="Check my explanation" className="rounded-full border border-signal/50 bg-signal/10 px-3 py-1 font-medium text-signal">Check my explanation</Press>
                     <span key={t >= R.check ? "4" : "5"} className="stage-tick text-paper-muted">{t >= R.check ? "4 checks left" : "5 checks left"}</span>
@@ -976,7 +1004,7 @@ function StageReviewView() {
                         <Reveal key={p.q} at={at.q}>
                           <p className="text-paper"><span className="font-medium">Reviewer:</span> {p.q}</p>
                           <p className="mt-1 min-h-[30px] rounded-lg border border-border bg-surface px-3 py-1.5 text-[13.5px] text-paper"><Typed text={p.a} at={at.type} cps={45} />&nbsp;</p>
-                          <div className="mt-1 flex items-center gap-3 text-[12.5px]">
+                          <div className="mt-1 flex items-center gap-3 text-[13px]">
                             <Press at={at.send} label="Send answer" className="rounded-full border border-info/50 px-3 py-0.5 text-info">{t >= at.send ? "Send again" : "Send answer"}</Press>
                             <span className="text-paper-muted">At least 20 characters.</span>
                           </div>
@@ -996,7 +1024,7 @@ function StageReviewView() {
               )}
             </div>
           )}
-          <div className="border-t border-border px-4 py-2 text-[13px]">
+          <div className="min-h-[64px] border-t border-border px-4 py-2 text-[14px]">
             <div className="flex flex-wrap items-center gap-2">
               <Press at={R.confirm} label="I've read this change" className="flex items-center gap-1.5 text-paper">
                 <span aria-hidden className={cn("grid h-4 w-4 place-items-center rounded-[3px] border text-[10px]", t >= R.confirm ? "border-ok bg-ok/15 text-ok" : "border-border")}>{t >= R.confirm ? "✓" : ""}</span>
@@ -1009,7 +1037,7 @@ function StageReviewView() {
                 </Press>
               </span>
             </div>
-            {t < R.confirm && <p className="mt-1 text-[12px] text-paper-muted">To publish: explain the change in your own words, answer the practice review, and tick the box.</p>}
+            {t < R.confirm && <p className="mt-1 text-[13px] text-paper-muted">To publish: explain the change in your own words, answer the practice review, and tick the box.</p>}
           </div>
         </div>
       </div>
@@ -1029,7 +1057,7 @@ export const stageReview: Chapter = {
     { at: 0, text: "It explains every change in plain English." },
     { at: R.rules, text: "It checks the project's rules, one by one." },
     { at: R.chat, text: "It teaches you the change…" },
-    { at: R.own, text: "…and checks that you learned it. In your words.", mark: "In your words" },
+    { at: R.own, text: "Then it checks you learned it, in your own words." },
     { at: R.practice, text: "Then a practice review, before the real one." },
     { at: R.publish, text: "You confirm you understand it." },
     { at: R.publishAt, text: "A human publishes. Nothing is hidden." },
@@ -1052,58 +1080,46 @@ export const stageReview: Chapter = {
 
 // ── The title slide (before the first step) ─────────────────────────────────
 
-/** The title: the wordmark, one line of who it's for, the promise in two plain lines, and the
- *  code map beside them, since mapping code is what opensrcer does. */
+/** The title: the wordmark, who it's for, the promise in two plain lines, and the code map
+ *  (mapping code is what opensrcer does), whose one lit path ends in the wordmark's ring. */
 export function StageTitle() {
   return (
-    <div className="relative h-full bg-ink px-16">
-      <Wordmark draw className="absolute left-16 top-12 text-[30px] text-paper" />
-      <CodeMap className="absolute right-12 top-14 w-[440px]" />
-      <div className="flex h-full flex-col justify-end pb-20">
-        <p className="kicker text-[16px] text-paper-muted">Your first open-source contribution, guided</p>
-        <p className="display mt-5 text-[104px] leading-[0.98] tracking-[-0.025em] text-paper">
-          <span className="rise block">Issues in.</span>
-          <span className="rise block" style={{ "--delay": "120ms" } as React.CSSProperties}>Pull requests out.</span>
-        </p>
-      </div>
+    <div className="relative flex h-full flex-col justify-end bg-ink pb-10">
+      <Wordmark draw className="absolute left-0 top-6 text-[40px] text-paper" />
+      <CodeMap className="absolute right-0 top-4 w-[380px]" />
+      <p className="kicker text-[16px] text-paper-muted">Your first open-source contribution, guided</p>
+      <p className="display mt-5 text-[104px] leading-[0.98] tracking-[-0.025em] text-paper">
+        <span className="rise block">Issues in.</span>
+        <span className="rise block" style={{ "--delay": "120ms" } as React.CSSProperties}>Pull requests <span className="text-signal">out.</span></span>
+      </p>
+      <p className="mt-8 font-mono text-[16px] text-paper-muted">opensrced.vercel.app</p>
     </div>
   );
 }
 
 // ── The code map: the posters' motif ────────────────────────────────────────
 
-// A small, quiet code graph in the product's own language: nodes, the calls between them, and
-// one path lit from a function outward. Decorative (aria-hidden); it draws in calmly.
-const MAP_NODES: Array<[number, number, number]> = [
-  [40, 200, 3], [92, 150, 4], [150, 184, 3], [116, 242, 3], [204, 122, 5], [252, 192, 6], [304, 140, 3], [334, 222, 4],
-  [384, 108, 4], [414, 182, 3], [262, 58, 3], [180, 40, 3], [60, 88, 3], [344, 36, 4], [222, 254, 3], [404, 254, 3],
-];
-const MAP_EDGES: Array<[number, number]> = [
-  [0, 1], [1, 4], [4, 10], [10, 11], [11, 12], [12, 1], [10, 13], [8, 13], [5, 14], [7, 15], [8, 9], [6, 7], [1, 2], [4, 5],
-];
-const MAP_PATH = [3, 2, 5, 6, 8]; // the lit path, from a function outward
-const MAP_FOCUS = 5;
+// A small code graph in the product's own language: a handful of nodes, hairline calls, and
+// one path lit in cobalt, drawn on, ending in an open ring (the wordmark's "o"). Decorative.
+const MAP_NODES: Array<[number, number, number]> = [[40, 196, 6], [112, 122, 7], [176, 206, 5], [236, 92, 6], [300, 176, 7], [204, 34, 5], [326, 54, 5]];
+const MAP_EDGES: Array<[number, number]> = [[0, 1], [1, 2], [1, 3], [3, 5], [3, 4], [4, 6], [2, 4], [5, 6]];
+const MAP_PATH = [0, 1, 3, 4]; // lit from a function outward; ends in the ring
+const MAP_VIEW = { w: 360, h: 240 };
 
 function CodeMap({ className }: { className?: string }) {
-  const at = (i: number) => MAP_NODES[i];
-  const lit = new Set(MAP_PATH);
+  const end = MAP_NODES[MAP_PATH[MAP_PATH.length - 1]];
+  const points = MAP_PATH.map((i) => `${MAP_NODES[i][0]},${MAP_NODES[i][1]}`).join(" ");
   return (
-    <svg viewBox="0 0 440 280" aria-hidden className={className} fill="none" strokeLinecap="round">
-      <g stroke="var(--color-signal)" strokeWidth="1.2" opacity="0.28">
-        {MAP_EDGES.map(([a, b], i) => (
-          <line key={i} x1={at(a)[0]} y1={at(a)[1]} x2={at(b)[0]} y2={at(b)[1]} pathLength={1} className="stage-draw" style={{ "--d": `${150 + i * 55}ms` } as React.CSSProperties} />
-        ))}
-      </g>
-      <g stroke="var(--color-signal)" strokeWidth="2.2">
-        {MAP_PATH.slice(1).map((b, i) => {
-          const a = MAP_PATH[i];
-          return <line key={b} x1={at(a)[0]} y1={at(a)[1]} x2={at(b)[0]} y2={at(b)[1]} pathLength={1} className="stage-draw" style={{ "--d": `${1000 + i * 260}ms` } as React.CSSProperties} />;
-        })}
-      </g>
-      {MAP_NODES.map(([x, y, r], i) => (
-        <circle key={i} cx={x} cy={y} r={r} fill="var(--color-signal)" opacity={lit.has(i) ? 1 : 0.38} className="stage-node" style={{ "--d": `${100 + i * 45}ms` } as React.CSSProperties} />
-      ))}
-      <circle cx={at(MAP_FOCUS)[0]} cy={at(MAP_FOCUS)[1]} r={13} stroke="var(--color-signal)" strokeWidth="1.6" className="stage-node" style={{ "--d": "1900ms" } as React.CSSProperties} />
-    </svg>
+    <div className={cn("relative", className)} aria-hidden>
+      <svg viewBox={`0 0 ${MAP_VIEW.w} ${MAP_VIEW.h}`} className="block w-full" fill="none" strokeLinecap="round" strokeLinejoin="round">
+        <g stroke="var(--color-border)" strokeWidth="1">
+          {MAP_EDGES.map(([a, b], i) => <line key={i} x1={MAP_NODES[a][0]} y1={MAP_NODES[a][1]} x2={MAP_NODES[b][0]} y2={MAP_NODES[b][1]} />)}
+        </g>
+        {MAP_NODES.map(([x, y, r], i) => <circle key={i} cx={x} cy={y} r={r} fill="var(--color-border-strong)" className="stage-node" style={{ "--d": `${80 + i * 60}ms` } as React.CSSProperties} />)}
+        <polyline points={points} stroke="var(--color-signal)" strokeWidth="2.5" pathLength={1} className="stage-draw" style={{ "--d": "500ms", animationDuration: "1.2s" } as React.CSSProperties} />
+      </svg>
+      {/* The path settles into the wordmark's pen ring. */}
+      <Doodle doodle={o} draw="load" delay={1600} duration={700} className="absolute size-[54px] -translate-x-1/2 -translate-y-1/2 text-signal" style={{ left: `${(end[0] / MAP_VIEW.w) * 100}%`, top: `${(end[1] / MAP_VIEW.h) * 100}%` }} />
+    </div>
   );
 }

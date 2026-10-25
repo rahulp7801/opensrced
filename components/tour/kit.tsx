@@ -10,7 +10,7 @@
 
 import { createContext, useContext, useEffect, useRef, type ReactNode, type Ref } from "react";
 import { cn } from "@/lib/utils";
-import { Mark } from "@/components/header";
+import { Wordmark } from "@/components/brand/wordmark";
 
 export const TimeContext = createContext(0);
 
@@ -182,13 +182,8 @@ function MenuItem({ name, className, children }: { name: string; className: stri
 export function AppWindow({ path, section, tab, children, label, host = "opensrced.vercel.app" }: { path: string; section?: Section | "none"; tab?: string; children: ReactNode; label?: string; host?: string }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center gap-2 border-b border-border-soft bg-ink-2 px-3 py-2 sm:px-4">
-        <span aria-hidden className="flex gap-1.5">
-          <span className="size-2.5 rounded-full bg-[#ff5f57]" />
-          <span className="size-2.5 rounded-full bg-[#febc2e]" />
-          <span className="size-2.5 rounded-full bg-[#28c840]" />
-        </span>
-        <span className="mx-auto min-w-0 truncate rounded-md bg-surface-2 px-3 py-0.5 text-center font-mono text-[11px] text-paper-muted sm:min-w-[50%]">
+      <div className="flex items-center gap-2 border-b border-border-soft bg-ink-2 px-3 py-1.5 sm:px-4">
+        <span className="mx-auto min-w-0 truncate text-center font-mono text-[12px] text-paper-faint">
           {host}{path}
         </span>
         {label && <span className="hidden shrink-0 text-[11px] text-paper-faint sm:inline">{label}</span>}
@@ -196,7 +191,7 @@ export function AppWindow({ path, section, tab, children, label, host = "opensrc
       {section && (
         <>
           <div className="flex items-center gap-1 border-b border-border-soft bg-surface px-3 py-2 sm:px-4">
-            <span className="flex items-center gap-1.5 pr-2 text-[13px] font-semibold text-paper"><Mark /><span className="hidden sm:inline">opensrcer</span></span>
+            <span className="flex items-center pr-2 text-paper"><Wordmark className="text-[15px]" /></span>
             <span className="mx-auto flex gap-0.5 sm:gap-2">
               {SECTIONS.map((s) => (
                 <MenuItem key={s} name={s} className={cn("inline-flex min-h-6 items-center rounded-md px-1.5 text-[12px] sm:px-2.5", s === section ? "font-medium text-paper" : "text-paper-muted")} />
@@ -280,8 +275,6 @@ export type Caption = {
   spot?: string;
   /** Stage headlines only: one word or phrase of `text` to underline by hand. */
   mark?: string;
-  /** Stage headlines only: a sticker slapped on the end, from a fact already on screen. */
-  sticker?: { text: string; tone?: "ink" | "signal" | "paper"; tilt?: number };
 };
 
 export const ACTS = ["Start", "Find", "Fix", "Ship", "Teams", "Trust"] as const;

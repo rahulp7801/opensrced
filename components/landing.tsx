@@ -233,8 +233,10 @@ export function HeroHeadline({ children }: { children?: React.ReactNode }) {
       <div className="mx-auto grid max-w-[1320px] items-center gap-x-16 gap-y-14 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
         <div>
           <p className="rise font-mono text-[12px] text-paper-faint">for your first open-source contribution</p>
-          <h1 className="rise mt-5 max-w-[13ch] font-display text-[clamp(44px,6.2vw,84px)] font-[700] leading-[0.98] tracking-[-0.02em] text-paper [font-stretch:88%]" style={{ "--delay": "60ms" } as React.CSSProperties}>
-            Issues in. Pull requests{" "}
+          <h1 className="rise mt-5 font-display text-[clamp(44px,6.2vw,84px)] font-[700] leading-[0.98] tracking-[-0.02em] text-paper [font-stretch:88%]" style={{ "--delay": "60ms" } as React.CSSProperties}>
+            Issues in.
+            <br />
+            Pull requests{" "}
             <span className="relative inline-block text-signal">
               out.
               {/* Annotates the word, under it, never over it. */}

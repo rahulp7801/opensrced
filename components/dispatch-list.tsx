@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { StatusChip, StatusDot } from "./status-dot";
-import { IconExternal, IconTrigger } from "./icons";
+import { IconExternal } from "./icons";
 import { pollJson } from "@/lib/poll-json";
 import { cn, formatRelative } from "@/lib/utils";
 import { extractFirstDiff, parseSplitHunks, type DiffRow } from "@/lib/diff-view";
@@ -355,42 +355,38 @@ export function DispatchList() {
       {/* Detail */}
       <section className="col-span-12 md:col-span-7 lg:col-span-8">
         {detail ? (
-          <div className="card overflow-hidden">
+          // The run is not a card: a header, then the review sheet, then the
+          // patch and the log as captioned figures below it.
+          <div>
             {/* Header */}
-            <div className="border-b border-border-soft px-5 py-5 sm:px-8 sm:py-6">
-              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <div className="pb-5">
+              <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
                 <div className="min-w-[12rem] flex-1">
-                  <div className="flex items-center gap-2">
-                    <IconTrigger className="text-signal" />
+                  <p className="meta">
                     {detail.repo_url ? (
-                      <a href={repoHref(detail.repo_url)} target="_blank" rel="noreferrer" className="text-[15px] font-medium text-paper-dim hover:text-signal truncate">
-                        {dispatchTarget(detail)}
-                      </a>
-                    ) : <span className="text-[13px] text-paper-muted">{dispatchTarget(detail)}</span>}
+                      <a href={repoHref(detail.repo_url)} target="_blank" rel="noreferrer">{dispatchTarget(detail)}</a>
+                    ) : <span>{dispatchTarget(detail)}</span>}
                     {detail.repo_url && detail.issue_number !== undefined && (
-                      <a href={`${repoHref(detail.repo_url)}/issues/${detail.issue_number}`} target="_blank" rel="noreferrer" className="chip hover:underline" data-tone="info">
-                        #{detail.issue_number}
+                      <a href={`${repoHref(detail.repo_url)}/issues/${detail.issue_number}`} target="_blank" rel="noreferrer">
+                        issue #{detail.issue_number}<span aria-hidden>↗</span>
                       </a>
                     )}
-                  </div>
-                  <div className="display mt-2 text-[26px] leading-[1.05] text-paper sm:text-[30px]">
+                  </p>
+                  <div className="display mt-2 text-[28px] leading-[1.05] text-paper sm:text-[32px]" style={{ fontWeight: 700 }}>
                     {detail.issue_title ??
                       (detail.issue_number !== undefined
                         ? `Issue #${detail.issue_number}`
                         : <span className="text-paper-muted">Dispatch {detail.id.slice(-8)}</span>)}
                   </div>
-                  <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12.5px] text-paper-muted">
-                    <span className="tabular-nums">{formatAbsoluteOrRelative(detail.started_at)}</span>
-                    {detail.ended_at && (
-                      <><span className="text-paper-faint">·</span><span className="tabular-nums">{formatDuration(detail.started_at, detail.ended_at)}</span></>
-                    )}
-                    {cost !== null && (<><span className="text-paper-faint">·</span><span className="tabular-nums text-signal">${cost.toFixed(4)}</span></>)}
+                  <p className="meta mt-2.5">
+                    <span>{formatAbsoluteOrRelative(detail.started_at)}</span>
+                    {detail.ended_at && <span>{formatDuration(detail.started_at, detail.ended_at)}</span>}
+                    {cost !== null && <span>${cost.toFixed(4)}</span>}
                     {/* For support requests; also in the downloaded report. */}
-                    <span className="text-paper-faint">·</span>
-                    <span className="break-all">Run ID (for support): <span className="select-all font-mono">{detail.id}</span></span>
-                  </div>
+                    <span className="break-all">Run ID (for support): <span className="select-all">{detail.id}</span></span>
+                  </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                   <StatusChip tone={detail.status === "running" ? "signal" : detail.pr_status === "opened" ? "ok" : (detail.pr_status === "failed" || detail.pr_status === "tests_failed") ? "alert" : toneFor(detail.status)}>
                     {detail.status === "running" ? "live" : detail.pr_status === "opened" ? "PR opened" : detail.pr_status === "tests_failed" ? "tests failed" : detail.pr_status === "awaiting_review" ? "waiting for your review" : detail.pr_status === "blocked" ? "blocked" : detail.status}
                   </StatusChip>
@@ -403,7 +399,7 @@ export function DispatchList() {
 
             {/* Pipeline timeline */}
             {detail.log && (
-              <div className="border-b border-border-soft px-5 py-3 sm:px-8">
+              <div className="border-y border-border-soft py-3">
                 <PipelineTimeline log={detail.log} status={detail.status} prUrl={detail.pr_url} />
               </div>
             )}
@@ -414,7 +410,7 @@ export function DispatchList() {
 
             {/* Failure banner (compact) */}
             {(detail.pr_status === "failed" || detail.pr_status === "tests_failed") && (
-              <div className="border-b border-border-soft bg-alert-dim/30 px-5 py-3 text-[15px] font-medium text-alert sm:px-8">
+              <div className="callout mt-4 text-[15px] font-medium" data-tone="alert">
                 {detail.pr_status === "tests_failed" ? "Tests failed — PR not opened" : "Publishing failed"}
                 {detail.pr_failure_reason && <span className="ml-2 font-normal text-paper-dim">— {detail.pr_failure_reason.slice(0, 120)}</span>}
               </div>
@@ -425,6 +421,7 @@ export function DispatchList() {
               <PublishPanel
                 dispatchId={detail.id}
                 repo={detail.repo_url ?? undefined}
+                issue={detail.issue_number}
                 dryRun={detail.dry_run}
                 rerun={detail.dry_run && detail.repo_url && detail.issue_number ? { repoUrl: detail.repo_url, issue: detail.issue_number } : undefined}
                 // The run's poll has stopped by now, so show the new PR here directly.
@@ -441,7 +438,7 @@ export function DispatchList() {
               const info = prInfo;
               if (!info) return null;
               return (
-                <div className="border-b border-border-soft bg-ok-dim/25 px-5 py-7 sm:px-8 sm:py-9">
+                <div className="callout mt-8 px-5 py-7 sm:px-8 sm:py-9" data-tone="ok">
                   <div role="status" className="flex flex-wrap items-center gap-x-4 gap-y-4">
                     {/* The success moment: a small hand-drawn spark beside the result. */}
                     <span className="inline-flex items-center gap-3">
@@ -565,7 +562,7 @@ function SignInPanel({ dispatchId, url }: { dispatchId: string; url: string }) {
     }
   }
   return (
-    <section aria-labelledby={`sign-in-${dispatchId}`} className="border-b border-border-soft bg-signal-faint/70 px-5 py-5 text-[14px] sm:px-8">
+    <section aria-labelledby={`sign-in-${dispatchId}`} className="callout mt-4 text-[15px]" data-tone="signal">
       <h3 id={`sign-in-${dispatchId}`} className="text-[16px] font-semibold text-signal">Sign in to Claude to start this run</h3>
       <p className="mt-1 text-paper-muted">
         This run uses your own Claude subscription. Sign in on Claude&apos;s page, then paste the code it shows you here.
@@ -719,15 +716,13 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
   }
 
   // A toolbar above the log, not floating over it, so no log line is hidden.
-  const tool = "inline-flex min-h-10 items-center gap-1.5 rounded-full bg-surface px-3.5 text-[12.5px] font-medium shadow-[inset_0_0_0_1px_var(--color-border)] transition sm:min-h-8";
+  const tool = "inline-flex min-h-10 items-center gap-1.5 rounded-[8px] px-3 text-[13px] font-medium shadow-[inset_0_0_0_1px_var(--color-border)] transition sm:min-h-8";
   return (
-    <div>
-      <div className="flex flex-wrap items-center gap-2 border-t border-border-soft px-5 py-3 sm:px-8">
+    <div className="card mt-8 overflow-hidden">
+      <div className="flex flex-wrap items-center gap-2 px-5 py-3 sm:px-6">
         <span className="label-mono mr-auto">Agent log</span>
         {isRunning && !showSearch && (
-          <span className="flex items-center gap-1.5 text-[12.5px] text-signal">
-            <StatusDot tone="signal" /> streaming
-          </span>
+          <span className="chip" data-tone="signal">streaming</span>
         )}
         {showSearch && (
           <>
@@ -770,7 +765,7 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
           </>
         )}
       </div>
-      <pre ref={logRef} onScroll={onScroll} tabIndex={0} aria-label="Run log" className="term h-[50vh] overflow-auto rounded-none p-5 text-[12px] leading-relaxed font-mono whitespace-pre-wrap sm:px-8">
+      <pre ref={logRef} onScroll={onScroll} tabIndex={0} aria-label="Run log" className="term h-[50vh] overflow-auto rounded-none p-5 text-[12.5px] leading-relaxed font-mono whitespace-pre-wrap sm:px-6">
         {search.length >= 2 ? renderLog() : rawMode ? <AnsiLog text={log} /> : (clean || "(log empty — waiting for first write)")}
       </pre>
     </div>
@@ -889,17 +884,17 @@ function PipelineTimeline({ log, status, prUrl }: { log: string; status: string;
   return (
     // Wraps as whole steps on narrow screens; a step's mark and name never split.
     // Phones drop the connector lines, which would otherwise start a wrapped row.
-    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5 sm:gap-x-1">
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
       {phases.map((p, i) => (
-        <div key={p.label} className="flex items-center gap-1">
-          {i > 0 && <div className={cn("w-4 h-px max-sm:hidden", p.done || p.active ? "bg-ok/40" : "bg-border")} />}
+        <div key={p.label} className="flex items-center gap-2">
+          {i > 0 && <div className={cn("w-5 h-px max-sm:hidden", p.done || p.active ? "bg-ok/50" : "bg-border")} />}
           <span
             className={cn(
-              "flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[12px] font-medium leading-none",
-              p.failed ? "bg-alert-dim/60 text-alert" :
-              p.done ? "bg-ok-dim/60 text-ok" :
-              p.active ? "bg-signal-faint text-signal" :
-              "bg-surface-2 text-paper-muted",
+              "flex items-center gap-1 whitespace-nowrap font-mono text-[12.5px] leading-none",
+              p.failed ? "text-alert" :
+              p.done ? "text-ok" :
+              p.active ? "text-signal" :
+              "text-paper-muted",
             )}
           >
             {p.failed ? "×" : p.done ? "✓" : p.active ? "●" : "○"} {p.label}
@@ -1119,11 +1114,11 @@ function DiffPreviewFromLog({ log, prOpened, prUrl, dryRun }: { log: string; prO
   return (
     <>
       {/* Inline summary bar — click to open modal */}
-      <div className="border-t border-border-soft">
+      <div id="run-patch" className="card mt-10 scroll-mt-32 overflow-hidden">
         <button
           ref={openerRef}
           onClick={() => setModalOpen(true)}
-          className="group w-full px-5 py-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-left hover:bg-ink-2 transition-colors sm:px-8"
+          className="group w-full px-5 py-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-left hover:bg-ink-2 transition-colors sm:px-6"
         >
           <span className="text-[16px] text-paper font-semibold">Review patch</span>
           <span className="text-[12.5px] text-paper-muted tabular-nums">
@@ -1131,7 +1126,7 @@ function DiffPreviewFromLog({ log, prOpened, prUrl, dryRun }: { log: string; prO
           </span>
           <span className="font-mono text-[12.5px] text-ok tabular-nums">+{diff.additions}</span>
           <span className="font-mono text-[12.5px] text-alert tabular-nums">-{diff.deletions}</span>
-          <span className="ml-auto text-[13px] font-medium text-signal group-hover:underline">
+          <span className="row-cta ml-auto min-h-0 text-[14px]">
             open review →
           </span>
         </button>

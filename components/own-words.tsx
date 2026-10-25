@@ -51,7 +51,7 @@ async function post(body: object): Promise<{ ok: boolean; status: number; data: 
   return { ok: res.ok, status: res.status, data: (await res.json().catch(() => ({}))) as Record<string, unknown> };
 }
 
-export function OwnWords({ storageKey, repo, title, context, copySources, practice = false, onResult }: {
+export function OwnWords({ storageKey, repo, title, context, copySources, practice = false, onResult, number }: {
   /** One per run, e.g. "run:<id>". */
   storageKey: string;
   repo?: string;
@@ -62,6 +62,8 @@ export function OwnWords({ storageKey, repo, title, context, copySources, practi
   /** A preview run: the same steps, nothing to unlock. */
   practice?: boolean;
   onResult: (result: OwnWordsResult) => void;
+  /** The part number, hung in the margin by the sheet around it. */
+  number?: React.ReactNode;
 }) {
   const [s, setS] = useState<Saved>(EMPTY);
   const [loaded, setLoaded] = useState(false);
@@ -151,36 +153,40 @@ export function OwnWords({ storageKey, repo, title, context, copySources, practi
   const r = s.result;
   return (
     <>
-      {/* The lesson: two numbered parts, the same shape as a real review. */}
-      <section aria-labelledby={ids.a} className="mt-8 rounded-[20px] bg-surface p-5 shadow-[inset_0_0_0_1px_var(--color-border-soft)] sm:p-7">
-        <div className="flex items-baseline gap-3">
-          <span aria-hidden className="display text-[26px] leading-none text-signal sm:text-[30px]">01</span>
-          <h4 id={ids.a} className="display text-[26px] leading-none text-paper sm:text-[30px]">Explain it in your own words</h4>
+      {/* The lesson, as a part of the review sheet: three questions, then your
+          answer written on ruled paper, then a practice review. */}
+      <section aria-labelledby={ids.a} className="relative mt-8 border-t border-border-soft pt-8">
+        <div className="relative flex items-baseline gap-3">
+          {number}
+          <h4 id={ids.a} className="text-[19px] font-semibold tracking-[-0.01em] text-paper">Explain it in your own words</h4>
         </div>
-        <p className="mt-3 max-w-2xl text-[16px] text-paper-dim">Maintainers want to know the person sending a change understands it.{practice ? " This run is a preview, so this is practice." : ""} In a few sentences, answer:</p>
-        <ul className="mt-4 grid gap-2 sm:grid-cols-3">
-          <li className="rounded-xl bg-ink-2 px-4 py-3 text-[16px] font-semibold text-paper">What was wrong?</li>
-          <li className="rounded-xl bg-ink-2 px-4 py-3 text-[16px] font-semibold text-paper">What did the change do?</li>
-          <li className="rounded-xl bg-ink-2 px-4 py-3 text-[16px] font-semibold text-paper">How do you know it works?</li>
-        </ul>
-        <label htmlFor={ids.text} className="field-label mt-6">Your explanation</label>
+        <p className="mt-3 max-w-2xl text-paper-dim">Maintainers want to know the person sending a change understands it.{practice ? " This run is a preview, so this is practice." : ""} In a few sentences, answer:</p>
+        <ol className="mt-2 list-[lower-alpha] space-y-0.5 pl-6 text-[15px] text-paper-muted marker:font-mono marker:text-[12px] marker:text-paper-faint">
+          <li>What was wrong?</li>
+          <li>What did the change do?</li>
+          <li>How do you know it works?</li>
+        </ol>
+        <label htmlFor={ids.text} className="label-mono mt-6 block">Your explanation</label>
         <textarea
           id={ids.text}
           aria-describedby={ids.hint}
           value={s.text}
           onChange={(e) => { setS((p) => ({ ...p, text: e.target.value })); setCopyWarning(false); }}
           maxLength={OWN_WORDS.max}
-          rows={5}
-          className="field bg-ink-2 leading-[1.65]"
+          rows={7}
+          className="paper-field mt-1"
         />
-        <p id={ids.hint} className="mt-2 text-[14px] text-paper-muted">
-          At least {OWN_WORDS.min} characters ({text.length}/{OWN_WORDS.max}). It goes into the pull request under &quot;In the author&apos;s words&quot;.
-        </p>
+        <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+          <p id={ids.hint} className="text-[14px] text-paper-muted">
+            At least {OWN_WORDS.min} characters. It goes into the pull request under &quot;In the author&apos;s words&quot;.
+          </p>
+          <span className="font-mono text-[12px] tabular-nums text-paper-faint">{text.length} / {OWN_WORDS.min} minimum</span>
+        </div>
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <button type="button" onClick={() => void check()} disabled={!lengthOk || busy !== null || checksLeft === 0} className="btn-quiet">
             {busy === "check" ? "Checking…" : "Check my explanation"}
           </button>
-          <span className="text-[14px] text-paper-muted">{checksLeft === 1 ? "1 check left" : `${checksLeft} checks left`}</span>
+          <span className="font-mono text-[12px] text-paper-muted">{checksLeft === 1 ? "1 check left" : `${checksLeft} checks left`}</span>
         </div>
         <div aria-live="polite" className="mt-4 space-y-2 empty:hidden">
           {(copyWarning || (s.checkFailed && copied)) && <p className="text-alert">{COPY_MESSAGE}</p>}
@@ -203,12 +209,9 @@ export function OwnWords({ storageKey, repo, title, context, copySources, practi
       </section>
 
       {checked && !s.practiceFailed && (
-        <section aria-labelledby={ids.b} className="mt-4 rounded-[20px] bg-surface p-5 shadow-[inset_0_0_0_1px_var(--color-border-soft)] sm:p-7">
-          <div className="flex items-baseline gap-3">
-            <span aria-hidden className="display text-[26px] leading-none text-signal sm:text-[30px]">02</span>
-            <h4 id={ids.b} className="display text-[26px] leading-none text-paper sm:text-[30px]">Practice review</h4>
-          </div>
-          <p className="mt-3 max-w-2xl text-[16px] text-paper-dim">{PRACTICE_INTRO}</p>
+        <section aria-labelledby={ids.b} className="mt-8">
+          <h4 id={ids.b} className="text-[17px] font-semibold tracking-[-0.01em] text-paper">Practice review</h4>
+          <p className="mt-2 max-w-2xl text-paper-dim">{PRACTICE_INTRO}</p>
           {busy === "questions" && <p role="status" className="mt-4 text-paper-muted">Writing 2 review questions about this change…</p>}
           {!s.questions && busy !== "questions" && (
             <button type="button" onClick={() => void loadQuestions()} className="btn-quiet mt-4">Get the practice questions</button>
@@ -217,7 +220,7 @@ export function OwnWords({ storageKey, repo, title, context, copySources, practi
             const a = s.answers[i];
             const qid = `${ids.b}-q${i}`;
             return (
-              <div key={q} className="mt-6 border-l-2 border-signal pl-4 sm:pl-5">
+              <div key={q} className="mt-6 border-l border-border-strong pl-4 sm:pl-5">
                 <p id={qid} className="text-[16px] leading-[1.5] text-paper"><span className="font-semibold">Reviewer:</span> {q}</p>
                 <label htmlFor={`${qid}-a`} className="sr-only">Your answer to: {q}</label>
                 <textarea
@@ -227,13 +230,13 @@ export function OwnWords({ storageKey, repo, title, context, copySources, practi
                   maxLength={OWN_WORDS.answerMax}
                   rows={3}
                   placeholder="Your answer"
-                  className="field mt-3 bg-ink-2"
+                  className="paper-field mt-2"
                 />
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   <button type="button" onClick={() => void answer(i)} disabled={(a?.draft.trim().length ?? 0) < OWN_WORDS.answerMin || busy !== null} className="btn-quiet" data-size="sm">
                     {busy === i ? "Sending…" : a?.sent ? "Send again" : "Send answer"}
                   </button>
-                  <span className="text-[14px] text-paper-muted">At least {OWN_WORDS.answerMin} characters.</span>
+                  <span className="font-mono text-[12px] text-paper-muted">at least {OWN_WORDS.answerMin} characters</span>
                 </div>
                 <div aria-live="polite" className="empty:hidden">
                   {a?.feedback && <p className="mt-3 text-paper-dim"><span className="font-semibold text-paper">Feedback:</span> {a.feedback.feedback}</p>}

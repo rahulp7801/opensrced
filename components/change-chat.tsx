@@ -125,18 +125,23 @@ export function ChangeChat({ storageKey, repo, title, context, starters = STARTE
   }
 
   return (
-    <div className="mt-6 rounded-[20px] bg-surface p-4 text-[16px] shadow-[inset_0_0_0_1px_var(--color-border-soft)] sm:p-5">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <button type="button" onClick={toggle} aria-expanded={open} aria-controls={panelId} className="row-cta">
+    <div className="mt-5 text-[16px]">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0">
+        <span className="text-paper-muted">Not sure what the change does or why?</span>
+        <button type="button" onClick={toggle} aria-expanded={open} aria-controls={panelId} className="row-cta text-[15px]">
           {open ? "Close the questions" : "Ask about this change"}{turns.length > 0 && !open ? ` (${turns.length} asked)` : ""}
+          {!open && <span aria-hidden>→</span>}
         </button>
-        <span className="text-paper-muted">Not sure what the change does or why? Ask about it here.</span>
       </div>
-      <div id={panelId} hidden={!open} className="mt-4">
+      <div id={panelId} hidden={!open} className="mt-3 border-l border-border-strong pl-4 sm:pl-5">
         <p className="max-w-2xl text-[14px] text-paper-muted">{caveat} Each answer comes from one AI call that reads only what is shown here; it does not run the code.</p>
-        <div role="group" aria-label="Starter questions" className="mt-3 flex flex-wrap gap-2">
+        {/* Suggested questions: a plain list, each one a single click. */}
+        <div role="group" aria-label="Starter questions" className="mt-2 flex flex-col items-start">
           {starters.map((s) => (
-            <button key={s} type="button" disabled={pending} onClick={() => void ask(s)} className="pill whitespace-normal text-left" data-size="sm" data-edge="">{s}</button>
+            <button key={s} type="button" disabled={pending} onClick={() => void ask(s)} className="flex min-h-10 items-baseline gap-2 text-left text-[15px] text-paper transition-colors hover:text-signal disabled:opacity-50">
+              <span aria-hidden className="font-mono text-paper-faint">→</span>
+              <span>{s}</span>
+            </button>
           ))}
         </div>
         {/* Scrolls when long, so it takes focus for keyboard scrolling. */}
@@ -144,11 +149,11 @@ export function ChangeChat({ storageKey, repo, title, context, starters = STARTE
         <ol className="space-y-4">
           {turns.map((t, i) => (
             <li key={i} className="space-y-2">
-              {/* The question sits right, like a message you sent; the answer is a sheet below. */}
-              <p className="ml-auto w-fit max-w-[85%] rounded-[18px] rounded-br-md bg-paper px-4 py-2 text-ink">{t.question}<span className="sr-only"> (you asked)</span></p>
-              <div className="rounded-2xl bg-ink-2 px-4 py-3 text-paper-dim">
+              {/* The question in ink, the answer under it, labelled for what it is. */}
+              <p className="font-semibold text-paper"><span aria-hidden className="mr-2 font-mono font-normal text-paper-faint">→</span>{t.question}<span className="sr-only"> (you asked)</span></p>
+              <div className="text-paper-dim">
                 <p className="label-mono">AI answer (not verified)</p>
-                <p className="mt-1.5 whitespace-pre-wrap break-words leading-[1.65]">{t.answer || (pending && i === turns.length - 1 ? "Thinking…" : "")}</p>
+                <p className="mt-1 whitespace-pre-wrap break-words leading-[1.65]">{t.answer || (pending && i === turns.length - 1 ? "Thinking…" : "")}</p>
               </div>
             </li>
           ))}
@@ -156,7 +161,7 @@ export function ChangeChat({ storageKey, repo, title, context, starters = STARTE
         </div>
         {error && <p role="alert" className="mt-3 text-alert">{error}</p>}
         <form className="mt-4 flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); void ask(input); }}>
-          <label htmlFor={inputId} className="field-label basis-full">Your question</label>
+          <label htmlFor={inputId} className="label-mono basis-full">Your question</label>
           <textarea
             id={inputId}
             value={input}
@@ -166,7 +171,7 @@ export function ChangeChat({ storageKey, repo, title, context, starters = STARTE
             rows={2}
             disabled={pending}
             placeholder="Why did it change this line?"
-            className="field min-w-0 flex-1 basis-60 bg-ink-2"
+            className="field min-w-0 flex-1 basis-60"
           />
           {pending ? (
             <button type="button" onClick={() => abort.current?.abort()} className="btn-quiet" data-tone="alert">Stop</button>
@@ -174,7 +179,7 @@ export function ChangeChat({ storageKey, repo, title, context, starters = STARTE
             <button type="submit" disabled={!input.trim()} className="btn-quiet">Ask</button>
           )}
           {turns.length > 0 && !pending && (
-            <button type="button" onClick={clear} className="btn-quiet">Clear</button>
+            <button type="button" onClick={clear} className="text-link text-[14px]">Clear</button>
           )}
         </form>
       </div>

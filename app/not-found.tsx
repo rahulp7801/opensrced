@@ -11,7 +11,7 @@ export default function NotFound() {
     <section className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col justify-center px-5 py-16 sm:px-8">
       <div className="grid items-center gap-x-14 gap-y-8 md:grid-cols-[180px_minmax(0,1fr)]">
         <figure className="w-[120px] md:w-[180px]">
-          <Doodle doodle={o} weight={0.9} draw="load" delay={150} duration={900} className="size-[120px] md:size-[160px]" />
+          <Doodle doodle={o} weight={0.22} draw="load" delay={150} duration={900} className="size-[120px] md:size-[160px]" />
           <figcaption className="fig mt-4">
             <span className="fig-tag">fig. 404</span>
             <span>a node with no edges</span>

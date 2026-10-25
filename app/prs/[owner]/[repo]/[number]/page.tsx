@@ -837,16 +837,13 @@ export default function PrDetailPage() {
 
   return (
     <div className="mx-auto w-full max-w-[1200px] px-5 py-10 sm:px-8">
-      {/* Breadcrumb */}
-      <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[13px] text-paper-muted">
-        <Link href="/prs" className="hover:text-signal transition-colors">PRs</Link>
-        <span className="text-paper-faint">/</span>
-        <span className="text-paper-dim">{params.owner}/{params.repo}</span>
-        <span className="text-paper-faint">/</span>
-        <span className="text-paper">#{prNumber}</span>
-      </nav>
-
       <PageHeading
+        // The breadcrumb is the mono path line: back to the list, then this PR.
+        path={
+          <nav aria-label="Breadcrumb">
+            ship / <Link href="/prs" className="underline decoration-border-strong underline-offset-[3px] hover:text-signal">pull requests</Link> / {params.owner}/{params.repo} #{prNumber}
+          </nav>
+        }
         title={<>PR #{prNumber}</>}
         description={`Review and respond to feedback on ${repoFull}#${prNumber}`}
         actions={

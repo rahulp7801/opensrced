@@ -30,7 +30,7 @@ export function PageHeading({
   const crumb = path ?? kicker ?? (section && link ? `${section.label} / ${link.label}`.toLowerCase() : null);
   return (
     <header className="mb-10 pt-2 sm:pt-6">
-      {crumb && <p className="mb-3 font-mono text-[12px] tracking-[0.02em] text-paper-faint">{crumb}</p>}
+      {crumb && <div className="mb-3 font-mono text-[12px] tracking-[0.02em] text-paper-faint">{crumb}</div>}
       <div className="grid gap-x-12 gap-y-3 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:items-end">
         {/* 700 (lighter than .display's 750) at this size: a title, not a poster. */}
         <h1 className="display text-[40px] leading-[1.02] tracking-[-0.02em] text-paper sm:text-[44px]" style={{ fontWeight: 700 }}>

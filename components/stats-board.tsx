@@ -221,8 +221,8 @@ function ActivityKindChip({ kind }: { kind: "scan" | "discover" | "dispatch" }) 
     { label: string; cls: string }
   > = {
     scan:     { label: "scan",     cls: "" },
-    discover: { label: "discover", cls: "info" },
-    dispatch: { label: "run", cls: "signal" },
+    discover: { label: "discover", cls: "" },
+    dispatch: { label: "run", cls: "info" },
   };
   const c = cfg[kind] ?? cfg.scan; // a kind added on the server later must not break the page
   return (

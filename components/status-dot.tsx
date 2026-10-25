@@ -20,7 +20,8 @@ export function StatusDot({ tone = "ok", className }: { tone?: Tone; className?:
   );
 }
 
-/** A tinted status pill (.chip in app/app.css); the tone names the state. */
+/** A status as a dot and plain words (.chip in app/app.css draws the dot);
+ *  the tone names the state. */
 export function StatusChip({
   tone = "ok",
   children,
@@ -32,7 +33,6 @@ export function StatusChip({
 }) {
   return (
     <span className={cn("chip", className)} data-tone={tone === "muted" ? undefined : tone}>
-      <StatusDot tone={tone} />
       {children}
     </span>
   );

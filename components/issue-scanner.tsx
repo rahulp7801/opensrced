@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { cacheGet, cacheSet } from "@/lib/client-cache";
-import { IconArrow, IconChevronDown, IconExternal, IconSearch } from "./icons";
+import { IconArrow, IconChevronDown, IconSearch } from "./icons";
 
 type ScopeBucket = "doc" | "leaf" | "cross-file" | "refactor" | "new-file" | "unknown";
 
@@ -326,12 +326,12 @@ export function IssueScanner() {
                     <article id={`issue-row-${issue.number}`} key={issue.number} className={cn("transition-colors", expanded ? "bg-ink-2" : "hover:bg-ink-2", !issue.solvable && "opacity-70")}>
                       <div className="grid gap-4 px-5 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                         <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2 text-[12.5px] text-paper-muted">
-                            <a href={issue.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-paper-dim hover:text-signal min-h-6 max-sm:min-h-10 max-sm:min-w-10">
-                              #{issue.number}<IconExternal />
+                          <div className="meta">
+                            <a href={issue.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 min-h-6 max-sm:min-h-10 max-sm:min-w-10">
+                              #{issue.number}<span aria-hidden>↗</span>
                               <span className="sr-only">Open on GitHub</span>
                             </a>
-                            <span title={issue.created_at}>Opened {fmtRelative(issue.created_at, now)}</span>
+                            <span title={issue.created_at}>opened {fmtRelative(issue.created_at, now)}</span>
                             {now - Date.parse(issue.created_at) <= NEW_CUTOFF_MS && <span className="tag" data-tone="signal">new</span>}
                             <span className="tag" data-tone="info">{issue.category}</span>
                             {/* A label that only repeats the category ("bug" · "bug") is dropped. */}
@@ -347,18 +347,15 @@ export function IssueScanner() {
                             <IconChevronDown className={cn("mt-1 shrink-0 text-paper-muted transition-transform", !expanded && "-rotate-90")} />
                             <span className="text-[16px] font-semibold leading-snug tracking-[-0.01em] text-paper">{issue.title}</span>
                           </button>
-                          {/* Status as plain coloured words joined by dots, not a row of pills. */}
-                          <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[14px] text-paper-muted">
-                            <span className="inline-flex items-center gap-1.5"><span>Likely change</span><ScopeBadge s={issue.scope} /></span>
-                            <span aria-hidden>·</span>
-                            <span className="inline-flex items-center gap-1.5"><span>Risk</span><SeverityChip s={issue.severity} /></span>
-                            <span aria-hidden>·</span>
-                            <span className="inline-flex items-center gap-1.5"><span>Complexity</span><ComplexityPips value={issue.complexity} /></span>
-                            <span aria-hidden>·</span>
-                            <span>Estimate <span className="text-paper-dim">~{fmtMinutes(issue.est_minutes)}</span></span>
-                            <span aria-hidden>·</span>
-                            {issue.solvable ? <span className="font-semibold text-ok">Ready</span> : <span className="font-medium text-paper-dim">Needs review</span>}
-                          </div>
+                          {/* Size and effort as one readable phrase; only the difficulty dots are drawn.
+                              The status is a dot and a word at the end, not a pill. */}
+                          <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[14px] text-paper-muted">
+                            <span className="first-letter:uppercase"><ScopeBadge s={issue.scope} />,</span>
+                            <span>about {fmtMinutes(issue.est_minutes)},</span>
+                            <span className="inline-flex items-center gap-1.5">difficulty <ComplexityPips value={issue.complexity} />,</span>
+                            <span>risk <SeverityChip s={issue.severity} /></span>
+                            <span className={cn("chip ml-2", !issue.solvable && "font-normal")} data-tone={issue.solvable ? "ok" : undefined}>{issue.solvable ? "Ready" : "Needs review"}</span>
+                          </p>
                         </div>
                         <div className="lg:justify-self-end">
                           {issue.solvable ? (
@@ -595,7 +592,7 @@ function ScopeBadge({ s }: { s: ScopeInfo }) {
   // full reason + files/symbols so users can verify the guess.
   const tones: Record<ScopeBucket, string | undefined> = {
     doc: "ok",
-    leaf: "signal",
+    leaf: undefined,
     "cross-file": "info",
     refactor: "alert",
     "new-file": "info",
@@ -606,7 +603,7 @@ function ScopeBadge({ s }: { s: ScopeInfo }) {
   if (s.symbols.length) titleParts.push(`symbols: ${s.symbols.slice(0, 5).join(", ")}`);
   titleParts.push(`confidence: ${s.confidence}`);
   return (
-    <span title={titleParts.join(" · ")} className={cn("cursor-help font-semibold", TONE_TEXT[tones[s.bucket] ?? ""] ?? "text-paper-dim")}>
+    <span title={titleParts.join(" · ")} className={cn("cursor-help font-semibold", TONE_TEXT[tones[s.bucket] ?? ""] ?? "text-paper")}>
       {SCOPE_LABEL[s.bucket]}
     </span>
   );
@@ -623,7 +620,7 @@ const SCOPE_LABEL: Record<ScopeBucket, string> = {
 };
 
 function SeverityChip({ s }: { s: "low" | "medium" | "high" | "critical" }) {
-  const tone = { low: "text-paper-dim", medium: "text-info", high: "text-signal", critical: "text-alert" } as const;
+  const tone = { low: "text-paper-dim", medium: "text-info", high: "text-alert", critical: "text-alert" } as const;
   return <span className={cn("font-semibold", tone[s])}>{s}</span>;
 }
 
@@ -635,13 +632,8 @@ function ComplexityPips({ value }: { value: number }) {
           key={i}
           className={cn(
             "inline-block size-2 rounded-full",
-            i <= value
-              ? value >= 4
-                ? "bg-signal"
-                : value >= 3
-                  ? "bg-info"
-                  : "bg-paper-dim"
-              : "bg-border",
+            // Filled dots are ink, empty ones a hairline: the count is the signal, not a colour.
+            i <= value ? "bg-paper-dim" : "bg-border",
           )}
         />
       ))}

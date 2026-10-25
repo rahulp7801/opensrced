@@ -903,7 +903,7 @@ export default function PrDetailPage() {
           {/* PR header */}
           <div className="card mt-4 px-5 py-5 sm:px-6">
             <div className="flex flex-wrap items-center gap-3">
-              <span className={cn("chip", pr.state === "OPEN" ? "chip-signal" : pr.state === "MERGED" ? "chip-ok" : "")}>
+              <span className={cn("chip", pr.state === "OPEN" ? "chip-info" : pr.state === "MERGED" ? "chip-ok" : "")}>
                 {pr.state}
               </span>
               <span className="text-[19px] font-semibold leading-snug tracking-[-0.01em] text-paper">{pr.title}</span>
@@ -1118,7 +1118,7 @@ export default function PrDetailPage() {
                       <span className="ml-auto text-[12.5px] text-info font-mono">{c.path}{c.line ? `:${c.line}` : ""}</span>
                     )}
                     {c.type === "review" && (
-                      <span className="chip chip-signal">inline</span>
+                      <span className="chip">inline</span>
                     )}
                   </div>
 
@@ -1454,7 +1454,7 @@ export default function PrDetailPage() {
                       <span className={cn(
                         "chip",
                         verifyResult.summary.verdict === "clean" ? "chip-ok" :
-                        verifyResult.summary.verdict === "review" ? "chip-signal" :
+                        verifyResult.summary.verdict === "review" ? "chip-info" :
                         "chip-alert",
                       )}>
                         {verifyResult.summary.verdict === "clean" ? "all clear" :

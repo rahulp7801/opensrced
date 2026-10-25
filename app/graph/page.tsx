@@ -521,7 +521,6 @@ export default function GraphPage() {
         )}
         {buildStatus === "ready" && (
           <span className="chip chip-ok mb-2.5 self-end">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-ok" />
             ready
           </span>
         )}

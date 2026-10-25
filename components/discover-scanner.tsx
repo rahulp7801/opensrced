@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { IconArrow, IconChevronDown, IconExternal, IconSearch } from "./icons";
+import { IconArrow, IconChevronDown, IconSearch } from "./icons";
 
 type ScopeBucket = "doc" | "leaf" | "cross-file" | "refactor" | "new-file" | "unknown";
 
@@ -349,22 +349,21 @@ export function DiscoverScanner() {
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
                         <Link href={href} className="text-[16px] font-semibold leading-snug tracking-[-0.01em] text-paper hover:text-signal">{i.title}</Link>
-                        <p className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] text-paper-muted">
-                          <span className="font-medium text-paper-dim">{i.repo.fullName}</span>
-                          <span className="tabular-nums">★ {fmtStars(i.repo.stars)}</span>
-                          {i.repo.language && <span>{i.repo.language}</span>}
-                          <a href={i.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-signal">#{i.number}<IconExternal /></a>
+                        {/* One mono line of facts, then size and effort as one phrase. */}
+                        <p className="meta mt-1">
+                          <span>{i.repo.fullName}</span>
+                          <span>★ {fmtStars(i.repo.stars)}</span>
+                          {i.repo.language && <span>{i.repo.language.toLowerCase()}</span>}
+                          <a href={i.url} target="_blank" rel="noreferrer">#{i.number} <span aria-hidden>↗</span></a>
                           <span title={i.created_at}>opened {fmtRelative(i.created_at, now)}</span>
-                        </p>
-                        <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-2 text-[14px] text-paper-muted">
-                          <span className="inline-flex items-center gap-1.5">Size <ScopeBadge s={i.scope} /></span>
-                          <span aria-hidden>·</span>
-                          <span className="inline-flex items-center gap-1.5">Difficulty <ComplexityPips value={i.complexity} /></span>
-                          <span aria-hidden>·</span>
-                          <span className="mr-2">about {fmtMinutes(i.est_minutes)}</span>
                           {i.labels.slice(0, 3).map((l) => (
                             <span key={l} className="tag">{l}</span>
                           ))}
+                        </p>
+                        <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[14px] text-paper-muted">
+                          <span className="first-letter:uppercase"><ScopeBadge s={i.scope} />,</span>
+                          <span>about {fmtMinutes(i.est_minutes)},</span>
+                          <span className="inline-flex items-center gap-1.5">difficulty <ComplexityPips value={i.complexity} /></span>
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
@@ -539,7 +538,7 @@ function ScopeBadge({ s }: { s: ScopeInfo }) {
   // Plain coloured words (each >= 5.4:1 on the sheet), not a pill.
   const tones: Record<ScopeBucket, string> = {
     doc: "text-ok",
-    leaf: "text-signal",
+    leaf: "text-paper",
     "cross-file": "text-info",
     refactor: "text-alert",
     "new-file": "text-info",
@@ -576,13 +575,8 @@ function ComplexityPips({ value }: { value: number }) {
           key={i}
           className={cn(
             "inline-block size-2 rounded-full",
-            i <= value
-              ? value >= 4
-                ? "bg-signal"
-                : value >= 3
-                  ? "bg-info"
-                  : "bg-paper-dim"
-              : "bg-border",
+            // Filled dots are ink, empty ones a hairline: the count is the signal, not a colour.
+            i <= value ? "bg-paper-dim" : "bg-border",
           )}
         />
       ))}

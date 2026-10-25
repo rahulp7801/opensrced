@@ -44,25 +44,56 @@
     color: var(--color-paper-dim);
   }
 
-  /* ── Status chips: a tinted pill whose colour names the state. Neutral
-     labels (repo labels, "private") stay on .tag. */
+  /* ── A status is a dot and plain words ("● waiting for your review"), never
+     an outlined or filled pill. The tone colours the dot and the words; every
+     tone is >= 6.9:1 on the ground and the sheets. Neutral labels use .tag. */
   .chip {
     display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    border-radius: 999px;
-    padding: 0.2rem 0.65rem;
-    font-size: 12px;
-    font-weight: 600;
+    align-items: baseline;
+    gap: 0.45em;
+    font-size: 13.5px;
+    font-weight: 500;
     line-height: 1.4;
     white-space: nowrap;
-    background: var(--color-surface-2);
     color: var(--color-paper-dim);
   }
-  .chip[data-tone="ok"], .chip-ok { background: color-mix(in srgb, var(--color-ok-dim) 70%, var(--color-surface)); color: var(--color-ok); }
-  .chip[data-tone="alert"], .chip-alert { background: color-mix(in srgb, var(--color-alert-dim) 70%, var(--color-surface)); color: var(--color-alert); }
-  .chip[data-tone="info"], .chip-info { background: color-mix(in srgb, var(--color-info-dim) 70%, var(--color-surface)); color: var(--color-info); }
-  .chip[data-tone="signal"], .chip-signal { background: var(--color-signal-faint); color: var(--color-signal); }
+  .chip::before {
+    content: "";
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--color-border-strong);
+    transform: translateY(-0.1em);
+  }
+  .chip[data-tone="ok"], .chip-ok { color: var(--color-ok); }
+  .chip[data-tone="alert"], .chip-alert { color: var(--color-alert); }
+  .chip[data-tone="info"], .chip-info { color: var(--color-info); }
+  .chip[data-tone="signal"], .chip-signal { color: var(--color-signal); }
+  .chip[data-tone]::before, .chip-ok::before, .chip-alert::before, .chip-info::before, .chip-signal::before { background: currentColor; }
+
+  /* ── Metadata: one mono line, items joined by " · " (the separator is drawn
+     here, so markup lists the facts and nothing else). */
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    row-gap: 0.15rem;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--color-paper-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .meta > :not(:last-child)::after {
+    content: "·";
+    display: inline-block; /* keeps a link's underline off the separator */
+    margin-inline: 0.55em;
+    color: var(--color-paper-faint);
+  }
+  .meta > .tag:not(:last-child)::after { margin-left: calc(0.55em - 0.4em); }
+  .meta a { color: inherit; text-decoration: underline; text-decoration-color: var(--color-border); text-underline-offset: 3px; }
+  .meta a:hover { color: var(--color-signal); text-decoration-color: currentColor; }
 
   /* ── Callouts: a soft sheet for notes, warnings and results. */
   .callout {

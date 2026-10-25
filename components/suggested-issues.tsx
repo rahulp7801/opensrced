@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   CaretDown,
-  ChatCircle,
   FunnelSimple,
   SpinnerGap,
 } from "@phosphor-icons/react";
@@ -247,10 +246,14 @@ export function SuggestedIssues() {
               <article key={issue.url} className="group px-5 py-5 transition-colors hover:bg-ink-2 sm:px-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12.5px] text-paper-muted">
-                      <span className="font-medium text-paper-dim">{issue.repo}</span>
-                      <span>#{issue.number}</span>
-                      {issue.language && <span className="tag" data-tone="info">{issue.language.toLowerCase()}</span>}
+                    <h3 className="text-[16px] font-semibold leading-snug tracking-[-0.01em] text-paper">{issue.title}</h3>
+                    {/* Everything else about the issue is one mono line of facts. */}
+                    <p className="meta mt-1">
+                      <span>{issue.repo} #{issue.number}</span>
+                      {issue.stars > 0 && <span>★ {issue.stars.toLocaleString()}</span>}
+                      {issue.language && <span>{issue.language.toLowerCase()}</span>}
+                      <span>updated {timeAgo(issue.updatedAt)}</span>
+                      {issue.comments > 0 && <span>{issue.comments} comment{issue.comments === 1 ? "" : "s"}</span>}
                       {issue.labels.slice(0, 2).map((label) => (
                         <span
                           key={label}
@@ -260,13 +263,7 @@ export function SuggestedIssues() {
                           {label}
                         </span>
                       ))}
-                    </div>
-                    <h3 className="mt-2 text-[16px] font-semibold leading-snug tracking-[-0.01em] text-paper transition-colors group-hover:text-signal">{issue.title}</h3>
-                    <div className="mt-2 flex flex-wrap items-center gap-3 text-[12.5px] text-paper-muted">
-                      <span>Updated {timeAgo(issue.updatedAt)}</span>
-                      {issue.comments > 0 && <span className="inline-flex items-center gap-1"><ChatCircle aria-hidden size={14} />{issue.comments}</span>}
-                      {issue.stars > 0 && <span>{issue.stars.toLocaleString()} stars</span>}
-                    </div>
+                    </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <a

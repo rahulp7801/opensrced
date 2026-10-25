@@ -510,8 +510,8 @@ function PrBadge({ pr }: { pr: GitHubPr }) {
   if (pr.isDraft) return <span className="chip">draft</span>;
   if (pr.reviewDecision === "APPROVED") return <span className="chip" data-tone="ok">approved</span>;
   if (pr.reviewDecision === "CHANGES_REQUESTED") return <span className="chip" data-tone="alert">changes requested</span>;
-  if (pr.reviewDecision === "REVIEW_REQUIRED") return <span className="chip" data-tone="signal">review needed</span>;
-  return <span className="chip" data-tone="signal">open</span>;
+  if (pr.reviewDecision === "REVIEW_REQUIRED") return <span className="chip" data-tone="info">review needed</span>;
+  return <span className="chip" data-tone="info">open</span>;
 }
 
 function DashboardPrs() {

@@ -106,24 +106,17 @@
   }
 
   /* ── Figure captions on real artefacts (a diff, a log, the map): one mono
-     line with the figure number in a small hairline box. */
+     line led by the brand's boxed .fig-tag ("fig. 1"). */
   .fig {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 0.25rem 0.6rem;
+    row-gap: 0.25rem;
     font-family: var(--font-mono);
     font-size: 11.5px;
     letter-spacing: 0.04em;
     line-height: 1.6;
     color: var(--color-paper-faint);
-  }
-  .fig-tag {
-    flex: none;
-    border: 1px solid var(--color-border);
-    border-radius: 3px;
-    padding: 0 6px;
-    color: var(--color-paper-muted);
   }
 
   /* ── In-page tabs: an underlined text strip on a hairline; the current tab
@@ -227,8 +220,8 @@
   .btn-quiet:disabled:hover { background: transparent; box-shadow: inset 0 0 0 1px var(--color-border); }
   .row-cta:disabled:hover { color: var(--color-paper); text-decoration-color: var(--color-border-strong); }
 
-  /* Links that leave the app say so with a trailing arrow. */
-  /* Out of flow, so the link's underline does not run under the arrow. */
+  /* Links that leave the app say so with a trailing arrow, set out of flow so
+     the link's underline does not run under it. */
   .text-link[target="_blank"],
   .row-cta[target="_blank"] { position: relative; padding-right: 1.05em; }
   .text-link[target="_blank"]::after,
@@ -238,9 +231,6 @@
     right: 0;
     font-size: 0.85em;
   }
-  /* The brand's .text-link carries the 40px tap height; in running text and
-     dense rows it sits on the line instead. */
-  .text-link[data-inline] { min-height: 0; padding: 0; }
   .btn-quiet[data-tone="alert"] { color: var(--color-alert); }
   .btn-quiet[data-tone="alert"]:hover { background: color-mix(in srgb, var(--color-alert-dim) 40%, var(--color-surface)); }
 

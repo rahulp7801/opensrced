@@ -272,7 +272,7 @@ export function RepoMap({ buildAt, focusAt }: { buildAt: number; focusAt: number
               {/* The one thing to take away, in plain words, from the real count. */}
               <p className="stage-settle pointer-events-none absolute left-4 rounded-md bg-black/60 px-2.5 py-1 text-[12.5px] font-medium text-white/90" style={{ bottom: BOTTOM + 6 }}>
                 {prep.snap.focus.hops.length} places depend on it
-                <Doodle doodle={circle} draw="load" delay={500} duration={900} stretch tone="current" className="absolute -inset-x-3 -inset-y-2.5 h-[calc(100%+20px)] w-[calc(100%+24px)] text-[#7f8cff]" />
+                <Doodle doodle={circle} draw="load" delay={500} duration={900} stretch tone="current" className="absolute -inset-x-3 -inset-y-2 h-[calc(100%+16px)] w-[calc(100%+24px)] text-[#8c97ff] opacity-80" />
               </p>
               <div className="stage-settle pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-end gap-4 px-3 text-[11px] text-white/75" style={{ height: BOTTOM }}>
                 <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-full border-2 border-white" />{crumbs.at(-1)}</span>

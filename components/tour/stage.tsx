@@ -349,13 +349,13 @@ function StageHeadline({ head }: { head?: Caption }) {
           {text.slice(0, at)}
           <span className="relative inline-block whitespace-nowrap">
             {mark}
-            <Doodle doodle={underline} draw="load" delay={420} duration={750} stretch className="absolute -bottom-[0.2em] left-[-2%] h-[0.26em] w-[104%]" />
+            <Doodle doodle={underline} draw="load" delay={420} duration={800} stretch className="absolute -bottom-[0.13em] left-0 h-[0.15em] w-full opacity-80" />
           </span>
           {text.slice(at + (mark?.length ?? 0))}
         </>
       )}
       {sticker && (
-        <Sticker tone={sticker.tone ?? "ink"} tilt={sticker.tilt ?? -5} delay={380} className="relative -top-[0.35em] ml-[0.3em] align-middle text-[max(12px,0.29em)]">
+        <Sticker tone={sticker.tone ?? "ink"} tilt={sticker.tilt ?? -2} pop="none" className="stage-settle relative -top-[0.3em] ml-[0.35em] align-middle text-[max(13px,0.29em)]">
           {sticker.text}
         </Sticker>
       )}

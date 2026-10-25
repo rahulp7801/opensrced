@@ -19,9 +19,7 @@ import { MAP_FOCUS_LENGTH, RepoMap } from "./repo-map";
 import { DEMO_PUBLISH_STEPS, Published, Term } from "./chapters-fix";
 import { useEffect, useState, type ReactNode } from "react";
 import { Doodle } from "@/components/brand/doodles";
-import { arrow, check, heroLoop } from "@/components/brand/doodle-data";
-import { Marquee } from "@/components/brand/marquee";
-import { Sticker } from "@/components/brand/sticker";
+import { arrow, check } from "@/components/brand/doodle-data";
 import { Wordmark } from "@/components/brand/wordmark";
 import { DIAGNOSIS, PATCH_STATS, RISK } from "./data";
 import { projectRules, RULE_STATUS_LABEL, type RuleStatus } from "@/lib/project-rules";
@@ -354,7 +352,7 @@ function staged(chapter: Chapter, headlines: Caption[], captions: Caption[]): Ch
 /** The review and the pull request as the stage tells them. */
 export function stageNotes(base: { pr: Chapter }) {
   return {
-    pr: withProvenance(staged(base.pr, [{ at: 0, text: "The maintainer always knows AI helped.", sticker: { text: "Real PR #7", tone: "signal", tilt: -4 } }], [
+    pr: withProvenance(staged(base.pr, [{ at: 0, text: "The maintainer always knows AI helped.", sticker: { text: "Real PR #7", tone: "signal", tilt: -2 } }], [
       { at: 0, spot: "pr-facts", text: "Every GitHub step done right: its own branch, your private noreply email, the right base branch, and a description that closes the issue." },
       { at: 5800, spot: "pr-verified", text: "The description shows the tests it ran and the result: verified." },
       { at: 7400, spot: "pr-ai", text: "And it discloses itself: who asked, which model, what was and wasn't tested, plus an Assisted-by trailer and a sign-off where the project asks." },
@@ -475,7 +473,7 @@ export const stageRefused: Chapter = {
   title: "When it says no",
   duration: MAINT_AT + 7500,
   source: "Example: a fictional project whose guide bans AI; then a real issue, names hidden",
-  headlines: [{ at: 0, text: "And when the rules say no, it stops." }, { at: MAINT_AT, text: "It listens to maintainers, even in the comments.", sticker: { text: "Names hidden", tone: "paper", tilt: 4 } }],
+  headlines: [{ at: 0, text: "And when the rules say no, it stops." }, { at: MAINT_AT, text: "It listens to maintainers, even in the comments.", sticker: { text: "Names hidden", tone: "paper", tilt: 2 } }],
   provenance: [{ at: 0, text: "Example project" }, { at: MAINT_AT, text: "Real issue · names hidden" }],
   captions: [
     { at: 0, spot: "refusal", text: "And it says no. This guide bans AI-written pull requests, so publishing is refused, quoting the guide, with no Publish button. Same when someone else already has a pull request open." },
@@ -512,7 +510,7 @@ function SlopView() {
         {SLOP.map(([problem, answer], i) => (
           <Reveal key={problem} at={700 + i * SLOP_STEP} className="grid grid-cols-[260px_minmax(0,1fr)] items-baseline gap-6 px-6 py-3.5">
             <p className="text-[18px] font-semibold text-alert">{problem}</p>
-            <p className="text-[17px] leading-[1.4] text-paper">{answer}</p>
+            <p className="text-[18px] leading-[1.4] text-paper">{answer}</p>
           </Reveal>
         ))}
       </div>
@@ -523,16 +521,16 @@ function SlopView() {
 function CloseView() {
   let i = 0;
   return (
-    <div className="stage-enter relative flex h-full flex-col justify-center bg-ink px-16 pb-40">
-      <Wordmark draw className="absolute left-16 top-10 text-[30px] text-paper" />
-      <p className="shout text-[128px] text-paper">
+    <div className="stage-enter relative flex h-full flex-col justify-center bg-ink px-16">
+      <Wordmark className="absolute left-16 top-12 text-[30px] text-paper" />
+      <CodeMap className="absolute right-12 top-14 w-[420px]" />
+      <p className="display text-[96px] leading-[1.02] tracking-[-0.025em] text-paper">
         {CLOSE_LINES.map((line, l) => (
           <span key={line} className={cn("block", l === 1 && "text-signal [--ink-to:var(--color-signal)]")}>
             {line.split(" ").map((word) => <span key={word + i} className="stage-ink" style={{ "--d": `${300 + i++ * 140}ms` } as React.CSSProperties}>{word} </span>)}
           </span>
         ))}
       </p>
-      <Marquee curved items={["Tested", "Explained", "Follows the rules", "Not more PRs, better ones"]} className="absolute inset-x-[-12%] -bottom-16" />
     </div>
   );
 }
@@ -584,7 +582,7 @@ function VerifiedView() {
           {verified ? (
             <span className="relative">
               <span className="stage-settle"><StatusChip tone="ok">verified</StatusChip></span>
-              <Doodle doodle={check} draw="load" delay={250} duration={650} tone="current" className="absolute -left-12 -top-4 h-11 w-14 text-ok" />
+              <Doodle doodle={check} draw="load" delay={250} duration={700} tone="current" className="absolute -left-9 -top-2 h-7 w-9 text-ok opacity-80" />
             </span>
           ) : <StatusChip tone="signal">testing</StatusChip>}
         </div>
@@ -649,7 +647,7 @@ function ProblemView() {
               <div className="min-w-0">
                 <p className="truncate text-[18px] font-medium text-paper">{pr.title}</p>
                 <p className="mt-1.5 flex flex-wrap gap-2">
-                  {pr.flags.map((f) => <span key={f} className="rounded-full bg-alert/10 px-2.5 py-0.5 text-[13px] font-medium text-alert">{f}</span>)}
+                  {pr.flags.map((f) => <span key={f} className="rounded-full bg-alert/10 px-3 py-0.5 text-[16px] font-medium text-alert">{f}</span>)}
                 </p>
               </div>
               <span className="shrink-0 font-mono text-[14px] text-paper-muted">{pr.size}</span>
@@ -690,15 +688,14 @@ function PromiseView() {
     <div className="flex h-full flex-col justify-center bg-ink px-16 py-10">
       <div className="divide-y divide-border">
         {PILLARS.map(([title, text], i) => (
-          <Reveal key={title} at={300 + i * 600} className="grid grid-cols-[minmax(0,1fr)_380px] items-end gap-10 py-4">
-            <p className="shout text-[92px] text-paper">{title}<span className="text-signal">.</span></p>
-            <p className="pb-2 text-[19px] leading-snug text-paper-dim">{text}</p>
+          <Reveal key={title} at={300 + i * 600} className="grid grid-cols-[minmax(0,1fr)_400px] items-baseline gap-10 py-5">
+            <p className="display text-[64px] leading-none tracking-[-0.02em] text-paper">{title}<span className="text-signal">.</span></p>
+            <p className="text-[20px] leading-snug text-paper-dim">{text}</p>
           </Reveal>
         ))}
       </div>
-      <Reveal at={300 + PILLARS.length * 600 + 300} className="mt-7 flex items-center gap-3">
-        <Sticker tone="signal" tilt={-3} pop="none" className="text-[15px]">You review first</Sticker>
-        <p className="text-[19px] text-paper-muted">Every run stops for your review. Nothing posts until you confirm.</p>
+      <Reveal at={300 + PILLARS.length * 600 + 300} className="mt-8">
+        <p className="text-[20px] text-paper-muted">Every run stops for your review. Nothing posts until you confirm.</p>
       </Reveal>
     </div>
   );
@@ -775,7 +772,7 @@ export const stageRules: Chapter = {
   duration: RULES_DONE_AT + 2500,
   source: "The real run behind pull request #7, in plain words",
   provenance: [{ at: 0, text: "Real run · Oct 24" }],
-  headlines: [{ at: 0, text: "It reads the project's rules first.", sticker: { text: "Real run", tone: "ink", tilt: -5 } }],
+  headlines: [{ at: 0, text: "It reads the project's rules first.", sticker: { text: "Real run", tone: "ink", tilt: -2 } }],
   captions: [
     { at: 0, text: "One click starts the run, in a throwaway machine with a spend cap and a time limit." },
     { at: 2200, spot: "rules", text: "It reads the project's rules first: contribution guide, PR template, AI policy, sign-off. This repo has none, so it follows what the code already does." },
@@ -1006,7 +1003,7 @@ function StageReviewView() {
                 I&apos;ve read this change and can explain it to reviewers.
               </Press>
               <span className="relative ml-auto">
-                {t >= R.confirm + 300 && t < R.publishAt && <Doodle doodle={arrow} draw="load" duration={800} className="absolute -top-[74px] right-[calc(100%+6px)] h-[78px] w-[102px]" />}
+                {t >= R.confirm + 300 && t < R.publishAt && <span data-waiting="" className="absolute -top-[54px] right-[calc(100%+4px)] block h-[56px] w-[74px]"><Doodle doodle={arrow} draw="load" duration={850} className="h-full w-full opacity-80" /></span>}
                 <Press at={R.publishAt} label="Publish draft PR" className={cn("rounded-full border px-3 py-0.5 font-medium", t >= R.confirm ? "border-ok/40 bg-ok/10 text-ok" : "border-border text-paper-faint")}>
                   {t >= R.publishAt ? `Draft PR #${RUN.pr} opened ↗` : "Publish draft PR"}
                 </Press>
@@ -1055,25 +1052,58 @@ export const stageReview: Chapter = {
 
 // ── The title slide (before the first step) ─────────────────────────────────
 
-/** The landing's hero, sized for the stage: the shout, three stickers from what the product
- *  does (drafts only, tests in a locked box, your own words), the hand-drawn loop, and the
- *  marquee in our voice. Everything renders finished; it only moves for those who allow it. */
+/** The title: the wordmark, one line of who it's for, the promise in two plain lines, and the
+ *  code map beside them, since mapping code is what opensrcer does. */
 export function StageTitle() {
   return (
-    <div className="relative h-full bg-ink px-16 pt-10">
-      <Wordmark draw className="text-[30px] text-paper" />
-      <p className="kicker mt-10 text-paper-dim">Your first open-source contribution, guided</p>
-      <div className="relative mt-6 w-fit">
-        <p className="shout text-[132px] text-paper">
+    <div className="relative h-full bg-ink px-16">
+      <Wordmark draw className="absolute left-16 top-12 text-[30px] text-paper" />
+      <CodeMap className="absolute right-12 top-14 w-[440px]" />
+      <div className="flex h-full flex-col justify-end pb-20">
+        <p className="kicker text-[16px] text-paper-muted">Your first open-source contribution, guided</p>
+        <p className="display mt-5 text-[104px] leading-[0.98] tracking-[-0.025em] text-paper">
           <span className="rise block">Issues in.</span>
-          <span className="rise block" style={{ "--delay": "120ms" } as React.CSSProperties}>Pull requests <span className="text-signal">out.</span></span>
+          <span className="rise block" style={{ "--delay": "120ms" } as React.CSSProperties}>Pull requests out.</span>
         </p>
-        <Sticker tone="ink" tilt={-7} delay={500} className="absolute left-[46%] top-[-6px] text-[17px]">Drafts only</Sticker>
-        <Sticker tone="paper" tilt={-4} delay={650} className="absolute right-[2%] top-[44%] text-[17px]">In your own words</Sticker>
-        <Sticker tone="signal" tilt={4} delay={800} className="absolute bottom-[-18px] left-[30%] text-[17px]">Tested in a locked box</Sticker>
       </div>
-      <Doodle doodle={heroLoop} draw="load" delay={350} duration={1400} className="absolute right-[-30px] top-[18px] w-[470px]" />
-      <Marquee curved items={["Tested", "Explained", "Follows the rules", "Not more PRs, better ones"]} className="absolute inset-x-[-12%] -bottom-20" />
     </div>
+  );
+}
+
+// ── The code map: the posters' motif ────────────────────────────────────────
+
+// A small, quiet code graph in the product's own language: nodes, the calls between them, and
+// one path lit from a function outward. Decorative (aria-hidden); it draws in calmly.
+const MAP_NODES: Array<[number, number, number]> = [
+  [40, 200, 3], [92, 150, 4], [150, 184, 3], [116, 242, 3], [204, 122, 5], [252, 192, 6], [304, 140, 3], [334, 222, 4],
+  [384, 108, 4], [414, 182, 3], [262, 58, 3], [180, 40, 3], [60, 88, 3], [344, 36, 4], [222, 254, 3], [404, 254, 3],
+];
+const MAP_EDGES: Array<[number, number]> = [
+  [0, 1], [1, 4], [4, 10], [10, 11], [11, 12], [12, 1], [10, 13], [8, 13], [5, 14], [7, 15], [8, 9], [6, 7], [1, 2], [4, 5],
+];
+const MAP_PATH = [3, 2, 5, 6, 8]; // the lit path, from a function outward
+const MAP_FOCUS = 5;
+
+function CodeMap({ className }: { className?: string }) {
+  const at = (i: number) => MAP_NODES[i];
+  const lit = new Set(MAP_PATH);
+  return (
+    <svg viewBox="0 0 440 280" aria-hidden className={className} fill="none" strokeLinecap="round">
+      <g stroke="var(--color-signal)" strokeWidth="1.2" opacity="0.28">
+        {MAP_EDGES.map(([a, b], i) => (
+          <line key={i} x1={at(a)[0]} y1={at(a)[1]} x2={at(b)[0]} y2={at(b)[1]} pathLength={1} className="stage-draw" style={{ "--d": `${150 + i * 55}ms` } as React.CSSProperties} />
+        ))}
+      </g>
+      <g stroke="var(--color-signal)" strokeWidth="2.2">
+        {MAP_PATH.slice(1).map((b, i) => {
+          const a = MAP_PATH[i];
+          return <line key={b} x1={at(a)[0]} y1={at(a)[1]} x2={at(b)[0]} y2={at(b)[1]} pathLength={1} className="stage-draw" style={{ "--d": `${1000 + i * 260}ms` } as React.CSSProperties} />;
+        })}
+      </g>
+      {MAP_NODES.map(([x, y, r], i) => (
+        <circle key={i} cx={x} cy={y} r={r} fill="var(--color-signal)" opacity={lit.has(i) ? 1 : 0.38} className="stage-node" style={{ "--d": `${100 + i * 45}ms` } as React.CSSProperties} />
+      ))}
+      <circle cx={at(MAP_FOCUS)[0]} cy={at(MAP_FOCUS)[1]} r={13} stroke="var(--color-signal)" strokeWidth="1.6" className="stage-node" style={{ "--d": "1900ms" } as React.CSSProperties} />
+    </svg>
   );
 }

@@ -65,7 +65,7 @@ export function PublishPanel({ dispatchId, repo, dryRun = false, rerun, onPublis
     return () => controller.abort();
   }, [dispatchId]);
 
-  if (loadError) return <div role="alert" className="border-b border-alert/40 px-4 py-2.5 text-[12px] text-alert">{loadError}</div>;
+  if (loadError) return <div role="alert" className="border-b border-border-soft bg-alert-dim/30 px-5 py-3 text-[13.5px] text-alert sm:px-8">{loadError}</div>;
   if (!preview) return null;
 
   async function publish() {
@@ -107,60 +107,75 @@ export function PublishPanel({ dispatchId, repo, dryRun = false, rerun, onPublis
   const comment = preview.draft_issue_comment;
   const commentBlock = comment && (
     <>
-      <pre className="mt-1 whitespace-pre-wrap rounded-lg border border-border-soft bg-surface p-3 text-[11px] text-paper-muted">{comment}</pre>
-      <button className="mt-1 inline-flex min-h-10 items-center text-xs text-signal hover:underline sm:min-h-6" onClick={() => void copyText(comment).then(() => setCopied(true))}>
+      <pre className="mt-2 whitespace-pre-wrap rounded-xl bg-surface p-4 font-sans text-[13.5px] leading-[1.6] text-paper-dim shadow-[inset_0_0_0_1px_var(--color-border-soft)]">{comment}</pre>
+      <button className="link mt-1 inline-flex min-h-10 items-center text-[13px] sm:min-h-6" onClick={() => void copyText(comment).then(() => setCopied(true))}>
         {copied ? "copied" : "copy comment"}
       </button>
     </>
   );
+  const verified = v?.status === "verified";
+  // The publish gate is a short lesson: read the change, see the project's
+  // rules, explain it, practise the review, then publish. Calm type and room
+  // to breathe; status lives in chips, not in coloured paragraphs.
   return (
-    <section aria-label={dryRun ? "Preview result" : "Review before publishing"} className="border-b border-border px-4 py-3 text-[12px]">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-[13px] font-medium text-paper">{dryRun ? "Preview: read the fix" : "Review before publishing"}</h3>
-        <span className={v?.status === "verified" ? "text-ok" : "text-alert"}><Term term="verified">Verification</Term>: {verdict}</span>
+    <section aria-label={dryRun ? "Preview result" : "Review before publishing"} className="border-b border-border-soft bg-ink-2 px-5 py-8 text-[14px] leading-[1.6] sm:px-8 sm:py-10">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <div>
+          <p className="kicker text-signal">{dryRun ? "Practice run" : "Before anything is posted"}</p>
+          <h3 className="display mt-2 text-[30px] leading-none text-paper sm:text-[36px]">{dryRun ? "Preview: read the fix" : "Review before publishing"}</h3>
+        </div>
+        <span className="chip whitespace-normal" data-tone={verified ? "ok" : "alert"}><Term term="verified">Verification</Term>: {verdict}</span>
       </div>
       {dryRun ? (
-        <div className="mt-2 rounded-lg border border-info/40 bg-info/5 px-3 py-2.5">
-          <p className="font-medium text-paper">This was a <Term term="preview">preview</Term>, so it can&apos;t be published.</p>
-          <p className="mt-1 text-paper-muted">
+        <div className="callout mt-5" data-tone="info">
+          <p className="text-[15px] font-semibold text-paper">This was a <Term term="preview">preview</Term>, so it can&apos;t be published.</p>
+          <p className="mt-1.5 max-w-2xl text-paper-dim">
             Nothing was posted anywhere. If the fix below looks right and you want to send it to the project, run this issue again
             as a publishable run. It starts fresh (a new run, with its own cost), then stops here for your review: nothing is posted until you confirm.
           </p>
           {rerun && <RerunButton {...rerun} />}
         </div>
       ) : (
-        <p className="mt-1 text-paper-muted">Nothing has been posted yet. Read the change and the evidence below first.</p>
+        <p className="mt-3 max-w-2xl text-[15px] text-paper-muted">Nothing has been posted yet. Read the change and the evidence below first.</p>
       )}
-      {preview.blockers.map((b) => <p key={b} role="alert" className="mt-2 text-alert">Blocked: {b}</p>)}
-      {preview.warnings.map((w) => <p key={w} className="mt-2 text-paper-muted">Note: {w}</p>)}
+      {preview.blockers.map((b) => <p key={b} role="alert" className="callout mt-4 font-medium" data-tone="alert">Blocked: {b}</p>)}
+      {preview.warnings.map((w) => <p key={w} className="mt-3 text-paper-dim">Note: {w}</p>)}
       {preview.cases && preview.cases.length > 0 && (
-        <div className="mt-2">
+        <div className="mt-4">
           <p className="text-paper">Cases covered (the agent&apos;s list of reported variants):</p>
-          <ul className="mt-1 list-disc pl-5 text-paper-muted">
+          <ul className="mt-1 list-disc pl-5 text-paper-dim">
             {preview.cases.map((c) => (
               <li key={c.variant} className={c.test ? "" : "text-alert"}>{c.variant} → {c.test ?? "not covered"}</li>
             ))}
           </ul>
         </div>
       )}
-      <details className="mt-2">
-        <summary className="min-h-6 cursor-pointer text-paper">PR text: {preview.title}</summary>
-        <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg border border-border-soft bg-surface p-3 text-[11px] text-paper-muted">{preview.body}</pre>
+      <details className="group mt-5 rounded-2xl bg-surface shadow-[inset_0_0_0_1px_var(--color-border-soft)]">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-paper">
+          <span aria-hidden className="text-paper-muted transition-transform group-open:rotate-90">›</span>
+          <span className="min-w-0"><span className="font-semibold">PR text:</span> {preview.title}</span>
+        </summary>
+        <pre className="max-h-80 overflow-auto whitespace-pre-wrap border-t border-border-soft px-4 py-3 font-sans text-[13.5px] leading-[1.6] text-paper-dim">{preview.body}</pre>
       </details>
       {/* The suggested path where maintainers ask for discussion (and on older
           previews, which drafted a comment only then); an option everywhere else. */}
       {comment && (preview.ask_first !== false ? (
-        <div className="mt-2">
-          <p className="text-paper">Suggested instead: ask on the issue first. Post this yourself if it reads right:</p>
+        <div className="callout mt-4" data-tone="signal">
+          <p className="font-medium text-paper">Suggested instead: ask on the issue first. Post this yourself if it reads right:</p>
           {commentBlock}
         </div>
       ) : (
-        <details className="mt-2">
-          <summary className="min-h-6 cursor-pointer text-paper">Not sure the maintainers want this? Ask on the issue first (optional)</summary>
-          <p className="mt-1 text-paper-muted">
-            In busy projects a short comment before a pull request avoids duplicate work. opensrcer never posts it; copy it to the issue on GitHub if it reads right.
-          </p>
-          {commentBlock}
+        <details className="group mt-3 rounded-2xl bg-surface shadow-[inset_0_0_0_1px_var(--color-border-soft)]">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-paper">
+            <span aria-hidden className="text-paper-muted transition-transform group-open:rotate-90">›</span>
+            <span className="min-w-0">Not sure the maintainers want this? Ask on the issue first (optional)</span>
+          </summary>
+          <div className="border-t border-border-soft px-4 py-3">
+            <p className="text-paper-dim">
+              In busy projects a short comment before a pull request avoids duplicate work. opensrcer never posts it; copy it to the issue on GitHub if it reads right.
+            </p>
+            {commentBlock}
+          </div>
         </details>
       ))}
       <ProjectRules rows={rules} />
@@ -183,12 +198,17 @@ export function PublishPanel({ dispatchId, repo, dryRun = false, rerun, onPublis
       )}
       {canPublish && (
         <>
-          <div className="mt-3 rounded-lg border border-border-soft bg-ink px-3 py-2.5">
-            <h4 className="font-medium text-paper">What happens when you publish</h4>
-            <ol className="mt-1.5 list-decimal space-y-1 pl-5 text-paper-dim">
-              {publishSteps({ files: preview.files.length, signoff: preview.signoff, followupPr: preview.followup_pr }).map((s) => <li key={s}>{s}</li>)}
+          <div className="mt-8 border-t-2 border-paper pt-5">
+            <h4 className="text-[19px] font-semibold tracking-[-0.01em] text-paper">What happens when you publish</h4>
+            <ol className="mt-4 grid gap-3 sm:grid-cols-2">
+              {publishSteps({ files: preview.files.length, signoff: preview.signoff, followupPr: preview.followup_pr }).map((s, i) => (
+                <li key={s} className="grid grid-cols-[1.75rem_1fr] gap-1 text-paper-dim">
+                  <span className="kicker pt-[3px] text-signal">{String(i + 1).padStart(2, "0")}</span>
+                  <span>{s}</span>
+                </li>
+              ))}
             </ol>
-            <p className="mt-2 flex flex-wrap items-center gap-x-3 text-paper-muted">
+            <p className="mt-4 flex flex-wrap items-center gap-x-3 text-[13px] text-paper-muted">
               <span>Words used here:</span>
               {preview.followup_pr ? (
                 <><Term term="pull request" />{preview.signoff && <Term term="sign-off" />}</>
@@ -197,19 +217,19 @@ export function PublishPanel({ dispatchId, repo, dryRun = false, rerun, onPublis
               )}
             </p>
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-paper">
+          <div className="mt-6 flex flex-col gap-4 rounded-2xl bg-surface p-4 shadow-[inset_0_0_0_1px_var(--color-border)] sm:flex-row sm:flex-wrap sm:items-center sm:p-5">
+            <label className="flex min-h-10 flex-1 items-center gap-3 text-[15px] text-paper">
               <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="h-6 w-6 shrink-0" />
               {preview.confirmation}
             </label>
             <button
               onClick={publish}
               disabled={!confirmed || pending || !gateOpen}
-              className="rounded-full border border-ok/50 bg-ok/10 px-3 py-1 text-[12px] text-ok hover:bg-ok/20 disabled:opacity-50"
+              className="btn-primary min-h-12 px-6 text-[15px]"
             >
               {pending ? "publishing…" : preview.followup_pr ? "Push follow-up commit" : "Publish draft PR"}
             </button>
-            {!gateOpen && <span className="basis-full text-paper-muted">To publish: explain the change in your own words, answer the practice review, and tick the box.</span>}
+            {!gateOpen && <span className="basis-full text-[13.5px] text-paper-muted">To publish: explain the change in your own words, answer the practice review, and tick the box.</span>}
             {error && <span role="alert" className="basis-full text-alert">{error}</span>}
           </div>
         </>
@@ -218,31 +238,31 @@ export function PublishPanel({ dispatchId, repo, dryRun = false, rerun, onPublis
   );
 }
 
-const STATUS_TONE: Record<RuleStatus, string> = {
-  done: "border-ok/50 text-ok",
-  action: "border-signal/60 text-signal",
-  blocked: "border-alert/50 text-alert",
-  check: "border-signal/50 text-signal",
-  unknown: "border-border-strong text-paper-muted",
-  none: "border-border-strong text-paper-muted",
+const STATUS_TONE: Record<RuleStatus, string | undefined> = {
+  done: "ok",
+  action: "signal",
+  blocked: "alert",
+  check: "signal",
+  unknown: undefined,
+  none: undefined,
 };
 
 /** Each rule the project sets and how this run handled it (lib/project-rules.ts).
  *  Rows that need the user, or that stop publishing, stand out. */
 function ProjectRules({ rows }: { rows: RuleRow[] }) {
   return (
-    <section aria-labelledby="project-rules-heading" className="mt-3 rounded-lg border border-border-soft bg-ink px-3 py-2.5">
-      <h4 id="project-rules-heading" className="font-medium text-paper">This project&apos;s rules</h4>
-      <p className="mt-1 text-paper-muted">Why this matters: maintainers set these rules, and following them is what makes a contribution welcome.</p>
-      <ul className="mt-2 space-y-1.5">
+    <section aria-labelledby="project-rules-heading" className="mt-8">
+      <h4 id="project-rules-heading" className="text-[19px] font-semibold tracking-[-0.01em] text-paper">This project&apos;s rules</h4>
+      <p className="mt-1 max-w-2xl text-paper-muted">Why this matters: maintainers set these rules, and following them is what makes a contribution welcome.</p>
+      <ul className="mt-4 divide-y divide-border-soft overflow-hidden rounded-2xl bg-surface shadow-[inset_0_0_0_1px_var(--color-border-soft)]">
         {rows.map((r) => (
-          <li key={r.id} className={cn("rounded-lg border px-2.5 py-1.5", r.status === "action" ? "border-signal/50 bg-signal/5" : r.status === "blocked" ? "border-alert/50 bg-alert/5" : "border-border-soft")}>
-            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-              <span className={cn("shrink-0 rounded-full border px-2 text-[11px] font-medium", STATUS_TONE[r.status])}>{RULE_STATUS_LABEL[r.status]}</span>
-              <span className="font-medium text-paper">{r.term ? <Term term={r.term}>{r.label}</Term> : r.label}:</span>
+          <li key={r.id} className={cn("px-4 py-3", r.status === "action" ? "bg-signal-faint/60" : r.status === "blocked" ? "bg-alert-dim/25" : "")}>
+            <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+              <span className="chip shrink-0" data-tone={STATUS_TONE[r.status]}>{RULE_STATUS_LABEL[r.status]}</span>
+              <span className="font-semibold text-paper">{r.term ? <Term term={r.term}>{r.label}</Term> : r.label}:</span>
               <span className={r.status === "action" || r.status === "blocked" ? "text-paper" : "text-paper-dim"}>{r.text}</span>
             </div>
-            {r.detail && <p className="mt-0.5 break-words text-paper-muted">{r.detail}</p>}
+            {r.detail && <p className="mt-1 break-words text-[13px] text-paper-muted">{r.detail}</p>}
           </li>
         ))}
       </ul>
@@ -275,8 +295,8 @@ function RerunButton({ repoUrl, issue }: { repoUrl: string; issue: number }) {
     }
   }
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-3">
-      <button onClick={start} disabled={pending} className="min-h-8 rounded-full border border-signal/50 bg-signal/10 px-3 text-[12px] font-medium text-signal hover:bg-signal/20 disabled:opacity-50">
+    <div className="mt-4 flex flex-wrap items-center gap-3">
+      <button onClick={start} disabled={pending} className="btn-primary">
         {pending ? "Starting…" : "Run again, ready to publish"}
       </button>
       {error && <span role="alert" className="text-alert">{error}</span>}

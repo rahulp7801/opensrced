@@ -11,6 +11,9 @@ import { extractFirstDiff, parseSplitHunks, type DiffRow } from "@/lib/diff-view
 import { findGitHubPullUrl } from "@/lib/github-pull-url";
 import { PublishPanel } from "./publish-panel";
 import { NextSteps } from "./next-steps";
+import { Doodle } from "./brand/doodles";
+import { loop, spark } from "./brand/doodle-data";
+
 
 type PrStatus = "opened" | "failed" | "pending" | "tests_passed" | "tests_failed" | "awaiting_review" | "blocked" | "none";
 
@@ -207,21 +210,21 @@ export function DispatchList() {
     return (
       <div className="grid grid-cols-12 gap-6">
         <aside className="col-span-12 md:col-span-5 lg:col-span-4">
-          <div className="rounded-2xl border border-border-soft bg-surface">
-            <div className="border-b border-border px-4 py-2.5">
-              <div className="h-4 w-20 bg-surface-3 animate-pulse" />
+          <div className="card overflow-hidden">
+            <div className="border-b border-border-soft px-5 py-4">
+              <div className="h-3 w-16 rounded-full bg-surface-3 animate-pulse" />
             </div>
             {[1, 2, 3].map((i) => (
-              <div key={i} className="px-4 py-3 border-b border-border-soft last:border-0 space-y-2">
-                <div className="h-3 w-3/4 bg-surface-3 animate-pulse" />
-                <div className="h-2.5 w-1/2 bg-surface-2 animate-pulse" />
-                <div className="h-2 w-1/3 bg-surface-2 animate-pulse" />
+              <div key={i} className="px-5 py-4 border-b border-border-soft last:border-0 space-y-2">
+                <div className="h-3 w-3/4 rounded-full bg-surface-3 animate-pulse" />
+                <div className="h-2.5 w-1/2 rounded-full bg-surface-2 animate-pulse" />
+                <div className="h-2 w-1/3 rounded-full bg-surface-2 animate-pulse" />
               </div>
             ))}
           </div>
         </aside>
         <section className="col-span-12 md:col-span-7 lg:col-span-8">
-          <div className="rounded-2xl border border-border-soft bg-surface p-10 text-center text-[12px] text-paper-muted">
+          <div role="status" className="card p-10 text-center text-[14px] text-paper-muted">
             {pollError ? `Could not load runs: ${pollError} Retrying...` : "Loading runs..."}
           </div>
         </section>
@@ -230,38 +233,40 @@ export function DispatchList() {
   }
   if (items.length === 0) {
     return (
-      <div className="rounded-2xl border border-border-soft bg-surface px-6 py-10 text-center sm:px-10">
-        <h2 className="text-lg font-medium text-paper">No runs yet</h2>
-        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-paper-muted">
+      <div className="card relative overflow-hidden px-6 py-12 sm:px-12 sm:py-16">
+        <h2 className="display text-[36px] leading-none text-paper sm:text-[48px]">No runs yet</h2>
+        <p className="mt-4 max-w-md text-[15px] leading-[1.6] text-paper-muted">
           Start with a GitHub repository or issue. Preview mode lets you inspect the proposed patch before anything is published.
         </p>
-        <div className="mt-5 flex flex-wrap justify-center gap-3">
-          <Link href="/trigger" className="inline-flex min-h-11 items-center rounded-md bg-signal px-4 py-2 text-sm font-medium text-ink hover:bg-signal-soft">
+        <div className="mt-7 flex flex-wrap items-center gap-3">
+          <Link href="/trigger" className="btn-primary min-h-11 px-6">
             Start a run
           </Link>
-          <Link href="/issues" className="inline-flex min-h-11 items-center rounded-md border border-border px-4 py-2 text-sm text-paper-dim hover:border-border-strong hover:text-paper">
+          <Link href="/issues" className="btn-quiet min-h-11 px-6">
             Browse issues
           </Link>
         </div>
+        {/* A hand-drawn loop in the corner of an empty page: the one personal mark here. */}
+        <Doodle doodle={loop} draw="load" delay={200} className="pointer-events-none absolute -bottom-6 right-6 hidden h-40 w-60 sm:block" />
       </div>
     );
   }
 
   return (
     <div className="grid grid-cols-12 gap-6">
-      {pollError && <p role="status" className="col-span-12 text-sm text-alert">Could not refresh runs: {pollError} Retrying...</p>}
+      {pollError && <p role="status" className="col-span-12 text-[14px] text-alert">Could not refresh runs: {pollError} Retrying...</p>}
       {/* List */}
       <aside className="col-span-12 md:col-span-5 lg:col-span-4">
-        <div className="rounded-2xl border border-border-soft bg-surface">
-          <div className="border-b border-border px-4 py-3 flex items-center justify-between gap-3">
-            <span className="text-[13px] text-paper">Runs</span>
+        <div className="card overflow-hidden">
+          <div className="border-b border-border-soft px-5 py-3.5 flex items-center justify-between gap-3">
+            <span className="kicker text-paper-muted">Runs</span>
             <div className="flex items-center gap-3">
               {notificationPermission === "default" && (
-                <button type="button" onClick={enableNotifications} className="text-xs text-paper-muted hover:text-paper">
+                <button type="button" onClick={enableNotifications} className="text-[12.5px] text-paper-muted hover:text-paper">
                   Enable notifications
                 </button>
               )}
-              <span className="font-mono text-xs text-paper-muted tabular-nums" aria-label={`${items.length} runs`}>
+              <span className="font-mono text-[12px] text-paper-muted tabular-nums" aria-label={`${items.length} runs`}>
                 {items.length}
               </span>
             </div>
@@ -272,7 +277,7 @@ export function DispatchList() {
                 key={d.id}
                 className={cn(
                   "border-b border-border-soft last:border-0 transition-colors",
-                  selected === d.id ? "bg-surface-2/80" : "hover:bg-surface-2/40",
+                  selected === d.id ? "bg-ink-2 shadow-[inset_3px_0_0_var(--color-signal)]" : "hover:bg-ink-2",
                 )}
               >
                 {/* A real link, so keyboard and screen-reader users can open a run;
@@ -285,18 +290,18 @@ export function DispatchList() {
                     pick(d.id);
                   }}
                   aria-current={selected === d.id ? "true" : undefined}
-                  className="block px-4 py-3 focus-visible:outline-offset-[-3px]"
+                  className="block px-5 py-3.5 focus-visible:outline-offset-[-3px]"
                 >
                   <div className="flex items-center gap-2">
                     <StatusDot tone={toneFor(d.status)} />
-                    <span className="text-[12px] text-paper truncate">
+                    <span className="text-[13px] font-medium text-paper truncate">
                       {dispatchTarget(d)}
                       {d.issue_number !== undefined && (
                         <span className="text-paper-faint"> #{d.issue_number}</span>
                       )}
                     </span>
                     {d.dry_run && (
-                      <span title="Preview: a practice run that can't be published" className="rounded-full ml-auto text-[11px] font-medium text-info border border-info/40 px-1 py-px leading-none">
+                      <span title="Preview: a practice run that can't be published" className="chip ml-auto py-0 text-[11.5px]" data-tone="info">
                         preview
                       </span>
                     )}
@@ -304,11 +309,11 @@ export function DispatchList() {
                   {/* Cloud runs do not fetch titles, so keep the issue number
                       visible until the local title cache fills it in. */}
                   {d.issue_number !== undefined && (
-                    <div className="mt-1 text-[12px] text-paper-dim truncate">
+                    <div className="mt-1 text-[13.5px] text-paper-dim truncate">
                       {d.issue_title ?? `Issue #${d.issue_number}`}
                     </div>
                   )}
-                  <div className="mt-1 flex items-center gap-2 text-xs text-paper-muted">
+                  <div className="mt-1 flex items-center gap-2 text-[12px] text-paper-muted">
                     <span className="tabular-nums" title={d.started_at}>
                       {formatAbsoluteOrRelative(d.started_at)}
                     </span>
@@ -372,31 +377,31 @@ export function DispatchList() {
       {/* Detail */}
       <section className="col-span-12 md:col-span-7 lg:col-span-8">
         {detail ? (
-          <div className="rounded-2xl border border-border-soft bg-surface">
+          <div className="card overflow-hidden">
             {/* Header */}
-            <div className="border-b border-border px-4 py-3">
+            <div className="border-b border-border-soft px-5 py-5 sm:px-8 sm:py-6">
               <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                 <div className="min-w-[12rem] flex-1">
                   <div className="flex items-center gap-2">
                     <IconTrigger className="text-signal" />
                     {detail.repo_url ? (
-                      <a href={repoHref(detail.repo_url)} target="_blank" rel="noreferrer" className="text-[13px] text-paper-muted hover:text-signal truncate">
+                      <a href={repoHref(detail.repo_url)} target="_blank" rel="noreferrer" className="text-[13.5px] font-medium text-paper-dim hover:text-signal truncate">
                         {dispatchTarget(detail)}
                       </a>
                     ) : <span className="text-[13px] text-paper-muted">{dispatchTarget(detail)}</span>}
                     {detail.repo_url && detail.issue_number !== undefined && (
-                      <a href={`${repoHref(detail.repo_url)}/issues/${detail.issue_number}`} target="_blank" rel="noreferrer" className="rounded-full text-[12px] text-info hover:text-signal border border-info/40 px-1.5 py-0.5 leading-none">
+                      <a href={`${repoHref(detail.repo_url)}/issues/${detail.issue_number}`} target="_blank" rel="noreferrer" className="chip hover:underline" data-tone="info">
                         #{detail.issue_number}
                       </a>
                     )}
                   </div>
-                  <div className="mt-1.5 text-[17px] text-paper leading-snug truncate">
+                  <div className="display mt-2 text-[26px] leading-[1.05] text-paper sm:text-[30px]">
                     {detail.issue_title ??
                       (detail.issue_number !== undefined
                         ? `Issue #${detail.issue_number}`
                         : <span className="text-paper-muted">Dispatch {detail.id.slice(-8)}</span>)}
                   </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-paper-muted">
+                  <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12.5px] text-paper-muted">
                     <span className="tabular-nums">{formatAbsoluteOrRelative(detail.started_at)}</span>
                     {detail.ended_at && (
                       <><span className="text-paper-faint">·</span><span className="tabular-nums">{formatDuration(detail.started_at, detail.ended_at)}</span></>
@@ -420,7 +425,7 @@ export function DispatchList() {
 
             {/* Pipeline timeline */}
             {detail.log && (
-              <div className="border-b border-border px-4 py-2">
+              <div className="border-b border-border-soft px-5 py-3 sm:px-8">
                 <PipelineTimeline log={detail.log} status={detail.status} prUrl={detail.pr_url} />
               </div>
             )}
@@ -431,9 +436,9 @@ export function DispatchList() {
 
             {/* Failure banner (compact) */}
             {(detail.pr_status === "failed" || detail.pr_status === "tests_failed") && (
-              <div className="border-b border-alert/40 bg-alert/5 px-4 py-2.5 text-[12px] text-alert">
+              <div className="border-b border-border-soft bg-alert-dim/30 px-5 py-3 text-[13.5px] font-medium text-alert sm:px-8">
                 {detail.pr_status === "tests_failed" ? "Tests failed — PR not opened" : "Publishing failed"}
-                {detail.pr_failure_reason && <span className="text-paper-muted ml-2">— {detail.pr_failure_reason.slice(0, 120)}</span>}
+                {detail.pr_failure_reason && <span className="ml-2 font-normal text-paper-dim">— {detail.pr_failure_reason.slice(0, 120)}</span>}
               </div>
             )}
 
@@ -458,19 +463,23 @@ export function DispatchList() {
               const info = prInfo;
               if (!info) return null;
               return (
-                <div className="border-b border-ok/40 bg-ok/5 px-4 py-3">
-                  <div role="status" className="flex flex-wrap items-center gap-3">
-                    <span id="pr-opened" tabIndex={-1} className="text-[13px] font-medium text-ok outline-none">Draft PR #{info.prNumber} opened</span>
-                    <span className="ml-auto flex flex-wrap items-center gap-2">
-                      <Link href={`/prs/${info.repoFull}/${info.prNumber}`} className="rounded-full inline-flex min-h-8 items-center border border-signal/50 bg-signal/10 px-3 text-[12px] text-signal hover:bg-signal/20">
+                <div className="border-b border-border-soft bg-ok-dim/25 px-5 py-7 sm:px-8 sm:py-9">
+                  <div role="status" className="flex flex-wrap items-center gap-x-4 gap-y-4">
+                    {/* The success moment: a small hand-drawn spark beside the result. */}
+                    <span className="inline-flex items-center gap-3">
+                      <Doodle doodle={spark} draw="load" className="h-9 w-9 shrink-0" />
+                      <span id="pr-opened" tabIndex={-1} className="display text-[28px] leading-none text-ok outline-none sm:text-[34px]">Draft PR #{info.prNumber} opened</span>
+                    </span>
+                    <span className="flex flex-wrap items-center gap-2 sm:ml-auto">
+                      <Link href={`/prs/${info.repoFull}/${info.prNumber}`} className="btn-primary" data-size="sm">
                         Follow it here
                       </Link>
-                      <a href={info.url} target="_blank" rel="noreferrer" className="rounded-full inline-flex min-h-8 items-center gap-1.5 border border-ok/50 bg-ok/10 text-ok hover:bg-ok/20 px-3 text-[12px]">
+                      <a href={info.url} target="_blank" rel="noreferrer" className="btn-quiet" data-size="sm">
                         Open on GitHub <IconExternal />
                       </a>
                     </span>
                   </div>
-                  <div className="mt-3 border-t border-ok/20 pt-3"><NextSteps /></div>
+                  <div className="mt-6 border-t border-ok/20 pt-6"><NextSteps /></div>
                 </div>
               );
             })()}
@@ -482,11 +491,11 @@ export function DispatchList() {
             <LogViewer log={detail.log} isRunning={detail.status === "running"} logRef={logRef} onScroll={onLogScroll} />
           </div>
         ) : selected && detailError ? (
-          <div role="alert" className="rounded-2xl border border-alert/40 bg-alert/5 p-10 text-center text-[12px] text-alert">
+          <div role="alert" className="callout p-10 text-center text-[14px]" data-tone="alert">
             {detailError}
           </div>
         ) : (
-          <div className="rounded-2xl border border-border-soft bg-surface p-10 text-center text-[12px] text-paper-muted">
+          <div className="card p-10 text-center text-[14px] text-paper-muted">
             Select a run to view its log.
           </div>
         )}
@@ -539,11 +548,12 @@ function RetryButton({ dispatch }: { dispatch: DispatchWithLog }) {
       <button
         onClick={retry}
         disabled={pending}
-        className="rounded-full border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-2 py-0.5 text-xs font-medium disabled:opacity-50"
+        className="btn-quiet"
+        data-size="sm"
       >
         {pending ? "retrying…" : "retry"}
       </button>
-      {error && <span role="alert" className="text-xs text-alert">{error}</span>}
+      {error && <span role="alert" className="text-[12.5px] text-alert">{error}</span>}
     </div>
   );
 }
@@ -577,13 +587,13 @@ function SignInPanel({ dispatchId, url }: { dispatchId: string; url: string }) {
     }
   }
   return (
-    <section aria-labelledby={`sign-in-${dispatchId}`} className="border-b border-signal/40 bg-signal/5 px-4 py-3 text-[13px]">
-      <h3 id={`sign-in-${dispatchId}`} className="font-medium text-signal">Sign in to Claude to start this run</h3>
+    <section aria-labelledby={`sign-in-${dispatchId}`} className="border-b border-border-soft bg-signal-faint/70 px-5 py-5 text-[14px] sm:px-8">
+      <h3 id={`sign-in-${dispatchId}`} className="text-[16px] font-semibold text-signal">Sign in to Claude to start this run</h3>
       <p className="mt-1 text-paper-muted">
         This run uses your own Claude subscription. Sign in on Claude&apos;s page, then paste the code it shows you here.
       </p>
-      <form onSubmit={submit} className="mt-2.5 flex flex-wrap items-center gap-2">
-        <a href={url} target="_blank" rel="noreferrer" className="rounded-full inline-flex min-h-9 items-center gap-1.5 border border-signal/50 bg-signal/10 px-3 text-signal hover:bg-signal/20">
+      <form onSubmit={submit} className="mt-3 flex flex-wrap items-center gap-2">
+        <a href={url} target="_blank" rel="noreferrer" className="btn-quiet">
           Open Claude sign-in <IconExternal />
         </a>
         <label htmlFor={`sign-in-code-${dispatchId}`} className="sr-only">Sign-in code</label>
@@ -596,13 +606,13 @@ function SignInPanel({ dispatchId, url }: { dispatchId: string; url: string }) {
           placeholder="Paste code"
           autoComplete="off"
           spellCheck={false}
-          className="min-w-0 flex-1 rounded-md border border-border bg-ink px-3 py-2 text-base text-paper placeholder:text-paper-faint focus:border-signal"
+          className="field min-w-0 flex-1 basis-48"
         />
-        <button type="submit" disabled={pending || !code.trim()} className="min-h-9 rounded-md bg-signal px-4 text-sm font-medium text-ink hover:bg-signal-soft disabled:opacity-50">
+        <button type="submit" disabled={pending || !code.trim()} className="btn-primary">
           {pending ? "Sending…" : "Send code"}
         </button>
       </form>
-      {message && <p role="status" className={`mt-2 text-xs ${message.ok ? "text-ok" : "text-alert"}`}>{message.text}</p>}
+      {message && <p role="status" className={`mt-2 text-[13px] ${message.ok ? "text-ok" : "text-alert"}`}>{message.text}</p>}
     </section>
   );
 }
@@ -634,24 +644,28 @@ function CancelButton({ dispatchId }: { dispatchId: string }) {
         <button
           onClick={cancel}
           disabled={pending}
-          className="rounded-full border border-alert bg-alert/10 text-alert px-2 py-0.5 text-xs font-medium hover:bg-alert/20 disabled:opacity-50"
+          className="btn-quiet"
+          data-size="sm"
+          data-tone="alert"
         >
           {pending ? "…" : "confirm kill"}
         </button>
         <button
           onClick={() => { setConfirming(false); setError(null); }}
-          className="text-xs text-paper-muted hover:text-paper"
+          className="min-h-10 px-2 text-[13px] text-paper-muted hover:text-paper sm:min-h-8"
         >
           cancel
         </button>
-        {error && <span role="alert" className="basis-full text-xs normal-case tracking-normal text-alert">{error}</span>}
+        {error && <span role="alert" className="basis-full text-[12.5px] text-alert">{error}</span>}
       </span>
     );
   }
   return (
     <button
       onClick={() => { setConfirming(true); setError(null); }}
-      className="rounded-full border border-border text-paper-muted hover:text-alert hover:border-alert/50 px-2 py-0.5 text-xs font-medium"
+      className="btn-quiet"
+      data-size="sm"
+      data-tone="alert"
       title="Stop the opensrcer agent subprocess"
     >
       ■ stop
@@ -727,13 +741,13 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
   }
 
   // A toolbar above the log, not floating over it, so no log line is hidden.
-  const tool = "inline-flex min-h-10 items-center gap-1.5 rounded-lg border bg-surface px-3 text-xs transition sm:min-h-8";
+  const tool = "inline-flex min-h-10 items-center gap-1.5 rounded-full bg-surface px-3.5 text-[12.5px] font-medium shadow-[inset_0_0_0_1px_var(--color-border)] transition sm:min-h-8";
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-2">
-        <span className="mr-auto text-xs text-paper-muted">Agent log</span>
+      <div className="flex flex-wrap items-center gap-2 border-t border-border-soft px-5 py-3 sm:px-8">
+        <span className="kicker mr-auto text-paper-muted">Agent log</span>
         {isRunning && !showSearch && (
-          <span className="flex items-center gap-1.5 text-xs text-signal">
+          <span className="flex items-center gap-1.5 text-[12.5px] text-signal">
             <StatusDot tone="signal" /> streaming
           </span>
         )}
@@ -746,12 +760,12 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search the log…"
-              className="min-h-10 w-48 rounded-lg border border-border bg-surface px-2 text-[12px] text-paper focus:border-signal/50 focus:outline-none sm:min-h-8"
+              className="field min-h-10 w-48 py-1 text-[13px] sm:min-h-8"
             />
             {search.length >= 2 && (
-              <span className="text-xs text-paper-muted tabular-nums" aria-live="polite">{matchCount} match{matchCount === 1 ? "" : "es"}</span>
+              <span className="text-[12.5px] text-paper-muted tabular-nums" aria-live="polite">{matchCount} match{matchCount === 1 ? "" : "es"}</span>
             )}
-            <button type="button" onClick={() => { setShowSearch(false); setSearch(""); }} className={cn(tool, "border-border text-paper-dim hover:text-paper")}>
+            <button type="button" onClick={() => { setShowSearch(false); setSearch(""); }} className={cn(tool, "text-paper-dim hover:text-paper")}>
               Close search
             </button>
           </>
@@ -762,7 +776,7 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
               type="button"
               onClick={() => setRawMode(!rawMode)}
               aria-pressed={rawMode}
-              className={cn(tool, rawMode ? "border-signal/50 text-signal" : "border-border text-paper-dim hover:text-paper")}
+              className={cn(tool, rawMode ? "bg-paper text-ink shadow-none" : "text-paper-dim hover:text-paper")}
             >
               Show terminal colors
             </button>
@@ -770,7 +784,7 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
               type="button"
               onClick={() => { setShowSearch(true); setTimeout(() => searchRef.current?.focus(), 50); }}
               aria-keyshortcuts="Control+F"
-              className={cn(tool, "border-border text-paper-dim hover:border-signal/50 hover:text-signal")}
+              className={cn(tool, "text-paper-dim hover:text-signal")}
             >
               <svg aria-hidden width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7" cy="7" r="4" /><path d="m13 13-3.5-3.5" /></svg>
               Search log
@@ -778,7 +792,7 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
           </>
         )}
       </div>
-      <pre ref={logRef} onScroll={onScroll} tabIndex={0} aria-label="Run log" className="term h-[50vh] overflow-auto rounded-none p-4 text-[11.5px] leading-relaxed font-mono whitespace-pre-wrap">
+      <pre ref={logRef} onScroll={onScroll} tabIndex={0} aria-label="Run log" className="term h-[50vh] overflow-auto rounded-none p-5 text-[12px] leading-relaxed font-mono whitespace-pre-wrap sm:px-8">
         {search.length >= 2 ? renderLog() : rawMode ? <AnsiLog text={log} /> : (clean || "(log empty — waiting for first write)")}
       </pre>
     </div>
@@ -876,7 +890,8 @@ function ExportButton({ dispatch }: { dispatch: DispatchWithLog }) {
   return (
     <button
       onClick={download}
-      className="rounded-full inline-flex min-h-10 items-center border border-border px-3 text-xs font-medium text-paper-muted hover:border-border-strong hover:text-paper sm:min-h-8"
+      className="btn-quiet"
+      data-size="sm"
       title="Saves the run's details, patch and full log as a Markdown file"
     >
       Download report
@@ -900,14 +915,14 @@ function PipelineTimeline({ log, status, prUrl }: { log: string; status: string;
     <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5 sm:gap-x-1">
       {phases.map((p, i) => (
         <div key={p.label} className="flex items-center gap-1">
-          {i > 0 && <div className={cn("w-4 h-px max-sm:hidden", p.done || p.active ? "bg-signal/40" : "bg-border")} />}
+          {i > 0 && <div className={cn("w-4 h-px max-sm:hidden", p.done || p.active ? "bg-ok/40" : "bg-border")} />}
           <span
             className={cn(
-              "flex items-center gap-1 whitespace-nowrap px-1.5 py-1 text-[11px] font-medium border leading-none",
-              p.failed ? "border-alert/40 text-alert" :
-              p.done ? "border-ok/40 text-ok" :
-              p.active ? "border-signal/40 text-signal" :
-              "border-border-soft text-paper-faint",
+              "flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[12px] font-medium leading-none",
+              p.failed ? "bg-alert-dim/60 text-alert" :
+              p.done ? "bg-ok-dim/60 text-ok" :
+              p.active ? "bg-signal-faint text-signal" :
+              "bg-surface-2 text-paper-muted",
             )}
           >
             {p.failed ? "×" : p.done ? "✓" : p.active ? "●" : "○"} {p.label}
@@ -987,7 +1002,7 @@ function diffStats(log: string): DiffStats | null {
 function Markdown({ text }: { text: string }) {
   const blocks = text.split(/\n{2,}/);
   return (
-    <div className="space-y-2.5 text-[12.5px] text-paper-dim leading-relaxed">
+    <div className="space-y-2.5 text-[14px] text-paper-dim leading-relaxed">
       {blocks.map((block, bi) => {
         const trimmed = block.trim();
         if (!trimmed) return null;
@@ -1058,7 +1073,7 @@ function InlineMarkdown({ text }: { text: string }) {
       );
     } else if (tok.startsWith("`") && tok.endsWith("`")) {
       parts.push(
-        <code key={ki++} className="text-signal bg-signal/10 px-1 py-0.5 text-[11.5px]">
+        <code key={ki++} className="rounded bg-signal-faint px-1 py-0.5 font-mono text-[12px] text-signal">
           {tok.slice(1, -1)}
         </code>
       );
@@ -1127,19 +1142,19 @@ function DiffPreviewFromLog({ log, prOpened, prUrl, dryRun }: { log: string; prO
   return (
     <>
       {/* Inline summary bar — click to open modal */}
-      <div className="border-t border-border bg-surface/40">
+      <div className="border-t border-border-soft">
         <button
           ref={openerRef}
           onClick={() => setModalOpen(true)}
-          className="w-full px-4 py-3.5 flex items-center gap-3 text-left hover:bg-surface-2/40 transition-colors"
+          className="group w-full px-5 py-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-left hover:bg-ink-2 transition-colors sm:px-8"
         >
-          <span className="text-[13px] text-paper font-medium">Review patch</span>
-          <span className="text-[11px] text-paper-muted tabular-nums">
+          <span className="text-[15px] text-paper font-semibold">Review patch</span>
+          <span className="text-[12.5px] text-paper-muted tabular-nums">
             {diff.files.length} file{diff.files.length === 1 ? "" : "s"}
           </span>
-          <span className="text-[11px] text-ok tabular-nums">+{diff.additions}</span>
-          <span className="text-[11px] text-alert tabular-nums">-{diff.deletions}</span>
-          <span className="ml-auto text-[11px] text-signal">
+          <span className="font-mono text-[12.5px] text-ok tabular-nums">+{diff.additions}</span>
+          <span className="font-mono text-[12.5px] text-alert tabular-nums">-{diff.deletions}</span>
+          <span className="ml-auto text-[13px] font-medium text-signal group-hover:underline">
             open review →
           </span>
         </button>
@@ -1147,15 +1162,15 @@ function DiffPreviewFromLog({ log, prOpened, prUrl, dryRun }: { log: string; prO
 
       {/* Full-screen modal */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-ink/90 backdrop-blur-sm overflow-y-auto py-8 px-4">
-          <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Proposed patch" className="rounded-2xl w-full max-w-4xl border border-border-soft bg-ink">
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-paper/45 overflow-y-auto py-8 px-4">
+          <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Proposed patch" className="card w-full max-w-4xl overflow-hidden">
             {/* Modal header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+            <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-border-soft sm:px-8">
               <div>
-                <div className="text-[16px] text-paper font-medium">
+                <div className="display text-[24px] leading-tight text-paper">
                   {prTitle?.split("\n")[0]?.replace(/^[#>*\-`\s]+/, "") || "Proposed patch"}
                 </div>
-                <div className="mt-1 flex items-center gap-3 text-[11px] text-paper-muted">
+                <div className="mt-1.5 flex items-center gap-3 text-[12.5px] text-paper-muted">
                   <span>{diff.files.length} file{diff.files.length === 1 ? "" : "s"} changed</span>
                   <span className="text-ok">+{diff.additions} additions</span>
                   <span className="text-alert">-{diff.deletions} deletions</span>
@@ -1163,7 +1178,7 @@ function DiffPreviewFromLog({ log, prOpened, prUrl, dryRun }: { log: string; prO
               </div>
               <button
                 onClick={() => setModalOpen(false)}
-                className="text-paper-muted hover:text-paper text-[18px] px-2"
+                className="grid size-10 shrink-0 place-items-center rounded-full text-[20px] text-paper-muted hover:bg-surface-2 hover:text-paper"
                 title="Close"
                 aria-label="Close patch"
               >
@@ -1173,16 +1188,16 @@ function DiffPreviewFromLog({ log, prOpened, prUrl, dryRun }: { log: string; prO
 
             {/* Diagnosis + Risk summary */}
             {(diagnosis || risk) && (
-              <div className="px-6 py-5 border-b border-border-soft space-y-5">
+              <div className="px-6 py-6 border-b border-border-soft space-y-6 sm:px-8">
                 {diagnosis && (
                   <div>
-                    <div className="mono-label text-paper-muted mb-2">What was found</div>
+                    <div className="kicker text-paper-muted mb-2">What was found</div>
                     <Markdown text={diagnosis} />
                   </div>
                 )}
                 {risk && (
                   <div>
-                    <div className="mono-label text-paper-muted mb-2">Risk &amp; testing</div>
+                    <div className="kicker text-paper-muted mb-2">Risk &amp; testing</div>
                     <Markdown text={risk} />
                   </div>
                 )}
@@ -1190,10 +1205,10 @@ function DiffPreviewFromLog({ log, prOpened, prUrl, dryRun }: { log: string; prO
             )}
 
             {/* File list */}
-            <div className="px-6 py-3 border-b border-border-soft bg-surface/30 flex items-center gap-2 text-[11px] text-paper-muted flex-wrap">
+            <div className="px-6 py-3 border-b border-border-soft bg-ink-2 flex items-center gap-2 text-[12.5px] text-paper-muted flex-wrap sm:px-8">
               <span className="font-medium text-paper-dim">Files:</span>
               {diff.files.map((f) => (
-                <code key={f} className="text-paper-dim bg-ink/60 px-1.5 py-0.5">{f}</code>
+                <code key={f} className="rounded-md bg-surface-2 px-1.5 py-0.5 font-mono text-[12px] text-paper-dim">{f}</code>
               ))}
             </div>
 
@@ -1201,11 +1216,12 @@ function DiffPreviewFromLog({ log, prOpened, prUrl, dryRun }: { log: string; prO
             <SplitDiffView body={diff.body} />
 
             {/* Actions */}
-            <div className="px-6 py-4 border-t border-border flex items-center justify-between gap-4 flex-wrap">
+            <div className="px-6 py-4 border-t border-border-soft flex items-center justify-between gap-4 flex-wrap sm:px-8">
               <div className="flex items-center gap-3">
                 <button
                   onClick={copyDiff}
-                  className="rounded-full inline-flex items-center gap-1.5 border border-border hover:border-border-strong px-3 py-2 text-[12px] text-paper-dim hover:text-paper transition"
+                  className="btn-quiet"
+                  data-size="sm"
                 >
                   {copied ? "Copied ✓" : "Copy diff"}
                 </button>
@@ -1216,7 +1232,7 @@ function DiffPreviewFromLog({ log, prOpened, prUrl, dryRun }: { log: string; prO
                 />
                 <button
                   onClick={() => setModalOpen(false)}
-                  className="px-3 py-2 text-[12px] text-paper-muted hover:text-paper transition"
+                  className="min-h-10 px-3 text-[13px] text-paper-muted hover:text-paper transition sm:min-h-9"
                 >
                   Close
                 </button>
@@ -1227,13 +1243,14 @@ function DiffPreviewFromLog({ log, prOpened, prUrl, dryRun }: { log: string; prO
                     href={prInfo.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="rounded-full inline-flex items-center gap-2 border border-ok/50 bg-ok/10 text-ok hover:bg-ok/20 px-4 py-2 text-[12px] transition"
+                    className="btn-primary"
+                    data-size="sm"
                   >
                     View PR #{prInfo.prNumber}
                     <IconExternal />
                   </a>
                 ) : prOpened ? null : (
-                  <span className="text-[11px] text-paper-faint">
+                  <span className="text-[12.5px] text-paper-muted">
                     {dryRun ? "Preview only: no code will be pushed and no PR will open." : "Nothing is posted until you publish it from the run page."}
                   </span>
                 )}
@@ -1275,7 +1292,8 @@ function CommitMsgButton({
   return (
     <button
       onClick={generate}
-      className="rounded-full inline-flex items-center gap-1.5 border border-border hover:border-border-strong px-3 py-2 text-[12px] text-paper-dim hover:text-paper transition"
+      className="btn-quiet"
+      data-size="sm"
     >
       {copied ? "Copied ✓" : "Commit msg"}
     </button>
@@ -1290,7 +1308,7 @@ function SplitDiffView({ body }: { body: string }) {
     <div tabIndex={0} role="region" aria-label="Patch" className="max-h-[50vh] overflow-auto">
       {hunks.map((h, hi) => (
         <div key={hi}>
-          <div className="px-4 py-1.5 text-xs text-paper-muted bg-surface/30 border-b border-border-soft font-mono">
+          <div className="px-6 py-2 text-[12px] text-paper-muted bg-ink-2 border-b border-border-soft font-mono sm:px-8">
             {h.file}
           </div>
           <div className="grid grid-cols-2 divide-x divide-border-soft">
@@ -1309,13 +1327,13 @@ function DiffPane({ lines, tone }: { lines: DiffRow[]; tone: "before" | "after" 
   return (
     <pre
       className={cn(
-        "p-3 text-[11px] leading-snug font-mono overflow-x-auto",
-        tone === "before" ? "bg-alert/5" : "bg-ok/5",
+        "p-3 text-[12px] leading-snug font-mono overflow-x-auto",
+        tone === "before" ? "bg-alert-dim/20" : "bg-ok-dim/25",
       )}
     >
       {lines.map((l, i) =>
         l === null ? (
-          <div key={i} className="whitespace-pre bg-ink/40 select-none" aria-hidden>
+          <div key={i} className="whitespace-pre bg-surface-2/60 select-none" aria-hidden>
             {" "}
           </div>
         ) : (

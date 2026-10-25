@@ -145,20 +145,25 @@ export function OwnWords({ storageKey, repo, title, context, copySources, practi
     }
   }
 
-  const button = "inline-flex min-h-10 items-center rounded-full border px-3 text-[12px] disabled:opacity-50 sm:min-h-8";
   const covered = (ok: boolean | undefined, optional = false) => (ok ? "covered" : optional ? "not mentioned (optional)" : "missing");
+  // A small dot before each line of the check result; drawn in CSS so the text stays exactly the result.
+  const mark = "relative pl-4 before:absolute before:left-0 before:top-[0.6em] before:size-1.5 before:rounded-full before:bg-current";
   const r = s.result;
   return (
     <>
-      <section aria-labelledby={ids.a} className="mt-3 rounded-lg border border-signal/40 bg-ink px-3 py-2.5 text-[12px]">
-        <h4 id={ids.a} className="font-medium text-paper">Explain it in your own words</h4>
-        <p className="mt-1 text-paper-muted">Maintainers want to know the person sending a change understands it.{practice ? " This run is a preview, so this is practice." : ""} In a few sentences, answer:</p>
-        <ul className="mt-1 list-disc pl-5 text-paper-dim">
-          <li>What was wrong?</li>
-          <li>What did the change do?</li>
-          <li>How do you know it works?</li>
+      {/* The lesson: two numbered parts, the same shape as a real review. */}
+      <section aria-labelledby={ids.a} className="mt-8 rounded-[20px] bg-surface p-5 shadow-[inset_0_0_0_1px_var(--color-border-soft)] sm:p-7">
+        <div className="flex items-baseline gap-3">
+          <span aria-hidden className="display text-[26px] leading-none text-signal sm:text-[30px]">01</span>
+          <h4 id={ids.a} className="display text-[26px] leading-none text-paper sm:text-[30px]">Explain it in your own words</h4>
+        </div>
+        <p className="mt-3 max-w-2xl text-[15px] text-paper-dim">Maintainers want to know the person sending a change understands it.{practice ? " This run is a preview, so this is practice." : ""} In a few sentences, answer:</p>
+        <ul className="mt-4 grid gap-2 sm:grid-cols-3">
+          <li className="rounded-xl bg-ink-2 px-4 py-3 text-[15px] font-semibold text-paper">What was wrong?</li>
+          <li className="rounded-xl bg-ink-2 px-4 py-3 text-[15px] font-semibold text-paper">What did the change do?</li>
+          <li className="rounded-xl bg-ink-2 px-4 py-3 text-[15px] font-semibold text-paper">How do you know it works?</li>
         </ul>
-        <label htmlFor={ids.text} className="mt-2 block text-paper">Your explanation</label>
+        <label htmlFor={ids.text} className="field-label mt-6">Your explanation</label>
         <textarea
           id={ids.text}
           aria-describedby={ids.hint}
@@ -166,29 +171,29 @@ export function OwnWords({ storageKey, repo, title, context, copySources, practi
           onChange={(e) => { setS((p) => ({ ...p, text: e.target.value })); setCopyWarning(false); }}
           maxLength={OWN_WORDS.max}
           rows={5}
-          className="mt-1 block w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-[12px] text-paper placeholder:text-paper-faint focus:border-signal/50 focus:outline-none"
+          className="field bg-ink-2 leading-[1.65]"
         />
-        <p id={ids.hint} className="mt-1 text-paper-muted">
+        <p id={ids.hint} className="mt-2 text-[13px] text-paper-muted">
           At least {OWN_WORDS.min} characters ({text.length}/{OWN_WORDS.max}). It goes into the pull request under &quot;In the author&apos;s words&quot;.
         </p>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <button type="button" onClick={() => void check()} disabled={!lengthOk || busy !== null || checksLeft === 0} className={`${button} border-signal/50 bg-signal/10 font-medium text-signal hover:bg-signal/20`}>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button type="button" onClick={() => void check()} disabled={!lengthOk || busy !== null || checksLeft === 0} className="row-cta">
             {busy === "check" ? "Checking…" : "Check my explanation"}
           </button>
-          <span className="text-paper-muted">{checksLeft === 1 ? "1 check left" : `${checksLeft} checks left`}</span>
+          <span className="text-[13px] text-paper-muted">{checksLeft === 1 ? "1 check left" : `${checksLeft} checks left`}</span>
         </div>
-        <div aria-live="polite" className="mt-2 space-y-1">
+        <div aria-live="polite" className="mt-4 space-y-2 empty:hidden">
           {(copyWarning || (s.checkFailed && copied)) && <p className="text-alert">{COPY_MESSAGE}</p>}
           {r && !stale && (
             <>
-              <ul className="space-y-0.5">
-                <li className={r.rootCause ? "text-ok" : "text-alert"}>What was wrong: {covered(r.rootCause)}</li>
-                <li className={r.change ? "text-ok" : "text-alert"}>What the change did: {covered(r.change)}</li>
-                <li className={r.evidence ? "text-ok" : "text-paper-muted"}>How you know it works: {covered(r.evidence, true)}</li>
+              <ul className="space-y-1 font-medium">
+                <li className={cn(mark, r.rootCause ? "text-ok" : "text-alert")}>What was wrong: {covered(r.rootCause)}</li>
+                <li className={cn(mark, r.change ? "text-ok" : "text-alert")}>What the change did: {covered(r.change)}</li>
+                <li className={cn(mark, r.evidence ? "text-ok" : "text-paper-muted")}>How you know it works: {covered(r.evidence, true)}</li>
               </ul>
               {r.mistakes.map((m) => <p key={m} className="text-alert">That&apos;s not quite it: {m}</p>)}
               <p className="text-paper-dim">Tip: {r.tip}</p>
-              <p className={cn("font-medium", r.passed ? "text-ok" : "text-paper")}>{r.passed ? "Your explanation covers the change." : "Not there yet: fix what's above, then check again."}</p>
+              <p className={cn("text-[15px] font-semibold", r.passed ? "text-ok" : "text-paper")}>{r.passed ? "Your explanation covers the change." : "Not there yet: fix what's above, then check again."}</p>
             </>
           )}
           {stale && <p className="text-paper-muted">You&apos;ve edited it since the last check. Check it again.</p>}
@@ -198,19 +203,22 @@ export function OwnWords({ storageKey, repo, title, context, copySources, practi
       </section>
 
       {checked && !s.practiceFailed && (
-        <section aria-labelledby={ids.b} className="mt-3 rounded-lg border border-info/40 bg-ink px-3 py-2.5 text-[12px]">
-          <h4 id={ids.b} className="font-medium text-paper">Practice review</h4>
-          <p className="mt-1 text-paper-muted">{PRACTICE_INTRO}</p>
-          {busy === "questions" && <p role="status" className="mt-2 text-paper-muted">Writing 2 review questions about this change…</p>}
+        <section aria-labelledby={ids.b} className="mt-4 rounded-[20px] bg-surface p-5 shadow-[inset_0_0_0_1px_var(--color-border-soft)] sm:p-7">
+          <div className="flex items-baseline gap-3">
+            <span aria-hidden className="display text-[26px] leading-none text-signal sm:text-[30px]">02</span>
+            <h4 id={ids.b} className="display text-[26px] leading-none text-paper sm:text-[30px]">Practice review</h4>
+          </div>
+          <p className="mt-3 max-w-2xl text-[15px] text-paper-dim">{PRACTICE_INTRO}</p>
+          {busy === "questions" && <p role="status" className="mt-4 text-paper-muted">Writing 2 review questions about this change…</p>}
           {!s.questions && busy !== "questions" && (
-            <button type="button" onClick={() => void loadQuestions()} className={`${button} mt-2 border-info/50 text-info hover:bg-info/10`}>Get the practice questions</button>
+            <button type="button" onClick={() => void loadQuestions()} className="row-cta mt-4">Get the practice questions</button>
           )}
           {s.questions?.map((q, i) => {
             const a = s.answers[i];
             const qid = `${ids.b}-q${i}`;
             return (
-              <div key={q} className="mt-3">
-                <p id={qid} className="text-paper"><span className="font-medium">Reviewer:</span> {q}</p>
+              <div key={q} className="mt-6 border-l-2 border-signal pl-4 sm:pl-5">
+                <p id={qid} className="text-[16px] leading-[1.5] text-paper"><span className="font-semibold">Reviewer:</span> {q}</p>
                 <label htmlFor={`${qid}-a`} className="sr-only">Your answer to: {q}</label>
                 <textarea
                   id={`${qid}-a`}
@@ -219,18 +227,18 @@ export function OwnWords({ storageKey, repo, title, context, copySources, practi
                   maxLength={OWN_WORDS.answerMax}
                   rows={3}
                   placeholder="Your answer"
-                  className="mt-1 block w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-[12px] text-paper placeholder:text-paper-faint focus:border-info/50 focus:outline-none"
+                  className="field mt-3 bg-ink-2"
                 />
-                <div className="mt-1 flex flex-wrap items-center gap-3">
-                  <button type="button" onClick={() => void answer(i)} disabled={(a?.draft.trim().length ?? 0) < OWN_WORDS.answerMin || busy !== null} className={`${button} border-info/50 text-info hover:bg-info/10`}>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <button type="button" onClick={() => void answer(i)} disabled={(a?.draft.trim().length ?? 0) < OWN_WORDS.answerMin || busy !== null} className="row-cta" data-size="sm">
                     {busy === i ? "Sending…" : a?.sent ? "Send again" : "Send answer"}
                   </button>
-                  <span className="text-paper-muted">At least {OWN_WORDS.answerMin} characters.</span>
+                  <span className="text-[13px] text-paper-muted">At least {OWN_WORDS.answerMin} characters.</span>
                 </div>
-                <div aria-live="polite">
-                  {a?.feedback && <p className="mt-1 text-paper-dim"><span className="font-medium text-paper">Feedback:</span> {a.feedback.feedback}</p>}
-                  {a?.feedback?.followUp && <p className="mt-0.5 text-paper-muted">A reviewer might follow up: {a.feedback.followUp}</p>}
-                  {a?.error && <p className="mt-1 text-paper-muted">{a.error}</p>}
+                <div aria-live="polite" className="empty:hidden">
+                  {a?.feedback && <p className="mt-3 text-paper-dim"><span className="font-semibold text-paper">Feedback:</span> {a.feedback.feedback}</p>}
+                  {a?.feedback?.followUp && <p className="mt-1 text-paper-muted">A reviewer might follow up: {a.feedback.followUp}</p>}
+                  {a?.error && <p className="mt-3 text-paper-muted">{a.error}</p>}
                 </div>
               </div>
             );

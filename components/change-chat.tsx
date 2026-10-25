@@ -124,39 +124,39 @@ export function ChangeChat({ storageKey, repo, title, context, starters = STARTE
     saveTurns(storageKey, []);
   }
 
-  const button = "inline-flex min-h-10 items-center rounded-full border px-3 text-[12px] disabled:opacity-50 sm:min-h-8";
   return (
-    <div className="mt-3 rounded-lg border border-info/40 bg-ink px-3 py-2.5 text-[12px]">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <button type="button" onClick={toggle} aria-expanded={open} aria-controls={panelId} className={`${button} border-info/50 bg-info/10 font-medium text-info hover:bg-info/20`}>
+    <div className="mt-6 rounded-[20px] bg-surface p-4 text-[14px] shadow-[inset_0_0_0_1px_var(--color-border-soft)] sm:p-5">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <button type="button" onClick={toggle} aria-expanded={open} aria-controls={panelId} className="row-cta">
           {open ? "Close the questions" : "Ask about this change"}{turns.length > 0 && !open ? ` (${turns.length} asked)` : ""}
         </button>
         <span className="text-paper-muted">Not sure what the change does or why? Ask about it here.</span>
       </div>
-      <div id={panelId} hidden={!open} className="mt-2">
-        <p className="text-paper-muted">{caveat} Each answer comes from one AI call that reads only what is shown here; it does not run the code.</p>
-        <div role="group" aria-label="Starter questions" className="mt-2 flex flex-wrap gap-2">
+      <div id={panelId} hidden={!open} className="mt-4">
+        <p className="max-w-2xl text-[13px] text-paper-muted">{caveat} Each answer comes from one AI call that reads only what is shown here; it does not run the code.</p>
+        <div role="group" aria-label="Starter questions" className="mt-3 flex flex-wrap gap-2">
           {starters.map((s) => (
-            <button key={s} type="button" disabled={pending} onClick={() => void ask(s)} className={`${button} border-border-soft text-paper hover:border-info/50 hover:text-info`}>{s}</button>
+            <button key={s} type="button" disabled={pending} onClick={() => void ask(s)} className="pill whitespace-normal text-left" data-size="sm" data-edge="">{s}</button>
           ))}
         </div>
         {/* Scrolls when long, so it takes focus for keyboard scrolling. */}
-        <div role="log" aria-live="polite" aria-busy={pending} aria-label="Questions and answers" tabIndex={turns.length ? 0 : -1} className="mt-2 max-h-[420px] overflow-y-auto">
-        <ol className="space-y-3">
+        <div role="log" aria-live="polite" aria-busy={pending} aria-label="Questions and answers" tabIndex={turns.length ? 0 : -1} className="mt-4 max-h-[420px] overflow-y-auto empty:hidden">
+        <ol className="space-y-4">
           {turns.map((t, i) => (
-            <li key={i} className="space-y-1">
-              <p className="text-paper"><span className="mr-1.5 font-medium text-signal">You:</span>{t.question}</p>
-              <div className="rounded-lg border border-border-soft bg-surface px-3 py-2 text-paper-dim">
-                <p className="text-[11px] font-medium text-info">AI answer (not verified)</p>
-                <p className="mt-1 whitespace-pre-wrap break-words">{t.answer || (pending && i === turns.length - 1 ? "Thinking…" : "")}</p>
+            <li key={i} className="space-y-2">
+              {/* The question sits right, like a message you sent; the answer is a sheet below. */}
+              <p className="ml-auto w-fit max-w-[85%] rounded-[18px] rounded-br-md bg-paper px-4 py-2 text-ink">{t.question}<span className="sr-only"> (you asked)</span></p>
+              <div className="rounded-2xl bg-ink-2 px-4 py-3 text-paper-dim">
+                <p className="kicker text-paper-muted">AI answer (not verified)</p>
+                <p className="mt-1.5 whitespace-pre-wrap break-words leading-[1.65]">{t.answer || (pending && i === turns.length - 1 ? "Thinking…" : "")}</p>
               </div>
             </li>
           ))}
         </ol>
         </div>
-        {error && <p role="alert" className="mt-2 text-alert">{error}</p>}
-        <form className="mt-2 flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); void ask(input); }}>
-          <label htmlFor={inputId} className="basis-full text-paper">Your question</label>
+        {error && <p role="alert" className="mt-3 text-alert">{error}</p>}
+        <form className="mt-4 flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); void ask(input); }}>
+          <label htmlFor={inputId} className="field-label basis-full">Your question</label>
           <textarea
             id={inputId}
             value={input}
@@ -166,15 +166,15 @@ export function ChangeChat({ storageKey, repo, title, context, starters = STARTE
             rows={2}
             disabled={pending}
             placeholder="Why did it change this line?"
-            className="min-h-10 min-w-0 flex-1 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-[12px] text-paper placeholder:text-paper-faint focus:border-info/50 focus:outline-none disabled:opacity-50"
+            className="field min-w-0 flex-1 basis-60 bg-ink-2"
           />
           {pending ? (
-            <button type="button" onClick={() => abort.current?.abort()} className={`${button} border-border text-paper-muted hover:text-alert`}>Stop</button>
+            <button type="button" onClick={() => abort.current?.abort()} className="btn-quiet" data-tone="alert">Stop</button>
           ) : (
-            <button type="submit" disabled={!input.trim()} className={`${button} border-info/50 bg-info/10 font-medium text-info hover:bg-info/20`}>Ask</button>
+            <button type="submit" disabled={!input.trim()} className="row-cta">Ask</button>
           )}
           {turns.length > 0 && !pending && (
-            <button type="button" onClick={clear} className={`${button} border-border-soft text-paper-muted hover:text-paper`}>Clear</button>
+            <button type="button" onClick={clear} className="btn-quiet">Clear</button>
           )}
         </form>
       </div>

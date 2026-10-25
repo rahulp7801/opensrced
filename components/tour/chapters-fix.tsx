@@ -189,10 +189,11 @@ export function Term({ children }: { children: string }) {
 
 /** The run page after publishing (components/next-steps.tsx with lib/beginner-guide.ts). */
 export function Published() {
+  const { pr } = useContext(PrDataContext);
   return (
     <div data-spot="next-steps" className="min-h-0 flex-1 overflow-hidden px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[15px] font-medium text-ok">Draft PR #{RUN.pr} opened</p>
+        <p className="text-[15px] font-medium text-ok">Draft PR #{pr} opened</p>
         <span className="flex gap-2 text-[11.5px]">
           <span className="rounded-full border border-info/40 bg-info/10 px-3 py-1 text-info">Follow it here</span>
           <span className="rounded-full border border-ok/40 bg-ok/10 px-3 py-1 text-ok">Open on GitHub ↗</span>
@@ -313,41 +314,47 @@ export const review: Chapter = {
 /** On the stage, a block for the PR page's right rail (what it did on GitHub); the tour shows none. */
 export const PrRailContext = createContext<ReactNode>(null);
 
+/** The pull request the PR page and the published panel show: the tour's run by default; the stage tells its own. */
+export const PrDataContext = createContext({
+  repo: DEMO_REPO, pr: RUN.pr, title: RUN.prTitle, base: "main", head: RUN.branch, issue: ISSUE.number as number, body: PR_BODY, stats: PATCH_STATS,
+});
+
 function PrView() {
   const scrollRef = useAutoScroll(3600, 10500);
   const rail = useContext(PrRailContext);
+  const d = useContext(PrDataContext);
   return (
-    <AppWindow host="github.com" path={`/${DEMO_REPO}/pull/${RUN.pr}`}>
+    <AppWindow host="github.com" path={`/${d.repo}/pull/${d.pr}`}>
       <div ref={scrollRef} className="h-full overflow-hidden bg-surface px-4 py-4 sm:px-7">
         <Reveal at={0}>
-          <p className="text-[19px] font-semibold leading-tight text-paper sm:text-[23px]">{RUN.prTitle} <span className="font-normal text-paper-muted">#{RUN.pr}</span></p>
+          <p className="text-[19px] font-semibold leading-tight text-paper sm:text-[23px]">{d.title} <span className="font-normal text-paper-muted">#{d.pr}</span></p>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-paper-muted">
             <span className="rounded-full bg-surface-3 px-2.5 py-0.5 font-medium text-paper-dim">Draft</span>
-            <span><span className="font-semibold text-paper">rahulp7801</span> wants to merge 1 commit into <code className="rounded bg-info/10 px-1 font-mono text-info">main</code> from <code className="rounded bg-info/10 px-1 font-mono text-info">{RUN.branch}</code></span>
+            <span><span className="font-semibold text-paper">rahulp7801</span> wants to merge 1 commit into <code className="rounded bg-info/10 px-1 font-mono text-info">{d.base}</code> from <code className="rounded bg-info/10 px-1 font-mono text-info">{d.head}</code></span>
           </div>
           <div className="mt-3 flex gap-4 border-b border-border text-[12px] text-paper-muted">
             <span className="border-b-2 border-[#fd8c73] pb-1.5 font-medium text-paper">Conversation</span>
             <span>Commits 1</span>
             <span className="hidden sm:inline">Checks 0</span>
-            <span>Files changed {PATCH_STATS.files}</span>
-            <span className="ml-auto hidden font-mono sm:inline"><span className="text-ok">+{PATCH_STATS.additions}</span> <span className="text-alert">−{PATCH_STATS.deletions}</span></span>
+            <span>Files changed {d.stats.files}</span>
+            <span className="ml-auto hidden font-mono sm:inline"><span className="text-ok">+{d.stats.additions}</span> <span className="text-alert">−{d.stats.deletions}</span></span>
           </div>
         </Reveal>
         <div className={cn("mt-4 grid gap-5", rail ? "lg:grid-cols-[minmax(0,1fr)_240px]" : "lg:grid-cols-[minmax(0,1fr)_200px]")}>
           <Reveal at={900} spot="pr-body" className="overflow-hidden rounded-lg border border-border">
             <p className="border-b border-border bg-surface-2/60 px-3 py-1.5 text-[11.5px] text-paper-muted"><span className="font-semibold text-paper">rahulp7801</span> commented just now</p>
             <div className="space-y-2.5 px-3 py-3 text-[12px] leading-[1.6] text-paper-dim">
-              {PR_BODY.map((block, i) => (
+              {d.body.map((block, i) => (
                 <Reveal key={i} at={1400 + i * 700} spot={block.spot}>
                   {block.heading && <p className="mb-0.5 font-semibold text-paper">{block.heading}</p>}
-                  <p className={block.text.startsWith("Fixes") || block.text.startsWith("Result:") ? "whitespace-pre-line font-medium text-paper" : "whitespace-pre-line"}><Inline text={block.text} /></p>
+                  <p className={/^(fixes|result:)/i.test(block.text) ? "whitespace-pre-line font-medium text-paper" : "whitespace-pre-line"}><Inline text={block.text} /></p>
                 </Reveal>
               ))}
             </div>
           </Reveal>
           <Reveal at={2000} className="hidden space-y-3 text-[11.5px] text-paper-muted lg:block">
             <div><p className="font-semibold text-paper-dim">Reviewers</p><p>No reviews</p></div>
-            <div><p className="font-semibold text-paper-dim">Development</p><p>Successfully merging this pull request may close <span className="text-signal">#2</span>.</p></div>
+            <div><p className="font-semibold text-paper-dim">Development</p><p>Successfully merging this pull request may close <span className="text-signal">#{d.issue}</span>.</p></div>
             {rail}
           </Reveal>
         </div>

@@ -16,16 +16,23 @@ import { cn } from "@/lib/utils";
 import { StatusChip } from "@/components/status-dot";
 import { AppWindow, Press, Reveal, SCOPE_LABEL, TimeContext, Typed, progress, useFollow, useT, type Caption, type Chapter } from "./kit";
 import { MAP_FOCUS_LENGTH, RepoMap } from "./repo-map";
-import { DEMO_PUBLISH_STEPS, PrRailContext, Published, Term } from "./chapters-fix";
+import { PrDataContext, PrRailContext, Published, Term } from "./chapters-fix";
+import { publishSteps } from "@/lib/beginner-guide";
 import { useEffect, useState, type ReactNode } from "react";
 import { Doodle } from "@/components/brand/doodles";
 import { check, circle, o, pass } from "@/components/brand/doodle-data";
 import { Wordmark } from "@/components/brand/wordmark";
-import { DIAGNOSIS, PATCH_STATS, RISK } from "./data";
+import { FLASK_DIAGNOSIS as DIAGNOSIS, FLASK_ISSUE, FLASK_PATCH_STATS as PATCH_STATS, FLASK_PR_BODY, FLASK_REPO, FLASK_RISK as RISK, FLASK_RUN as RUN } from "./stage-flask";
 import { projectRules, RULE_STATUS_LABEL, type RuleStatus } from "@/lib/project-rules";
 import { PRACTICE_INTRO } from "@/components/own-words";
 import { Inline } from "./kit";
-import { DEMO_REPO, RUN } from "./data";
+
+// The stage tells one story on Flask: the scanned issue, the code the map traces, the run that fixes it.
+const DEMO_REPO = FLASK_REPO;
+const ISSUE_TAG = `#${FLASK_ISSUE.number}`;
+const DEMO_PUBLISH_STEPS = publishSteps({ files: PATCH_STATS.files, signoff: false });
+/** The PR page and the published panel, showing the Flask pull request. */
+const FLASK_PR = { repo: FLASK_REPO, pr: RUN.pr, title: RUN.prTitle, base: RUN.base, head: RUN.head, issue: FLASK_ISSUE.number, body: FLASK_PR_BODY, stats: PATCH_STATS };
 
 
 /** A chapter with speaker notes added for the stage, merged in time order. */
@@ -37,18 +44,18 @@ export function withNotes(chapter: Chapter, notes: Caption[]): Chapter {
 
 type ScanRow = { number: number; title: string; category: string; labels: string[]; opened: string; scope?: string; risk?: "low" | "medium"; complexity?: number; estimate?: string; reason?: string };
 
-// EXAMPLE repository: the verdicts and their reasons are the scanner's own wording.
-const SCAN_REPO = "acme/ui-kit";
+// The verdicts and their reasons are the scanner's own wording; the first ready issue is the one the stage fixes.
+const SCAN_REPO = FLASK_REPO;
 const SCAN: ScanRow[] = [
-  { number: 2290, title: "Tooltip flickers when its trigger re-renders", category: "bug", labels: ["bug", "good first issue"], opened: "3d ago", scope: "leaf", risk: "medium", complexity: 2, estimate: "30m" },
-  { number: 2288, title: "Select loses focus after clearing the value", category: "bug", labels: ["bug"], opened: "4d ago", reason: "Already assigned to @mira-dev — someone's on it. Skip." },
-  { number: 2286, title: "Popover closes when clicking inside a portal", category: "bug", labels: ["bug"], opened: "5d ago", reason: "1 open PR already targets this issue. Review or help with it instead." },
-  { number: 2284, title: "DatePicker ignores the locale prop for month names", category: "bug", labels: ["bug"], opened: "6d ago", scope: "leaf", risk: "low", complexity: 2, estimate: "45m" },
-  { number: 2279, title: "Modal scroll lock leaks on iOS", category: "bug", labels: ["bug", "ios"], opened: "9d ago", reason: "Appears already resolved (comment by @acme-lead (maintainer) says \"fixed in #2281\"). Skip — the ticket is stale-open." },
-  { number: 2271, title: "Docs: the Button size table lists the wrong default", category: "docs", labels: ["documentation", "good first issue"], opened: "12d ago", scope: "doc", risk: "low", complexity: 1, estimate: "15m" },
-  { number: 2266, title: "How do I theme the Toast component?", category: "question", labels: ["question"], opened: "14d ago", reason: "Question, not an actionable issue." },
-  { number: 2259, title: "Rewrite Table with virtualization", category: "refactor", labels: ["wontfix"], opened: "21d ago", reason: "Labeled as non-actionable." },
-  { number: 2252, title: "Broken on Safari", category: "other", labels: [], opened: "25d ago", reason: "Unclear scope — issue body too sparse." },
+  { number: FLASK_ISSUE.number, title: FLASK_ISSUE.title, category: "bug", labels: ["bug"], opened: "3d ago", scope: "leaf", risk: "medium", complexity: 2, estimate: "30m" },
+  { number: 5909, title: "flask run --debug ignores FLASK_RUN_PORT", category: "bug", labels: ["bug"], opened: "4d ago", reason: "Already assigned to @mira-dev — someone's on it. Skip." },
+  { number: 5906, title: "url_for builds the wrong URL behind a proxy with a path prefix", category: "bug", labels: ["bug"], opened: "5d ago", reason: "1 open PR already targets this issue. Review or help with it instead." },
+  { number: 5903, title: "get_json(silent=True) still logs a warning for an empty body", category: "bug", labels: ["bug"], opened: "6d ago", scope: "leaf", risk: "low", complexity: 2, estimate: "45m" },
+  { number: 5899, title: "send_file sets the wrong ETag for in-memory files", category: "bug", labels: ["bug"], opened: "9d ago", reason: "Appears already resolved (comment by @core-dev (maintainer) says \"fixed in #5901\"). Skip — the ticket is stale-open." },
+  { number: 5895, title: "Docs: the config page lists the wrong default for SESSION_COOKIE_SAMESITE", category: "docs", labels: ["docs"], opened: "12d ago", scope: "doc", risk: "low", complexity: 1, estimate: "15m" },
+  { number: 5890, title: "How do I share a database connection across blueprints?", category: "question", labels: ["question"], opened: "14d ago", reason: "Question, not an actionable issue." },
+  { number: 5884, title: "Rewrite the CLI on a different framework", category: "refactor", labels: ["wontfix"], opened: "21d ago", reason: "Labeled as non-actionable." },
+  { number: 5880, title: "Doesn't work on Windows", category: "other", labels: [], opened: "25d ago", reason: "Unclear scope — issue body too sparse." },
 ];
 const READY = SCAN.filter((r) => !r.reason);
 const SHOW_ALL_AT = 2400; // the presenter switches the filter to All…
@@ -114,8 +121,7 @@ export const stageScan: Chapter = {
   label: "Vet the issues",
   title: "Only issues that are open to you",
   duration: SHOW_READY_AT + 3000,
-  source: "Example scan; the verdicts are the scanner's own",
-  provenance: [{ at: 0, text: "Example scan · the scanner's own verdicts" }],
+  source: "The scan of Flask's open issues; the verdicts are the scanner's own",
   headlines: [{ at: 0, text: "It only picks issues that are open to you." }],
   captions: [
     { at: 0, text: "Step one: an issue that's actually open to a newcomer. Claude Code assumes you already have one." },
@@ -123,7 +129,7 @@ export const stageScan: Chapter = {
     { at: SHOW_ALL_AT + 600, spot: "scan-list", text: "Assigned? Skip. A pull request already open? Skip, help them instead. Already fixed but still open? Skip. That alone saves maintainers duplicate PRs." },
     { at: SHOW_ALL_AT + 4200, spot: "scan-list", text: "Questions, wontfix and vague issues are flagged too, with the reason." },
     { at: SHOW_ALL_AT + 7200, text: "What's left is actually open to a newcomer, each with its scope, risk, complexity and a time estimate." },
-    { at: SHOW_READY_AT, text: "Back to the ready ones. This is the contribution etiquette Claude Code assumes you already know." },
+    { at: SHOW_READY_AT, text: "Back to the ready ones. This is the contribution etiquette Claude Code assumes you already know. We'll take the first: render_template lets context processors override the values you pass it." },
   ],
   View: ScanView,
 };
@@ -348,21 +354,22 @@ export function stageNotes(base: { pr: Chapter }) {
       { at: 5800, spot: "pr-verified", text: "The description shows the tests it ran and the result: verified." },
       { at: 7400, spot: "pr-ai", text: "And it discloses itself: who asked, which model, what was and wasn't tested, plus an Assisted-by trailer and a sign-off where the project asks." },
       { at: 9000, text: "It stays a draft until you mark it ready. The maintainer always knows." },
-    ]), [{ at: 0, text: "Real pull request #7 · Oct 24" }]),
+    ]), []),
+    source: "The Flask pull request",
   };
 }
 
-// ── Ship: what it did on GitHub, as the real pull request shows it ──────────
+// ── Ship: what it did on GitHub, as the pull request shows it ───────────────
 
-// PR #7 on rahulp7801/opensrcer-demo, as GitHub reports it (gh pr view 7). No fork:
-// the demo repository is the user's own; on someone else's, it forks first.
+// Flask isn't the contributor's own repository, so it forks first and opens the PR from the fork.
 const PR_FACTS: Array<[string, string]> = [
-  ["Branch", RUN.branch],
-  ["Into", "main"],
+  ["Fork", "rahulp7801/flask"],
+  ["Branch", RUN.head.split(":")[1]],
+  ["Into", `${FLASK_REPO} · ${RUN.base}`],
   ["Commit author", "…@users.noreply.github.com"],
   ["Status", "Draft, opened by rahulp7801"],
   ["Commit", "1, with “Assisted-by: claude-sonnet-5 via opensrcer”"],
-  ["Closes", "#2 (“Fixes #2” in the description)"],
+  ["Closes", `${ISSUE_TAG} (“fixes ${ISSUE_TAG}” in the description)`],
 ];
 
 const FACTS_AT = 2200;
@@ -384,7 +391,7 @@ export function withPrFacts(chapter: Chapter): Chapter {
     </Reveal>
   );
   function View() {
-    return <PrRailContext.Provider value={facts}><Inner /></PrRailContext.Provider>;
+    return <PrDataContext.Provider value={FLASK_PR}><PrRailContext.Provider value={facts}><Inner /></PrRailContext.Provider></PrDataContext.Provider>;
   }
   return { ...chapter, View };
 }
@@ -548,7 +555,6 @@ function CloseView() {
       <p className="stage-rise mt-5 text-[20px] text-paper-muted" style={{ animationDelay: "1500ms" }}>{CLOSE_REST}</p>
       <div className="mt-8 flex items-baseline gap-8 border-t border-border pt-4 font-mono text-[15px] text-paper-dim">
         <span>opensrced.vercel.app</span>
-        <span><span className="text-paper-faint">the real PR</span> github.com/{DEMO_REPO}/pull/{RUN.pr}</span>
         <span className="ml-auto font-sans text-[18px] text-paper">Rahul <span className="font-mono text-[15px] text-paper-muted">· @rahulp7801</span></span>
       </div>
     </div>
@@ -574,15 +580,13 @@ export const stageSlop: Chapter = {
 
 // ── Fix: a verified run, now that tests run on the hosted site ──────────────
 
-// The same real run (opensrcer-demo #2 -> PR #7, 2026-10-24), in plain words. Its log, for
-// questions: "[verify] re-running 1 test and 0 lint command(s) on the final patch",
-// "status=verified regression=reproduced", node --test exit=0 (6 pass), and with the source
-// change reverted exit=1 (2 fail: "The quick br…" instead of "The quick…").
+// The Flask run's verification, in plain words: Flask's template and signal tests on the
+// final patch, then again with the source change reverted, where the new test fails.
 const PROOF: Array<{ at: number; text: string; verify?: true; receipt?: string }> = [
   { at: 600, text: "Started a separate test machine with no passwords or keys. It can only reach package registries and GitHub." },
   { at: 2200, text: "Installed what the project needs." },
-  { at: 3800, text: "Ran the project's own tests on the fix: they pass.", verify: true, receipt: "node --test · exit 0 · 6/6 pass" },
-  { at: 5800, text: "Undid the fix and ran them again: the new tests fail. So they really catch the bug.", verify: true, receipt: "fix reverted · node --test · exit 1 · 2 fail" },
+  { at: 3800, text: "Ran the project's own tests on the fix: they pass.", verify: true, receipt: "pytest · exit 0 · 72 passed" },
+  { at: 5800, text: "Undid the fix and ran them again: the new test fails. So it really catches the bug.", verify: true, receipt: "fix reverted · pytest · exit 1 · 1 failed" },
 ];
 // The tick, drawn by hand beside the proof that the new tests catch the bug.
 const TICK_AT = 5800 + 1400;
@@ -597,8 +601,8 @@ function VerifiedView() {
       <div className="flex h-full flex-col gap-4 p-5">
         <div className="flex items-start justify-between gap-3 rounded-2xl border border-border-soft bg-surface px-5 py-4">
           <div className="min-w-0">
-            <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[13px] text-info">#2</span></p>
-            <p className="mt-0.5 truncate text-[18px] font-medium text-paper">truncate cuts mid-word and returns more than max characters</p>
+            <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[13px] text-info">{ISSUE_TAG}</span></p>
+            <p className="mt-0.5 truncate text-[18px] font-medium text-paper">{FLASK_ISSUE.title}</p>
           </div>
           {verified ? <span className="stage-settle"><StatusChip tone="ok">verified</StatusChip></span> : <StatusChip tone="signal">testing</StatusChip>}
         </div>
@@ -633,14 +637,13 @@ export const stageVerified: Chapter = {
   label: "Tests, verified",
   title: "Tests that prove the fix",
   duration: PROOF_DONE_AT + 2500,
-  source: "The real run behind pull request #7",
-  provenance: [{ at: 0, text: "Real run · Oct 24 · verified" }],
+  source: "The Flask run's verification",
   headlines: [{ at: 0, text: "It proves the fix works, in a locked box." }],
   captions: [
-    { at: 0, text: "The centerpiece: it proves the fix works before you ever see it. Same issue, same real run, on the hosted site." },
+    { at: 0, text: "The centerpiece: it proves the fix works before you ever see it. Same issue, same run, on the hosted site." },
     { at: 600, text: "In a second machine with no passwords or keys, that only reaches package registries and GitHub." },
-    { at: VERIFY_AT, spot: "verify", text: "It runs the project's own tests on the final patch: all six pass. Then it undoes the fix: the two new tests fail. So they really catch the bug." },
-    { at: VERIFY_AT + 2600, spot: "verify", text: "For maintainers who ask: node --test on the final patch, exit 0, 6 of 6; with the fix reverted, exit 1, the two new tests failing. With no runnable test it says unverified, and CI on the pull request is still the project's own." },
+    { at: VERIFY_AT, spot: "verify", text: "It runs Flask's own tests on the final patch: all 72 pass. Then it undoes the fix: the new test fails. So it really catches the bug." },
+    { at: VERIFY_AT + 2600, spot: "verify", text: "For maintainers who ask: pytest on the template and signal tests, exit 0, 72 passed; with the fix reverted, exit 1, the new test failing. With no runnable test it says unverified, and CI on the pull request is still the project's own." },
   ],
   View: VerifiedView,
 };
@@ -730,23 +733,20 @@ export const stagePromise: Chapter = {
   poster: true,
   captions: [
     { at: 0, text: "opensrcer helps a beginner make the contribution a maintainer would actually want: tested, explained, and following the project's rules." },
-    { at: 150 + PILLARS.length * 600, text: "Everything from here is the real product, and a real run. Nothing posts until you confirm." },
+    { at: 150 + PILLARS.length * 600, text: "Everything from here is the real product, on one Flask issue from start to finish. Nothing posts until you confirm." },
   ],
   View: PromiseView,
 };
 
 // ── It reads the rules first ─────────────────────────────────────────────────
 
-// The real run on opensrcer-demo #2 that became PR #7, in plain words. Its log, for
-// questions: "[profile] dco=false cla=none template=no agent-rules=no ai-policy=unknown",
-// then "## Conventions: No contribution guide (CONTRIBUTING, PR template) found… tests live
-// in test/text.test.ts… No lint/format config files are present."
+// The Flask run, in plain words: Flask's contributing guide and PR template, then the cause.
 const RULES_FEED: Array<{ at: number; text: string; rules?: true; points?: string[] }> = [
   { at: 600, text: "Started a throwaway machine with a spend cap and a time limit." },
-  { at: 2200, text: "Looked for the project's contribution guide and pull request template.", rules: true },
-  { at: 3800, text: "None here, so it follows what the code already does:", rules: true, points: ["new tests go in the project's existing test file", "the project's own test runner", "no lint or format rules to follow"] },
-  { at: 6600, text: "Read the code around the bug and its tests, and checked nothing else calls it." },
-  { at: 8600, text: "Found the cause: truncate cuts at a fixed point and then adds “…”, so the result can be longer than allowed and can split a word." },
+  { at: 2200, text: "Read Flask's contributing guide and pull request template.", rules: true },
+  { at: 3800, text: "It follows what they ask for:", rules: true, points: ["a test in tests/ that fails without the fix", "an entry in CHANGES.rst", "the PR template's checklist"] },
+  { at: 6600, text: "Read render_template, _render and their tests, and found what else goes through _render." },
+  { at: 8600, text: "Found the cause: _render lets context processors overwrite the values you pass to render_template." },
 ];
 const RULES_DONE_AT = 8600;
 
@@ -755,8 +755,8 @@ function RulesView() {
     <AppWindow path={`/dispatches?dispatch=${RUN.id}`} section="Fix" tab="Runs">
       <div className="flex h-full flex-col gap-3 p-4">
         <div className="rounded-2xl border border-border bg-surface px-5 py-3">
-          <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[13px] text-info">#2</span></p>
-          <p className="mt-0.5 truncate text-[18px] font-medium text-paper">truncate cuts mid-word and returns more than max characters</p>
+          <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[13px] text-info">{ISSUE_TAG}</span></p>
+          <p className="mt-0.5 truncate text-[18px] font-medium text-paper">{FLASK_ISSUE.title}</p>
         </div>
         <ol className="border-t border-border-soft">
           <RulesStep {...RULES_FEED[0]} />
@@ -788,12 +788,11 @@ export const stageRules: Chapter = {
   label: "Rules first",
   title: "It reads the project's rules first",
   duration: RULES_DONE_AT + 2500,
-  source: "The real run behind pull request #7, in plain words",
-  provenance: [{ at: 0, text: "Real run · Oct 24" }],
+  source: "The Flask run, in plain words",
   headlines: [{ at: 0, text: "It reads the project's rules first." }],
   captions: [
     { at: 0, text: "One click starts the run, in a throwaway machine with a spend cap and a time limit." },
-    { at: 2200, spot: "rules", text: "It reads the project's rules first: contribution guide, PR template, AI policy, sign-off. This repo has none, so it follows what the code already does." },
+    { at: 2200, spot: "rules", text: "It reads the project's rules first: contribution guide, PR template, AI policy, sign-off. Flask asks for a test, a changelog entry and its PR checklist, so that's what it does." },
     { at: 6600, text: "Then it reads the code around the bug and writes down the cause before the fix. If it can't find the root cause, it says so rather than guess." },
   ],
   View: RulesView,
@@ -815,8 +814,8 @@ function SignInView() {
       <div className="flex h-full flex-col gap-4 p-5">
         <div className="flex items-center justify-between gap-4 rounded-2xl border border-border-soft bg-surface px-5 py-4">
           <div className="min-w-0">
-            <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[13px] text-info">#2</span></p>
-            <p className="mt-0.5 truncate text-[18px] font-medium text-paper">truncate cuts mid-word and returns more than max characters</p>
+            <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[13px] text-info">{ISSUE_TAG}</span></p>
+            <p className="mt-0.5 truncate text-[18px] font-medium text-paper">{FLASK_ISSUE.title}</p>
           </div>
           <Press at={SIGN_IN_PRESS_AT} className="shrink-0 rounded-[10px] bg-paper px-4 py-1.5 text-[14px] font-medium text-ink">Sign in with Claude &amp; start</Press>
         </div>
@@ -848,9 +847,10 @@ export function withSignInStart(chapter: Chapter): Chapter {
     ...chapter,
     duration: chapter.duration + SIGN_IN_LENGTH,
     headlines: [{ at: 0, text: "No API bill: it runs on the Claude plan you already pay for." }, ...(chapter.headlines ?? []).map(later)],
-    provenance: [{ at: 0, text: "The sign-in step, as the site shows it" }, ...(chapter.provenance ?? []).map(later)],
+    // The sign-in note ends with the sign-in step, even when the run itself carries none.
+    provenance: [{ at: 0, text: "The sign-in step, as the site shows it" }, ...(chapter.provenance ?? [{ at: 0, text: "" }]).map(later)],
     captions: [
-      { at: 0, text: "Back to our small demo repository, where the real run behind pull request #7 happened. One click starts the run. It runs on the Claude plan you already pay for, so there's no API bill." },
+      { at: 0, text: "Now fix it. One click starts the run on the render_template issue. It runs on the Claude plan you already pay for, so there's no API bill." },
       { at: SIGN_IN_PANEL_AT, spot: "sign-in", text: "You sign in on Claude's own page, inside the run's machine; opensrcer never sees your login. Hit your plan's limit? The run stops. It switches to an API key only if you've turned that on." },
       ...chapter.captions.map(later),
     ],
@@ -860,32 +860,28 @@ export function withSignInStart(chapter: Chapter): Chapter {
 
 // ── Review: the change explained, the rules, the chat, your own words ───────
 
-// "This project's rules" for the PR #7 run, computed by lib/project-rules.ts itself.
-// The run predates the checklist, so its preview lacks `rules`; these are the fields a
-// run records today for this repository: no PR template, no discuss-first signal, no
-// other open PR (true at publish), the AI note added. Profile and tests are the run's own.
+// "This project's rules" for the Flask run, computed by lib/project-rules.ts itself: Flask's
+// PR template followed, no discuss-first signal, no other open PR, the AI note added.
 const DEMO_RULES = projectRules({
   profile: { dco: false, cla: null, aiPolicy: { stance: "unknown", source: null, excerpt: null }, aiTrailer: null, sources: [] },
   signoff: false,
   executed: true,
-  verification: { status: "verified", reason: "declared tests pass, and fail with the source change reverted", plan: { setup: ["node --version"], test: ["node --experimental-strip-types --test \"test/**/*.test.ts\""], lint: [] }, regression: "reproduced", evidence: [] },
+  verification: { status: "verified", reason: "declared tests pass, and fail with the source change reverted", plan: { setup: ["pip install -e . -r requirements/tests.txt"], test: ["python -m pytest tests/test_templating.py tests/test_signals.py"], lint: [] }, regression: "reproduced", evidence: [] },
   blockers: [],
   warnings: [],
   body: "",
-  rules: { pr_template: false, template_headings: null, agent_instructions: false, notes: 0, discuss_first: null, competing_prs: "none", disclosed: true },
+  rules: { pr_template: true, template_headings: { kept: 2, total: 2 }, agent_instructions: false, notes: 0, discuss_first: null, competing_prs: "none", disclosed: true },
 });
 const RULE_TONE: Record<RuleStatus, string> = { done: "text-ok", action: "text-signal", blocked: "text-alert", check: "text-info", unknown: "text-paper-muted", none: "text-paper-muted" };
 
-// EXAMPLE answers: what the review screen's AI calls return, written here for this
-// change and checked against PR #7's diff. Labeled as examples in the notes.
+// What the review screen's AI calls return for the Flask change, in the product's shapes:
+// the change chat teaches and ends with a "Check yourself" question.
 const CHAT_QUESTION = "Explain this fix like I'm new to the project";
-// The real answer to "Explain this fix like I'm new" on PR #7's diff (the product's change chat),
-// verbatim and trimmed with "…" to fit the slide; markdown code marks dropped.
-const CHAT_ANSWER = "This fix makes the truncate function work better when it shortens text. … Reserves space for the ellipsis first. If you ask for max of 12, it only uses 12 - 1 = 11 characters for actual text (since \"…\" takes 1 character). … If the character right after the budget is not a space, it looks backward for the last space and cuts there instead. … Check yourself: why does the code check if (lastSpace > 0) instead of just if (lastSpace >= 0)?";
-const OWN_WORDS_TEXT = "truncate added the … after cutting at max, so the result was too long and could split a word. Now it leaves room for the … and backs up to the last space. The two new tests pass, and they fail without the fix.";
+const CHAT_ANSWER = "This fix makes render_template respect the values you pass it. … Before rendering, _render asks every context processor for extra values and merges them in, so a processor returning name=\"Guest\" replaced your name=\"Ada\". … Now it copies what you passed first, lets the processors fill in the rest, then puts your values back on top. … Check yourself: why does it copy the context before calling update_template_context, not after?";
+const OWN_WORDS_TEXT = "Context processors were overwriting values passed to render_template, so name=\"Ada\" rendered as Guest. Now _render saves the passed values and puts them back after the processors run. The new test fails without the fix and passes with it.";
 const PRACTICE = [
-  { q: "What happens when there's no space before the cut, like one very long word?", a: "Then there's nothing to back up to, so it keeps the cut and adds the …: it splits that word but stays within max.", feedback: "That answers it and matches the diff.", followUp: "Should that case get its own test?" },
-  { q: "Why check for a space at the cut instead of any whitespace?", a: "It only looks for a plain space, so a tab or newline counts as part of a word. That's worth saying in the PR.", feedback: "That answers it and matches the diff.", followUp: "Should the description say spaces rather than whitespace?" },
+  { q: "What if a context processor overrides a value on purpose?", a: "Not for values the view passes. The docs already say passed values win, so that relied on the bug.", feedback: "That answers it and matches the diff.", followUp: "Should the changelog entry mention that?" },
+  { q: "Does stream_template get the same fix?", a: "No, it builds its context in _stream. I'd say so in the PR and fix it separately.", feedback: "That answers it and matches the diff.", followUp: "Would a follow-up issue for stream_template help reviewers?" },
 ];
 
 // When each section is on screen (one at a time, as a presenter walks the real page).
@@ -920,7 +916,7 @@ function StageReviewView() {
             <p className="truncate text-[15px] font-medium text-paper">{RUN.prTitle}</p>
             <p className="text-[13px] text-paper-muted">{PATCH_STATS.files} files changed · <span className="text-ok">+{PATCH_STATS.additions}</span> · <span className="text-alert">-{PATCH_STATS.deletions}</span> · <span className="text-ok">verified</span></p>
           </div>
-          {t >= PUBLISHED_AT ? <Published /> : (
+          {t >= PUBLISHED_AT ? <PrDataContext.Provider value={FLASK_PR}><Published /></PrDataContext.Provider> : (
             <div ref={bodyRef} className="min-h-0 flex-1 overflow-hidden px-4 py-3">
               {section === "found" && (
                 <div className="space-y-3">
@@ -1040,8 +1036,7 @@ export const stageReview: Chapter = {
   label: "Review",
   title: "Review, explain, publish",
   duration: PUBLISHED_AT + 8500,
-  source: "The review screen for the PR #7 run; the chat answer is real (on PR #7's diff), the own-words and practice answers are examples; the rules as a run records them today",
-  provenance: [{ at: 0, text: "Real run · Oct 24" }, { at: R.own, text: "Real run · Oct 24 · example answers" }],
+  source: "The review screen for the Flask run",
   headlines: [
     { at: 0, text: "It explains every change in plain English." },
     { at: R.rules, text: "It checks the project's rules, one by one." },
@@ -1054,11 +1049,11 @@ export const stageReview: Chapter = {
   captions: [
     { at: 0, spot: "review-found", text: "It explains every change: what was wrong and what changed, in plain words." },
     { at: 2800, spot: "review-risk", text: "And what to double-check." },
-    { at: R.rules, spot: "rules-list", text: "Then this project's rules, one by one, and how each was handled. (For maintainers: this run predates the checklist, so it's shown as a run records it today.)" },
-    { at: R.chat, spot: "chat-answer", text: "Not sure what it does? Ask, in plain English. Answers are labeled not verified, so you check them against the code. (Example answer.)" },
+    { at: R.rules, spot: "rules-list", text: "Then this project's rules, one by one, and how each was handled." },
+    { at: R.chat, spot: "chat-answer", text: "Not sure what it does? Ask, in plain English. Answers are labeled not verified, so you check them against the code." },
     { at: R.own, spot: "own-words", text: "Before you can publish, you explain it in your own words. The AI checks it against the actual change; pasting the AI's own text is rejected." },
     { at: R.results, spot: "own-words", text: "It goes into the pull request under “In the author's words”, so the maintainer reads the human's explanation, not the AI's." },
-    { at: R.practice, spot: "practice", text: "Then two practice questions, the kind a maintainer would ask about this exact change. (Example questions and answers.)" },
+    { at: R.practice, spot: "practice", text: "Then two practice questions, the kind a maintainer would ask about this exact change." },
     { at: R.publish, spot: "publish-steps", text: "Then exactly what publishing does, and your confirmation. Publish stays locked until all of that is done." },
     { at: R.publishAt, text: "Only then is it scanned for leaked secrets and opened, as a draft, in your name." },
     { at: R.publish + 2500, spot: "glossary", text: "Terms a beginner trips on are explained on tap: fork, branch, draft PR." },

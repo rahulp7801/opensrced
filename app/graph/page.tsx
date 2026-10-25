@@ -3,6 +3,9 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { PageHeading } from "@/components/page-heading";
+import { Doodle } from "@/components/brand/doodles";
+import { nodes } from "@/components/brand/doodle-data";
+
 import { generateFollowUps, parseMarkdownBlocks } from "@/lib/graph-view";
 import { cn } from "@/lib/utils";
 import { sseEvents } from "@/lib/sse";
@@ -452,7 +455,7 @@ export default function GraphPage() {
         }}
       >
         <div className="relative w-full max-w-xl flex-1 sm:min-w-[280px]">
-          <label htmlFor="graph-repository" className="mb-1.5 block text-[12px] font-medium text-paper-dim">
+          <label htmlFor="graph-repository" className="field-label">
             GitHub repository
           </label>
           <input
@@ -470,10 +473,10 @@ export default function GraphPage() {
             onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
             placeholder="owner/repository"
             autoComplete="off"
-            className="rounded-lg w-full bg-surface border border-border px-3 py-2 text-[13px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50"
+            className="field font-mono"
           />
           {showSuggestions && suggestions.length > 0 && (
-            <ul className="rounded-2xl absolute z-20 top-full left-0 right-0 mt-1 border border-border-soft bg-ink max-h-48 overflow-y-auto">
+            <ul className="card absolute top-full right-0 left-0 z-20 mt-2 max-h-56 overflow-y-auto py-1.5 shadow-[0_12px_32px_-12px_rgb(28_23_20/0.25),inset_0_0_0_1px_var(--color-border-soft)]">
               {suggestions
                 .filter(
                   (s) =>
@@ -490,7 +493,7 @@ export default function GraphPage() {
                         setRepoUrl(s);
                         setShowSuggestions(false);
                       }}
-                      className="w-full text-left px-3 py-2 text-[12px] text-paper-dim hover:bg-surface-2/60 hover:text-paper"
+                      className="w-full px-4 py-2.5 text-left font-mono text-[13px] text-paper-dim hover:bg-ink-2 hover:text-paper"
                     >
                       {s}
                     </button>
@@ -502,7 +505,7 @@ export default function GraphPage() {
         <button
           type="submit"
           disabled={!parseRepo(repoUrl) || buildStatus === "building"}
-          className="min-h-10 shrink-0 rounded-md bg-paper px-4 py-2 text-[12px] font-medium text-ink transition hover:-translate-y-px hover:bg-paper-2 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
+          className="btn-primary min-h-11 shrink-0 px-6"
         >
           {buildStatus === "building"
             ? "building..."
@@ -514,11 +517,11 @@ export default function GraphPage() {
           <button type="button" onClick={() => {
             buildRequest.current?.abort(new Error("Build cancelled."));
             queryRequest.current?.abort(new Error("Query cancelled."));
-          }} className="rounded-full border border-border px-4 py-2 text-[12px]">Cancel</button>
+          }} className="btn-quiet min-h-11 px-5">Cancel</button>
         )}
         {buildStatus === "ready" && (
-          <span className="text-xs text-ok font-medium flex items-center gap-1">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-ok" />
+          <span className="chip chip-ok mb-2.5 self-end">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-ok" />
             ready
           </span>
         )}
@@ -531,8 +534,8 @@ export default function GraphPage() {
         buildMessages.length > 0 && (
         <div
           className={cn(
-            "rounded-2xl mt-3 border bg-surface px-4 py-3",
-            buildStatus === "error" ? "border-alert/40" : "border-border",
+            "card mt-4 px-5 py-4",
+            buildStatus === "error" && "callout-alert",
           )}
         >
           {/* Progress bar */}
@@ -546,11 +549,11 @@ export default function GraphPage() {
               : last?.text.includes("cached") ? "Using cached clone"
               : "Building the map";
             return (
-              <div className="mb-2">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px] text-paper-dim">{phase}</span>
+              <div className="mb-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-[14px] font-semibold text-paper">{phase}</span>
                   {pct !== null && (
-                    <span className="text-[11px] text-signal tabular-nums">{pct}%</span>
+                    <span className="font-mono text-[13px] text-signal tabular-nums">{pct}%</span>
                   )}
                 </div>
                 <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden">
@@ -571,10 +574,10 @@ export default function GraphPage() {
                 <div
                   key={i}
                   className={cn(
-                    "text-xs font-mono",
+                    "font-mono text-[12px] leading-relaxed",
                     failed
                       ? "text-alert whitespace-pre-wrap break-words"
-                      : "text-paper-faint truncate",
+                      : "text-paper-muted truncate",
                   )}
                 >
                   {msg.text}
@@ -589,10 +592,10 @@ export default function GraphPage() {
       {buildStatus === "ready" ? (
         <div className="mt-4 flex-1 min-h-0 flex flex-col xl:flex-row gap-4">
           {/* Left: Graph visualization */}
-          <div className="rounded-2xl xl:w-[55%] min-h-[300px] xl:min-h-0 border border-border-soft bg-ink/30 relative flex flex-col">
-            <div className="flex items-center justify-between px-3 py-1.5 border-b border-border-soft bg-ink/50">
-              <span className="text-xs text-paper-faint font-medium">
-                {engine === "crg" ? "map of a large repository" : "interactive map"} — {owner}/{repo}
+          <div className="card relative flex min-h-[360px] flex-col overflow-hidden xl:min-h-0 xl:w-[58%]">
+            <div className="flex items-center justify-between gap-3 border-b border-border-soft px-5 py-3">
+              <span className="text-[13px] text-paper-muted">
+                <span className="kicker text-signal">{engine === "crg" ? "map of a large repository" : "interactive map"}</span> — <span className="font-mono text-paper-dim">{owner}/{repo}</span>
               </span>
               {/* No "open fullscreen" link: as its own tab the graph HTML (built
                   from repository content) could navigate that tab; inside this
@@ -607,10 +610,10 @@ export default function GraphPage() {
           </div>
 
           {/* Right: Chat interface */}
-          <div className="xl:w-[45%] flex flex-col min-h-[300px] xl:min-h-0">
+          <div className="flex min-h-[300px] flex-col xl:min-h-0 xl:w-[42%]">
             {/* Quick actions */}
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              <span className="mr-1 self-center text-xs text-paper-faint">
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              <span className="kicker mr-1 self-center text-paper-muted">
                 Suggestions
               </span>
               {(engine === "crg"
@@ -621,7 +624,8 @@ export default function GraphPage() {
                   key={label}
                   onClick={() => quickQuery(cmd)}
                   disabled={isQuerying}
-                  className="inline-flex min-h-9 items-center rounded-full text-xs text-paper-dim border border-border-soft hover:border-signal/40 hover:text-signal px-3 transition disabled:opacity-50"
+                  className="pill"
+                  data-size="sm"
                 >
                   {label}
                 </button>
@@ -635,33 +639,33 @@ export default function GraphPage() {
               className="flex-1 overflow-y-auto min-h-0 space-y-3"
             >
               {results.length === 0 && (
-                <div className="rounded-2xl border border-border-soft bg-surface p-6 text-center">
-                  <div className="serif text-[18px] text-paper">
+                <div className="card px-6 py-8 sm:px-8">
+                  <div className="display text-[28px] leading-none text-paper">
                     Ask about this code
                   </div>
                   {engine === "crg" ? (
                     <>
-                      <p className="mt-2 text-[11px] text-paper-muted max-w-md mx-auto">
+                      <p className="mt-3 max-w-md text-[14px] leading-[1.6] text-paper-muted">
                         This is a large repository, so questions are answered in plain English.
                         Ask anything about the code.
                       </p>
-                      <p className="mt-1.5 text-xs text-signal">
+                      <p className="mt-2 max-w-md text-[13px] text-signal">
                         Answers use your AI provider key. The free map commands aren&apos;t available for repositories this large.
                       </p>
                     </>
                   ) : (
                     <>
-                      <p className="mt-2 text-[12px] text-paper-muted max-w-md mx-auto">
+                      <p className="mt-3 max-w-md text-[14px] leading-[1.6] text-paper-muted">
                         Ask in plain English, like &quot;Where is the config read?&quot; Answers use your AI provider key and come from the code map: they point to the files involved, and say when the map can&apos;t answer.
                       </p>
-                      <p className="mt-1.5 text-[11px] text-paper-muted max-w-md mx-auto">
+                      <p className="mt-2 max-w-md text-[13px] leading-[1.6] text-paper-muted">
                         Free map commands, no AI: &quot;trace handlePayment&quot;, &quot;impact UserService&quot;, &quot;explain src/api&quot;, &quot;path auth to billing&quot;.
                       </p>
-                      <p className="mt-1.5 text-xs text-paper-faint">
+                      <p className="mt-2 text-[13px] text-paper-muted">
                         Type{" "}
                         <button
                           onClick={() => quickQuery("help")}
-                          className="text-signal hover:underline"
+                          className="link font-mono"
                         >
                           help
                         </button>
@@ -673,23 +677,23 @@ export default function GraphPage() {
               )}
 
               {results.map((r) => (
-                <div key={r._id} className="rounded-2xl border border-border-soft bg-surface">
-                  <div className="px-3 py-2 border-b border-border-soft flex items-center gap-2">
-                    <span className="text-xs font-medium text-signal">
+                <div key={r._id} className="card overflow-hidden">
+                  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-border-soft px-5 py-3.5">
+                    <span className="kicker text-signal">
                       You asked
                     </span>
-                    <span className="text-[12px] text-paper">
+                    <span className="text-[15px] font-semibold text-paper">
                       {r.query}
                     </span>
                     {r.status === "loading" && (
-                      <span className="ml-auto text-xs text-signal animate-pulse-signal">
+                      <span className="ml-auto text-[12.5px] text-signal animate-pulse-signal">
                         querying...
                       </span>
                     )}
                     {r.status === "streaming" && (
                       <span className="ml-auto flex items-center gap-2">
-                        <span className="text-xs text-info">AI</span>
-                        <span className="text-xs text-signal animate-pulse-signal">
+                        <span className="chip chip-info">AI</span>
+                        <span className="text-[12.5px] text-signal animate-pulse-signal">
                           streaming...
                         </span>
                       </span>
@@ -697,27 +701,27 @@ export default function GraphPage() {
                     {r.status === "done" && (
                       <span className="ml-auto flex items-center gap-2">
                         {r.mode === "llm" && (
-                          <span className="rounded-full text-[11px] text-info border border-info/30 px-1 py-0.5">
+                          <span className="chip chip-info">
                             AI
                           </span>
                         )}
                         {r.compression && (
-                          <span className="text-[11px] text-paper-faint" title={r.compression}>
+                          <span className="text-[12px] text-paper-muted" title={r.compression}>
                             compressed
                           </span>
                         )}
-                        <span className="text-xs text-ok tabular-nums">
+                        <span className="font-mono text-[12.5px] text-ok tabular-nums">
                           {r.cost ? `${r.cost.toFixed(4)}` : "free"}
                         </span>
                       </span>
                     )}
                   </div>
-                  <div className="px-3 py-3 overflow-x-auto">
+                  <div className="overflow-x-auto px-5 py-4">
                     {r.status === "error" ? (
-                      <div className="text-[12px] text-alert whitespace-pre-wrap break-words">
+                      <div className="text-[13.5px] text-alert whitespace-pre-wrap break-words">
                         {r.response}
                         {/\b(key|provider)\b/i.test(r.response) && (
-                          <a href="/crucible" className="mt-2 flex min-h-10 w-fit items-center rounded-full border border-signal/40 px-3 text-signal hover:bg-signal/10">Add a key in Settings →</a>
+                          <a href="/crucible" className="row-cta mt-3 w-fit">Add a key in Settings →</a>
                         )}
                       </div>
                     ) : r.response ? (
@@ -730,11 +734,11 @@ export default function GraphPage() {
                       // Finished with nothing to show. Without this it fell
                       // through to the in-progress placeholder and sat there
                       // claiming to still be working.
-                      <div className="text-[11px] text-paper-muted italic">
+                      <div className="text-[13px] text-paper-muted italic">
                         The graph returned no output for this query.
                       </div>
                     ) : (
-                      <div className="text-[11px] text-paper-muted italic">
+                      <div className="text-[13px] text-paper-muted italic">
                         {r.mode === "llm" ? "Asking AI..." : "Traversing graph..."}
                       </div>
                     )}
@@ -749,8 +753,10 @@ export default function GraphPage() {
 
             {/* Query input */}
             <form onSubmit={handleSubmit} className="mt-3 shrink-0">
-              <div className="flex gap-2">
+              <div className="flex gap-2 rounded-full bg-surface p-1.5 shadow-[inset_0_0_0_1px_var(--color-border)] focus-within:shadow-[inset_0_0_0_1.5px_var(--color-signal)]">
+                <label htmlFor="graph-question" className="sr-only">Your question</label>
                 <input
+                  id="graph-question"
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -762,12 +768,12 @@ export default function GraphPage() {
                   }}
                   placeholder="Ask a question in plain English, e.g. Where is the config read?"
                   disabled={isQuerying}
-                  className="rounded-lg flex-1 bg-surface border border-border px-3 py-2.5 text-[12px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50 disabled:opacity-50"
+                  className="min-h-10 min-w-0 flex-1 bg-transparent px-3 text-[15px] text-paper placeholder:text-paper-muted focus:outline-none focus-visible:outline-none disabled:opacity-50"
                 />
                 <button
                   type="submit"
                   disabled={!query.trim() || isQuerying}
-                  className="rounded-full border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-2.5 text-[12px] font-medium disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                  className="btn-primary shrink-0 px-5"
                 >
                   {isQuerying ? "..." : "Ask"}
                 </button>
@@ -778,24 +784,26 @@ export default function GraphPage() {
       ) : (
         buildStatus !== "building" && (
           /* Empty state */
-          <div className="mt-10 grid flex-1 gap-8 border-y border-border py-7 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
-            <div>
-              <p className="text-[13px] font-semibold text-paper-muted">What you can inspect</p>
-              <h2 className="display mt-4 text-[32px] leading-tight text-paper">Start with a repository</h2>
-              <p className="mt-3 max-w-lg text-[13px] leading-6 text-paper-muted">
+          <div className="mt-14 grid flex-1 gap-10 border-t-2 border-paper pt-8 lg:grid-cols-[0.85fr_1.15fr] lg:gap-16">
+            <div className="relative">
+              <p className="kicker text-signal">What you can inspect</p>
+              <h2 className="display mt-4 text-[40px] leading-[0.95] text-paper sm:text-[52px]">Start with a repository</h2>
+              <p className="mt-4 max-w-lg text-[15px] leading-[1.65] text-paper-muted">
                 Enter a public repository or one your connected GitHub account can access. Building the map reads source structure and relationships without calling an AI model.
               </p>
+              {/* The section's one hand-drawn mark: a little map of connected nodes. */}
+              <Doodle doodle={nodes} draw="load" delay={250} className="mt-6 hidden h-24 w-40 lg:block" />
             </div>
-            <div className="grid text-[12px] sm:grid-cols-2">
+            <div className="grid content-start gap-3 text-[14px] sm:grid-cols-2">
               {[
                 ["trace Symbol", "Follow calls and dependencies."],
                 ["impact Symbol", "Find affected callers and modules."],
                 ["explain src/api", "Summarize one area of the repository."],
                 ["path A to B", "Show how two symbols connect."],
-              ].map(([command, description], index) => (
-                <div key={command} className={cn("border-t border-border-soft py-4 sm:px-5", index % 2 === 0 ? "sm:pl-0" : "sm:border-l sm:pr-0")}>
-                  <code className="text-signal">{command}</code>
-                  <p className="mt-1 text-paper-muted">{description}</p>
+              ].map(([command, description]) => (
+                <div key={command} className="card px-5 py-5">
+                  <code className="rounded-md bg-signal-faint px-2 py-1 font-mono text-[13.5px] text-signal">{command}</code>
+                  <p className="mt-3 text-paper-dim">{description}</p>
                 </div>
               ))}
             </div>
@@ -814,7 +822,7 @@ function GraphResponse({ text }: { text: string }) {
   const lines = text.split("\n");
 
   return (
-    <div className="text-[11.5px] leading-relaxed font-mono space-y-0 overflow-x-hidden">
+    <div className="text-[12.5px] leading-relaxed font-mono space-y-0 overflow-x-hidden">
       {lines.map((line, i) => {
         // Section headers (lines of ─)
         if (/^─+$/.test(line))
@@ -830,7 +838,7 @@ function GraphResponse({ text }: { text: string }) {
           return (
             <div
               key={i}
-              className="text-paper font-medium text-[12px] mt-1"
+              className="text-paper font-semibold text-[13px] mt-1"
             >
               {highlightLine(line)}
             </div>
@@ -908,15 +916,15 @@ function MarkdownResponse({ text }: { text: string }) {
   const blocks = parseMarkdownBlocks(text);
 
   return (
-    <div className="space-y-2.5 text-[12px] leading-relaxed text-paper-dim break-words">
+    <div className="space-y-3 text-[14px] leading-[1.65] text-paper-dim break-words">
       {blocks.map((block, i) => {
         if (block.type === "code") {
           return (
             <div key={i} className="overflow-x-auto">
-              <div className="rounded-lg flex items-center px-3 py-1 bg-ink/80 border border-border-soft border-b-0 text-xs text-paper-muted">
+              <div className="flex items-center rounded-t-xl bg-paper-2 px-3.5 py-1.5 text-[12px] text-ink/75">
                 <span className="font-mono">{block.lang || "code"}</span>
               </div>
-              <pre className="rounded-lg overflow-x-auto px-3 py-2.5 bg-ink/60 border border-border-soft text-[11px] leading-snug font-mono whitespace-pre-wrap break-words">
+              <pre className="term overflow-x-auto rounded-t-none px-3.5 py-3 font-mono text-[12.5px] leading-snug whitespace-pre-wrap break-words">
                 {block.content}
               </pre>
             </div>
@@ -924,7 +932,7 @@ function MarkdownResponse({ text }: { text: string }) {
         }
         if (block.type === "heading") {
           return (
-            <div key={i} className="text-[13px] text-paper font-medium mt-3 first:mt-0">
+            <div key={i} className="mt-4 text-[15px] font-semibold text-paper first:mt-0">
               <InlineMd text={block.content} />
             </div>
           );
@@ -967,15 +975,17 @@ function FollowUps({
   if (!followUps.length) return null;
 
   return (
-    <div className="px-3 py-2 border-t border-border-soft flex items-center gap-2 flex-wrap">
-      <span className="text-xs text-paper-faint font-medium">
+    <div className="flex flex-wrap items-center gap-2 border-t border-border-soft bg-ink-2 px-5 py-3">
+      <span className="kicker text-paper-muted">
         Follow up:
       </span>
       {followUps.map((q) => (
         <button
           key={q}
           onClick={() => onPick(q)}
-          className="rounded-full text-xs text-paper-dim border border-border-soft hover:border-signal/40 hover:text-signal px-2 py-1 transition"
+          className="pill whitespace-normal text-left"
+          data-size="sm"
+          data-edge=""
         >
           {q}
         </button>
@@ -998,7 +1008,7 @@ function InlineMd({ text }: { text: string }) {
       parts.push(<strong key={ki++} className="text-paper font-medium">{tok.slice(2, -2)}</strong>);
     } else if (tok.startsWith("`")) {
       parts.push(
-        <code key={ki++} className="text-signal bg-signal/10 px-1 py-0.5 text-[11px] break-all">
+        <code key={ki++} className="rounded bg-signal-faint px-1 py-0.5 font-mono text-[12.5px] text-signal break-all">
           {tok.slice(1, -1)}
         </code>,
       );

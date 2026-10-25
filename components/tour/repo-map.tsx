@@ -70,6 +70,8 @@ const PALETTE = [
 const TOP = 32;
 const BOTTOM = 30;
 const EDGE = 56; // labels this close to the pane's side are not drawn
+// The files named on the settled map, the most telling first (others fill in if these don't fit).
+const TELLING = ["flask/views.py", "test_views.py", "test_async.py", "config.py"];
 
 type Rgb = [number, number, number];
 type Cam = { x: number; y: number; k: number };
@@ -264,14 +266,20 @@ export function RepoMap({ buildAt, focusAt }: { buildAt: number; focusAt: number
             </span>
           </div>
           {f >= F.legend && (
-            <div className="stage-settle pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-end gap-4 px-3 text-[11px] text-white/75" style={{ height: BOTTOM }}>
-              <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-full border-2 border-white" />{crumbs.at(-1)}</span>
-              <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-4 rounded" style={{ background: ACCENT }} />Path</span>
-              <span className="inline-flex items-center gap-1.5">Depends on it
-                {[1, 2, 3].map((k) => <span key={k} className="inline-flex items-center gap-1"><span className="size-2 rounded-full" style={{ background: rgba(HOP[k], 1) }} />{k}</span>)}
-                hops
-              </span>
-            </div>
+            <>
+              {/* The one thing to take away, in plain words, from the real count. */}
+              <p className="stage-settle pointer-events-none absolute left-3 rounded-md bg-black/60 px-2.5 py-1 text-[12.5px] font-medium text-white/90" style={{ bottom: BOTTOM + 2 }}>
+                {prep.snap.focus.hops.length} places depend on it
+              </p>
+              <div className="stage-settle pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-end gap-4 px-3 text-[11px] text-white/75" style={{ height: BOTTOM }}>
+                <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-full border-2 border-white" />{crumbs.at(-1)}</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-4 rounded" style={{ background: ACCENT }} />Path</span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-flex gap-0.5">{[1, 2, 3].map((k) => <span key={k} className="size-1.5 rounded-full" style={{ background: rgba(HOP[k], 1) }} />)}</span>
+                  Depends on it (1–3 hops)
+                </span>
+              </div>
+            </>
           )}
         </>
       )}
@@ -428,10 +436,10 @@ function draw(ctx: CanvasRenderingContext2D, p: Prepared, fr: Frame) {
     }
   }
 
-  // Labels: the function as soon as the camera is on it; the reach once the camera has pulled
-  // back. Files first, then functions where they fit; none overlapping each other, the header
-  // and legend bands, or the pane's sides.
-  const placed: Box[] = [];
+  // Labels, kept few: the function as soon as the camera is on it, then at most four files once
+  // the camera has pulled back (no function names: noise to most of the room). None overlap each
+  // other, the header and legend bands, the takeaway, or the pane's sides.
+  const placed: Box[] = [{ x0: 0, y0: h - BOTTOM - 34, x1: 240, y1: h }]; // the takeaway's corner
   // What a label must not cover: every lit node with its halo (the function with its rings).
   const lights = [...p.arrive.entries()].filter(([, at]) => f >= at - 150)
     .map(([i]) => ({ i, x: sx(i), y: sy(i), r: radius(i) + (i === primary ? 10 : 6) }));
@@ -440,8 +448,8 @@ function draw(ctx: CanvasRenderingContext2D, p: Prepared, fr: Frame) {
     const dx = Math.max(b.x0 - o.x, 0, o.x - b.x1), dy = Math.max(b.y0 - o.y, 0, o.y - b.y1);
     return dx * dx + dy * dy < o.r * o.r;
   }).length;
-  const label = (i: number, alpha: number, strong: boolean) => {
-    if (alpha <= 0) return;
+  const label = (i: number, alpha: number, strong: boolean): boolean => {
+    if (alpha <= 0) return false;
     const text = p.snap.nodes[i][1];
     ctx.font = `${strong ? 600 : 500} ${i === primary ? 14 : 11.5}px ${fr.mono}`;
     const tw = ctx.measureText(text).width;
@@ -456,10 +464,11 @@ function draw(ctx: CanvasRenderingContext2D, p: Prepared, fr: Frame) {
       if (box.x0 < EDGE || box.x1 > w - EDGE || box.y0 < TOP + 4 || box.y1 > h - BOTTOM - 4) continue;
       if (placed.some((b) => b.x0 < box.x1 && box.x0 < b.x1 && b.y0 < box.y1 && box.y0 < b.y1)) continue;
       const n = covered(box, i);
-      if (n === 0) { drawLabel(box, lx, ly, text, alpha, strong); return; }
+      if (n === 0) { drawLabel(box, lx, ly, text, alpha, strong); return true; }
       if (!best || n < best.n) best = { box, lx, ly, n };
     }
-    if (best && i === primary) drawLabel(best.box, best.lx, best.ly, text, alpha, strong);
+    if (best && i === primary) { drawLabel(best.box, best.lx, best.ly, text, alpha, strong); return true; }
+    return false;
   };
   const drawLabel = (box: Box, lx: number, ly: number, text: string, alpha: number, strong: boolean) => {
     placed.push(box);
@@ -470,10 +479,14 @@ function draw(ctx: CanvasRenderingContext2D, p: Prepared, fr: Frame) {
   };
   label(primary, span(f, F.fn - 400, F.fn), true);
   const reachLabels = span(f, F.out[1] - 300, F.out[1] + 200);
-  const isFile = (i: number) => p.snap.nodes[i][1].endsWith(".py");
-  const byHop = [...p.hop.entries()].filter(([i]) => i !== primary).sort((a, b) => a[1] - b[1]);
-  for (const [i] of byHop) if (isFile(i)) label(i, reachLabels, false);
-  for (const [i] of byHop) if (!isFile(i)) label(i, reachLabels, false);
+  const files = [...p.hop.entries()].filter(([i]) => i !== primary && p.snap.nodes[i][1].endsWith(".py"))
+    .sort((a, b) => a[1] - b[1]).map(([i]) => i);
+  const telling = TELLING.map((name) => files.find((i) => p.snap.nodes[i][1] === name)).filter((i) => i !== undefined);
+  let named = 0;
+  for (const i of new Set([...telling, ...files])) {
+    if (named === 4) break;
+    if (label(i, reachLabels, false)) named++;
+  }
 
   // Zoomed in, what the camera cuts off fades into the pane's edges; the header band stays clear.
   const vignette = easeInOut(span(f, F.hold, F.community));

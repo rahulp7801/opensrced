@@ -90,7 +90,7 @@ export default function SharedFixPage() {
         <p className="mt-4 max-w-2xl text-[16px] leading-[1.6] text-paper-muted">Shared by an opensrcer user. opensrcer does not review shared fixes; check the code before you use it.</p>
 
         {fix.comment_body && (
-          <div className="mt-6 border-l-2 border-signal pl-4 text-[16px] leading-[1.6] text-paper-dim">
+          <div className="mt-6 border-l border-border-strong pl-4 text-[16px] leading-[1.6] text-paper-dim">
             <span className="label-mono mb-1 block">Review comment</span>
             {fix.comment_body}
           </div>
@@ -108,7 +108,12 @@ export default function SharedFixPage() {
 
       {/* Diff */}
       {fix.diff && (
-        <div className="card mt-4 overflow-hidden">
+        <>
+        <p className="fig mt-8">
+          <span className="fig-tag">fig. 1</span>
+          <span>diff · {fix.repo}{fix.pr_number ? ` #${fix.pr_number}` : ""}</span>
+        </p>
+        <div className="card mt-2 overflow-hidden">
           <div className="flex items-center justify-between border-b border-border-soft px-5 py-3">
             <span className="label-mono">Diff</span>
             <button
@@ -130,6 +135,7 @@ export default function SharedFixPage() {
             })}
           </pre>
         </div>
+        </>
       )}
 
       {/* Full response */}

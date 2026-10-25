@@ -723,7 +723,12 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
   // A toolbar above the log, not floating over it, so no log line is hidden.
   const tool = "inline-flex min-h-10 items-center gap-1.5 rounded-[8px] px-3 text-[13px] font-medium shadow-[inset_0_0_0_1px_var(--color-border)] transition sm:min-h-8";
   return (
-    <div className="card mt-8 overflow-hidden">
+    <>
+    <p className="fig mt-8">
+      <span className="fig-tag">fig. 2</span>
+      <span>agent log · {isRunning ? "streaming" : "complete"}</span>
+    </p>
+    <div className="card mt-2 overflow-hidden">
       <div className="flex flex-wrap items-center gap-2 px-5 py-3 sm:px-6">
         <span className="label-mono mr-auto">Agent log</span>
         {isRunning && !showSearch && (
@@ -774,6 +779,7 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
         {search.length >= 2 ? renderLog() : rawMode ? <AnsiLog text={log} /> : (clean || "(log empty — waiting for first write)")}
       </pre>
     </div>
+    </>
   );
 }
 
@@ -1118,8 +1124,12 @@ function DiffPreviewFromLog({ log, prOpened, prUrl, dryRun }: { log: string; prO
 
   return (
     <>
-      {/* Inline summary bar — click to open modal */}
-      <div id="run-patch" className="card mt-10 scroll-mt-32 overflow-hidden">
+      {/* The patch, captioned as a figure; the bar opens the full review. */}
+      <p className="fig mt-10">
+        <span className="fig-tag">fig. 1</span>
+        <span>diff · {diff.files.join(", ") || "patch"}</span>
+      </p>
+      <div id="run-patch" className="card mt-2 scroll-mt-32 overflow-hidden">
         <button
           ref={openerRef}
           onClick={() => setModalOpen(true)}

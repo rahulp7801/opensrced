@@ -944,6 +944,11 @@ export default function PrDetailPage() {
 
           {/* Collapsible PR diff */}
           {showDiff && (
+            <>
+            <p className="fig mt-4">
+              <span className="fig-tag">fig. 1</span>
+              <span>diff · {repoFull} #{prNumber}</span>
+            </p>
             <div className="mt-2 max-h-[500px] overflow-auto rounded-2xl bg-surface shadow-[inset_0_0_0_1px_var(--color-border-soft)]">
               {diffLoading ? (
                 <div className="px-4 py-3 text-[12px] text-paper-muted">Loading diff...</div>
@@ -964,6 +969,7 @@ export default function PrDetailPage() {
                 <div className="px-4 py-3 text-[12px] text-paper-muted">No diff available</div>
               )}
             </div>
+            </>
           )}
 
           {/* Ask about this change: the PR's own patch and description, plus a

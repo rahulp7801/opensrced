@@ -40,7 +40,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className="pointer-events-auto flex max-w-sm animate-fade-rise items-center gap-2.5 rounded-[20px] bg-paper px-4 py-2.5 text-[13.5px] font-medium text-ink"
+            className="pointer-events-auto flex max-w-sm animate-fade-rise items-center gap-2.5 rounded-[20px] bg-paper px-4 py-2.5 text-[15px] font-medium text-ink"
           >
             <span
               aria-hidden

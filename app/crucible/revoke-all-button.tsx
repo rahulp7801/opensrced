@@ -90,7 +90,7 @@ export function RevokeAllButton() {
   }
 
   return (
-    <div className="text-[13px] text-alert animate-pulse" role="status">
+    <div className="text-[14px] text-alert" role="status">
       Revoking all access and signing out…
     </div>
   );

@@ -23,50 +23,51 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <section>
         {preview ? (
           <>
-            <p className="eyebrow">Private preview</p>
-            <h1 className="display mt-6 max-w-lg text-[46px] leading-[1.02] text-paper sm:text-[60px]">Sign in with your invite.</h1>
-            <p className="mt-5 max-w-lg text-base leading-7 text-paper-dim">opensrcer is open to invited GitHub accounts while it&apos;s in preview. It opens to everyone soon.</p>
-            <Link href="/demo" className="mt-6 inline-flex min-h-11 items-center text-base text-signal hover:underline">Not invited yet? Watch a complete run in the product tour <span aria-hidden="true" className="ml-2">&rarr;</span></Link>
+            <p className="kicker text-signal">Private preview</p>
+            <h1 className="display mt-5 max-w-lg text-[48px] leading-[0.95] tracking-[-0.025em] text-paper sm:text-[68px]">Sign in with your invite.</h1>
+            <p className="mt-6 max-w-lg text-[17px] leading-[1.6] text-paper-dim">opensrcer is open to invited GitHub accounts while it&apos;s in preview. It opens to everyone soon.</p>
+            <Link href="/demo" className="link mt-6 inline-flex min-h-11 items-center text-[16px]">Not invited yet? Watch a complete run in the product tour <span aria-hidden="true" className="ml-2">&rarr;</span></Link>
           </>
         ) : (
           <>
-            <p className="eyebrow">Connect your GitHub account</p>
-            <h1 className="display mt-6 max-w-lg text-[46px] leading-[1.02] text-paper sm:text-[60px]">Pick up where the issue leaves off.</h1>
-            <p className="mt-5 max-w-lg text-base leading-7 text-paper-dim">Browse repositories, generate a patch, and review the change before opening a draft pull request.</p>
-            <Link href="/demo" className="mt-8 inline-flex min-h-11 items-center text-sm text-paper-dim hover:text-paper">Explore the demo without signing in <span aria-hidden="true" className="ml-2">&rarr;</span></Link>
+            <p className="kicker text-signal">Connect your GitHub account</p>
+            <h1 className="display mt-5 max-w-lg text-[48px] leading-[0.95] tracking-[-0.025em] text-paper sm:text-[68px]">Pick up where the issue leaves off.</h1>
+            <p className="mt-6 max-w-lg text-[17px] leading-[1.6] text-paper-dim">Browse repositories, generate a patch, and review the change before opening a draft pull request.</p>
+            <Link href="/demo" className="link mt-8 inline-flex min-h-11 items-center text-[16px]">Explore the demo without signing in <span aria-hidden="true" className="ml-2">&rarr;</span></Link>
           </>
         )}
       </section>
 
-      <section className="rounded-lg border border-border bg-surface p-6 sm:p-8" aria-labelledby="sign-in-heading">
-        <h2 id="sign-in-heading" className="display text-[26px] leading-tight">{canSignIn ? "Sign in to opensrcer" : "Sign-in is being configured"}</h2>
-        <p className="mt-2 text-sm leading-6 text-paper-muted">{canSignIn ? "Authentication is handled by Auth0 using your GitHub account." : "This deployment is available for preview, but its GitHub sign-in is not ready yet."}</p>
+      <section className="card p-6 sm:p-8" aria-labelledby="sign-in-heading">
+        <h2 id="sign-in-heading" className="display text-[28px] leading-[1.05] text-paper">{canSignIn ? "Sign in to opensrcer" : "Sign-in is being configured"}</h2>
+        <p className="mt-3 text-[16px] leading-[1.6] text-paper-muted">{canSignIn ? "Authentication is handled by Auth0 using your GitHub account." : "This deployment is available for preview, but its GitHub sign-in is not ready yet."}</p>
         {canSignIn && params.error === "signin" && (
-          <p role="alert" className="mt-4 rounded-md border border-alert/40 bg-alert/10 p-3 text-sm leading-6 text-alert">
+          <p role="alert" className="callout callout-alert mt-4 text-[15px] leading-6">
             Sign-in didn&apos;t complete. The sign-in page may have been open too long, or cookies may be blocked. Please try again.
           </p>
         )}
         {canSignIn ? (
-          <a href={loginHref} className="mt-6 flex min-h-12 w-full items-center justify-center gap-3 rounded-md bg-signal px-5 py-3 text-sm font-medium text-ink transition hover:bg-signal-soft">
+          <a href={loginHref} className="btn-primary mt-6 flex min-h-12 w-full gap-3 text-[16px]">
             <GitHubMark />
             Continue with GitHub
           </a>
         ) : (
           <div className="mt-6 flex flex-wrap gap-3">
-            {!preview && <Link href="/demo" className="inline-flex min-h-12 items-center rounded-md bg-signal px-5 py-3 text-sm font-medium text-ink hover:bg-signal-soft">Explore the demo</Link>}
-            <a href="/api/health" className="inline-flex min-h-12 items-center rounded-md border border-border px-5 py-3 text-sm text-paper-dim hover:border-border-strong hover:text-paper">Service status</a>
+            {!preview && <Link href="/demo" className="btn-primary min-h-12 px-6">Explore the demo</Link>}
+            <a href="/api/health" className="btn-quiet min-h-12 px-6">Service status</a>
           </div>
         )}
 
-        {canSignIn && <div className="mt-8 border-t border-border pt-6">
-          <h3 className="text-sm font-medium">Access requested</h3>
-          <ul className="mt-3 space-y-3 text-sm leading-6 text-paper-dim">
+        {canSignIn && <div className="mt-8 border-t border-border-soft pt-6">
+          <h3 className="kicker text-paper-muted">Access requested</h3>
+          <ul className="mt-3 space-y-3 text-[15px] leading-[1.6] text-paper-dim">
             <li><strong className="font-medium text-paper">Public repositories</strong> to fork repositories and open draft pull requests.</li>
             <li><strong className="font-medium text-paper">Profile and email</strong> to identify your account and attribute commits.</li>
             <li><strong className="font-medium text-paper">Organization membership</strong> to verify administrator access when you connect an organization.</li>
           </ul>
         </div>}
-        {canSignIn && <p className="mt-6 text-xs leading-5 text-paper-muted">Private repositories require a separate GitHub App connection that you initiate from Settings. You can revoke OAuth access from GitHub at any time.</p>}
+        {canSignIn && <p className="mt-6 text-[13px] leading-[1.55] text-paper-muted">
+Private repositories require a separate GitHub App connection that you initiate from Settings. You can revoke OAuth access from GitHub at any time.</p>}
       </section>
     </div>
   );

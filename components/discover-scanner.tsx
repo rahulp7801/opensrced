@@ -240,7 +240,7 @@ export function DiscoverScanner() {
 
       {loading && (
         <div role="status" aria-live="polite" className="callout mt-4 flex items-start gap-3">
-          <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-signal animate-pulse" aria-hidden />
+          <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-signal" aria-hidden />
           <div>
             <p className="text-[14px] font-semibold text-paper">Searching GitHub</p>
             <p className="mt-0.5 text-[13px] text-paper-muted">Checking repositories and their open issues. Larger searches can take up to a minute.</p>
@@ -255,7 +255,7 @@ export function DiscoverScanner() {
       )}
 
       {err && (
-        <div role="alert" className="callout mt-4 flex flex-wrap items-center justify-between gap-3 text-[13.5px]" data-tone="alert">
+        <div role="alert" className="callout mt-4 flex flex-wrap items-center justify-between gap-3 text-[15px]" data-tone="alert">
           <span>The search didn&apos;t finish: {err}</span>
           <button type="button" onClick={() => void runDiscover()} className="btn-quiet" data-size="sm">Try again</button>
         </div>
@@ -268,7 +268,7 @@ export function DiscoverScanner() {
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <span className="display text-[56px] leading-[0.85] text-signal num-tabular">{filtered.length}</span>
               <span className="text-[16px] font-medium text-paper">issues to look at</span>
-              <span className="text-[13.5px] text-paper-muted num-tabular">from {data.issue_count} open issues in {data.repo_count} repositories</span>
+              <span className="text-[15px] text-paper-muted num-tabular">from {data.issue_count} open issues in {data.repo_count} repositories</span>
             </div>
             <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3">
               <PillRow
@@ -356,10 +356,12 @@ export function DiscoverScanner() {
                           <a href={i.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-signal">#{i.number}<IconExternal /></a>
                           <span title={i.created_at}>opened {fmtRelative(i.created_at, now)}</span>
                         </p>
-                        <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12.5px] text-paper-muted">
+                        <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-2 text-[14px] text-paper-muted">
                           <span className="inline-flex items-center gap-1.5">Size <ScopeBadge s={i.scope} /></span>
+                          <span aria-hidden>·</span>
                           <span className="inline-flex items-center gap-1.5">Difficulty <ComplexityPips value={i.complexity} /></span>
-                          <span>about {fmtMinutes(i.est_minutes)}</span>
+                          <span aria-hidden>·</span>
+                          <span className="mr-2">about {fmtMinutes(i.est_minutes)}</span>
                           {i.labels.slice(0, 3).map((l) => (
                             <span key={l} className="tag">{l}</span>
                           ))}
@@ -416,7 +418,7 @@ export function DiscoverScanner() {
             <h2 id="starter-repositories" className="display text-[28px] leading-none text-paper sm:text-[32px]">
               Try a repository
             </h2>
-            <p className="mt-3 text-[15px] leading-[1.6] text-paper-muted">
+            <p className="mt-3 text-[16px] leading-[1.6] text-paper-muted">
               Open a familiar project in the issue scanner, or use the filters above to search across GitHub.
             </p>
           </div>
@@ -432,7 +434,7 @@ export function DiscoverScanner() {
                 className="group flex min-h-20 items-center justify-between gap-4 bg-surface px-6 py-5 transition-colors hover:bg-ink-2"
               >
                 <span className="min-w-0">
-                  <span className="block truncate text-[15px] font-semibold text-paper group-hover:text-signal">
+                  <span className="block truncate text-[16px] font-semibold text-paper group-hover:text-signal">
                     {repo.name}
                   </span>
                   <span className="mt-1 block text-[13px] text-paper-muted">{repo.lang}</span>
@@ -535,13 +537,14 @@ function PillRow({
 }
 
 function ScopeBadge({ s }: { s: ScopeInfo }) {
-  const tones: Record<ScopeBucket, string | undefined> = {
-    doc: "ok",
-    leaf: "signal",
-    "cross-file": "info",
-    refactor: "alert",
-    "new-file": "info",
-    unknown: undefined,
+  // Plain coloured words (each >= 5.4:1 on the sheet), not a pill.
+  const tones: Record<ScopeBucket, string> = {
+    doc: "text-ok",
+    leaf: "text-signal",
+    "cross-file": "text-info",
+    refactor: "text-alert",
+    "new-file": "text-info",
+    unknown: "text-paper-dim",
   };
   const label: Record<ScopeBucket, string> = {
     doc: "docs only",
@@ -560,7 +563,7 @@ function ScopeBadge({ s }: { s: ScopeInfo }) {
     .filter(Boolean)
     .join(" · ");
   return (
-    <span title={title} className="chip cursor-help" data-tone={tones[s.bucket]}>
+    <span title={title} className={cn("cursor-help font-semibold", tones[s.bucket])}>
       {label[s.bucket]}
     </span>
   );

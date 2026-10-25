@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { cacheGet, cacheSet } from "@/lib/client-cache";
-import { StatusChip } from "./status-dot";
 import { IconArrow, IconChevronDown, IconExternal, IconSearch } from "./icons";
 
 type ScopeBucket = "doc" | "leaf" | "cross-file" | "refactor" | "new-file" | "unknown";
@@ -229,7 +228,7 @@ export function IssueScanner() {
 
       {loading && (
         <div role="status" aria-live="polite" className="callout mt-4 flex items-start gap-3">
-          <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-signal animate-pulse" aria-hidden />
+          <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-signal" aria-hidden />
           <div>
             <p className="text-[14px] font-semibold text-paper">Scanning repository issues</p>
             <p className="mt-0.5 text-[13px] text-paper-muted">Fetching recent and beginner-labeled issues. Large repositories can take up to a minute.</p>
@@ -238,7 +237,7 @@ export function IssueScanner() {
       )}
 
       {err && (
-        <div ref={errRef} role="alert" className="callout mt-4 text-[13.5px]" data-tone="alert">
+        <div ref={errRef} role="alert" className="callout mt-4 text-[15px]" data-tone="alert">
           {err}
         </div>
       )}
@@ -256,7 +255,7 @@ export function IssueScanner() {
                     <span className="font-semibold text-signal">{scan.solvable}</span> ready for an automated attempt.
                   </p>
                   {scan.policy?.ai === "ban" && (
-                    <p role="alert" className="callout mt-3 max-w-2xl text-[13.5px]" data-tone="alert">
+                    <p role="alert" className="callout mt-3 max-w-2xl text-[15px]" data-tone="alert">
                       This project does not accept AI-generated contributions ({scan.policy.source}). Previews still work; publishing is refused.
                     </p>
                   )}
@@ -308,7 +307,7 @@ export function IssueScanner() {
             {issues.length === 0 ? (
               <div className="px-5 py-14 text-center">
                 <p className="text-[16px] font-semibold text-paper">No issues match these filters</p>
-                <p className="mx-auto mt-1.5 max-w-lg text-[13.5px] leading-relaxed text-paper-muted">
+                <p className="mx-auto mt-1.5 max-w-lg text-[15px] leading-relaxed text-paper-muted">
                   {beginner === "good-first"
                     ? "Include any label or widen the age and readiness filters."
                     : age === "recent" && filter === "solvable"
@@ -348,12 +347,17 @@ export function IssueScanner() {
                             <IconChevronDown className={cn("mt-1 shrink-0 text-paper-muted transition-transform", !expanded && "-rotate-90")} />
                             <span className="text-[16px] font-semibold leading-snug tracking-[-0.01em] text-paper">{issue.title}</span>
                           </button>
-                          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12.5px] text-paper-muted">
+                          {/* Status as plain coloured words joined by dots, not a row of pills. */}
+                          <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[14px] text-paper-muted">
                             <span className="inline-flex items-center gap-1.5"><span>Likely change</span><ScopeBadge s={issue.scope} /></span>
+                            <span aria-hidden>·</span>
                             <span className="inline-flex items-center gap-1.5"><span>Risk</span><SeverityChip s={issue.severity} /></span>
+                            <span aria-hidden>·</span>
                             <span className="inline-flex items-center gap-1.5"><span>Complexity</span><ComplexityPips value={issue.complexity} /></span>
+                            <span aria-hidden>·</span>
                             <span>Estimate <span className="text-paper-dim">~{fmtMinutes(issue.est_minutes)}</span></span>
-                            {issue.solvable ? <StatusChip tone="ok">Ready</StatusChip> : <StatusChip tone="muted">Needs review</StatusChip>}
+                            <span aria-hidden>·</span>
+                            {issue.solvable ? <span className="font-semibold text-ok">Ready</span> : <span className="font-medium text-paper-dim">Needs review</span>}
                           </div>
                         </div>
                         <div className="lg:justify-self-end">
@@ -531,7 +535,7 @@ function IssueDetail({ issue, rec }: { issue: Issue; rec: Recommendation }) {
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div>
         <h4 className="kicker text-paper-muted">Issue description</h4>
-        <div className="mt-3 max-h-[420px] overflow-y-auto whitespace-pre-wrap rounded-2xl bg-surface p-5 text-[14px] leading-[1.65] text-paper-dim shadow-[inset_0_0_0_1px_var(--color-border-soft)]">
+        <div className="mt-3 max-h-[420px] overflow-y-auto whitespace-pre-wrap rounded-2xl bg-surface p-5 text-[16px] leading-[1.65] text-paper-dim shadow-[inset_0_0_0_1px_var(--color-border-soft)]">
           {body}
         </div>
       </div>
@@ -541,16 +545,16 @@ function IssueDetail({ issue, rec }: { issue: Issue; rec: Recommendation }) {
           <h4 className="kicker text-paper-muted">Recommendation</h4>
           <div className="callout mt-3" data-tone={rec.action === "solve" ? "signal" : undefined}>
             <div className={cn(
-              "text-[14.5px] font-semibold",
+              "text-[16px] font-semibold",
               rec.action === "solve" ? "text-signal" : "text-paper",
             )}>
               {rec.headline}
             </div>
-            <div className="mt-1.5 text-[13px] leading-[1.55] text-paper-dim">
+            <div className="mt-1.5 text-[15px] leading-[1.55] text-paper-dim">
               {rec.reason}
             </div>
           </div>
-          <p className="mt-3 text-[13px] leading-[1.55] text-paper-muted">
+          <p className="mt-3 text-[14px] leading-[1.55] text-paper-muted">
             Use the buttons above. A preview is a practice run you can read but never publish. &ldquo;Fix it&rdquo; also stops for your review: the draft PR opens only when you confirm it on the run page.
           </p>
         </div>
@@ -585,6 +589,9 @@ function IssueDetail({ issue, rec }: { issue: Issue; rec: Recommendation }) {
   );
 }
 
+/** Tone name → its text colour (each >= 5.4:1 on the sheet and its hover). */
+const TONE_TEXT: Record<string, string> = { ok: "text-ok", signal: "text-signal", info: "text-info", alert: "text-alert" };
+
 function ScopeBadge({ s }: { s: ScopeInfo }) {
   // Tone map: doc/leaf are "safe" (green/muted), cross-file "caution",
   // refactor "danger" — drives at-a-glance risk reading. Title carries the
@@ -602,7 +609,7 @@ function ScopeBadge({ s }: { s: ScopeInfo }) {
   if (s.symbols.length) titleParts.push(`symbols: ${s.symbols.slice(0, 5).join(", ")}`);
   titleParts.push(`confidence: ${s.confidence}`);
   return (
-    <span title={titleParts.join(" · ")} className="chip cursor-help" data-tone={tones[s.bucket]}>
+    <span title={titleParts.join(" · ")} className={cn("cursor-help font-semibold", TONE_TEXT[tones[s.bucket] ?? ""] ?? "text-paper-dim")}>
       {SCOPE_LABEL[s.bucket]}
     </span>
   );
@@ -619,8 +626,8 @@ const SCOPE_LABEL: Record<ScopeBucket, string> = {
 };
 
 function SeverityChip({ s }: { s: "low" | "medium" | "high" | "critical" }) {
-  const tone = { low: "muted", medium: "info", high: "signal", critical: "alert" } as const;
-  return <StatusChip tone={tone[s]}>{s}</StatusChip>;
+  const tone = { low: "text-paper-dim", medium: "text-info", high: "text-signal", critical: "text-alert" } as const;
+  return <span className={cn("font-semibold", tone[s])}>{s}</span>;
 }
 
 function ComplexityPips({ value }: { value: number }) {

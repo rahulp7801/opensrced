@@ -186,7 +186,7 @@ export default function PRsPage() {
           )}
 
           {error && (
-            <div className="callout flex items-center justify-between gap-3 text-[13.5px]" data-tone="alert">
+            <div className="callout flex items-center justify-between gap-3 text-[15px]" data-tone="alert">
               <span>{error}</span>
               <button onClick={handleRefresh} className="btn-quiet" data-size="sm">retry</button>
             </div>
@@ -293,7 +293,7 @@ export default function PRsPage() {
           )}
 
           {error && (
-            <div className="callout flex items-center justify-between gap-3 text-[13.5px]" data-tone="alert">
+            <div className="callout flex items-center justify-between gap-3 text-[15px]" data-tone="alert">
               <span>{error}</span>
               <button onClick={handleRefresh} className="btn-quiet" data-size="sm">
                 retry
@@ -384,7 +384,7 @@ export default function PRsPage() {
 
               {/* Table */}
               <div className="card overflow-x-auto">
-                <table className="w-full text-[13.5px]">
+                <table className="w-full text-[15px]">
                   <thead>
                     <tr className="border-b border-border-soft text-paper-muted">
                       <th className="kicker px-4 py-3 text-left font-semibold first:pl-6">Repository</th>
@@ -601,7 +601,7 @@ function InboxSection({ title, subtitle, color, prs, actionHint }: { title: stri
                 <span className="truncate text-[12.5px] font-medium text-paper-dim">{pr.repo}</span>
                 <span className="text-[12.5px] text-paper-muted">#{pr.number}</span>
               </div>
-              <div className="mt-1 text-[15px] font-semibold leading-snug text-paper group-hover:text-signal sm:truncate">{pr.title}</div>
+              <div className="mt-1 text-[16px] font-semibold leading-snug text-paper group-hover:text-signal sm:truncate">{pr.title}</div>
             </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] sm:justify-end">
               {(pr.commentCount ?? 0) > 0 && (
@@ -623,10 +623,10 @@ function EmptyPrState({ account }: { account?: string }) {
   return (
     <div className="card relative overflow-hidden px-6 py-12 sm:px-12 sm:py-16">
       <h2 className="display text-[36px] leading-none text-paper sm:text-[48px]">No open pull requests</h2>
-      <p className="mt-4 max-w-md text-[15px] leading-[1.6] text-paper-muted">
+      <p className="mt-4 max-w-md text-[16px] leading-[1.6] text-paper-muted">
         {account ? `GitHub returned no open pull requests for ${account}.` : "Choose an issue and opensrcer will keep the resulting draft and review feedback here."}
       </p>
-      <Doodle doodle={circle} draw="load" className="pointer-events-none absolute -right-4 top-6 hidden h-36 w-52 sm:block" />
+      <Doodle doodle={circle} draw="load" className="doodle-thin pointer-events-none absolute right-10 top-10 hidden h-28 w-44 sm:block" />
       <div className="mt-7 flex flex-wrap gap-3">
         <Link href="/discover" className="btn-primary min-h-11 px-6">
           Find an issue

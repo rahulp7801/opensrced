@@ -68,6 +68,6 @@ export function DisconnectButton({ org }: { org: string }) {
   }
 
   return (
-    <span className="text-[12px] text-paper-muted animate-pulse">revoking…</span>
+    <span className="text-[13px] text-paper-muted">revoking…</span>
   );
 }

@@ -169,7 +169,7 @@ export default function ReposPage() {
 
       <div id="repos-panel" role="tabpanel" aria-labelledby={`repos-tab-${tab}`} className="mt-6">
         {current.error && (
-          <div role="alert" className="callout mb-4 flex flex-col gap-3 text-[13.5px] sm:flex-row sm:items-center sm:justify-between" data-tone="alert">
+          <div role="alert" className="callout mb-4 flex flex-col gap-3 text-[15px] sm:flex-row sm:items-center sm:justify-between" data-tone="alert">
             <div>
               <p className="font-semibold">Couldn&apos;t load your repos from GitHub.</p>
               {/* A bare server error adds nothing; a specific reason is worth showing. */}
@@ -188,7 +188,7 @@ export default function ReposPage() {
         )}
 
         {current.page === 0 && current.loading && (
-          <div role="status" className="py-10 text-center text-[13.5px] text-paper-muted">
+          <div role="status" className="py-10 text-center text-[15px] text-paper-muted">
             Loading repos from GitHub...
           </div>
         )}
@@ -198,9 +198,9 @@ export default function ReposPage() {
             <div className="card px-6 py-10 text-center text-[14px] text-paper-muted">No repos match your search.</div>
           ) : (
             <div className="card relative overflow-hidden px-6 py-12 sm:px-10">
-              <Doodle doodle={nodes} draw="load" className="pointer-events-none absolute -right-6 -top-4 hidden h-40 w-56 opacity-90 sm:block" />
+              <Doodle doodle={nodes} draw="load" className="doodle-thin pointer-events-none absolute right-10 top-8 hidden h-28 w-36 sm:block" />
               <p className="display text-[30px] leading-none text-paper sm:text-[36px]">No repos here yet.</p>
-              <p className="mt-3 max-w-md text-[15px] leading-[1.6] text-paper-muted">A good first step: pick a beginner-friendly issue in a public project.</p>
+              <p className="mt-3 max-w-md text-[16px] leading-[1.6] text-paper-muted">A good first step: pick a beginner-friendly issue in a public project.</p>
               <div className="mt-6 flex flex-wrap gap-2">
                 <Link href="/issues" className="btn-primary">Find a beginner issue</Link>
                 <Link href="/discover" className="btn-quiet">Discover projects</Link>
@@ -223,7 +223,7 @@ export default function ReposPage() {
                       href={`https://github.com/${repo.nameWithOwner}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="truncate text-[15px] font-medium text-paper hover:text-signal"
+                      className="truncate text-[16px] font-medium text-paper hover:text-signal"
                     >
                       {repo.nameWithOwner}
                     </a>

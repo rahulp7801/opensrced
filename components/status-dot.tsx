@@ -2,9 +2,10 @@ import { cn } from "@/lib/utils";
 
 type Tone = "ok" | "signal" | "alert" | "info" | "muted";
 
+// Still dots: colour carries the state; nothing pulses (calm working screens).
 const MAP: Record<Tone, string> = {
-  ok: "bg-ok animate-pulse-ok",
-  signal: "bg-signal animate-pulse-signal",
+  ok: "bg-ok",
+  signal: "bg-signal",
   alert: "bg-alert",
   info: "bg-info",
   muted: "bg-paper-faint",

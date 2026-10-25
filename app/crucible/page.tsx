@@ -197,8 +197,8 @@ function SettingsSection({
 
       <div>
         <h2 id={id} className="display text-[24px] leading-[1.05] text-paper">{title}</h2>
-        <p className="mt-3 text-[14px] leading-6 text-paper-muted">{description}</p>
-        {note && <p className="mt-4 text-[12.5px] leading-5 text-paper-muted">{note}</p>}
+        <p className="mt-3 text-[16px] leading-[1.6] text-paper-muted">{description}</p>
+        {note && <p className="mt-4 text-[14px] leading-[1.55] text-paper-muted">{note}</p>}
       </div>
       <div className="min-w-0">{children}</div>
     </section>

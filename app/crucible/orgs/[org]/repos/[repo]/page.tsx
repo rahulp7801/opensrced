@@ -111,7 +111,7 @@ export default async function RepoFindingsPage({
       </div>
 
       {loadError && (
-        <div className="callout callout-alert mt-4 p-3 text-[13.5px] text-alert">
+        <div className="callout callout-alert mt-4 p-3 text-[15px] text-alert">
           Failed to load findings: {loadError}
         </div>
       )}

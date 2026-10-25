@@ -125,7 +125,7 @@ export function ChangeChat({ storageKey, repo, title, context, starters = STARTE
   }
 
   return (
-    <div className="mt-6 rounded-[20px] bg-surface p-4 text-[14px] shadow-[inset_0_0_0_1px_var(--color-border-soft)] sm:p-5">
+    <div className="mt-6 rounded-[20px] bg-surface p-4 text-[16px] shadow-[inset_0_0_0_1px_var(--color-border-soft)] sm:p-5">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <button type="button" onClick={toggle} aria-expanded={open} aria-controls={panelId} className="row-cta">
           {open ? "Close the questions" : "Ask about this change"}{turns.length > 0 && !open ? ` (${turns.length} asked)` : ""}
@@ -133,7 +133,7 @@ export function ChangeChat({ storageKey, repo, title, context, starters = STARTE
         <span className="text-paper-muted">Not sure what the change does or why? Ask about it here.</span>
       </div>
       <div id={panelId} hidden={!open} className="mt-4">
-        <p className="max-w-2xl text-[13px] text-paper-muted">{caveat} Each answer comes from one AI call that reads only what is shown here; it does not run the code.</p>
+        <p className="max-w-2xl text-[14px] text-paper-muted">{caveat} Each answer comes from one AI call that reads only what is shown here; it does not run the code.</p>
         <div role="group" aria-label="Starter questions" className="mt-3 flex flex-wrap gap-2">
           {starters.map((s) => (
             <button key={s} type="button" disabled={pending} onClick={() => void ask(s)} className="pill whitespace-normal text-left" data-size="sm" data-edge="">{s}</button>

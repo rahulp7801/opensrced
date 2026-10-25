@@ -93,7 +93,7 @@ export function PrTable({ prs }: { prs: PullRequest[] }) {
 
       {/* Table */}
       <div className="card overflow-x-auto">
-        <table className="w-full text-[13.5px]">
+        <table className="w-full text-[15px]">
           <thead>
             <tr className="border-b border-border-soft text-paper-muted">
               <Th>№</Th>

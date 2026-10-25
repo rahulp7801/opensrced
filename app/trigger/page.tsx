@@ -46,7 +46,7 @@ export default function TriggerPage() {
             <li key={step.code} className="border-t-2 border-paper pt-4">
               <span className="kicker text-signal">{step.code}</span>
               <h3 className="mt-2 text-[17px] font-semibold tracking-[-0.01em] text-paper">{step.title}</h3>
-              <p className="mt-2 text-[14.5px] leading-[1.6] text-paper-dim">{step.body}</p>
+              <p className="mt-2 text-[16px] leading-[1.6] text-paper-dim">{step.body}</p>
             </li>
           ))}
         </ol>

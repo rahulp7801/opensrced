@@ -65,7 +65,7 @@ export function PublishPanel({ dispatchId, repo, dryRun = false, rerun, onPublis
     return () => controller.abort();
   }, [dispatchId]);
 
-  if (loadError) return <div role="alert" className="border-b border-border-soft bg-alert-dim/30 px-5 py-3 text-[13.5px] text-alert sm:px-8">{loadError}</div>;
+  if (loadError) return <div role="alert" className="border-b border-border-soft bg-alert-dim/30 px-5 py-3 text-[15px] text-alert sm:px-8">{loadError}</div>;
   if (!preview) return null;
 
   async function publish() {
@@ -107,7 +107,7 @@ export function PublishPanel({ dispatchId, repo, dryRun = false, rerun, onPublis
   const comment = preview.draft_issue_comment;
   const commentBlock = comment && (
     <>
-      <pre className="mt-2 whitespace-pre-wrap rounded-xl bg-surface p-4 font-sans text-[13.5px] leading-[1.6] text-paper-dim shadow-[inset_0_0_0_1px_var(--color-border-soft)]">{comment}</pre>
+      <pre className="mt-2 whitespace-pre-wrap rounded-xl bg-surface p-4 font-sans text-[15px] leading-[1.6] text-paper-dim shadow-[inset_0_0_0_1px_var(--color-border-soft)]">{comment}</pre>
       <button className="link mt-1 inline-flex min-h-10 items-center text-[13px] sm:min-h-6" onClick={() => void copyText(comment).then(() => setCopied(true))}>
         {copied ? "copied" : "copy comment"}
       </button>
@@ -118,7 +118,7 @@ export function PublishPanel({ dispatchId, repo, dryRun = false, rerun, onPublis
   // rules, explain it, practise the review, then publish. Calm type and room
   // to breathe; status lives in chips, not in coloured paragraphs.
   return (
-    <section aria-label={dryRun ? "Preview result" : "Review before publishing"} className="border-b border-border-soft bg-ink-2 px-5 py-8 text-[14px] leading-[1.6] sm:px-8 sm:py-10">
+    <section aria-label={dryRun ? "Preview result" : "Review before publishing"} className="border-b border-border-soft bg-ink-2 px-5 py-8 text-[16px] leading-[1.6] sm:px-8 sm:py-10">
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <div>
           <p className="kicker text-signal">{dryRun ? "Practice run" : "Before anything is posted"}</p>
@@ -128,7 +128,7 @@ export function PublishPanel({ dispatchId, repo, dryRun = false, rerun, onPublis
       </div>
       {dryRun ? (
         <div className="callout mt-5" data-tone="info">
-          <p className="text-[15px] font-semibold text-paper">This was a <Term term="preview">preview</Term>, so it can&apos;t be published.</p>
+          <p className="text-[16px] font-semibold text-paper">This was a <Term term="preview">preview</Term>, so it can&apos;t be published.</p>
           <p className="mt-1.5 max-w-2xl text-paper-dim">
             Nothing was posted anywhere. If the fix below looks right and you want to send it to the project, run this issue again
             as a publishable run. It starts fresh (a new run, with its own cost), then stops here for your review: nothing is posted until you confirm.
@@ -136,7 +136,7 @@ export function PublishPanel({ dispatchId, repo, dryRun = false, rerun, onPublis
           {rerun && <RerunButton {...rerun} />}
         </div>
       ) : (
-        <p className="mt-3 max-w-2xl text-[15px] text-paper-muted">Nothing has been posted yet. Read the change and the evidence below first.</p>
+        <p className="mt-3 max-w-2xl text-[16px] text-paper-muted">Nothing has been posted yet. Read the change and the evidence below first.</p>
       )}
       {preview.blockers.map((b) => <p key={b} role="alert" className="callout mt-4 font-medium" data-tone="alert">Blocked: {b}</p>)}
       {preview.warnings.map((w) => <p key={w} className="mt-3 text-paper-dim">Note: {w}</p>)}
@@ -155,7 +155,7 @@ export function PublishPanel({ dispatchId, repo, dryRun = false, rerun, onPublis
           <span aria-hidden className="text-paper-muted transition-transform group-open:rotate-90">›</span>
           <span className="min-w-0"><span className="font-semibold">PR text:</span> {preview.title}</span>
         </summary>
-        <pre className="max-h-80 overflow-auto whitespace-pre-wrap border-t border-border-soft px-4 py-3 font-sans text-[13.5px] leading-[1.6] text-paper-dim">{preview.body}</pre>
+        <pre className="max-h-80 overflow-auto whitespace-pre-wrap border-t border-border-soft px-4 py-3 font-sans text-[15px] leading-[1.6] text-paper-dim">{preview.body}</pre>
       </details>
       {/* The suggested path where maintainers ask for discussion (and on older
           previews, which drafted a comment only then); an option everywhere else. */}
@@ -208,7 +208,7 @@ export function PublishPanel({ dispatchId, repo, dryRun = false, rerun, onPublis
                 </li>
               ))}
             </ol>
-            <p className="mt-4 flex flex-wrap items-center gap-x-3 text-[13px] text-paper-muted">
+            <p className="mt-4 flex flex-wrap items-center gap-x-3 text-[14px] text-paper-muted">
               <span>Words used here:</span>
               {preview.followup_pr ? (
                 <><Term term="pull request" />{preview.signoff && <Term term="sign-off" />}</>
@@ -218,18 +218,18 @@ export function PublishPanel({ dispatchId, repo, dryRun = false, rerun, onPublis
             </p>
           </div>
           <div className="mt-6 flex flex-col gap-4 rounded-2xl bg-surface p-4 shadow-[inset_0_0_0_1px_var(--color-border)] sm:flex-row sm:flex-wrap sm:items-center sm:p-5">
-            <label className="flex min-h-10 flex-1 items-center gap-3 text-[15px] text-paper">
+            <label className="flex min-h-10 flex-1 items-center gap-3 text-[16px] text-paper">
               <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="h-6 w-6 shrink-0" />
               {preview.confirmation}
             </label>
             <button
               onClick={publish}
               disabled={!confirmed || pending || !gateOpen}
-              className="btn-primary min-h-12 px-6 text-[15px]"
+              className="btn-primary min-h-12 px-6 text-[16px]"
             >
               {pending ? "publishing…" : preview.followup_pr ? "Push follow-up commit" : "Publish draft PR"}
             </button>
-            {!gateOpen && <span className="basis-full text-[13.5px] text-paper-muted">To publish: explain the change in your own words, answer the practice review, and tick the box.</span>}
+            {!gateOpen && <span className="basis-full text-[14px] text-paper-muted">To publish: explain the change in your own words, answer the practice review, and tick the box.</span>}
             {error && <span role="alert" className="basis-full text-alert">{error}</span>}
           </div>
         </>
@@ -262,7 +262,7 @@ function ProjectRules({ rows }: { rows: RuleRow[] }) {
               <span className="font-semibold text-paper">{r.term ? <Term term={r.term}>{r.label}</Term> : r.label}:</span>
               <span className={r.status === "action" || r.status === "blocked" ? "text-paper" : "text-paper-dim"}>{r.text}</span>
             </div>
-            {r.detail && <p className="mt-1 break-words text-[13px] text-paper-muted">{r.detail}</p>}
+            {r.detail && <p className="mt-1 break-words text-[14px] text-paper-muted">{r.detail}</p>}
           </li>
         ))}
       </ul>

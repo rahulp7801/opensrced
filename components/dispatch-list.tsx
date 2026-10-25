@@ -235,7 +235,7 @@ export function DispatchList() {
     return (
       <div className="card relative overflow-hidden px-6 py-12 sm:px-12 sm:py-16">
         <h2 className="display text-[36px] leading-none text-paper sm:text-[48px]">No runs yet</h2>
-        <p className="mt-4 max-w-md text-[15px] leading-[1.6] text-paper-muted">
+        <p className="mt-4 max-w-md text-[16px] leading-[1.6] text-paper-muted">
           Start with a GitHub repository or issue. Preview mode lets you inspect the proposed patch before anything is published.
         </p>
         <div className="mt-7 flex flex-wrap items-center gap-3">
@@ -247,7 +247,7 @@ export function DispatchList() {
           </Link>
         </div>
         {/* A hand-drawn loop in the corner of an empty page: the one personal mark here. */}
-        <Doodle doodle={loop} draw="load" delay={200} className="pointer-events-none absolute -bottom-6 right-6 hidden h-40 w-60 sm:block" />
+        <Doodle doodle={loop} draw="load" delay={200} className="doodle-thin pointer-events-none absolute bottom-8 right-10 hidden h-28 w-40 sm:block" />
       </div>
     );
   }
@@ -309,7 +309,7 @@ export function DispatchList() {
                   {/* Cloud runs do not fetch titles, so keep the issue number
                       visible until the local title cache fills it in. */}
                   {d.issue_number !== undefined && (
-                    <div className="mt-1 text-[13.5px] text-paper-dim truncate">
+                    <div className="mt-1 text-[15px] text-paper-dim truncate">
                       {d.issue_title ?? `Issue #${d.issue_number}`}
                     </div>
                   )}
@@ -385,7 +385,7 @@ export function DispatchList() {
                   <div className="flex items-center gap-2">
                     <IconTrigger className="text-signal" />
                     {detail.repo_url ? (
-                      <a href={repoHref(detail.repo_url)} target="_blank" rel="noreferrer" className="text-[13.5px] font-medium text-paper-dim hover:text-signal truncate">
+                      <a href={repoHref(detail.repo_url)} target="_blank" rel="noreferrer" className="text-[15px] font-medium text-paper-dim hover:text-signal truncate">
                         {dispatchTarget(detail)}
                       </a>
                     ) : <span className="text-[13px] text-paper-muted">{dispatchTarget(detail)}</span>}
@@ -436,7 +436,7 @@ export function DispatchList() {
 
             {/* Failure banner (compact) */}
             {(detail.pr_status === "failed" || detail.pr_status === "tests_failed") && (
-              <div className="border-b border-border-soft bg-alert-dim/30 px-5 py-3 text-[13.5px] font-medium text-alert sm:px-8">
+              <div className="border-b border-border-soft bg-alert-dim/30 px-5 py-3 text-[15px] font-medium text-alert sm:px-8">
                 {detail.pr_status === "tests_failed" ? "Tests failed — PR not opened" : "Publishing failed"}
                 {detail.pr_failure_reason && <span className="ml-2 font-normal text-paper-dim">— {detail.pr_failure_reason.slice(0, 120)}</span>}
               </div>
@@ -467,7 +467,7 @@ export function DispatchList() {
                   <div role="status" className="flex flex-wrap items-center gap-x-4 gap-y-4">
                     {/* The success moment: a small hand-drawn spark beside the result. */}
                     <span className="inline-flex items-center gap-3">
-                      <Doodle doodle={spark} draw="load" className="h-9 w-9 shrink-0" />
+                      <Doodle doodle={spark} draw="load" className="doodle-thin h-8 w-8 shrink-0" />
                       <span id="pr-opened" tabIndex={-1} className="display text-[28px] leading-none text-ok outline-none sm:text-[34px]">Draft PR #{info.prNumber} opened</span>
                     </span>
                     <span className="flex flex-wrap items-center gap-2 sm:ml-auto">
@@ -1148,7 +1148,7 @@ function DiffPreviewFromLog({ log, prOpened, prUrl, dryRun }: { log: string; prO
           onClick={() => setModalOpen(true)}
           className="group w-full px-5 py-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-left hover:bg-ink-2 transition-colors sm:px-8"
         >
-          <span className="text-[15px] text-paper font-semibold">Review patch</span>
+          <span className="text-[16px] text-paper font-semibold">Review patch</span>
           <span className="text-[12.5px] text-paper-muted tabular-nums">
             {diff.files.length} file{diff.files.length === 1 ? "" : "s"}
           </span>

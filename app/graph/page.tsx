@@ -645,7 +645,7 @@ export default function GraphPage() {
                   </div>
                   {engine === "crg" ? (
                     <>
-                      <p className="mt-3 max-w-md text-[14px] leading-[1.6] text-paper-muted">
+                      <p className="mt-3 max-w-md text-[16px] leading-[1.6] text-paper-muted">
                         This is a large repository, so questions are answered in plain English.
                         Ask anything about the code.
                       </p>
@@ -655,7 +655,7 @@ export default function GraphPage() {
                     </>
                   ) : (
                     <>
-                      <p className="mt-3 max-w-md text-[14px] leading-[1.6] text-paper-muted">
+                      <p className="mt-3 max-w-md text-[16px] leading-[1.6] text-paper-muted">
                         Ask in plain English, like &quot;Where is the config read?&quot; Answers use your AI provider key and come from the code map: they point to the files involved, and say when the map can&apos;t answer.
                       </p>
                       <p className="mt-2 max-w-md text-[13px] leading-[1.6] text-paper-muted">
@@ -682,18 +682,18 @@ export default function GraphPage() {
                     <span className="kicker text-signal">
                       You asked
                     </span>
-                    <span className="text-[15px] font-semibold text-paper">
+                    <span className="text-[16px] font-semibold text-paper">
                       {r.query}
                     </span>
                     {r.status === "loading" && (
-                      <span className="ml-auto text-[12.5px] text-signal animate-pulse-signal">
+                      <span className="ml-auto text-[12.5px] text-signal">
                         querying...
                       </span>
                     )}
                     {r.status === "streaming" && (
                       <span className="ml-auto flex items-center gap-2">
                         <span className="chip chip-info">AI</span>
-                        <span className="text-[12.5px] text-signal animate-pulse-signal">
+                        <span className="text-[12.5px] text-signal">
                           streaming...
                         </span>
                       </span>
@@ -718,7 +718,7 @@ export default function GraphPage() {
                   </div>
                   <div className="overflow-x-auto px-5 py-4">
                     {r.status === "error" ? (
-                      <div className="text-[13.5px] text-alert whitespace-pre-wrap break-words">
+                      <div className="text-[15px] text-alert whitespace-pre-wrap break-words">
                         {r.response}
                         {/\b(key|provider)\b/i.test(r.response) && (
                           <a href="/crucible" className="row-cta mt-3 w-fit">Add a key in Settings →</a>
@@ -768,7 +768,7 @@ export default function GraphPage() {
                   }}
                   placeholder="Ask a question in plain English, e.g. Where is the config read?"
                   disabled={isQuerying}
-                  className="min-h-10 min-w-0 flex-1 bg-transparent px-3 text-[15px] text-paper placeholder:text-paper-muted focus:outline-none focus-visible:outline-none disabled:opacity-50"
+                  className="min-h-10 min-w-0 flex-1 bg-transparent px-3 text-[16px] text-paper placeholder:text-paper-muted focus:outline-none focus-visible:outline-none disabled:opacity-50"
                 />
                 <button
                   type="submit"
@@ -788,13 +788,13 @@ export default function GraphPage() {
             <div className="relative">
               <p className="kicker text-signal">What you can inspect</p>
               <h2 className="display mt-4 text-[40px] leading-[0.95] text-paper sm:text-[52px]">Start with a repository</h2>
-              <p className="mt-4 max-w-lg text-[15px] leading-[1.65] text-paper-muted">
+              <p className="mt-4 max-w-lg text-[16px] leading-[1.65] text-paper-muted">
                 Enter a public repository or one your connected GitHub account can access. Building the map reads source structure and relationships without calling an AI model.
               </p>
               {/* The section's one hand-drawn mark: a little map of connected nodes. */}
-              <Doodle doodle={nodes} draw="load" delay={250} className="mt-6 hidden h-24 w-40 lg:block" />
+              <Doodle doodle={nodes} draw="load" delay={250} className="doodle-thin mt-8 hidden h-20 w-32 lg:block" />
             </div>
-            <div className="grid content-start gap-3 text-[14px] sm:grid-cols-2">
+            <div className="grid content-start gap-3 text-[16px] sm:grid-cols-2">
               {[
                 ["trace Symbol", "Follow calls and dependencies."],
                 ["impact Symbol", "Find affected callers and modules."],
@@ -802,7 +802,7 @@ export default function GraphPage() {
                 ["path A to B", "Show how two symbols connect."],
               ].map(([command, description]) => (
                 <div key={command} className="card px-5 py-5">
-                  <code className="rounded-md bg-signal-faint px-2 py-1 font-mono text-[13.5px] text-signal">{command}</code>
+                  <code className="rounded-md bg-signal-faint px-2 py-1 font-mono text-[15px] text-signal">{command}</code>
                   <p className="mt-3 text-paper-dim">{description}</p>
                 </div>
               ))}
@@ -916,7 +916,7 @@ function MarkdownResponse({ text }: { text: string }) {
   const blocks = parseMarkdownBlocks(text);
 
   return (
-    <div className="space-y-3 text-[14px] leading-[1.65] text-paper-dim break-words">
+    <div className="space-y-3 text-[16px] leading-[1.65] text-paper-dim break-words">
       {blocks.map((block, i) => {
         if (block.type === "code") {
           return (
@@ -932,7 +932,7 @@ function MarkdownResponse({ text }: { text: string }) {
         }
         if (block.type === "heading") {
           return (
-            <div key={i} className="mt-4 text-[15px] font-semibold text-paper first:mt-0">
+            <div key={i} className="mt-4 text-[16px] font-semibold text-paper first:mt-0">
               <InlineMd text={block.content} />
             </div>
           );

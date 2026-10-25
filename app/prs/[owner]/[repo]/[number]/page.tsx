@@ -935,7 +935,7 @@ export default function PrDetailPage() {
                 refresh
               </button>
               {newCommentsCount > 0 && (
-                <span className="text-[12.5px] text-signal animate-pulse-signal">
+                <span className="text-[12.5px] text-signal">
                   {newCommentsCount} new
                 </span>
               )}
@@ -946,7 +946,7 @@ export default function PrDetailPage() {
           {showDiff && (
             <div className="mt-2 max-h-[500px] overflow-auto rounded-2xl bg-surface shadow-[inset_0_0_0_1px_var(--color-border-soft)]">
               {diffLoading ? (
-                <div className="px-4 py-3 text-[12px] text-paper-muted animate-pulse-signal">Loading diff...</div>
+                <div className="px-4 py-3 text-[12px] text-paper-muted">Loading diff...</div>
               ) : diffError ? (
                 <div role="alert" className="px-4 py-3 text-[12px] text-alert">
                   {diffError}
@@ -986,7 +986,7 @@ export default function PrDetailPage() {
 
           {/* First contribution? The draft, the wait, the etiquette. */}
           <details className="card mt-4 px-4 py-3">
-            <summary className="min-h-6 cursor-pointer text-[13px] font-medium text-paper">New to this? What happens next, and how to answer reviewers</summary>
+            <summary className="min-h-10 cursor-pointer py-1.5 text-[16px] font-semibold text-paper">New to this? What happens next, and how to answer reviewers</summary>
             <div className="mt-3"><NextSteps heading="After your pull request opens" /></div>
           </details>
 
@@ -1102,7 +1102,7 @@ export default function PrDetailPage() {
                 >
                   {/* Comment header */}
                   <div className="px-5 py-3 border-b border-border-soft flex items-center gap-2 flex-wrap">
-                    <span className="text-[13.5px] text-paper font-semibold">{c.author}</span>
+                    <span className="text-[15px] text-paper font-semibold">{c.author}</span>
                     {c.isOwnComment && <span className="chip">you</span>}
                     <span className="text-[12.5px] text-paper-faint">
                       {new Date(c.createdAt).toLocaleDateString()} {new Date(c.createdAt).toLocaleTimeString()}
@@ -1131,7 +1131,7 @@ export default function PrDetailPage() {
 
                   {/* Comment body */}
                   <div className="px-4 py-3">
-                    <p className="text-[13px] text-paper-dim whitespace-pre-wrap break-words">{c.body}</p>
+                    <p className="text-[16px] leading-[1.6] text-paper-dim whitespace-pre-wrap break-words">{c.body}</p>
                   </div>
 
                   {/* Action buttons */}
@@ -1232,7 +1232,7 @@ export default function PrDetailPage() {
                 {fixState.status === "generating" && (
                   <span className="ml-auto flex items-center gap-2">
                     <span className="text-[12.5px] text-paper-dim">{fixState.step}</span>
-                    <span className="text-[12.5px] text-signal animate-pulse-signal">
+                    <span className="text-[12.5px] text-signal">
                       <LoadingDots />
                     </span>
                     <button onClick={cancelGeneration} className="btn-quiet" data-size="sm">cancel</button>
@@ -1253,7 +1253,7 @@ export default function PrDetailPage() {
                   <div className="flex items-center gap-1 mb-1.5">
                     <span className="text-[12px] font-medium text-paper-faint">Agent activity</span>
                     <span className="text-[12px] text-paper-faint tabular-nums">{fixState.tools.length} tool calls</span>
-                    {fixState.status === "generating" && <span className="text-[12px] text-signal animate-pulse-signal ml-1">live</span>}
+                    {fixState.status === "generating" && <span className="text-[12px] text-signal ml-1">live</span>}
                   </div>
                   <div className="relative">
                     {/* Timeline line */}
@@ -1446,7 +1446,7 @@ export default function PrDetailPage() {
                       verification checks
                     </span>
                     {verifying && (
-                      <span className="text-[12.5px] text-signal animate-pulse-signal flex items-center gap-1">
+                      <span className="text-[12.5px] text-signal flex items-center gap-1">
                         <LoadingDots /> running checks...
                       </span>
                     )}
@@ -1815,7 +1815,7 @@ function DiffPreview({ diff }: { diff: string }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="diff-preview-dialog-title"
-            className="card shadow-2xl w-[90vw] max-w-[900px] max-h-[80vh] flex flex-col"
+            className="card w-[90vw] max-w-[900px] max-h-[80vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-4 py-2 border-b border-border-soft flex items-center justify-between shrink-0">
@@ -1847,16 +1847,11 @@ function DiffPreview({ diff }: { diff: string }) {
   );
 }
 
-// ── Loading dots animation ───────────────────────────────────────────
+// ── Quiet "still working" mark ────────────────────────────────────────
+// A plain ellipsis: a status in words reads calmer than bouncing dots.
 
 function LoadingDots() {
-  return (
-    <span className="inline-flex gap-px">
-      <span className="animate-bounce" style={{ animationDelay: "0ms", animationDuration: "1s" }}>.</span>
-      <span className="animate-bounce" style={{ animationDelay: "200ms", animationDuration: "1s" }}>.</span>
-      <span className="animate-bounce" style={{ animationDelay: "400ms", animationDuration: "1s" }}>.</span>
-    </span>
-  );
+  return <span aria-hidden="true">…</span>;
 }
 
 // ── Fix response renderer ────────────────────────────────────────────

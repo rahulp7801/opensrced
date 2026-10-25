@@ -228,7 +228,7 @@ export function TriggerForm() {
             type="submit"
             disabled={state.kind === "pending" || paymentReady === false}
             aria-describedby={paymentReady === false ? "run-payment-needed" : undefined}
-            className="btn-primary group min-h-12 gap-3 px-6 text-[15px]"
+            className="btn-primary group min-h-12 gap-3 px-6 text-[16px]"
           >
             {state.kind === "pending" ? (
               "Starting run..."
@@ -241,14 +241,14 @@ export function TriggerForm() {
           </button>
 
           {paymentReady === false && state.kind !== "pending" && (
-            <p id="run-payment-needed" className="text-[13.5px] text-paper-muted">
+            <p id="run-payment-needed" className="text-[15px] text-paper-muted">
               Set up how runs are paid for in{" "}
               <Link href="/crucible" className="link">Settings</Link>{" "}
               before starting a run.
             </p>
           )}
           {state.kind === "ok" && (
-            <div className="flex items-center gap-3 text-[13.5px]" aria-live="polite">
+            <div className="flex items-center gap-3 text-[15px]" aria-live="polite">
               <span className="flex items-center gap-1 font-medium text-ok">
                 <span aria-hidden>+</span> Run started
               </span>
@@ -263,12 +263,12 @@ export function TriggerForm() {
             </div>
           )}
           {state.kind === "err" && (
-            <div className="flex items-center gap-1 text-[13.5px] text-alert" role="alert">
+            <div className="flex items-center gap-1 text-[15px] text-alert" role="alert">
               <span aria-hidden>x</span> {state.message}
             </div>
           )}
           {state.kind === "pending" && (
-            <p className="basis-full text-[13.5px] text-paper-muted" role="status">
+            <p className="basis-full text-[15px] text-paper-muted" role="status">
               Starting an isolated worker. This can take up to 90 seconds.
             </p>
           )}
@@ -285,14 +285,14 @@ export function TriggerForm() {
             "Preview creates a patch to read. It can never be published; run the issue again to publish.",
             "A publishable run never posts by itself: it opens a draft PR from your GitHub account only after you read it and confirm.",
           ].map((item, index) => (
-            <li key={item} className="grid grid-cols-[2rem_1fr] gap-2 py-4 text-[13.5px] leading-[1.55] text-paper-dim">
+            <li key={item} className="grid grid-cols-[2rem_1fr] gap-2 py-4 text-[15px] leading-[1.55] text-paper-dim">
               <span className="kicker pt-0.5 text-signal">{String(index + 1).padStart(2, "0")}</span>
               <span>{item}</span>
             </li>
           ))}
         </ol>
         <div className="border-t border-border-soft px-6 py-3">
-          <Link href="/dispatches" className="link inline-flex min-h-10 items-center gap-1 text-[13.5px] font-medium">
+          <Link href="/dispatches" className="link inline-flex min-h-10 items-center gap-1 text-[15px] font-medium">
             View run history <span aria-hidden>→</span>
           </Link>
         </div>
@@ -316,12 +316,12 @@ function Row({
     <div className="mb-7 grid grid-cols-12 items-start gap-x-6 gap-y-2.5">
       <div className="col-span-12 md:col-span-4">
         {htmlFor ? (
-          <label htmlFor={htmlFor} className="text-[14.5px] font-semibold text-paper">{label}</label>
+          <label htmlFor={htmlFor} className="text-[16px] font-semibold text-paper">{label}</label>
         ) : (
-          <div className="text-[14.5px] font-semibold text-paper">{label}</div>
+          <div className="text-[16px] font-semibold text-paper">{label}</div>
         )}
         {hint && (
-          <div className="mt-1 text-[13px] leading-[1.55] text-paper-muted">
+          <div className="mt-1 text-[14px] leading-[1.55] text-paper-muted">
             {hint}
           </div>
         )}

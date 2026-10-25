@@ -42,7 +42,7 @@ export function ApiKeyGate({ localMode = false, inviteOnly = false }: { localMod
   if (!needsKey || (!user && !localMode) || hasKey === null || hasKey) return null;
 
   return (
-    <aside aria-label="Provider setup" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-b border-border-soft bg-signal-faint px-4 py-2.5 text-[13.5px]">
+    <aside aria-label="Provider setup" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-b border-border-soft bg-signal-faint px-4 py-2.5 text-[15px]">
       <span className="font-semibold text-signal">{subscriptions ? "Choose how runs are paid for" : "Anthropic key required"}</span>
       <span className="hidden text-paper-dim md:inline">
         {subscriptions

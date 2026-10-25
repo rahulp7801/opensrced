@@ -56,7 +56,7 @@ export default async function OrgReposPage({
       </div>
 
       {error && (
-        <div className="callout callout-alert mt-4 p-3 text-[13.5px] text-alert">
+        <div className="callout callout-alert mt-4 p-3 text-[15px] text-alert">
           Failed to load repos: {error}
         </div>
       )}
@@ -66,7 +66,7 @@ export default async function OrgReposPage({
           {repos.length} repo{repos.length === 1 ? "" : "s"} accessible
         </div>
         {repos.length === 0 ? (
-          <div className="card mt-2 p-6 text-[13.5px] text-paper-dim leading-relaxed">
+          <div className="card mt-2 p-6 text-[15px] text-paper-dim leading-relaxed">
             The installation has no repositories yet. Add repos via the GitHub
             App settings for <code>{org}</code>, then return here.
           </div>
@@ -78,7 +78,7 @@ export default async function OrgReposPage({
                 className="flex items-center justify-between px-4 py-3"
               >
                 <div className="min-w-0">
-                  <div className="text-[13.5px] text-paper truncate">
+                  <div className="text-[15px] text-paper truncate">
                     {r.name}
                     {r.private && (
                       <span className="chip ml-2">

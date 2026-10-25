@@ -132,7 +132,7 @@ export function SuggestedIssues() {
       <div className="flex flex-col gap-4 border-b border-border-soft px-5 py-6 sm:flex-row sm:items-end sm:justify-between sm:px-6">
         <div className="min-w-0">
           <h2 id="suggested-issues-title" className="display text-[28px] leading-none text-paper sm:text-[32px]">Suggested issues</h2>
-          <p className="mt-2.5 max-w-2xl text-[13.5px] leading-[1.55] text-paper-muted">
+          <p className="mt-2.5 max-w-2xl text-[16px] leading-[1.55] text-paper-muted">
             Beginner-friendly work from active public repositories: unassigned, with no linked pull request.
             {filteredOut > 0 && <span title="Bounty, token-farming, social-media, and follow/star tasks are excluded."> {filteredOut} low-quality result{filteredOut === 1 ? "" : "s"} hidden.</span>}
           </p>
@@ -216,7 +216,7 @@ export function SuggestedIssues() {
 
       <div aria-live="polite">
         {error && (
-          <div role="alert" className="flex flex-col gap-3 border-b border-border-soft bg-alert-dim/30 px-5 py-4 text-[13.5px] text-alert sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div role="alert" className="flex flex-col gap-3 border-b border-border-soft bg-alert-dim/30 px-5 py-4 text-[15px] text-alert sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <span>{error}</span>
             <button type="button" onClick={() => fetchIssues(true)} className="btn-quiet shrink-0 self-start sm:self-auto" data-size="sm">
               Try again
@@ -240,7 +240,7 @@ export function SuggestedIssues() {
         {!loading && issues.length === 0 && !error && (
           <div className="px-5 py-14 text-center">
             <p className="text-[16px] font-semibold text-paper">{selectedLangs.length === 0 ? "Choose a language to begin" : "No matching issues found"}</p>
-            <p className="mt-1.5 text-[13.5px] text-paper-muted">{selectedLangs.length === 0 ? "Select one or more languages in the filters above." : "Try more languages or include all beginner tags."}</p>
+            <p className="mt-1.5 text-[15px] text-paper-muted">{selectedLangs.length === 0 ? "Select one or more languages in the filters above." : "Try more languages or include all beginner tags."}</p>
           </div>
         )}
 

@@ -165,7 +165,7 @@ export function ApiKeysForm() {
     <div className="space-y-7">
       {/* How runs are paid for */}
       <fieldset className="space-y-3" aria-describedby="payment-help">
-        <legend className="text-[15px] font-semibold text-paper">Payment order</legend>
+        <legend className="text-[16px] font-semibold text-paper">Payment order</legend>
         <p id="payment-help" className="text-[12.5px] leading-5 text-paper-muted">
           Runs try these in order. Your own subscription comes first, so you are not charged API prices by default.
         </p>
@@ -370,7 +370,7 @@ export function ApiKeysForm() {
 
       {/* Agent budget per run */}
       <div className="space-y-2">
-        <div className="text-[15px] font-semibold text-paper">Agent budget per run</div>
+        <div className="text-[16px] font-semibold text-paper">Agent budget per run</div>
         <div className="flex flex-wrap gap-1.5">
           {SPEND_OPTIONS.map((opt) => (
             <button

@@ -45,7 +45,7 @@ export function StatsBoard() {
   if (loading && !data) {
     return (
       <div className="space-y-10">
-        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border-soft bg-border-soft lg:grid-cols-5">
+        <div className="card grid grid-cols-2 gap-px overflow-hidden bg-border-soft lg:grid-cols-5">
           {[1, 2, 3, 4, 5].map((i) => (
             <div key={i} className={cn("flex flex-col gap-2 bg-surface p-5", i === 5 && "col-span-2 lg:col-span-1")}>
               <div className="h-2.5 w-16 bg-surface-3 animate-pulse" />
@@ -56,7 +56,7 @@ export function StatsBoard() {
         </div>
         <div className="space-y-3">
           <div className="h-6 w-48 bg-surface-3 animate-pulse" />
-          <div className="rounded-2xl border border-border-soft bg-surface p-6 space-y-3">
+          <div className="card p-6 space-y-3">
             {[1, 2, 3].map((i) => (
               <div key={i} className="flex gap-4">
                 <div className="h-4 w-8 bg-surface-2 animate-pulse" />
@@ -72,9 +72,9 @@ export function StatsBoard() {
   if (err && !data) {
     // ponytail: the hook polls every minute on its own; the button just reloads now.
     return (
-      <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-alert/40 bg-alert/5 p-4 text-[13px] text-alert">
+      <div role="alert" className="callout callout-alert flex flex-wrap items-center justify-between gap-3 p-4 text-[13px] text-alert">
         <span>Your activity couldn&apos;t load right now. It tries again every minute. <span className="text-alert/80">({err})</span></span>
-        <button type="button" onClick={() => window.location.reload()} className="inline-flex min-h-10 items-center rounded-full border border-alert/40 px-4 font-medium hover:bg-alert/10">Try again</button>
+        <button type="button" onClick={() => window.location.reload()} className="btn-quiet text-alert" data-size="sm">Try again</button>
       </div>
     );
   }
@@ -82,9 +82,9 @@ export function StatsBoard() {
 
   return (
     <div className="space-y-10">
-      {err && <p role="status" className="rounded-xl border border-alert/30 bg-alert/5 px-3 py-2 text-[12px] text-alert">Could not refresh activity. Showing the last loaded data.</p>}
-      {data.dispatchWindow && <p className="text-[12px] text-paper-muted">Run, patch, PR, and spend figures cover your latest {data.dispatchWindow} runs. Scan counts cover your recorded history.</p>}
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border-soft bg-border-soft lg:grid-cols-5">
+      {err && <p role="status" className="callout callout-alert px-3 py-2 text-[13px] text-alert">Could not refresh activity. Showing the last loaded data.</p>}
+      {data.dispatchWindow && <p className="text-[13px] text-paper-muted">Run, patch, PR, and spend figures cover your latest {data.dispatchWindow} runs. Scan counts cover your recorded history.</p>}
+      <div className="card grid grid-cols-2 gap-px overflow-hidden bg-border-soft lg:grid-cols-5">
         <Counter label="runs" value={data.dispatches} tone="info" sub={data.dispatchWindow ? "recent runs" : "your history"} />
         <Counter label="patches" value={data.patchesGenerated} tone="signal" sub={`${Math.round((Number(data.successRate) || 0) * 100)}% success rate`} />
         <Counter label="PRs opened" value={data.prsCreated} tone="ok" sub={`${Math.round((Number(data.prRate) || 0) * 100)}% of runs`} />
@@ -94,36 +94,36 @@ export function StatsBoard() {
 
       <section>
         <div className="mb-4 sm:flex sm:items-baseline sm:justify-between sm:gap-6">
-          <h2 className="display text-[30px] leading-tight text-paper">Biggest contributions</h2>
-          <p className="mt-1 text-xs text-paper-muted sm:mt-0">Draft PRs on repositories with 1,000+ stars</p>
+          <h2 className="display text-[32px] leading-none text-paper sm:text-[36px]">Biggest contributions</h2>
+          <p className="mt-2 text-[14px] text-paper-muted sm:mt-0">Draft PRs on repositories with 1,000+ stars</p>
         </div>
         {data.biggestContributions.length === 0 ? (
-          <div className="rounded-2xl border border-border-soft bg-surface p-8 text-center">
-            <div className="text-[14px] text-paper">No pull requests on 1,000-star projects yet.</div>
-            <p className="mt-2 text-[12.5px] text-paper-muted leading-snug">
+          <div className="card px-6 py-10 sm:px-10">
+            <div className="text-[18px] font-semibold text-paper">No pull requests on 1,000-star projects yet.</div>
+            <p className="mt-2 max-w-xl text-[16px] leading-[1.6] text-paper-muted">
               When a run of yours opens a draft PR on a repository with more than 1,000 stars, it shows up here.
             </p>
-            <a href="/issues" className="mt-4 inline-flex min-h-10 items-center rounded-full border border-signal/40 px-4 text-[13px] font-medium text-signal hover:bg-signal/10">Find an issue →</a>
+            <a href="/issues" className="btn-primary mt-6">Find an issue →</a>
           </div>
         ) : (
-          <ol className="divide-y divide-border-soft overflow-hidden rounded-md border border-border bg-surface/40">
+          <ol className="card divide-y divide-border-soft overflow-hidden">
             {data.biggestContributions.map((c, i) => (
-              <li key={c.dispatchId} className="grid grid-cols-[2rem_minmax(0,1fr)] gap-3 px-4 py-3 transition hover:bg-surface-2/60">
-                <span className="pt-1 text-right text-lg leading-none text-paper-muted num-tabular">
+              <li key={c.dispatchId} className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-3 px-5 py-4 transition hover:bg-ink-2 sm:px-6">
+                <span className="display pt-0.5 text-right text-[26px] leading-none text-paper-muted num-tabular">
                   {i + 1}
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-                    <div className="min-w-0 text-sm">
+                    <div className="min-w-0 text-[16px]">
                       <a href={c.prUrl} target="_blank" rel="noreferrer" className="inline-flex max-w-full items-center gap-1.5 font-medium text-paper hover:text-signal">
                         <span className="truncate">{c.repoFull}</span><IconExternal className="shrink-0" />
                       </a>
                       {c.issueNumber !== null && <span className="ml-1.5 text-paper-muted">fixes #{c.issueNumber}</span>}
                     </div>
-                    <div className="shrink-0 text-base font-medium text-signal">★ {fmtStars(c.stars)}</div>
+                    <div className="shrink-0 text-[16px] font-semibold text-signal">★ {fmtStars(c.stars)}</div>
                   </div>
-                  <div className="mt-0.5 text-[11px] text-paper-muted">
-                    run <code className="text-paper-faint">{c.dispatchId.slice(-12)}</code>
+                  <div className="mt-0.5 text-[12px] text-paper-muted">
+                    run <code className="font-mono text-paper-dim">{c.dispatchId.slice(-12)}</code>
                     {c.startedAt && (
                       <>
                         <span className="mx-1.5 text-paper-faint">·</span>
@@ -140,19 +140,19 @@ export function StatsBoard() {
 
       <section>
         <div className="mb-4 flex items-baseline justify-between gap-4">
-          <h2 className="display text-[30px] leading-tight text-paper">Recent activity</h2>
-          <span className="text-xs text-paper-muted">Latest 20</span>
+          <h2 className="display text-[32px] leading-none text-paper sm:text-[36px]">Recent activity</h2>
+          <span className="text-[14px] text-paper-muted">Latest 20</span>
         </div>
         {data.recentActivity.length === 0 ? (
-          <div className="rounded-2xl border border-border-soft bg-surface p-6 text-center text-[12px] text-paper-muted">
+          <div className="card px-6 py-8 text-[16px] text-paper-muted">
             Nothing yet. Run a scan or start a run.
           </div>
         ) : (
-          <ul className="divide-y divide-border-soft overflow-hidden rounded-md border border-border bg-surface/40 text-[12.5px]">
+          <ul className="card divide-y divide-border-soft overflow-hidden text-[15px]">
             {data.recentActivity.map((a, i) => (
-              <li key={i} className="grid grid-cols-[96px_1fr] items-center gap-x-4 gap-y-1.5 px-5 py-3 sm:grid-cols-[96px_90px_minmax(0,1fr)]">
+              <li key={i} className="grid grid-cols-[96px_1fr] items-center gap-x-4 gap-y-1.5 px-5 py-3.5 sm:grid-cols-[96px_90px_minmax(0,1fr)] sm:px-6">
                 <ActivityKindChip kind={a.kind} />
-                <span className="justify-self-end text-[11px] text-paper-muted tabular-nums sm:justify-self-start">
+                <span className="justify-self-end text-[12px] text-paper-muted tabular-nums sm:justify-self-start">
                   {fmtRelative(a.ts, Date.now())}
                 </span>
                 <span className="col-span-2 min-w-0 text-paper sm:col-span-1 sm:truncate">
@@ -216,9 +216,10 @@ function Counter({
   const size = display.length <= 4 ? "text-[52px]" : display.length <= 7 ? "text-[38px]" : "text-[28px]";
   return (
     <div className={cn("relative flex min-w-0 flex-col gap-2 bg-surface p-6", className)}>
-      <div className="mono-label flex items-center gap-2 text-paper-muted"><span aria-hidden className={cn("size-1.5 rounded-full", dot)} />{label}</div>
-      <div className={cn("display num-tabular break-all leading-none text-paper", size)}>{display}</div>
-      {sub && <div className="mt-1 text-[12px] text-paper-dim">{sub}</div>}
+      <div className="kicker flex items-center gap-2 text-paper-muted"><span aria-hidden className={cn("size-1.5 rounded-full", dot)} />{label}</div>
+      <div className={cn("display num-tabular break-all leading-[0.9] text-paper", size)}>{display}</div>
+
+      {sub && <div className="mt-1 text-[13px] text-paper-dim">{sub}</div>}
     </div>
   );
 }

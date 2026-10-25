@@ -70,7 +70,7 @@ const SECTIONS: { title: string; body: React.ReactNode }[] = [
         signs you out. It does not delete past run history or code graphs. You can also revoke opensrcer&apos;s GitHub
         access at any time from GitHub&apos;s application settings. To have your stored runs and graphs deleted,
         contact the maintainer through the{" "}
-        <a className="text-signal underline underline-offset-2 hover:decoration-2" href="https://github.com/rahulp7801/opensrced" target="_blank" rel="noreferrer">
+        <a className="link" href="https://github.com/rahulp7801/opensrced" target="_blank" rel="noreferrer">
           opensrcer repository
         </a>
         .
@@ -81,13 +81,13 @@ const SECTIONS: { title: string; body: React.ReactNode }[] = [
 
 export default function PrivacyPage() {
   return (
-    <div className="mx-auto w-full max-w-[860px] px-5 py-10 sm:px-8">
-      <PageHeading title="Privacy" description="What opensrcer stores, where it goes, and how long it is kept. Last updated October 7, 2026." />
-      <div className="space-y-10">
+    <div className="mx-auto w-full max-w-[1000px] px-5 py-10 sm:px-8">
+      <PageHeading kicker="The fine print, in plain words" title="Privacy" description="What opensrcer stores, where it goes, and how long it is kept. Last updated October 7, 2026." />
+      <div className="divide-y divide-border border-t-2 border-paper">
         {SECTIONS.map((section) => (
-          <section key={section.title}>
-            <h2 className="text-[21px] font-semibold tracking-[-0.015em] text-paper">{section.title}</h2>
-            <p className="mt-3 text-[16px] leading-[1.65] text-paper-dim">{section.body}</p>
+          <section key={section.title} className="grid gap-3 py-8 md:grid-cols-[220px_minmax(0,1fr)] md:gap-10">
+            <h2 className="display text-[24px] leading-[1.05] text-paper">{section.title}</h2>
+            <p className="max-w-[65ch] text-[17px] leading-[1.7] text-paper-dim">{section.body}</p>
           </section>
         ))}
       </div>

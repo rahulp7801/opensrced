@@ -46,7 +46,7 @@ function SignedIn({ children }: { children: ReactNode }) {
       <h1 className="display text-[44px] leading-[0.95] tracking-[-0.025em] text-paper sm:text-[56px]">Sign in to continue</h1>
       <p className="mt-5 text-[16px] leading-[1.6] text-paper-muted">Connect your GitHub account to browse repositories, start runs, and view your activity.</p>
       <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3">
-        <Link href={`/login?returnTo=${encodeURIComponent(returnTo)}`} className="btn-primary min-h-12 px-6 text-[15px]">Sign in with GitHub</Link>
+        <Link href={`/login?returnTo=${encodeURIComponent(returnTo)}`} className="btn-primary min-h-12 px-6 text-[16px]">Sign in with GitHub</Link>
         <Link href="/demo" className="link inline-flex min-h-10 items-center text-[14px]">Try the interactive demo</Link>
       </div>
     </section>
@@ -72,13 +72,13 @@ function SessionLoading({ returnTo, failed = false }: { returnTo: string; failed
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="btn-primary min-h-12 px-6 text-[15px]"
+            className="btn-primary min-h-12 px-6 text-[16px]"
           >
             Reload page
           </button>
           <a
             href={`/auth/login?returnTo=${encodeURIComponent(returnTo)}`}
-            className="btn-quiet min-h-12 px-6 text-[15px]"
+            className="btn-quiet min-h-12 px-6 text-[16px]"
           >
             Sign in again
           </a>

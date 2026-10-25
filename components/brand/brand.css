@@ -1,0 +1,189 @@
+/* opensrcer brand motifs. Imported once by app/globals.css; the React side of
+   each lives next to this file. Rules (README.md):
+   - Everything renders finished first. Motion is layered on with CSS only
+     when the visitor allows it, so no text is ever invisible before JS runs.
+   - Animations move transform and opacity; the two drawn exceptions are
+     stroke-dashoffset (doodles drawing on) and color (ink reveal), both
+     paint-only, never layout.
+   - Scroll-driven pieces use CSS scroll timelines where the browser has them
+     (Chrome/Edge, Safari 26+) and stay static where it does not. */
+
+@layer components {
+  /* ── Type ─────────────────────────────────────────────────────────── */
+
+  /* The shouting voice: oversized, uppercase, condensed, packed tight. */
+  .shout {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-stretch: 75%;
+    text-transform: uppercase;
+    line-height: 0.84;
+    letter-spacing: -0.01em;
+  }
+
+  /* Small uppercase label for sections ("01 · Find"), in the body face. */
+  .kicker {
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* ── Sticker: a tilted pill slapped onto a headline ──────────────── */
+  .sticker {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    border-radius: 999px;
+    padding: 0.5em 1.05em 0.55em;
+    font-family: var(--font-sans);
+    font-size: clamp(12px, 0.55rem + 0.45vw, 16px);
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -0.005em;
+    text-transform: none;
+    font-stretch: normal; /* don't inherit the headline's condensing */
+    transform: rotate(var(--tilt, -5deg));
+  }
+  .sticker[data-tone="ink"] { background: var(--color-paper); color: var(--color-ink); }
+  .sticker[data-tone="signal"] { background: var(--color-signal); color: #fff; }
+  .sticker[data-tone="paper"] { background: var(--color-surface); color: var(--color-paper); box-shadow: inset 0 0 0 1.5px var(--color-paper); }
+
+  /* ── Pills ────────────────────────────────────────────────────────── */
+
+  /* Navigation and quiet actions: an off-white pill; the current one inks in. */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    min-height: 2.5rem;
+    border-radius: 999px;
+    padding: 0 1rem;
+    background: var(--color-surface);
+    color: var(--color-paper);
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: background-color 160ms, color 160ms, transform 160ms var(--ease-pop);
+  }
+  .pill:hover { background: var(--color-surface-2); }
+  .pill:active { transform: scale(0.97); }
+  /* data-quiet: no fill until hovered (dense rows of pills, like the nav). */
+  .pill[data-quiet] { background: transparent; color: var(--color-paper-dim); }
+  .pill[data-quiet]:hover { background: var(--color-surface); color: var(--color-paper); }
+  .pill[aria-current="page"],
+  .pill[aria-current="page"]:hover { background: var(--color-paper); color: var(--color-ink); }
+
+  /* The call to action: a near-black pill carrying a round cobalt arrow. */
+  .cta-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.9rem;
+    min-height: 3rem;
+    border-radius: 999px;
+    padding: 0.3rem 0.3rem 0.3rem 1.35rem;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-size: 16px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: transform 180ms var(--ease-pop);
+  }
+  .cta-pill:active { transform: scale(0.97); }
+  .cta-pill-arrow {
+    display: grid;
+    place-items: center;
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 999px;
+    background: var(--color-signal);
+    color: #fff;
+    transition: transform 260ms var(--ease-pop);
+  }
+  .cta-pill-arrow svg { transition: transform 260ms var(--ease-pop); }
+  .cta-pill:hover .cta-pill-arrow { transform: scale(1.08); }
+  .cta-pill:hover .cta-pill-arrow svg { transform: rotate(45deg); }
+  .cta-pill[data-size="sm"] { min-height: 2.5rem; gap: 0.6rem; padding-left: 1rem; font-size: 14px; }
+  .cta-pill[data-size="sm"] .cta-pill-arrow { width: 1.9rem; height: 1.9rem; }
+
+  /* ── Marquee ──────────────────────────────────────────────────────── */
+  .marquee { overflow: hidden; }
+  .marquee-track { display: flex; width: max-content; }
+
+  /* ── Doodles ──────────────────────────────────────────────────────── */
+  .doodle { overflow: visible; pointer-events: none; }
+  .doodle[data-tone="signal"] { color: var(--color-signal); }
+  .doodle[data-tone="ink"] { color: var(--color-paper); }
+}
+
+/* ── Motion (only for visitors who allow it) ───────────────────────── */
+
+@keyframes brand-sticker-pop {
+  0% { opacity: 0; transform: rotate(calc(var(--tilt, -5deg) - 16deg)) scale(0.35); }
+  60% { opacity: 1; transform: rotate(calc(var(--tilt, -5deg) + 4deg)) scale(1.07); }
+  100% { opacity: 1; transform: rotate(var(--tilt, -5deg)) scale(1); }
+}
+@keyframes brand-marquee { to { transform: translateX(-50%); } }
+@keyframes brand-rise {
+  from { opacity: 0; transform: translateY(0.4em); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes brand-draw {
+  0% { stroke-dashoffset: 1; opacity: 0; }
+  2% { opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 1; }
+}
+@keyframes brand-ink {
+  0% { color: var(--color-signal-dim); }
+  55% { color: var(--color-signal); }
+  100% { color: var(--ink-to, var(--color-paper)); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* .rise: an arrival on page load (hero lines), staggered with --delay. */
+  .rise {
+    animation: brand-rise 0.9s var(--ease-arrive) var(--delay, 0ms) both;
+  }
+  .sticker[data-pop="load"] {
+    animation: brand-sticker-pop 0.75s var(--ease-pop) var(--delay, 0ms) both;
+  }
+  .marquee-track[data-run] {
+    animation: brand-marquee var(--marquee-duration, 40s) linear infinite;
+  }
+  .marquee:hover .marquee-track[data-run] { animation-play-state: paused; }
+  /* Each pen stroke in a doodle's mask draws on in turn (doodles.tsx sets the
+     per-stroke --at/--for in ms). */
+  .doodle[data-draw="load"] .doodle-pen {
+    stroke-dasharray: 1 1;
+    animation: brand-draw var(--for, 900ms) cubic-bezier(0.55, 0.1, 0.35, 1) calc(var(--delay, 0ms) + var(--at, 0ms)) both;
+  }
+}
+
+/* Scroll-driven: the doodle draws, the sticker pops and the words ink in as
+   they cross the viewport, and un-draw if you scroll back, like a page being
+   written as you read. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .sticker[data-pop="scroll"] {
+      animation: brand-sticker-pop linear both;
+      animation-timeline: view();
+      animation-range: entry 40% cover 35%;
+    }
+    .doodle[data-draw="scroll"] { view-timeline-name: --doodle; }
+    .doodle[data-draw="scroll"] .doodle-pen {
+      stroke-dasharray: 1 1;
+      animation: brand-draw linear both;
+      animation-timeline: --doodle;
+      /* --from/--to are this stroke's share of the doodle's drawing, 0..1. */
+      animation-range: cover calc(12% + var(--from, 0) * 33%) cover calc(12% + var(--to, 1) * 33%);
+    }
+    .ink-reveal { view-timeline-name: --ink; }
+    .ink-word {
+      animation: brand-ink linear both;
+      animation-timeline: --ink;
+      /* Word i of n inks in over its own slice of the paragraph's pass. */
+      animation-range: cover calc(18% + var(--i) / var(--n) * 34%) cover calc(26% + var(--i) / var(--n) * 34%);
+    }
+  }
+}

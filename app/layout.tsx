@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Instrument_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { SiteHeader } from "@/components/header";
 import { SectionNav } from "@/components/section-nav";
@@ -12,15 +12,27 @@ import { Auth0Provider } from "@auth0/nextjs-auth0";
 import { siteUrl } from "@/lib/site-url";
 import { inviteOnly as inviteOnlyMode } from "@/lib/access";
 
-// Geist for everything readable (headlines are the same face, heavier and
-// tighter), Geist Mono for code, logs, and identifiers.
-const sans = Geist({
+// The type system (components/brand/README.md). All three are open-licence
+// (OFL) and self-hosted by next/font at build time.
+// - Bricolage Grotesque: headlines. Its width axis lets display type run
+//   condensed (font-stretch 75-100%), and its optical-size axis gives the big
+//   sizes their quirky ink-trapped cut automatically.
+// - Instrument Sans: everything readable; tight and quiet.
+// - JetBrains Mono: code, logs, identifiers.
+const display = Bricolage_Grotesque({
+  subsets: ["latin"],
+  axes: ["wdth", "opsz"],
+  variable: "--font-display-next",
+  display: "swap",
+});
+
+const sans = Instrument_Sans({
   subsets: ["latin"],
   variable: "--font-sans-next",
   display: "swap",
 });
 
-const mono = Geist_Mono({
+const mono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono-next",
   display: "swap",
@@ -42,18 +54,19 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   colorScheme: "light",
-  themeColor: "#f5f5f7",
+  themeColor: "#f6e9e0", // --color-ink
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const localMode = process.env.AUTH_DISABLED === "1" && process.env.NODE_ENV !== "production";
   const inviteOnly = inviteOnlyMode();
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
+    <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
       <body
         style={
           {
             // Bind next/font CSS vars to the theme vars used in globals.css
+            "--font-display": `var(--font-display-next), "Arial Narrow", sans-serif`,
             "--font-sans": `var(--font-sans-next), -apple-system, "Segoe UI", sans-serif`,
             "--font-mono": `var(--font-mono-next), ui-monospace, SFMono-Regular, Menlo, monospace`,
           } as React.CSSProperties

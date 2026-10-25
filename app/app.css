@@ -207,12 +207,15 @@
   .row-cta:disabled:hover { color: var(--color-paper); text-decoration-color: var(--color-border-strong); }
 
   /* Links that leave the app say so with a trailing arrow. */
+  /* Out of flow, so the link's underline does not run under the arrow. */
+  .text-link[target="_blank"],
+  .row-cta[target="_blank"] { position: relative; padding-right: 1.05em; }
   .text-link[target="_blank"]::after,
   .row-cta[target="_blank"]::after {
     content: "↗";
-    margin-left: 0.2em;
+    position: absolute;
+    right: 0;
     font-size: 0.85em;
-    text-decoration: none;
   }
   /* The brand's .text-link carries the 40px tap height; in running text and
      dense rows it sits on the line instead. */

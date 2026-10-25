@@ -266,7 +266,7 @@ export function DiscoverScanner() {
           {/* Summary and filters */}
           <div className="mt-10">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <span className="display text-[56px] leading-[0.85] text-signal num-tabular">{filtered.length}</span>
+              <span className="display text-[56px] leading-[0.85] text-paper num-tabular">{filtered.length}</span>
               <span className="text-[16px] font-medium text-paper">issues to look at</span>
               <span className="text-[15px] text-paper-muted num-tabular">from {data.issue_count} open issues in {data.repo_count} repositories</span>
             </div>
@@ -354,15 +354,15 @@ export function DiscoverScanner() {
                           <span>{i.repo.fullName}</span>
                           <span>★ {fmtStars(i.repo.stars)}</span>
                           {i.repo.language && <span>{i.repo.language.toLowerCase()}</span>}
-                          <a href={i.url} target="_blank" rel="noreferrer">#{i.number} <span aria-hidden>↗</span></a>
+                          <a href={i.url} target="_blank" rel="noreferrer">#{i.number}<span aria-hidden>↗</span></a>
                           <span title={i.created_at}>opened {fmtRelative(i.created_at, now)}</span>
                           {i.labels.slice(0, 3).map((l) => (
                             <span key={l} className="tag">{l}</span>
                           ))}
                         </p>
-                        <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[14px] text-paper-muted">
-                          <span className="first-letter:uppercase"><ScopeBadge s={i.scope} />,</span>
-                          <span>about {fmtMinutes(i.est_minutes)},</span>
+                        <p className="meta mt-2 items-center font-sans text-[14px]">
+                          <span className="first-letter:uppercase"><ScopeBadge s={i.scope} /></span>
+                          <span>about {fmtMinutes(i.est_minutes)}</span>
                           <span className="inline-flex items-center gap-1.5">difficulty <ComplexityPips value={i.complexity} /></span>
                         </p>
                       </div>

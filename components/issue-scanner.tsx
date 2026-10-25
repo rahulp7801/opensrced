@@ -252,7 +252,7 @@ export function IssueScanner() {
                   <h2 id="scan-results-title" className="display mt-2 break-all text-[28px] leading-none text-paper sm:text-[32px]">{scan.repo}</h2>
                   <p className="mt-2.5 text-[14px] text-paper-muted">
                     <span className="font-semibold text-paper">{scan.total}</span> open issue{scan.total === 1 ? "" : "s"};{" "}
-                    <span className="font-semibold text-signal">{scan.solvable}</span> ready for an automated attempt.
+                    <span className="font-semibold text-paper">{scan.solvable}</span> ready for an automated attempt.
                   </p>
                   {scan.policy?.ai === "ban" && (
                     <p role="alert" className="callout mt-3 max-w-2xl text-[15px]" data-tone="alert">
@@ -349,12 +349,12 @@ export function IssueScanner() {
                           </button>
                           {/* Size and effort as one readable phrase; only the difficulty dots are drawn.
                               The status is a dot and a word at the end, not a pill. */}
-                          <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[14px] text-paper-muted">
-                            <span className="first-letter:uppercase"><ScopeBadge s={issue.scope} />,</span>
-                            <span>about {fmtMinutes(issue.est_minutes)},</span>
-                            <span className="inline-flex items-center gap-1.5">difficulty <ComplexityPips value={issue.complexity} />,</span>
+                          <p className="meta mt-2 items-center font-sans text-[14px]">
+                            <span className="first-letter:uppercase"><ScopeBadge s={issue.scope} /></span>
+                            <span>about {fmtMinutes(issue.est_minutes)}</span>
+                            <span className="inline-flex items-center gap-1.5">difficulty <ComplexityPips value={issue.complexity} /></span>
                             <span>risk <SeverityChip s={issue.severity} /></span>
-                            <span className={cn("chip ml-2", !issue.solvable && "font-normal")} data-tone={issue.solvable ? "ok" : undefined}>{issue.solvable ? "Ready" : "Needs review"}</span>
+                            <span className={cn("chip", !issue.solvable && "font-normal")} data-tone={issue.solvable ? "ok" : undefined}>{issue.solvable ? "Ready" : "Needs review"}</span>
                           </p>
                         </div>
                         <div className="lg:justify-self-end">
@@ -529,7 +529,7 @@ function IssueDetail({ issue, rec }: { issue: Issue; rec: Recommendation }) {
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div>
         <h4 className="label-mono">Issue description</h4>
-        <div className="mt-3 max-h-[420px] overflow-y-auto whitespace-pre-wrap rounded-2xl bg-surface p-5 text-[16px] leading-[1.65] text-paper-dim shadow-[inset_0_0_0_1px_var(--color-border-soft)]">
+        <div className="mt-3 max-h-[420px] overflow-y-auto whitespace-pre-wrap border-l border-border-strong pl-4 text-[16px] leading-[1.65] text-paper-dim">
           {body}
         </div>
       </div>
@@ -537,11 +537,8 @@ function IssueDetail({ issue, rec }: { issue: Issue; rec: Recommendation }) {
       <div className="flex flex-col gap-6">
         <div>
           <h4 className="label-mono">Recommendation</h4>
-          <div className="callout mt-3" data-tone={rec.action === "solve" ? "signal" : undefined}>
-            <div className={cn(
-              "text-[16px] font-semibold",
-              rec.action === "solve" ? "text-signal" : "text-paper",
-            )}>
+          <div className="mt-3">
+            <div className="text-[16px] font-semibold text-paper">
               {rec.headline}
             </div>
             <div className="mt-1.5 text-[15px] leading-[1.55] text-paper-dim">

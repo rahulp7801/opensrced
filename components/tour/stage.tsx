@@ -50,6 +50,10 @@ const TOTAL = STARTS[STARTS.length - 1] + STEPS[STEPS.length - 1].chapter.durati
 const PHASE_STARTS = PHASES.map((_p, i) => STARTS[STEPS.findIndex((s) => s.phase === i)]);
 
 const DESIGN = { width: 1180, height: 620 };
+// Headlines are sized from the app frame, not the window: 3.4% of its width (about 59 px on a
+// 1920 screen). The longest headline is then 88% of the frame, so none ever wraps into a
+// second line that would shrink the frame between stops.
+const HEADLINE_OF_FRAME = 0.034;
 const TICK_MS = 50;
 const CHANNEL = "opensrcer-stage";
 
@@ -281,7 +285,7 @@ export function StageDemo() {
         <a href="/demo" className="btn-primary inline-flex min-h-11 items-center px-6 text-[16px]">Open the product tour</a>
       </div>
       {/* The headline sits on the app's left edge, in the display face: big type does the work. */}
-      <div className="relative z-[70] mx-auto mb-4 shrink-0" style={{ width: DESIGN.width * scale }}>
+      <div className="relative z-[70] mx-auto mb-4 shrink-0" style={{ width: DESIGN.width * scale, fontSize: DESIGN.width * scale * HEADLINE_OF_FRAME }}>
         <StageHeadline key={headline ?? ""} head={head} />
       </div>
       <div ref={stageRef} className="relative flex min-h-0 flex-1 items-center justify-center">
@@ -335,11 +339,11 @@ export function StageDemo() {
 /** A stop's headline in the display face, with at most one personal touch: a word underlined
  *  by hand, or a sticker slapped on the end (both from what the stop already says). */
 function StageHeadline({ head }: { head?: Caption }) {
-  if (!head) return <p aria-live="polite" className="display min-h-[1.05em] text-[clamp(26px,2.9vw,50px)]" />;
+  if (!head) return <p aria-live="polite" className="display min-h-[1.05em]" />;
   const { text, mark, sticker } = head;
   const at = mark ? text.indexOf(mark) : -1;
   return (
-    <p aria-live="polite" className="display stage-headline min-h-[1.05em] text-balance text-[clamp(26px,2.9vw,50px)] leading-[1.02] tracking-[-0.02em] text-paper">
+    <p aria-live="polite" className="display stage-headline min-h-[1.05em] whitespace-nowrap leading-[1.02] tracking-[-0.02em] text-paper">
       {at < 0 ? text : (
         <>
           {text.slice(0, at)}
@@ -351,7 +355,7 @@ function StageHeadline({ head }: { head?: Caption }) {
         </>
       )}
       {sticker && (
-        <Sticker tone={sticker.tone ?? "ink"} tilt={sticker.tilt ?? -5} delay={380} className="relative -top-[0.35em] ml-4 align-middle text-[clamp(13px,1vw,17px)]">
+        <Sticker tone={sticker.tone ?? "ink"} tilt={sticker.tilt ?? -5} delay={380} className="relative -top-[0.35em] ml-[0.3em] align-middle text-[max(12px,0.29em)]">
           {sticker.text}
         </Sticker>
       )}
@@ -400,10 +404,10 @@ function Spotlight({ selector, strong, within }: { selector: string | null; stro
   const frame = { left, top, width, height };
   const shape = cn("fixed z-[60] transition-[left,top,width,height] duration-[350ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none", small ? "rounded-[8px]" : "rounded-[16px]");
   // A small target's ring sits on its own edge (inside), a big one's around it.
-  const ring = small ? "inset 0 0 0 3px var(--color-signal), 0 0 22px 4px rgb(35 56 230 / 0.4)" : "inset 0 0 0 3px var(--color-surface), 0 0 0 6px var(--color-signal), 0 0 28px 8px rgb(35 56 230 / 0.35)";
+  const ring = small ? "inset 0 0 0 3px var(--color-signal), 0 0 22px 4px rgb(35 56 230 / 0.4), 0 0 48px 14px rgb(255 250 246 / 0.35)" : "inset 0 0 0 3px var(--color-surface), 0 0 0 6px var(--color-signal), 0 0 28px 8px rgb(35 56 230 / 0.3), 0 0 64px 20px rgb(255 250 246 / 0.3)";
   return (
     <div aria-hidden className={cn("pointer-events-none transition-opacity duration-300 ease-out motion-reduce:transition-none", on ? "opacity-100" : "opacity-0")}>
-      <div data-spotlight={on ? (strong ? "click" : "note") : undefined} className={shape} style={{ ...frame, boxShadow: `0 0 0 9999px rgb(28 23 20 / ${strong ? 0.6 : 0.44})` }} />
+      <div data-spotlight={on ? (strong ? "click" : "note") : undefined} className={shape} style={{ ...frame, boxShadow: `0 0 0 9999px rgb(28 23 20 / ${strong ? 0.5 : 0.32})` }} />
       <div className={cn(shape, "animate-pulse motion-reduce:animate-none")} style={{ ...frame, boxShadow: ring }} />
     </div>
   );

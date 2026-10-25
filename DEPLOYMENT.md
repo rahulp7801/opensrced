@@ -165,8 +165,9 @@ unrestricted public multi-tenant execution service.
 Agentic runs can instead execute in an **exec box** (`OPENSRCER_EXEC`, default
 `auto`): a throwaway Docker container from `opensrcer-exec:2` (build it once with
 `docker build -t opensrcer-exec:2 -f scripts/exec-image.Dockerfile scripts`), non-root,
-no capabilities, loopback-only port, no host mounts besides the read-only
-`scripts/exec-server.cjs`, and no credential in its environment. The agent edits
+no capabilities, loopback-only port, no host bind mounts (`scripts/exec-server.cjs`
+is copied in with `docker create` + `docker cp`; per-repository named volumes
+hold package caches and installed environments), and no credential in its environment. The agent edits
 files and runs the repository's own tests there; the host re-runs the declared
 checks on the final patch before a run can be published. Without a Docker daemon,
 `auto` logs that the run is unverified and uses the text-diff path; `host` is an
@@ -310,8 +311,8 @@ unavailable rather than clean. The open CodeQL flows are documented in
 
 ### Private preview
 
-Production runs as an invite-only preview (`OPENSRCER_ACCESS=invite`, see
-`lib/access.ts`). The public sees a short "coming soon" page, the privacy page,
+The app can run as an invite-only preview (`OPENSRCER_ACCESS=invite`, see
+`lib/access.ts`; production was open, not invite-only, on October 25, 2026). The public sees a short "coming soon" page, the privacy page,
 sign-in and shared fix links; the app, the demo and every API need a signed-in
 GitHub account whose numeric id is in `OPENSRCER_INVITED_GITHUB_IDS`. Anyone
 else who signs in is sent back to the preview page with an "invite-only" note.

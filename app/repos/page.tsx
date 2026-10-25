@@ -3,8 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
-import { Doodle } from "@/components/brand/doodles";
-import { nodes } from "@/components/brand/doodle-data";
 
 type GitHubRepo = {
   nameWithOwner: string;
@@ -187,13 +185,14 @@ export default function ReposPage() {
           search ? (
             <p className="border-y border-border-soft py-10 text-[15px] text-paper-muted">No repos match your search.</p>
           ) : (
-            <div className="card relative overflow-hidden px-6 py-12 sm:px-10">
-              <Doodle doodle={nodes} draw="load" className="doodle-thin pointer-events-none absolute right-10 top-8 hidden h-28 w-36 sm:block" />
-              <p className="display text-[30px] leading-none text-paper sm:text-[36px]">No repos here yet.</p>
-              <p className="mt-3 max-w-md text-[16px] leading-[1.6] text-paper-muted">A good first step: pick a beginner-friendly issue in a public project.</p>
-              <div className="mt-6 flex flex-wrap gap-2">
+            <div className="border-y border-border-soft py-10">
+              <p className="max-w-2xl font-display text-[22px] leading-[1.3] text-paper" style={{ fontWeight: 650 }}>
+                <span>No repos here yet.</span>{" "}
+                <span className="font-sans font-normal text-paper-muted">A good first step: pick a beginner-friendly issue in a public project.</span>
+              </p>
+              <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
                 <Link href="/issues" className="btn-primary">Find a beginner issue</Link>
-                <Link href="/discover" className="btn-quiet">Discover projects</Link>
+                <Link href="/discover" className="text-link">Discover projects</Link>
               </div>
             </div>
           )

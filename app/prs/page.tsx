@@ -3,8 +3,6 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
-import { Doodle } from "@/components/brand/doodles";
-import { circle } from "@/components/brand/doodle-data";
 
 import { useToast } from "@/components/toast";
 import { pollJson } from "@/lib/poll-json";
@@ -535,9 +533,9 @@ function DashboardPrs() {
 
   if (!prs.length) {
     return (
-      <div className="card mt-6 p-10 text-center text-[14px] text-paper-muted">
+      <p className="mt-6 border-y border-border-soft py-8 text-[16px] text-paper-muted">
         No pull requests opened with opensrcer yet. Runs you publish show up here.
-      </div>
+      </p>
     );
   }
 
@@ -600,17 +598,18 @@ function InboxSection({ title, subtitle, prs, actionHint }: { title: string; sub
 
 function EmptyPrState({ account }: { account?: string }) {
   return (
-    <div className="card relative overflow-hidden px-6 py-12 sm:px-12 sm:py-16">
-      <h2 className="display text-[36px] leading-none text-paper sm:text-[48px]">No open pull requests</h2>
-      <p className="mt-4 max-w-md text-[16px] leading-[1.6] text-paper-muted">
-        {account ? `GitHub returned no open pull requests for ${account}.` : "Choose an issue and opensrcer will keep the resulting draft and review feedback here."}
-      </p>
-      <Doodle doodle={circle} draw="load" className="doodle-thin pointer-events-none absolute right-10 top-10 hidden h-28 w-44 sm:block" />
-      <div className="mt-7 flex flex-wrap gap-3">
+    <div className="border-y border-border-soft py-10">
+      <h2 className="max-w-2xl font-display text-[22px] leading-[1.3] text-paper" style={{ fontWeight: 650 }}>
+        No open pull requests.{" "}
+        <span className="font-sans font-normal text-paper-muted">
+          {account ? `GitHub returned none for ${account}. Pick an issue someone wants fixed, and its draft and reviews will show up here.` : "Choose an issue and opensrcer will keep the resulting draft and review feedback here."}
+        </span>
+      </h2>
+      <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
         <Link href="/discover" className="btn-primary">
           Find an issue
         </Link>
-        <Link href="/issues" className="btn-quiet">
+        <Link href="/issues" className="text-link">
           Browse suggested issues
         </Link>
       </div>

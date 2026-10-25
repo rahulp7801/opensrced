@@ -12,7 +12,7 @@ import { findGitHubPullUrl } from "@/lib/github-pull-url";
 import { PublishPanel } from "./publish-panel";
 import { NextSteps } from "./next-steps";
 import { Doodle } from "./brand/doodles";
-import { loop, spark } from "./brand/doodle-data";
+import { spark } from "./brand/doodle-data";
 
 
 type PrStatus = "opened" | "failed" | "pending" | "tests_passed" | "tests_failed" | "awaiting_review" | "blocked" | "none";
@@ -230,21 +230,26 @@ export function DispatchList() {
   }
   if (items.length === 0) {
     return (
-      <div className="card relative overflow-hidden px-6 py-12 sm:px-12 sm:py-16">
-        <h2 className="display text-[36px] leading-none text-paper sm:text-[48px]">No runs yet</h2>
-        <p className="mt-4 max-w-md text-[16px] leading-[1.6] text-paper-muted">
-          Start with a GitHub repository or issue. Preview mode lets you inspect the proposed patch before anything is published.
-        </p>
-        <div className="mt-7 flex flex-wrap items-center gap-3">
-          <Link href="/trigger" className="btn-primary">
-            Start a run
-          </Link>
-          <Link href="/issues" className="text-link">
-            Browse issues
+      <div className="max-w-3xl">
+        {/* What will be here: one example row, faded and labelled as an example. */}
+        <div aria-hidden className="ruled opacity-45">
+          <div className="py-4">
+            <div className="flex items-baseline gap-2">
+              <span className="font-mono text-[11.5px] text-paper-faint">example</span>
+              <span className="text-[15.5px] font-semibold text-paper">Parser crashes on empty input</span>
+            </div>
+            <p className="meta mt-1"><span>acme/app #1</span><span>would stop here for your review</span></p>
+          </div>
+        </div>
+        <h2 className="mt-8 max-w-2xl font-display text-[22px] leading-[1.3] text-paper" style={{ fontWeight: 650 }}>
+          No runs yet.{" "}
+          <span className="font-sans font-normal text-paper-muted">Pick an issue someone actually wants fixed, and the first run will show up here.</span>
+        </h2>
+        <div className="mt-6">
+          <Link href="/issues" className="btn-primary">
+            Find an issue
           </Link>
         </div>
-        {/* A hand-drawn loop in the corner of an empty page: the one personal mark here. */}
-        <Doodle doodle={loop} draw="load" delay={200} className="doodle-thin pointer-events-none absolute bottom-8 right-10 hidden h-28 w-40 sm:block" />
       </div>
     );
   }

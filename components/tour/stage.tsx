@@ -501,7 +501,7 @@ export function StageNotes() {
     : "Playing… (→ skips ahead to the next step)";
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-[900px] flex-col gap-5 px-5 py-6">
+    <div data-stage-root="" className="mx-auto flex min-h-dvh w-full max-w-[900px] flex-col gap-5 px-5 py-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-[20px] font-semibold tracking-[-0.02em] text-paper">Speaker notes</h1>
         <div className="flex items-center gap-3 text-[13px] text-paper-muted">

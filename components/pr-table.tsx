@@ -92,7 +92,7 @@ export function PrTable({ prs }: { prs: PullRequest[] }) {
       </div>
 
       {/* Table */}
-      <div className="card overflow-x-auto">
+      <div className="overflow-x-auto border-y border-border-soft">
         <table className="w-full text-[15px]">
           <thead>
             <tr className="border-b border-border-soft text-paper-muted">
@@ -114,7 +114,7 @@ export function PrTable({ prs }: { prs: PullRequest[] }) {
               return (
                 <tr
                   key={pr.id}
-                  className="group border-b border-border-soft last:border-0 transition-colors hover:bg-ink-2"
+                  className="group border-b border-border-soft last:border-0 transition-colors hover:bg-surface"
                 >
                   <td className="px-4 py-3.5 pl-6 font-mono text-[12.5px] text-paper-muted tabular-nums w-12">{pad(i + 1, 3)}</td>
                   <td className="px-4 py-3.5 font-mono text-[12.5px] text-paper-muted tabular-nums">{shortSha(pr.repo, pr.pr_number)}</td>
@@ -192,7 +192,7 @@ function Th({
   return (
     <th
       className={cn(
-        "kicker py-3 px-4 font-semibold first:pl-6 last:pr-6",
+        "py-3 px-4 font-mono text-[12px] font-normal text-paper-faint first:pl-6 last:pr-6",
         align === "right" ? "text-right" : "text-left",
         sortable && "cursor-pointer hover:text-paper select-none",
         active && "text-paper",

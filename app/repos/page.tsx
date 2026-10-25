@@ -29,14 +29,6 @@ type TabState = {
   error: string | null;
 };
 
-const LANG_COLORS: Record<string, string> = {
-  Rust: "#dea584", Python: "#3572a5", TypeScript: "#3178c6",
-  JavaScript: "#f1e05a", Go: "#00add8", "C++": "#f34b7d",
-  Java: "#b07219", Ruby: "#701516", PHP: "#4F5D95",
-  "C#": "#178600", C: "#555555", Shell: "#89e051",
-  Kotlin: "#A97BFF", Swift: "#F05138",
-};
-
 const EMPTY_STATE: TabState = { repos: [], page: 0, hasMore: true, nextCursor: null, loading: false, error: null };
 
 function isGitHubRepo(value: unknown): value is GitHubRepo {
@@ -195,7 +187,7 @@ export default function ReposPage() {
 
         {current.page > 0 && filtered.length === 0 && !current.loading && (
           search ? (
-            <div className="card px-6 py-10 text-center text-[14px] text-paper-muted">No repos match your search.</div>
+            <p className="border-y border-border-soft py-10 text-[15px] text-paper-muted">No repos match your search.</p>
           ) : (
             <div className="card relative overflow-hidden px-6 py-12 sm:px-10">
               <Doodle doodle={nodes} draw="load" className="doodle-thin pointer-events-none absolute right-10 top-8 hidden h-28 w-36 sm:block" />
@@ -210,11 +202,11 @@ export default function ReposPage() {
         )}
 
         {filtered.length > 0 && (
-          <div className="card divide-y divide-border-soft overflow-hidden">
+          <div className="ruled">
             {filtered.map((repo) => (
               <div
                 key={repo.nameWithOwner}
-                className="group flex flex-wrap items-center gap-x-5 gap-y-3 px-5 py-4 transition-colors hover:bg-ink-2 sm:px-6"
+                className="group flex flex-wrap items-center gap-x-5 gap-y-2 py-[18px]"
               >
 
                 <div className="min-w-0 flex-1">
@@ -223,7 +215,7 @@ export default function ReposPage() {
                       href={`https://github.com/${repo.nameWithOwner}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="truncate text-[16px] font-medium text-paper hover:text-signal"
+                      className="truncate text-[16px] font-semibold text-paper hover:text-signal"
                     >
                       {repo.nameWithOwner}
                     </a>
@@ -232,19 +224,14 @@ export default function ReposPage() {
                     )}
                   </div>
                   {repo.description && (
-                    <p className="mt-1 max-w-[560px] truncate text-[13px] text-paper-muted">{repo.description}</p>
+                    <p className="mt-1 max-w-[560px] truncate text-[14px] text-paper-muted">{repo.description}</p>
                   )}
                 </div>
-                <div className="hidden shrink-0 items-center gap-4 font-mono text-[12px] text-paper-muted sm:flex">
-                  {repo.language && (
-                    <span className="inline-flex items-center gap-1.5">
-                      <span aria-hidden="true" className="size-2 rounded-full" style={{ background: LANG_COLORS[repo.language] ?? "var(--color-paper-muted)" }} />
-                      {repo.language}
-                    </span>
-                  )}
+                <p className="meta hidden shrink-0 sm:flex">
+                  {repo.language && <span>{repo.language.toLowerCase()}</span>}
                   <span>★ {repo.stars.toLocaleString()}</span>
-                  {repo.updatedAt && <span className="text-paper-faint">{timeAgo(repo.updatedAt)}</span>}
-                </div>
+                  {repo.updatedAt && <span>{timeAgo(repo.updatedAt)}</span>}
+                </p>
                 <div className="flex w-full items-center gap-5 sm:w-auto">
                   <Link
                     href={`/graph?repo=${encodeURIComponent(repo.nameWithOwner)}`}

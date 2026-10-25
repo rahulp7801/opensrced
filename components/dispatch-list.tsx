@@ -210,12 +210,9 @@ export function DispatchList() {
     return (
       <div className="grid grid-cols-12 gap-6">
         <aside className="col-span-12 md:col-span-5 lg:col-span-4">
-          <div className="card overflow-hidden">
-            <div className="border-b border-border-soft px-5 py-4">
-              <div className="h-3 w-16 rounded-full bg-surface-3 animate-pulse" />
-            </div>
+          <div className="ruled">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="px-5 py-4 border-b border-border-soft last:border-0 space-y-2">
+              <div key={i} className="py-4 space-y-2">
                 <div className="h-3 w-3/4 rounded-full bg-surface-3 animate-pulse" />
                 <div className="h-2.5 w-1/2 rounded-full bg-surface-2 animate-pulse" />
                 <div className="h-2 w-1/3 rounded-full bg-surface-2 animate-pulse" />
@@ -257,28 +254,27 @@ export function DispatchList() {
       {pollError && <p role="status" className="col-span-12 text-[14px] text-alert">Could not refresh runs: {pollError} Retrying...</p>}
       {/* List */}
       <aside className="col-span-12 md:col-span-5 lg:col-span-4">
-        <div className="card overflow-hidden">
-          <div className="border-b border-border-soft px-5 py-3.5 flex items-center justify-between gap-3">
-            <span className="kicker text-paper-muted">Runs</span>
-            <div className="flex items-center gap-3">
-              {notificationPermission === "default" && (
-                <button type="button" onClick={enableNotifications} className="text-[12.5px] text-paper-muted hover:text-paper">
-                  Enable notifications
-                </button>
-              )}
-              <span className="font-mono text-[12px] text-paper-muted tabular-nums" aria-label={`${items.length} runs`}>
+        <div>
+          <div className="list-head mb-2 items-center">
+            <div>
+              <h2 className="inline text-[15px] font-semibold text-paper">Your runs</h2>
+              <span className="ml-2 font-mono text-[12px] text-paper-faint tabular-nums" aria-label={`${items.length} runs`}>
                 {items.length}
               </span>
             </div>
+            {notificationPermission === "default" && (
+              <button type="button" onClick={enableNotifications} className="text-link text-[13.5px]">
+                Enable notifications
+              </button>
+            )}
           </div>
-          <ul className="max-h-[70vh] overflow-y-auto">
+          {/* Ruled rows; the open run keeps its sheet of lighter paper. The
+              scroll box pads 16px so the hover sheet's bleed isn't clipped. */}
+          <ul className="ruled -mx-4 max-h-[70vh] overflow-y-auto px-4">
             {items.map((d) => (
               <li
                 key={d.id}
-                className={cn(
-                  "border-b border-border-soft last:border-0 transition-colors",
-                  selected === d.id ? "bg-ink-2 shadow-[inset_3px_0_0_var(--color-signal)]" : "hover:bg-ink-2",
-                )}
+                data-open={selected === d.id ? "" : undefined}
               >
                 {/* A real link, so keyboard and screen-reader users can open a run;
                     a plain click still selects in place without navigating. */}
@@ -290,47 +286,29 @@ export function DispatchList() {
                     pick(d.id);
                   }}
                   aria-current={selected === d.id ? "true" : undefined}
-                  className="block px-5 py-3.5 focus-visible:outline-offset-[-3px]"
+                  className="block py-4 focus-visible:outline-offset-[-3px]"
                 >
-                  <div className="flex items-center gap-2">
-                    <StatusDot tone={toneFor(d.status)} />
-                    <span className="text-[13px] font-medium text-paper truncate">
-                      {dispatchTarget(d)}
-                      {d.issue_number !== undefined && (
-                        <span className="text-paper-faint"> #{d.issue_number}</span>
-                      )}
+                  <div className="flex items-baseline gap-2">
+                    <StatusDot tone={toneFor(d.status)} className="-translate-y-0.5" />
+                    {/* Cloud runs do not fetch titles, so keep the issue number
+                        visible until the local title cache fills it in. */}
+                    <span className="min-w-0 truncate text-[15.5px] font-semibold text-paper">
+                      {d.issue_number !== undefined ? (d.issue_title ?? `Issue #${d.issue_number}`) : dispatchTarget(d)}
                     </span>
                     {d.dry_run && (
-                      <span title="Preview: a practice run that can't be published" className="chip ml-auto py-0 text-[11.5px]" data-tone="info">
+                      <span title="Preview: a practice run that can't be published" className="chip ml-auto text-[12.5px]" data-tone="info">
                         preview
                       </span>
                     )}
                   </div>
-                  {/* Cloud runs do not fetch titles, so keep the issue number
-                      visible until the local title cache fills it in. */}
-                  {d.issue_number !== undefined && (
-                    <div className="mt-1 text-[15px] text-paper-dim truncate">
-                      {d.issue_title ?? `Issue #${d.issue_number}`}
-                    </div>
-                  )}
-                  <div className="mt-1 flex items-center gap-2 text-[12px] text-paper-muted">
-                    <span className="tabular-nums" title={d.started_at}>
+                  <div className="meta mt-1 pl-3.5">
+                    {d.issue_number !== undefined && <span>{dispatchTarget(d)} #{d.issue_number}</span>}
+                    <span title={d.started_at}>
                       {formatAbsoluteOrRelative(d.started_at)}
                     </span>
                     {/* #2: Duration display */}
-                    {d.ended_at && (
-                      <>
-                        <span className="text-paper-faint">·</span>
-                        <span className="tabular-nums">{formatDuration(d.started_at, d.ended_at)}</span>
-                      </>
-                    )}
-                    {d.status === "running" && (
-                      <>
-                        <span className="text-paper-faint">·</span>
-                        <span className="tabular-nums text-signal">{formatDuration(d.started_at)}</span>
-                      </>
-                    )}
-                    <span className="text-paper-faint">·</span>
+                    {d.ended_at && <span>{formatDuration(d.started_at, d.ended_at)}</span>}
+                    {d.status === "running" && <span className="text-paper">{formatDuration(d.started_at)}</span>}
                     <span>
                       {d.status === "succeeded" && d.pr_status === "tests_failed" ? (
                         <span className="text-alert">tests failed</span>
@@ -339,7 +317,7 @@ export function DispatchList() {
                       ) : d.status === "succeeded" && d.pr_status === "failed" ? (
                         <span className="text-alert">PR failed</span>
                       ) : d.status === "succeeded" && d.pr_status === "pending" ? (
-                        <span className="text-signal">opening PR</span>
+                        <span className="text-paper">opening PR</span>
                       ) : d.status === "succeeded" && d.pr_status === "opened" ? (
                         // "verified" is reserved for a suite that actually
                         // ran and passed. An opened PR whose tests were

@@ -95,6 +95,39 @@
   .meta a { color: inherit; text-decoration: underline; text-decoration-color: var(--color-border); text-underline-offset: 3px; }
   .meta a:hover { color: var(--color-signal); text-decoration-color: currentColor; }
 
+  /* ── Ruled lists: rows separated by hairlines, no card around them. Hovering
+     a row lays a sheet of lighter paper behind it that bleeds 16px past the
+     text column, so nothing shifts. data-open keeps it (a selected row). */
+  .ruled > * {
+    position: relative;
+    isolation: isolate;
+    border-top: 1px solid var(--color-border-soft);
+  }
+  .ruled > :last-child { border-bottom: 1px solid var(--color-border-soft); }
+  .ruled > *::before {
+    content: "";
+    position: absolute;
+    inset: 1px -16px;
+    z-index: -1;
+    border-radius: 12px;
+    background: var(--color-surface);
+    opacity: 0;
+    transition: opacity 150ms;
+    pointer-events: none;
+  }
+  .ruled > :hover::before,
+  .ruled > :focus-within::before,
+  .ruled > [data-open]::before { opacity: 1; }
+  /* A list header: a 15px title with a mono count. */
+  .list-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.25rem 1.5rem;
+    margin-bottom: 0.75rem;
+  }
+
   /* ── Callouts: a soft sheet for notes, warnings and results. */
   .callout {
     border-radius: 16px;

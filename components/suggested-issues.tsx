@@ -124,8 +124,8 @@ export function SuggestedIssues() {
   }, [tags, selectedLangs]);
 
   return (
-    <section aria-labelledby="suggested-issues-title" className="card overflow-hidden">
-      <div className="flex flex-col gap-4 border-b border-border-soft px-5 py-6 sm:flex-row sm:items-end sm:justify-between sm:px-6">
+    <section aria-labelledby="suggested-issues-title">
+      <div className="flex flex-col gap-4 pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <h2 id="suggested-issues-title" className="display text-[28px] leading-none text-paper sm:text-[32px]">Suggested issues</h2>
           <p className="mt-2.5 max-w-2xl text-[16px] leading-[1.55] text-paper-muted">
@@ -148,13 +148,13 @@ export function SuggestedIssues() {
       </div>
 
       {partial && !loading && (
-        <p role="status" className="border-b border-border-soft bg-info-dim/30 px-5 py-3 text-[13px] text-info sm:px-6">
+        <p role="status" className="callout mb-4 text-[14px]" data-tone="info">
           Some GitHub searches timed out. These are the results that completed.
         </p>
       )}
 
       {expanded && (
-        <div id="suggested-issues-filters" className="grid gap-5 border-b border-border-soft bg-ink-2 px-5 py-5 sm:px-6 lg:grid-cols-[1fr_auto] lg:items-end">
+        <div id="suggested-issues-filters" className="card mb-6 grid gap-5 px-5 py-5 sm:px-6 lg:grid-cols-[1fr_auto] lg:items-end">
           <div className="space-y-4">
             <fieldset>
               <legend className="field-label mb-2">Languages</legend>
@@ -212,7 +212,7 @@ export function SuggestedIssues() {
 
       <div aria-live="polite">
         {error && (
-          <div role="alert" className="flex flex-col gap-3 border-b border-border-soft bg-alert-dim/30 px-5 py-4 text-[15px] text-alert sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div role="alert" className="callout mb-4 flex flex-col gap-3 text-[15px] sm:flex-row sm:items-center sm:justify-between" data-tone="alert">
             <span>{error}</span>
             <button type="button" onClick={() => fetchIssues(true)} className="btn-quiet shrink-0 self-start sm:self-auto" data-size="sm">
               Try again
@@ -221,10 +221,10 @@ export function SuggestedIssues() {
         )}
 
         {loading && issues.length === 0 && (
-          <div role="status" className="divide-y divide-border-soft">
+          <div role="status" className="ruled">
             <span className="sr-only">Finding suggested issues</span>
             {[1, 2, 3, 4].map((item) => (
-              <div key={item} className="animate-pulse space-y-2.5 px-5 py-5 sm:px-6">
+              <div key={item} className="animate-pulse space-y-2.5 py-5">
                 <div className="h-2.5 w-1/4 rounded-full bg-surface-2" />
                 <div className="h-3.5 w-2/3 rounded-full bg-surface-3" />
                 <div className="h-2.5 w-1/3 rounded-full bg-surface-2" />
@@ -234,16 +234,16 @@ export function SuggestedIssues() {
         )}
 
         {!loading && issues.length === 0 && !error && (
-          <div className="px-5 py-14 text-center">
+          <div className="border-y border-border-soft py-10">
             <p className="text-[16px] font-semibold text-paper">{selectedLangs.length === 0 ? "Choose a language to begin" : "No matching issues found"}</p>
             <p className="mt-1.5 text-[15px] text-paper-muted">{selectedLangs.length === 0 ? "Select one or more languages in the filters above." : "Try more languages or include all beginner tags."}</p>
           </div>
         )}
 
         {issues.length > 0 && (
-          <div className="divide-y divide-border-soft">
+          <div className="ruled">
             {issues.map((issue) => (
-              <article key={issue.url} className="group px-5 py-5 transition-colors hover:bg-ink-2 sm:px-6">
+              <article key={issue.url} className="group py-[18px]">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <div className="min-w-0 flex-1">
                     <h3 className="text-[16px] font-semibold leading-snug tracking-[-0.01em] text-paper">{issue.title}</h3>
@@ -265,7 +265,7 @@ export function SuggestedIssues() {
                       ))}
                     </p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-5">
                     <a
                       href={issue.url}
                       target="_blank"

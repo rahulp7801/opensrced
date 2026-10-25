@@ -322,10 +322,10 @@ export function DiscoverScanner() {
             </div>
           </div>
 
-          {/* Results: one card per issue, its next step always in sight. */}
-          <ul className="mt-6 space-y-2.5">
+          {/* Results: a ruled list, each row's next step always in sight. */}
+          <ul className="ruled mt-6">
             {filtered.length === 0 ? (
-              <li className="card px-5 py-10 text-center text-[14px] text-paper-muted">
+              <li className="py-10 text-[15px] text-paper-muted">
                 {data.repo_count === 0
                   ? "No repositories matched. Lower the minimum stars or choose any language."
                   : data.issue_count === 0
@@ -344,11 +344,11 @@ export function DiscoverScanner() {
                 return (
                   <li
                     key={`${i.repo.fullName}#${i.number}`}
-                    className={cn("group card px-5 py-4 sm:px-6", !i.solvable && "opacity-70")}
+                    className={cn("group py-[18px]", !i.solvable && "opacity-70")}
                   >
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
-                        <Link href={href} className="text-[16px] font-semibold leading-snug tracking-[-0.01em] text-paper hover:text-signal">{i.title}</Link>
+                        <Link href={href} className="text-[16px] font-semibold leading-snug tracking-[-0.01em] text-paper">{i.title}</Link>
                         {/* One mono line of facts, then size and effort as one phrase. */}
                         <p className="meta mt-1">
                           <span>{i.repo.fullName}</span>
@@ -366,7 +366,7 @@ export function DiscoverScanner() {
                           <span className="inline-flex items-center gap-1.5">difficulty <ComplexityPips value={i.complexity} /></span>
                         </p>
                       </div>
-                      <div className="flex shrink-0 items-center gap-2">
+                      <div className="flex shrink-0 items-center gap-4">
                         <button
                           type="button"
                           onClick={() => toggleBookmark(i.repo.fullName)}
@@ -393,21 +393,23 @@ export function DiscoverScanner() {
 
       {/* Bookmarked repos */}
       {bookmarks.length > 0 && (
-        <div className="card mt-6 px-5 py-4">
-          <div className="mb-3 flex items-baseline gap-2">
-            <span className="kicker text-signal">Saved repos</span>
-            <span className="text-[12.5px] text-paper-muted">{bookmarks.length} bookmarked</span>
+        <section aria-labelledby="saved-repos" className="mt-12">
+          <div className="list-head">
+            <div>
+              <h2 id="saved-repos" className="inline text-[15px] font-semibold text-paper">Saved repos</h2>
+              <span className="ml-2 font-mono text-[12px] text-paper-faint tabular-nums">{bookmarks.length}</span>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <ul className="ruled">
             {bookmarks.map((repo) => (
-              <div key={repo} className="flex items-center gap-2 rounded-full bg-ink-2 py-1 pl-3.5 pr-1 text-[13px] shadow-[inset_0_0_0_1px_var(--color-border-soft)]">
-                <Link href={`/issues?repo=${encodeURIComponent(repo)}`} className="font-medium text-paper hover:text-signal">{repo}</Link>
-                <Link href={`/trigger?repo=${repo}`} className="link text-[12.5px]">fix</Link>
-                <button onClick={() => toggleBookmark(repo)} aria-label={`Remove ${repo} from saved repos`} className="grid size-7 place-items-center rounded-full text-[13px] text-paper-muted hover:bg-surface-2 hover:text-alert">x</button>
-              </div>
+              <li key={repo} className="flex flex-wrap items-center gap-x-5 py-2">
+                <Link href={`/issues?repo=${encodeURIComponent(repo)}`} className="mr-auto font-mono text-[14px] text-paper hover:text-signal">{repo}</Link>
+                <Link href={`/trigger?repo=${repo}`} className="text-link text-[14px]">Fix</Link>
+                <button onClick={() => toggleBookmark(repo)} aria-label={`Remove ${repo} from saved repos`} className="grid size-10 place-items-center rounded-[10px] text-[15px] text-paper-muted hover:bg-surface-2 hover:text-alert">×</button>
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+        </section>
       )}
 
       {!data && !loading && (
@@ -420,7 +422,7 @@ export function DiscoverScanner() {
               Open a familiar project in the issue scanner, or use the filters above to search across GitHub.
             </p>
           </div>
-          <div className="card mt-6 grid gap-px overflow-hidden bg-border-soft sm:grid-cols-3">
+          <div className="ruled mt-6">
             {[
               { name: "astral-sh/ruff", lang: "Rust" },
               { name: "withastro/astro", lang: "TypeScript" },
@@ -429,15 +431,15 @@ export function DiscoverScanner() {
               <Link
                 key={repo.name}
                 href={`/issues?repo=${encodeURIComponent(`https://github.com/${repo.name}`)}`}
-                className="group flex min-h-20 items-center justify-between gap-4 bg-surface px-6 py-5 transition-colors hover:bg-ink-2"
+                className="group flex items-center justify-between gap-4 py-[18px]"
               >
                 <span className="min-w-0">
-                  <span className="block truncate text-[16px] font-semibold text-paper group-hover:text-signal">
+                  <span className="block truncate text-[16px] font-semibold text-paper">
                     {repo.name}
                   </span>
-                  <span className="mt-1 block text-[13px] text-paper-muted">{repo.lang}</span>
+                  <span className="meta mt-1"><span>{repo.lang.toLowerCase()}</span></span>
                 </span>
-                <IconArrow className="shrink-0 text-paper-muted transition-transform group-hover:translate-x-0.5 group-hover:text-signal" />
+                <span aria-hidden className="row-cta">Scan issues →</span>
               </Link>
             ))}
           </div>

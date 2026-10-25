@@ -1,7 +1,6 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { IconExternal } from "./icons";
 import { useSwrFetch } from "@/lib/use-swr-fetch";
 
 type Contribution = {
@@ -106,31 +105,27 @@ export function StatsBoard() {
             <a href="/issues" className="btn-primary mt-6">Find an issue →</a>
           </div>
         ) : (
-          <ol className="card divide-y divide-border-soft overflow-hidden">
+          // Ruled rows; the rank hangs in the left margin in mono.
+          <ol className="ruled">
             {data.biggestContributions.map((c, i) => (
-              <li key={c.dispatchId} className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-3 px-5 py-4 transition hover:bg-ink-2 sm:px-6">
-                <span className="display pt-0.5 text-right text-[26px] leading-none text-paper-muted num-tabular">
+              <li key={c.dispatchId} className="grid grid-cols-[2rem_minmax(0,1fr)] gap-3 py-[18px]">
+                <span className="pt-1 font-mono text-[12px] text-paper-faint num-tabular">
                   {i + 1}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                     <div className="min-w-0 text-[16px]">
-                      <a href={c.prUrl} target="_blank" rel="noreferrer" className="inline-flex max-w-full items-center gap-1.5 font-medium text-paper hover:text-signal">
-                        <span className="truncate">{c.repoFull}</span><IconExternal className="shrink-0" />
+                      <a href={c.prUrl} target="_blank" rel="noreferrer" className="text-link min-h-0 p-0 font-semibold">
+                        {c.repoFull}
                       </a>
-                      {c.issueNumber !== null && <span className="ml-1.5 text-paper-muted">fixes #{c.issueNumber}</span>}
+                      {c.issueNumber !== null && <span className="ml-2 text-paper-muted">fixes #{c.issueNumber}</span>}
                     </div>
-                    <div className="shrink-0 text-[16px] font-semibold text-signal">★ {fmtStars(c.stars)}</div>
+                    <div className="shrink-0 font-mono text-[13px] text-paper-dim">★ {fmtStars(c.stars)}</div>
                   </div>
-                  <div className="mt-0.5 text-[12px] text-paper-muted">
-                    run <code className="font-mono text-paper-dim">{c.dispatchId.slice(-12)}</code>
-                    {c.startedAt && (
-                      <>
-                        <span className="mx-1.5 text-paper-faint">·</span>
-                        {new Date(c.startedAt).toLocaleDateString()}
-                      </>
-                    )}
-                  </div>
+                  <p className="meta mt-1">
+                    <span>run {c.dispatchId.slice(-12)}</span>
+                    {c.startedAt && <span>{new Date(c.startedAt).toLocaleDateString()}</span>}
+                  </p>
                 </div>
               </li>
             ))}
@@ -148,9 +143,9 @@ export function StatsBoard() {
             Nothing yet. Run a scan or start a run.
           </div>
         ) : (
-          <ul className="card divide-y divide-border-soft overflow-hidden text-[15px]">
+          <ul className="ruled text-[15px]">
             {data.recentActivity.map((a, i) => (
-              <li key={i} className="grid grid-cols-[96px_1fr] items-center gap-x-4 gap-y-1.5 px-5 py-3.5 sm:grid-cols-[96px_90px_minmax(0,1fr)] sm:px-6">
+              <li key={i} className="grid grid-cols-[96px_1fr] items-center gap-x-4 gap-y-1.5 py-3.5 sm:grid-cols-[96px_90px_minmax(0,1fr)]">
                 <ActivityKindChip kind={a.kind} />
                 <span className="justify-self-end text-[12px] text-paper-muted tabular-nums sm:justify-self-start">
                   {fmtRelative(a.ts, Date.now())}
@@ -165,7 +160,7 @@ export function StatsBoard() {
                       {a.prUrl && (
                         <>
                           {" · "}
-                          <a href={a.prUrl} target="_blank" rel="noreferrer" className="text-signal underline decoration-signal/60 underline-offset-2 hover:decoration-signal">
+                          <a href={a.prUrl} target="_blank" rel="noreferrer" className="text-link min-h-0 p-0">
                             PR opened
                           </a>
                         </>

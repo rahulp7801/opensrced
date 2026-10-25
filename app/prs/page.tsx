@@ -213,7 +213,7 @@ export default function PRsPage() {
             );
 
             return (
-              <div className="space-y-5">
+              <div className="space-y-10">
                 {/* Needs action — top priority */}
                 {needsAction.length > 0 && (
                   <InboxSection
@@ -383,16 +383,16 @@ export default function PRsPage() {
               </div>
 
               {/* Table */}
-              <div className="card overflow-x-auto">
+              <div className="overflow-x-auto border-y border-border-soft">
                 <table className="w-full text-[15px]">
                   <thead>
                     <tr className="border-b border-border-soft text-paper-muted">
-                      <th className="kicker px-4 py-3 text-left font-semibold first:pl-6">Repository</th>
-                      <th className="kicker px-4 py-3 text-left font-semibold">Title</th>
-                      <th className="kicker px-4 py-3 text-left font-semibold">Status</th>
-                      <th className="kicker px-4 py-3 text-left font-semibold">Lines</th>
-                      <th className="kicker px-4 py-3 text-left font-semibold">Updated</th>
-                      <th className="kicker px-4 py-3 pr-6 text-right font-semibold">Actions</th>
+                      <th className="px-4 py-3 text-left font-mono text-[12px] font-normal text-paper-faint first:pl-6">Repository</th>
+                      <th className="px-4 py-3 text-left font-mono text-[12px] font-normal text-paper-faint">Title</th>
+                      <th className="px-4 py-3 text-left font-mono text-[12px] font-normal text-paper-faint">Status</th>
+                      <th className="px-4 py-3 text-left font-mono text-[12px] font-normal text-paper-faint">Lines</th>
+                      <th className="px-4 py-3 text-left font-mono text-[12px] font-normal text-paper-faint">Updated</th>
+                      <th className="px-4 py-3 pr-6 text-right font-mono text-[12px] font-normal text-paper-faint">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -409,7 +409,7 @@ export default function PRsPage() {
                     {paginated.map((pr) => (
                       <tr
                         key={`${pr.repo}#${pr.number}`}
-                        className="group border-b border-border-soft last:border-0 transition-colors hover:bg-ink-2 cursor-pointer"
+                        className="group border-b border-border-soft last:border-0 transition-colors hover:bg-surface cursor-pointer"
                       >
                         <td className="px-4 py-3.5 pl-6 text-paper-dim max-w-[200px] truncate">
                           <Link href={`/prs/${pr.repo}/${pr.number}`} className="hover:text-signal transition-colors">
@@ -569,52 +569,40 @@ function LazyPrTable({ prs }: { prs: unknown[] }) {
   );
 }
 
-function InboxSection({ title, subtitle, color, prs, actionHint }: { title: string; subtitle: string; color: string; prs: GitHubPr[]; actionHint?: string }) {
-  // A plain colored dot: the title already says what the section is, and a
-  // glyph like "x" read as a close button.
-  const dot = { alert: "bg-alert", ok: "bg-ok", signal: "bg-signal", info: "bg-info" }[color] ?? "bg-paper-faint";
+function InboxSection({ title, subtitle, prs, actionHint }: { title: string; subtitle: string; color: string; prs: GitHubPr[]; actionHint?: string }) {
+  // A group is a heading with a mono count and one line of why, then a ruled
+  // list: no card, no coloured band (the title already says what it is).
   return (
-    <div className="card overflow-hidden">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border-soft px-5 py-4 sm:px-6">
-        <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full", dot)} />
+    <section aria-label={title}>
+      <div className="list-head">
         <div>
-          <span className="text-[16px] font-semibold text-paper">{title}</span>
-          <span className="ml-2 text-[13px] text-paper-muted tabular-nums">{prs.length}</span>
+          <h2 className="inline text-[15px] font-semibold text-paper">{title}</h2>
+          <span className="ml-2 font-mono text-[12px] text-paper-faint tabular-nums">{prs.length}</span>
         </div>
-        <span className="w-full text-[13px] text-paper-muted sm:ml-1 sm:w-auto">{subtitle}</span>
+        <span className="text-[14px] text-paper-muted">{subtitle}</span>
       </div>
-      {actionHint && (
-        <div className="border-b border-border-soft bg-ink-2 px-5 py-3 text-[13px] leading-[1.55] text-paper-dim sm:px-6">
-          {actionHint}
-        </div>
-      )}
-      <div className="divide-y divide-border-soft">
+      {actionHint && <p className="-mt-1 mb-3 max-w-3xl text-[14px] leading-[1.55] text-paper-muted">{actionHint}</p>}
+      <div className="ruled">
         {prs.map((pr) => (
           <Link
             key={`${pr.repo}#${pr.number}`}
             href={`/prs/${pr.repo}/${pr.number}`}
-            className="group grid gap-2 px-5 py-4 transition hover:bg-ink-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4 sm:px-6"
+            className="group grid gap-2 py-[18px] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-6"
           >
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="truncate text-[12.5px] font-medium text-paper-dim">{pr.repo}</span>
-                <span className="text-[12.5px] text-paper-muted">#{pr.number}</span>
-              </div>
-              <div className="mt-1 text-[16px] font-semibold leading-snug text-paper group-hover:text-signal sm:truncate">{pr.title}</div>
+              <div className="text-[16px] font-semibold leading-snug text-paper sm:truncate">{pr.title}</div>
+              <p className="meta mt-1">
+                <span>{pr.repo} #{pr.number}</span>
+                {(pr.commentCount ?? 0) > 0 && <span>{pr.commentCount} comment{pr.commentCount !== 1 ? "s" : ""}</span>}
+                <span>+{pr.additions} −{pr.deletions}</span>
+                <span>{timeAgo(pr.updatedAt)}</span>
+              </p>
             </div>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] sm:justify-end">
-              {(pr.commentCount ?? 0) > 0 && (
-                <span className="text-info tabular-nums">{pr.commentCount} comment{pr.commentCount !== 1 ? "s" : ""}</span>
-              )}
-              <span className="font-mono text-ok tabular-nums">+{pr.additions}</span>
-              <span className="font-mono text-alert tabular-nums">-{pr.deletions}</span>
-              <span className="text-paper-muted sm:w-16 sm:text-right">{timeAgo(pr.updatedAt)}</span>
-              <span aria-hidden className="row-cta hidden sm:inline-flex">Review →</span>
-            </div>
+            <span aria-hidden className="row-cta hidden sm:inline-flex">Review →</span>
           </Link>
         ))}
       </div>
-    </div>
+    </section>
   );
 }
 

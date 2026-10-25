@@ -204,7 +204,7 @@ export function IssueScanner() {
             void runScan(repoUrl.trim(), true);
           }
         }}
-        className="card flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:rounded-full sm:py-2 sm:pl-6 sm:pr-2"
+        className="card flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:rounded-[14px] sm:py-2 sm:pl-5 sm:pr-2"
       >
         <label htmlFor="issue-repository" className="sr-only">GitHub repository</label>
         <IconSearch className="hidden shrink-0 text-paper-muted sm:block" />
@@ -244,8 +244,8 @@ export function IssueScanner() {
 
       {scan && (
         <>
-          <section aria-labelledby="scan-results-title" className="card mt-8 overflow-hidden">
-            <div className="border-b border-border-soft px-5 py-6 sm:px-6">
+          <section aria-labelledby="scan-results-title" className="mt-10">
+            <div className="pb-5">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                   <p className="kicker text-signal">Scan complete</p>
@@ -298,16 +298,16 @@ export function IssueScanner() {
             </div>
 
             {initialIssue && !scan.issues.some((i) => i.number === initialIssue) && (
-              <p role="status" className="border-b border-border-soft bg-info-dim/30 px-5 py-3 text-[13px] text-info sm:px-6">
+              <p role="status" className="callout mb-4 text-[14px]" data-tone="info">
                 Issue #{initialIssue} is not in this scan (it may be closed, or older than the issues scanned).{" "}
                 <a href={`https://github.com/${scan.repo}/issues/${initialIssue}`} target="_blank" rel="noreferrer" className="underline underline-offset-2">Open it on GitHub</a>{" "}
                 or pick one below.
               </p>
             )}
             {issues.length === 0 ? (
-              <div className="px-5 py-14 text-center">
+              <div className="border-y border-border-soft py-10">
                 <p className="text-[16px] font-semibold text-paper">No issues match these filters</p>
-                <p className="mx-auto mt-1.5 max-w-lg text-[15px] leading-relaxed text-paper-muted">
+                <p className="mt-1.5 max-w-lg text-[15px] leading-relaxed text-paper-muted">
                   {beginner === "good-first"
                     ? "Include any label or widen the age and readiness filters."
                     : age === "recent" && filter === "solvable"
@@ -318,13 +318,13 @@ export function IssueScanner() {
                 </p>
               </div>
             ) : (
-              <div className="divide-y divide-border-soft">
+              <div className="ruled">
                 {issues.map((issue) => {
                   const expanded = expandedNumber === issue.number;
                   const rec = recommendFor(issue);
                   return (
-                    <article id={`issue-row-${issue.number}`} key={issue.number} className={cn("transition-colors", expanded ? "bg-ink-2" : "hover:bg-ink-2", !issue.solvable && "opacity-70")}>
-                      <div className="grid gap-4 px-5 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                    <article id={`issue-row-${issue.number}`} key={issue.number} data-open={expanded ? "" : undefined} className={cn(!issue.solvable && "opacity-70")}>
+                      <div className="grid gap-4 py-[18px] lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                         <div className="min-w-0">
                           <div className="meta">
                             <a href={issue.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 min-h-6 max-sm:min-h-10 max-sm:min-w-10">
@@ -370,7 +370,7 @@ export function IssueScanner() {
                         </div>
                       </div>
                       {expanded && (
-                        <div id={`issue-detail-${issue.number}`} className="border-t border-border-soft px-5 py-6 sm:px-6">
+                        <div id={`issue-detail-${issue.number}`} className="border-t border-border-soft py-6">
                           {/* The row above holds the run buttons; the detail only explains. */}
                           <IssueDetail issue={issue} rec={rec} />
                         </div>

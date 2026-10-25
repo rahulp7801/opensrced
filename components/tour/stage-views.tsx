@@ -138,7 +138,35 @@ export const stageScan: Chapter = {
 
 // ── Understand: plain-English questions about the code ──────────────────────
 
-type Turn = { prompt: string; answer: string; cites: string[]; cost?: string };
+type Turn = { prompt: string; answer: string; cites: string[]; cost?: string; lesson?: Lesson };
+/** An answer in the product's lesson shape: [label, text] lines. */
+type Lesson = Array<[string, string]>;
+/** The plain text of a lesson, which sets how long it takes to type. */
+const lessonText = (lesson: Lesson) => lesson.map(([label, text]) => `${label} ${text}`).join("\n");
+
+/** A lesson typed in, line by line, with its labels in bold. */
+function LessonTyped({ lesson, at, cps }: { lesson: Lesson; at: number; cps: number }) {
+  const t = useT();
+  let left = Math.max(0, Math.floor(((t - at) / 1000) * cps));
+  const total = lessonText(lesson).length;
+  return (
+    <div className="space-y-1 text-[13.5px] leading-[1.42]">
+      {lesson.map(([label, text]) => {
+        const line = `${label} ${text}`;
+        const shown = Math.min(line.length, left);
+        left = Math.max(0, left - line.length - 1);
+        if (shown === 0) return null;
+        return (
+          <p key={label}>
+            <strong className="font-semibold">{line.slice(0, Math.min(shown, label.length))}</strong>
+            {line.slice(label.length, shown)}
+          </p>
+        );
+      })}
+      {t >= at && Math.floor(((t - at) / 1000) * cps) < total && <span aria-hidden className="inline-block h-[1em] w-px bg-current" />}
+    </div>
+  );
+}
 type TimedTurn = Turn & { typeAt: number; askAt: number; answerAt: number; doneAt: number };
 
 const PROMPT_CPS = 26; // the presenter's question, typed into the box
@@ -187,7 +215,8 @@ function AskPanel({ turns, text = GRAPH_PANEL }: { turns: TimedTurn[]; text?: Pa
         {costs && <span className="font-mono text-[12px] text-ok">${spent.toFixed(4)}</span>}
       </div>
       <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-hidden px-4 py-3">
-        <p className="rounded-2xl rounded-tl-md bg-surface-2 px-3 py-2.5 text-[13.5px] leading-[1.45] text-paper-dim">{text.intro}</p>
+        {/* The intro gives way once a question is asked, as in a chat, so the answer has the room. */}
+        {!turns.some((turn) => t >= turn.askAt + 150) && <p className="rounded-2xl rounded-tl-md bg-surface-2 px-3 py-2.5 text-[13.5px] leading-[1.45] text-paper-dim">{text.intro}</p>}
         {turns.map((turn) => t >= turn.askAt + 150 && (
           <div key={turn.prompt} className="space-y-2">
             <Reveal at={turn.askAt + 150} className="ml-10 rounded-2xl rounded-tr-md bg-paper px-3 py-2 text-[14px] leading-[1.45] text-surface">{turn.prompt}</Reveal>
@@ -197,7 +226,7 @@ function AskPanel({ turns, text = GRAPH_PANEL }: { turns: TimedTurn[]; text?: Pa
               </div>
             ) : (
               <div data-spot="answer" className="mr-4 rounded-2xl rounded-tl-md border border-border-soft bg-surface px-3 py-2.5 text-[14px] leading-[1.5] text-paper">
-                <Typed text={turn.answer} at={turn.answerAt} cps={ANSWER_CPS} />
+                {turn.lesson ? <LessonTyped lesson={turn.lesson} at={turn.answerAt} cps={ANSWER_CPS} /> : <Typed text={turn.answer} at={turn.answerAt} cps={ANSWER_CPS} />}
                 <Reveal at={turn.doneAt} className="mt-2 flex flex-wrap items-center gap-1.5">
                   {turn.cites.map((c) => <span key={c} className="rounded-md bg-signal/10 px-1.5 py-0.5 font-mono text-[11.5px] text-signal">{c}</span>)}
                   {turn.cost && <span className="ml-auto font-mono text-[11.5px] text-paper-muted">{turn.cost}</span>}
@@ -228,13 +257,19 @@ function AskPanel({ turns, text = GRAPH_PANEL }: { turns: TimedTurn[]; text?: Pa
 const MAP_REPO = "pallets/flask";
 const MAP_PANEL: PanelText = { ...GRAPH_PANEL, placeholder: `Ask about ${MAP_REPO}…` };
 const BUILT_AT = 3600;
+// Asked on the real Explore page against the real graph (public/demo/flask-graph.json has the
+// full answer). The lesson's lines verbatim, trimmed with "…"; the cites and cost are the run's.
+const MAP_LESSON: Lesson = [
+  ["In short:", "render_template() converts template names into rendered HTML strings. It's used by 31 places across Flask—mainly route handlers that return templated pages—and changing it could break any view that displays dynamic content."],
+  ["Where it lives:", "src/flask/templating.py:L136"],
+  ["If you change it:", "… Run tests/test_views.py and tests/test_signals.py first—they directly test template rendering and context injection"],
+  ["Try this:", "Open src/flask/templating.py and look at the _render() function just above render_template() at L123 to see what it actually does."],
+];
 const FIRST = schedule(BUILT_AT + 1600, [
   {
-    // Asked on the real Explore page against the real graph (public/demo/flask-graph.json has the
-    // full answer). Shown as a verbatim excerpt, trimmed with "…"; the cites and cost are the run's.
     prompt: "Where is render_template used, and what breaks if I change it?",
-    answer: "render_template is defined in src/flask/templating.py:L136 (rationale at L140). … Breaking Changes Would Affect: All view functions that use render_template() to return HTML responses",
-    cites: ["src/flask/templating.py", "tests/test_basic.py", "tests/test_signals.py", "examples/tutorial/flaskr/auth.py", "src/flask/sansio/app.py", "src/flask/app.py"], cost: "$0.0206",
+    answer: lessonText(MAP_LESSON), lesson: MAP_LESSON,
+    cites: ["src/flask/templating.py", "tests/test_views.py", "tests/test_signals.py"], cost: "$0.0201",
   },
 ]);
 // Then the stage draws that answer on the map.
@@ -289,7 +324,7 @@ export const stageExplore: Chapter = {
     { at: 0, text: "Before changing anything, understand the code. Explore maps the repository straight from its source code: no AI, and nothing to install on your machine." },
     { at: BUILT_AT, spot: "graph", text: "This is Flask: 2,169 nodes (files, functions, classes and their docstring notes) in 201 communities, and the links between them, mapped by the site's own graph builder. (The layout was computed for this talk from that real graph.)" },
     { at: FIRST.turns[0].typeAt, spot: "ask", text: `Then ask the question you'd normally grep for: “${FIRST.turns[0].prompt}” The answer comes from the map and points to the files involved.` },
-    { at: FIRST.turns[0].doneAt, spot: "answer", text: "A real answer from the Explore page, trimmed for the slide: where it lives, and what breaks if you change it." },
+    { at: FIRST.turns[0].doneAt, spot: "answer", text: "A real answer from the Explore page, trimmed for the slide. It teaches: what it does in one line, where it lives, what to run if you change it, and one thing to try yourself." },
     { at: FOCUS_AT, spot: "graph", text: "Drawn on the map for the talk: from all of Flask down to render_template(), then everything that depends on it in the graph, one, two and three hops out. Know what your change touches before you touch it." },
   ],
   View: StageExploreView,
@@ -788,7 +823,9 @@ const RULE_TONE: Record<RuleStatus, string> = { done: "border-ok/40 text-ok", ac
 // EXAMPLE answers: what the review screen's AI calls return, written here for this
 // change and checked against PR #7's diff. Labeled as examples in the notes.
 const CHAT_QUESTION = "Explain this fix like I'm new to the project";
-const CHAT_ANSWER = "truncate shortens text to fit a maximum length and adds “…” at the end. Before, it cut at exactly max characters and then added the “…”, so the result came out too long, and it could stop in the middle of a word. Now it saves room for the “…” first, and if the cut lands inside a word, it backs up to the last space. Two new tests: the example from the issue, and a cut that already lands on a space.";
+// The real answer to "Explain this fix like I'm new" on PR #7's diff (the product's change chat),
+// verbatim and trimmed with "…" to fit the slide; markdown code marks dropped.
+const CHAT_ANSWER = "This fix makes the truncate function work better when it shortens text. … Reserves space for the ellipsis first. If you ask for max of 12, it only uses 12 - 1 = 11 characters for actual text (since \"…\" takes 1 character). … If the character right after the budget is not a space, it looks backward for the last space and cuts there instead. … Check yourself: why does the code check if (lastSpace > 0) instead of just if (lastSpace >= 0)?";
 const OWN_WORDS_TEXT = "truncate added the … after cutting at max, so the result was too long and could split a word. Now it leaves room for the … and backs up to the last space. The two new tests pass, and they fail without the fix.";
 const PRACTICE = [
   { q: "What happens when there's no space before the cut, like one very long word?", a: "Then there's nothing to back up to, so it keeps the cut and adds the …: it splits that word but stays within max.", feedback: "That answers it and matches the diff.", followUp: "Should that case get its own test?" },
@@ -945,8 +982,8 @@ export const stageReview: Chapter = {
   label: "Review",
   title: "Review, explain, publish",
   duration: PUBLISHED_AT + 8500,
-  source: "The review screen for the PR #7 run; the chat and check answers are examples; the rules as a run records them today",
-  provenance: [{ at: 0, text: "Real run · Oct 24" }, { at: R.chat, text: "Real run · Oct 24 · example answers" }],
+  source: "The review screen for the PR #7 run; the chat answer is real (on PR #7's diff), the own-words and practice answers are examples; the rules as a run records them today",
+  provenance: [{ at: 0, text: "Real run · Oct 24" }, { at: R.own, text: "Real run · Oct 24 · example answers" }],
   headlines: [
     { at: 0, text: "It explains every change in plain English." },
     { at: R.rules, text: "It checks the project's rules, one by one." },

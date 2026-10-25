@@ -6,6 +6,9 @@ import { useCanUseApp } from "@/lib/use-current-user";
 import { Nav } from "./nav";
 import { AuthChip } from "./auth-chip";
 import { IconClose, IconHelp } from "./icons";
+import { Wordmark } from "./brand/wordmark";
+import { Doodle } from "./brand/doodles";
+import { o } from "./brand/doodle-data";
 
 export function SiteHeader({ localMode = false, inviteOnly = false }: { localMode?: boolean; inviteOnly?: boolean }) {
   // "signedIn" drives the app navigation, so it means "may use the app": during
@@ -54,20 +57,26 @@ export function SiteHeader({ localMode = false, inviteOnly = false }: { localMod
     <>
       {/* Stickiness lives on the wrapper in app/layout.tsx, which pins this
           header and the section tab bar together. */}
-      <header className="border-b border-border-soft bg-ink/80 backdrop-blur-xl backdrop-saturate-150">
-        <div className="mx-auto flex min-h-12 w-full max-w-[1200px] items-stretch px-2 sm:px-5">
+      {/* Solid paper, a hairline under it: no glass. */}
+      <header className="border-b border-border-soft bg-ink">
+        <div className="mx-auto flex min-h-16 w-full max-w-[1320px] items-center gap-1 px-2 sm:gap-2 sm:px-6 min-[1384px]:px-0">
           <Link
             href={signedIn ? "/discover" : "/"}
             aria-label="opensrcer home"
-            className="group flex shrink-0 items-center gap-2 px-3 py-2"
+            className="flex min-h-11 shrink-0 items-center rounded-full px-2 text-paper min-[1384px]:-ml-2"
           >
-            <Mark />
-            <span className={`${signedIn ? "hidden md:inline" : ""} whitespace-nowrap text-[17px] font-semibold leading-none tracking-[-0.02em] text-paper`}>
-              opensrcer
-            </span>
+            {/* Signed in on a phone, the nav needs the room: the ring alone is the mark. */}
+            {signedIn && <Doodle doodle={o} weight={0.85} draw="load" delay={150} duration={700} className="size-[24px] md:hidden" />}
+            <Wordmark draw className={`${signedIn ? "hidden md:inline-flex" : ""} text-[28px]`} />
           </Link>
 
-          {signedIn ? <Nav /> : <nav aria-label="Main navigation" className="ml-auto flex items-center gap-5 px-4 text-[13px]"><Link href="/demo" className="text-paper-dim transition-colors hover:text-paper">Demo</Link></nav>}
+          {signedIn ? (
+            <Nav />
+          ) : (
+            <nav aria-label="Main navigation" className="ml-auto flex items-center">
+              <Link href="/demo" className="text-link mr-2 text-[14px]">Demo</Link>
+            </nav>
+          )}
 
           {signedIn && (
             <button
@@ -76,10 +85,10 @@ export function SiteHeader({ localMode = false, inviteOnly = false }: { localMod
               aria-label="Open help"
               aria-expanded={helpOpen}
               aria-controls="quick-help-dialog"
-              className="flex items-center justify-center px-3 text-paper-muted transition hover:text-paper"
+              className="grid size-10 shrink-0 place-items-center rounded-full text-paper-muted transition hover:bg-surface hover:text-paper"
               title="Help & quick reference"
             >
-              <IconHelp size={17} />
+              <IconHelp size={18} />
             </button>
           )}
 
@@ -154,7 +163,8 @@ function HelpSection({ title, children }: { title: string; children: React.React
   );
 }
 
-/** A branch leaving the trunk: an issue becoming a pull request. */
+/** The previous mark (a branch leaving the trunk). The site header uses the
+ *  brand Wordmark now; this stays for the product tour, which imports it. */
 export function Mark() {
   return (
     <svg

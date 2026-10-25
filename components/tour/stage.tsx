@@ -13,11 +13,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { ArrowRight, CaretLeft, CaretRight, CornersOut } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
-import { InteractContext, TimeContext, type Chapter, type Interact } from "./kit";
+import { InteractContext, TimeContext, type Caption, type Chapter, type Interact } from "./kit";
+import { Doodle } from "@/components/brand/doodles";
+import { underline } from "@/components/brand/doodle-data";
+import { Sticker } from "@/components/brand/sticker";
+import { ArrowGlyph } from "@/components/brand/pill";
 import { pacedBy } from "./chapters";
 import { preloadRepoSnapshot } from "./repo-map";
 import { pr } from "./chapters-fix";
-import { stageExplore, stageNotes, stageProblem, stagePromise, stageRefused, stageReview, stageRules, stageScan, stageSlop, stageVerified, withPrFacts, withSignInStart } from "./stage-views";
+import { StageTitle, stageExplore, stageNotes, stageProblem, stagePromise, stageRefused, stageReview, stageRules, stageScan, stageSlop, stageVerified, withPrFacts, withSignInStart } from "./stage-views";
 
 /** How much slower than written the stage plays its animations. The presenter
  *  sets the pace between steps; this only stretches what plays by itself. */
@@ -262,23 +266,26 @@ export function StageDemo() {
   const noteSpot = step.chapter.captions.find((c) => c.at === currentAt && c.spot)?.spot;
   const spotOn = waiting?.kind === "press" ? "[data-waiting]" : noteSpot && !ended ? `[data-spot="${noteSpot}"]` : null;
 
-  const headline = started ? step.chapter.headlines?.filter((h) => h.at <= local).at(-1)?.text : undefined;
+  const head = started ? step.chapter.headlines?.filter((h) => h.at <= local).at(-1) : undefined;
+  const headline = head?.text;
+  const poster = !started || step.chapter.poster;
   const provenance = started && !ended ? step.chapter.provenance?.filter((h) => h.at <= local).at(-1)?.text : undefined;
 
   const View = step.chapter.View;
   return (
-    <div ref={rootRef} role="region" aria-label="opensrcer stage demo" className="fixed inset-0 z-50 flex flex-col bg-ink p-4 sm:p-6">
+    <div ref={rootRef} role="region" aria-label="opensrcer stage demo" className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-ink p-4 sm:p-6">
       {/* Made for a projector: on a phone the app would shrink past reading, so point to the tour. */}
       <div className="absolute inset-0 z-[80] flex flex-col items-center justify-center gap-4 bg-ink px-6 text-center md:hidden">
         <p className="text-[20px] font-semibold text-paper">The stage demo is made for a big screen.</p>
         <p className="text-[16px] leading-[1.5] text-paper-muted">On a phone, the product tour shows the same run, sized to fit.</p>
         <a href="/demo" className="btn-primary inline-flex min-h-11 items-center px-6 text-[16px]">Open the product tour</a>
       </div>
-      <p key={headline ?? ""} aria-live="polite" className={cn("relative z-[70] mb-3 min-h-[1.2em] shrink-0 text-balance text-center text-[clamp(22px,3vw,46px)] font-semibold leading-tight tracking-[-0.02em] text-paper", step.chapter.id === "slop" ? "stage-headline-calm" : "stage-headline")}>
-        {headline}
-      </p>
+      {/* The headline sits on the app's left edge, in the display face: big type does the work. */}
+      <div className="relative z-[70] mx-auto mb-4 shrink-0" style={{ width: DESIGN.width * scale }}>
+        <StageHeadline key={headline ?? ""} head={head} />
+      </div>
       <div ref={stageRef} className="relative flex min-h-0 flex-1 items-center justify-center">
-        <div ref={canvasRef} style={{ width: DESIGN.width, height: DESIGN.height, zoom: scale }} className="relative shrink-0 overflow-hidden rounded-[26px] border border-border-soft bg-surface shadow-[0_2px_4px_rgb(0_0_0/0.03),0_40px_100px_-30px_rgb(0_0_0/0.22)]">
+        <div ref={canvasRef} style={{ width: DESIGN.width, height: DESIGN.height, zoom: scale }} className={cn("relative shrink-0 rounded-[26px] transition-[background-color,border-color,box-shadow] duration-500", poster ? "overflow-visible border border-transparent bg-ink" : "overflow-hidden border border-border bg-surface shadow-[0_30px_80px_-40px_rgb(28_23_20/0.35)]")}>
           <InteractContext.Provider value={interact}>
             <TimeContext.Provider value={local}>
               {started ? (
@@ -286,12 +293,8 @@ export function StageDemo() {
                   <View />
                 </div>
               ) : (
-                // Before the first step: a title card, so a projector shown early isn't an empty box.
-                <div className="flex h-full flex-col items-center justify-center bg-ink text-center">
-                  <p className="text-[28px] font-semibold tracking-[-0.01em] text-paper">opensrcer</p>
-                  <p className="display mt-4 text-[64px] leading-[1.04] text-paper">Issues in. Pull requests out.</p>
-                  <p className="mt-5 text-[22px] text-paper-muted">Your first open-source contribution, guided.</p>
-                </div>
+                // Before the first step: the title slide, so a projector shown early isn't an empty box.
+                <StageTitle />
               )}
             </TimeContext.Provider>
           </InteractContext.Provider>
@@ -303,14 +306,14 @@ export function StageDemo() {
           never covers it, a quiet arrow when the presenter can move on. */}
       <div className="relative mt-3 flex h-11 shrink-0 items-center justify-center">
         {/* Where what's on screen comes from: quiet, outside the app, never over it. */}
-        {provenance && <p key={provenance} className="stage-settle absolute left-0 z-[70] max-w-[40%] truncate rounded-full bg-ink px-3 py-1 text-[13px] text-paper-dim shadow-sm">{provenance}</p>}
+        {provenance && <p key={provenance} className="stage-settle absolute left-0 z-[70] max-w-[40%] truncate rounded-full border border-border bg-surface px-3.5 py-1 text-[13px] font-medium text-paper-dim">{provenance}</p>}
         <div aria-hidden className="flex items-center gap-2">
           {PHASES.map((p, i) => (
             <span key={p.name} className={cn("h-1.5 rounded-full transition-all duration-500", i === step.phase ? "w-8 bg-signal" : i < step.phase ? "w-1.5 bg-signal/50" : "w-1.5 bg-border")} />
           ))}
         </div>
         {waiting?.kind === "next" && !ended && (
-          <button type="button" onClick={forward} aria-label="Next step" className="absolute right-0 z-[70] grid size-11 animate-pulse place-items-center rounded-full bg-signal text-white shadow-[0_8px_24px_-6px_rgb(0_86_173/0.55)] motion-reduce:animate-none">
+          <button type="button" onClick={forward} aria-label="Next step" className="stage-settle absolute right-0 z-[70] grid size-11 place-items-center rounded-full bg-signal text-white transition-transform duration-200 hover:scale-105">
             <ArrowRight aria-hidden size={18} weight="bold" />
           </button>
         )}
@@ -318,14 +321,41 @@ export function StageDemo() {
 
       {!started && (
         // Only before the first step, for the presenter: how to drive it.
-        <div className="pointer-events-auto absolute inset-x-0 bottom-10 mx-auto flex w-fit flex-wrap items-center justify-center gap-2 rounded-full border border-border-soft bg-surface/95 px-4 py-2 text-[13px] text-paper-dim shadow-lg">
-          <button type="button" onClick={forward} className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-signal px-4 font-medium text-white"><CaretRight aria-hidden size={14} weight="bold" />Begin</button>
-          <button type="button" onClick={toggleFullscreen} className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-border px-3 font-medium text-paper"><CornersOut aria-hidden size={14} weight="bold" />Full screen</button>
-          <button type="button" onClick={openNotes} className="inline-flex min-h-9 items-center rounded-full border border-border px-3 font-medium text-paper">Speaker notes</button>
-          <span className="px-1">→ next · ← back · 1-4 jump to a phase · F full screen · N notes</span>
+        <div className="pointer-events-auto absolute inset-x-0 bottom-8 mx-auto flex w-fit flex-wrap items-center justify-center gap-2 rounded-full border border-border bg-surface px-2 py-2 text-[13px] text-paper-muted">
+          <button type="button" onClick={forward} className="cta-pill" data-size="sm">Begin<span className="cta-pill-arrow"><ArrowGlyph size={13} /></span></button>
+          <button type="button" onClick={toggleFullscreen} className="pill" data-quiet><CornersOut aria-hidden size={14} weight="bold" />Full screen</button>
+          <button type="button" onClick={openNotes} className="pill" data-quiet>Speaker notes</button>
+          <span className="px-2 font-mono text-[12px]">→ next · ← back · 1–4 phase · F full screen · N notes</span>
         </div>
       )}
     </div>
+  );
+}
+
+/** A stop's headline in the display face, with at most one personal touch: a word underlined
+ *  by hand, or a sticker slapped on the end (both from what the stop already says). */
+function StageHeadline({ head }: { head?: Caption }) {
+  if (!head) return <p aria-live="polite" className="display min-h-[1.05em] text-[clamp(26px,2.9vw,50px)]" />;
+  const { text, mark, sticker } = head;
+  const at = mark ? text.indexOf(mark) : -1;
+  return (
+    <p aria-live="polite" className="display stage-headline min-h-[1.05em] text-balance text-[clamp(26px,2.9vw,50px)] leading-[1.02] tracking-[-0.02em] text-paper">
+      {at < 0 ? text : (
+        <>
+          {text.slice(0, at)}
+          <span className="relative inline-block whitespace-nowrap">
+            {mark}
+            <Doodle doodle={underline} draw="load" delay={420} duration={750} stretch className="absolute -bottom-[0.2em] left-[-2%] h-[0.26em] w-[104%]" />
+          </span>
+          {text.slice(at + (mark?.length ?? 0))}
+        </>
+      )}
+      {sticker && (
+        <Sticker tone={sticker.tone ?? "ink"} tilt={sticker.tilt ?? -5} delay={380} className="relative -top-[0.35em] ml-4 align-middle text-[clamp(13px,1vw,17px)]">
+          {sticker.text}
+        </Sticker>
+      )}
+    </p>
   );
 }
 
@@ -370,10 +400,10 @@ function Spotlight({ selector, strong, within }: { selector: string | null; stro
   const frame = { left, top, width, height };
   const shape = cn("fixed z-[60] transition-[left,top,width,height] duration-[350ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none", small ? "rounded-[8px]" : "rounded-[16px]");
   // A small target's ring sits on its own edge (inside), a big one's around it.
-  const ring = small ? "inset 0 0 0 3px var(--color-signal), 0 0 22px 4px rgb(0 86 173 / 0.55)" : "inset 0 0 0 3px #fff, 0 0 0 6px var(--color-signal), 0 0 28px 8px rgb(0 86 173 / 0.5)";
+  const ring = small ? "inset 0 0 0 3px var(--color-signal), 0 0 22px 4px rgb(35 56 230 / 0.4)" : "inset 0 0 0 3px var(--color-surface), 0 0 0 6px var(--color-signal), 0 0 28px 8px rgb(35 56 230 / 0.35)";
   return (
     <div aria-hidden className={cn("pointer-events-none transition-opacity duration-300 ease-out motion-reduce:transition-none", on ? "opacity-100" : "opacity-0")}>
-      <div data-spotlight={on ? (strong ? "click" : "note") : undefined} className={shape} style={{ ...frame, boxShadow: `0 0 0 9999px rgb(0 0 0 / ${strong ? 0.62 : 0.45})` }} />
+      <div data-spotlight={on ? (strong ? "click" : "note") : undefined} className={shape} style={{ ...frame, boxShadow: `0 0 0 9999px rgb(28 23 20 / ${strong ? 0.6 : 0.44})` }} />
       <div className={cn(shape, "animate-pulse motion-reduce:animate-none")} style={{ ...frame, boxShadow: ring }} />
     </div>
   );

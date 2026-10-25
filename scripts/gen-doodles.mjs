@@ -134,6 +134,13 @@ const DOODLES = {
     viewBox: "0 0 60 60",
     strokes: [[ring(30, 31, 19, 52, 1.1), 12, 52, { land: 0.04, lift: 0.1 }]],
   },
+  // A tick, as a hand makes it: a short stroke down, then a long one up and away.
+  check: {
+    viewBox: "0 0 100 80",
+    strokes: [
+      [[[8, 42], [20, 54], [33, 70], [48, 50], [68, 26], [94, 6]], 8, 61, { land: 0.1, lift: 0.3 }],
+    ],
+  },
   // A hand asterisk: three quick crossing strokes.
   spark: {
     viewBox: "0 0 80 80",

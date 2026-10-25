@@ -274,7 +274,15 @@ export function LogLine({ text, spot }: { text: string; spot?: string }) {
 }
 
 /** `spot` names a `data-spot` element the stage spotlights while this note is current. */
-export type Caption = { at: number; text: string; spot?: string };
+export type Caption = {
+  at: number;
+  text: string;
+  spot?: string;
+  /** Stage headlines only: one word or phrase of `text` to underline by hand. */
+  mark?: string;
+  /** Stage headlines only: a sticker slapped on the end, from a fact already on screen. */
+  sticker?: { text: string; tone?: "ink" | "signal" | "paper"; tilt?: number };
+};
 
 export const ACTS = ["Start", "Find", "Fix", "Ship", "Teams", "Trust"] as const;
 export type Act = (typeof ACTS)[number];
@@ -295,5 +303,7 @@ export type Chapter = {
   headlines?: Caption[];
   /** On the stage only: where what's on screen comes from ("Real run · Oct 24"), each from its `at`. */
   provenance?: Caption[];
+  /** On the stage only: a slide on the paper itself, without the app's window frame. */
+  poster?: boolean;
   View: () => ReactNode;
 };

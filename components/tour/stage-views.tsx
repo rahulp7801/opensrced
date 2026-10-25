@@ -17,7 +17,12 @@ import { StatusChip } from "@/components/status-dot";
 import { AppWindow, Pips, Press, Reveal, SCOPE_LABEL, SCOPE_TONE, SEVERITY_TONE, TimeContext, Typed, progress, useFollow, useT, type Caption, type Chapter } from "./kit";
 import { MAP_FOCUS_LENGTH, RepoMap } from "./repo-map";
 import { DEMO_PUBLISH_STEPS, Published, Term } from "./chapters-fix";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Doodle } from "@/components/brand/doodles";
+import { arrow, check, heroLoop } from "@/components/brand/doodle-data";
+import { Marquee } from "@/components/brand/marquee";
+import { Sticker } from "@/components/brand/sticker";
+import { Wordmark } from "@/components/brand/wordmark";
 import { DIAGNOSIS, PATCH_STATS, RISK } from "./data";
 import { projectRules, RULE_STATUS_LABEL, type RuleStatus } from "@/lib/project-rules";
 import { PRACTICE_INTRO } from "@/components/own-words";
@@ -124,7 +129,7 @@ export const stageScan: Chapter = {
   duration: SHOW_READY_AT + 3000,
   source: "Example scan; the verdicts are the scanner's own",
   provenance: [{ at: 0, text: "Example scan · the scanner's own verdicts" }],
-  headlines: [{ at: 0, text: "It only picks issues that are open to you." }],
+  headlines: [{ at: 0, text: "It only picks issues that are open to you.", mark: "open to you" }],
   captions: [
     { at: 0, text: "Step one: an issue that's actually open to a newcomer. Claude Code assumes you already have one." },
     { at: SHOW_ALL_AT, text: "Show everything it found, including what it filtered out, and why." },
@@ -200,7 +205,11 @@ const GRAPH_PANEL: PanelText = {
 
 function AskPanel({ turns, text = GRAPH_PANEL }: { turns: TimedTurn[]; text?: PanelText }) {
   const t = useT();
-  const scrollRef = useFollow(Math.floor(t / 250));
+  const beat = Math.floor(t / 250);
+  const scrollRef = useFollow(beat);
+  // Once the conversation has scrolled, what leaves at the top fades out instead of being sliced.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => { setScrolled((scrollRef.current?.scrollTop ?? 0) > 1); }, [beat, scrollRef]);
   const typing = turns.find((turn) => t >= turn.typeAt && t < turn.askAt + 150);
   const costs = turns.every((turn) => turn.cost);
   const spent = turns.filter((turn) => t >= turn.doneAt).reduce((sum, turn) => sum + Number((turn.cost ?? "$0").slice(1)), 0);
@@ -214,7 +223,7 @@ function AskPanel({ turns, text = GRAPH_PANEL }: { turns: TimedTurn[]; text?: Pa
         </div>
         {costs && <span className="font-mono text-[12px] text-ok">${spent.toFixed(4)}</span>}
       </div>
-      <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-hidden px-4 py-3">
+      <div ref={scrollRef} className={cn("min-h-0 flex-1 space-y-3 overflow-hidden px-4 py-3", scrolled && "[mask-image:linear-gradient(to_bottom,transparent_0,transparent_20px,#000_72px)]")}>
         {/* The intro gives way once a question is asked, as in a chat, so the answer has the room. */}
         {!turns.some((turn) => t >= turn.askAt + 150) && <p className="rounded-2xl rounded-tl-md bg-surface-2 px-3 py-2.5 text-[13.5px] leading-[1.45] text-paper-dim">{text.intro}</p>}
         {turns.map((turn) => t >= turn.askAt + 150 && (
@@ -345,7 +354,7 @@ function staged(chapter: Chapter, headlines: Caption[], captions: Caption[]): Ch
 /** The review and the pull request as the stage tells them. */
 export function stageNotes(base: { pr: Chapter }) {
   return {
-    pr: withProvenance(staged(base.pr, [{ at: 0, text: "The maintainer always knows AI helped." }], [
+    pr: withProvenance(staged(base.pr, [{ at: 0, text: "The maintainer always knows AI helped.", sticker: { text: "Real PR #7", tone: "signal", tilt: -4 } }], [
       { at: 0, spot: "pr-facts", text: "Every GitHub step done right: its own branch, your private noreply email, the right base branch, and a description that closes the issue." },
       { at: 5800, spot: "pr-verified", text: "The description shows the tests it ran and the result: verified." },
       { at: 7400, spot: "pr-ai", text: "And it discloses itself: who asked, which model, what was and wasn't tested, plus an Assisted-by trailer and a sign-off where the project asks." },
@@ -466,7 +475,7 @@ export const stageRefused: Chapter = {
   title: "When it says no",
   duration: MAINT_AT + 7500,
   source: "Example: a fictional project whose guide bans AI; then a real issue, names hidden",
-  headlines: [{ at: 0, text: "And when the rules say no, it stops." }, { at: MAINT_AT, text: "It listens to maintainers, even in the comments." }],
+  headlines: [{ at: 0, text: "And when the rules say no, it stops." }, { at: MAINT_AT, text: "It listens to maintainers, even in the comments.", sticker: { text: "Names hidden", tone: "paper", tilt: 4 } }],
   provenance: [{ at: 0, text: "Example project" }, { at: MAINT_AT, text: "Real issue · names hidden" }],
   captions: [
     { at: 0, spot: "refusal", text: "And it says no. This guide bans AI-written pull requests, so publishing is refused, quoting the guide, with no Publish button. Same when someone else already has a pull request open." },
@@ -489,11 +498,17 @@ const SLOP: Array<[string, string]> = [
 const SLOP_STEP = 500;
 const SLOP_LINE_AT = 700 + 6 * SLOP_STEP + 400; // after the last row
 
+// The closing line, inked in word by word once the rows have had their moment.
+const CLOSE_AT = SLOP_LINE_AT + 2600;
+const CLOSE_LINES = ["Not more pull requests.", "Better ones."];
+
 function SlopView() {
+  const t = useT();
+  if (t >= CLOSE_AT) return <CloseView />;
   return (
     <div className="flex h-full flex-col justify-center bg-ink px-12 py-10">
-      <Reveal at={150}><p className="text-[30px] font-semibold tracking-[-0.02em] text-paper">What makes an AI pull request slop, and what opensrcer does about it</p></Reveal>
-      <div className="mt-6 divide-y divide-border-soft rounded-[22px] border border-border-soft bg-surface">
+      <Reveal at={150}><p className="display text-[34px] leading-tight tracking-[-0.02em] text-paper">What makes an AI pull request slop, and what opensrcer does about it</p></Reveal>
+      <div className="mt-6 divide-y divide-border rounded-[22px] border border-border bg-surface">
         {SLOP.map(([problem, answer], i) => (
           <Reveal key={problem} at={700 + i * SLOP_STEP} className="grid grid-cols-[260px_minmax(0,1fr)] items-baseline gap-6 px-6 py-3.5">
             <p className="text-[18px] font-semibold text-alert">{problem}</p>
@@ -505,6 +520,23 @@ function SlopView() {
   );
 }
 
+function CloseView() {
+  let i = 0;
+  return (
+    <div className="stage-enter relative flex h-full flex-col justify-center bg-ink px-16 pb-40">
+      <Wordmark draw className="absolute left-16 top-10 text-[30px] text-paper" />
+      <p className="shout text-[128px] text-paper">
+        {CLOSE_LINES.map((line, l) => (
+          <span key={line} className={cn("block", l === 1 && "text-signal [--ink-to:var(--color-signal)]")}>
+            {line.split(" ").map((word) => <span key={word + i} className="stage-ink" style={{ "--d": `${300 + i++ * 140}ms` } as React.CSSProperties}>{word} </span>)}
+          </span>
+        ))}
+      </p>
+      <Marquee curved items={["Tested", "Explained", "Follows the rules", "Not more PRs, better ones"]} className="absolute inset-x-[-12%] -bottom-16" />
+    </div>
+  );
+}
+
 export const stageSlop: Chapter = {
   id: "slop",
   act: "Ship",
@@ -512,7 +544,8 @@ export const stageSlop: Chapter = {
   title: "Why this isn't AI slop",
   duration: SLOP_LINE_AT + 7500,
   source: "What opensrcer does today",
-  headlines: [{ at: SLOP_LINE_AT, text: "Not more pull requests. Better ones." }],
+  poster: true,
+  headlines: [{ at: SLOP_LINE_AT, text: "Not more pull requests. Better ones." }, { at: CLOSE_AT, text: "" }],
   captions: [
     { at: 0, text: "Back to where we started: what slop is made of, and what opensrcer does about each." },
     { at: 700 + 2 * SLOP_STEP, text: "The heart of it: you can't publish what you can't explain, and the chat is there so you can." },
@@ -548,7 +581,12 @@ function VerifiedView() {
             <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[11px] text-info">#2</span></p>
             <p className="mt-0.5 truncate text-[18px] font-medium text-paper">truncate cuts mid-word and returns more than max characters</p>
           </div>
-          {verified ? <span className="stage-settle"><StatusChip tone="ok">verified</StatusChip></span> : <StatusChip tone="signal">testing</StatusChip>}
+          {verified ? (
+            <span className="relative">
+              <span className="stage-settle"><StatusChip tone="ok">verified</StatusChip></span>
+              <Doodle doodle={check} draw="load" delay={250} duration={650} tone="current" className="absolute -left-12 -top-4 h-11 w-14 text-ok" />
+            </span>
+          ) : <StatusChip tone="signal">testing</StatusChip>}
         </div>
         <ol className="space-y-3">
           {PROOF.filter((p) => !p.verify).slice(0, 2).map((p) => <ProofStep key={p.text} {...p} />)}
@@ -602,8 +640,8 @@ const SLOP_PRS: Array<{ title: string; size: string; flags: string[] }> = [
 function ProblemView() {
   return (
     <div className="flex h-full flex-col justify-center bg-ink px-14 py-10">
-      <div className="relative rounded-[22px] border border-border-soft bg-surface">
-        <p className="absolute right-5 top-4 text-[12px] font-medium uppercase tracking-[0.08em] text-paper-faint">Illustration</p>
+      <div className="relative rounded-[22px] border border-border bg-surface">
+        <p className="kicker absolute right-5 top-4 text-paper-faint">Illustration</p>
         <p className="border-b border-border-soft px-6 py-4 text-[16px] font-semibold text-paper">Pull requests <span className="ml-2 font-normal text-paper-muted">214 open</span></p>
         <ul className="divide-y divide-border-soft">
           {SLOP_PRS.map((pr, i) => (
@@ -630,7 +668,8 @@ export const stageProblem: Chapter = {
   title: "What maintainers are drowning in",
   duration: 400 + SLOP_PRS.length * 700 + 1500,
   source: "An illustration of AI pull requests maintainers describe",
-  headlines: [{ at: 0, text: "Maintainers are drowning in AI pull requests nobody understood." }],
+  poster: true,
+  headlines: [{ at: 0, text: "Maintainers are drowning in AI pull requests nobody understood.", mark: "nobody understood" }],
   captions: [
     { at: 0, text: "Start with the worry in this room: maintainers are drowning in AI pull requests. Huge diffs, no tests, rules ignored, from people who can't answer one review question." },
     { at: 400 + 2 * 700, text: "Illustrations, but every maintainer here has seen them. The problem isn't AI; it's contributions nobody understood." },
@@ -648,17 +687,18 @@ const PILLARS: Array<[string, string]> = [
 
 function PromiseView() {
   return (
-    <div className="flex h-full flex-col justify-center bg-ink px-14 py-10">
-      <div className="grid grid-cols-3 gap-6">
+    <div className="flex h-full flex-col justify-center bg-ink px-16 py-10">
+      <div className="divide-y divide-border">
         {PILLARS.map(([title, text], i) => (
-          <Reveal key={title} at={300 + i * 600} className="rounded-[24px] bg-signal p-7 text-white shadow-[0_30px_80px_-30px_rgb(0_86_173/0.6)]">
-            <p className="text-[32px] font-semibold leading-tight tracking-[-0.02em]">{title}</p>
-            <p className="mt-3 text-[18px] leading-snug text-white/85">{text}</p>
+          <Reveal key={title} at={300 + i * 600} className="grid grid-cols-[minmax(0,1fr)_380px] items-end gap-10 py-4">
+            <p className="shout text-[92px] text-paper">{title}<span className="text-signal">.</span></p>
+            <p className="pb-2 text-[19px] leading-snug text-paper-dim">{text}</p>
           </Reveal>
         ))}
       </div>
-      <Reveal at={300 + PILLARS.length * 600 + 300}>
-        <p className="mt-8 text-center text-[19px] text-paper-muted">Every run stops for your review. Nothing posts until you confirm.</p>
+      <Reveal at={300 + PILLARS.length * 600 + 300} className="mt-7 flex items-center gap-3">
+        <Sticker tone="signal" tilt={-3} pop="none" className="text-[15px]">You review first</Sticker>
+        <p className="text-[19px] text-paper-muted">Every run stops for your review. Nothing posts until you confirm.</p>
       </Reveal>
     </div>
   );
@@ -671,6 +711,7 @@ export const stagePromise: Chapter = {
   title: "Contributions a maintainer would want",
   duration: 300 + PILLARS.length * 600 + 2000,
   source: "What opensrcer is for",
+  poster: true,
   headlines: [{ at: 0, text: "A contribution a maintainer would actually want." }],
   captions: [
     { at: 0, text: "opensrcer helps a beginner make the contribution a maintainer would actually want: tested, explained, and following the project's rules." },
@@ -734,7 +775,7 @@ export const stageRules: Chapter = {
   duration: RULES_DONE_AT + 2500,
   source: "The real run behind pull request #7, in plain words",
   provenance: [{ at: 0, text: "Real run · Oct 24" }],
-  headlines: [{ at: 0, text: "It reads the project's rules first." }],
+  headlines: [{ at: 0, text: "It reads the project's rules first.", sticker: { text: "Real run", tone: "ink", tilt: -5 } }],
   captions: [
     { at: 0, text: "One click starts the run, in a throwaway machine with a spend cap and a time limit." },
     { at: 2200, spot: "rules", text: "It reads the project's rules first: contribution guide, PR template, AI policy, sign-off. This repo has none, so it follows what the code already does." },
@@ -964,9 +1005,12 @@ function StageReviewView() {
                 <span aria-hidden className={cn("grid h-4 w-4 place-items-center rounded-[3px] border text-[10px]", t >= R.confirm ? "border-ok bg-ok/15 text-ok" : "border-border")}>{t >= R.confirm ? "✓" : ""}</span>
                 I&apos;ve read this change and can explain it to reviewers.
               </Press>
-              <Press at={R.publishAt} label="Publish draft PR" className={cn("ml-auto rounded-full border px-3 py-0.5 font-medium", t >= R.confirm ? "border-ok/40 bg-ok/10 text-ok" : "border-border text-paper-faint")}>
-                {t >= R.publishAt ? `Draft PR #${RUN.pr} opened ↗` : "Publish draft PR"}
-              </Press>
+              <span className="relative ml-auto">
+                {t >= R.confirm + 300 && t < R.publishAt && <Doodle doodle={arrow} draw="load" duration={800} className="absolute -top-[74px] right-[calc(100%+6px)] h-[78px] w-[102px]" />}
+                <Press at={R.publishAt} label="Publish draft PR" className={cn("rounded-full border px-3 py-0.5 font-medium", t >= R.confirm ? "border-ok/40 bg-ok/10 text-ok" : "border-border text-paper-faint")}>
+                  {t >= R.publishAt ? `Draft PR #${RUN.pr} opened ↗` : "Publish draft PR"}
+                </Press>
+              </span>
             </div>
             {t < R.confirm && <p className="mt-1 text-[12px] text-paper-muted">To publish: explain the change in your own words, answer the practice review, and tick the box.</p>}
           </div>
@@ -988,7 +1032,7 @@ export const stageReview: Chapter = {
     { at: 0, text: "It explains every change in plain English." },
     { at: R.rules, text: "It checks the project's rules, one by one." },
     { at: R.chat, text: "It teaches you the change…" },
-    { at: R.own, text: "…and checks that you learned it. In your words." },
+    { at: R.own, text: "…and checks that you learned it. In your words.", mark: "In your words" },
     { at: R.practice, text: "Then a practice review, before the real one." },
     { at: R.publish, text: "You confirm you understand it." },
     { at: R.publishAt, text: "A human publishes. Nothing is hidden." },
@@ -1008,3 +1052,28 @@ export const stageReview: Chapter = {
   ],
   View: StageReviewView,
 };
+
+// ── The title slide (before the first step) ─────────────────────────────────
+
+/** The landing's hero, sized for the stage: the shout, three stickers from what the product
+ *  does (drafts only, tests in a locked box, your own words), the hand-drawn loop, and the
+ *  marquee in our voice. Everything renders finished; it only moves for those who allow it. */
+export function StageTitle() {
+  return (
+    <div className="relative h-full bg-ink px-16 pt-10">
+      <Wordmark draw className="text-[30px] text-paper" />
+      <p className="kicker mt-10 text-paper-dim">Your first open-source contribution, guided</p>
+      <div className="relative mt-6 w-fit">
+        <p className="shout text-[132px] text-paper">
+          <span className="rise block">Issues in.</span>
+          <span className="rise block" style={{ "--delay": "120ms" } as React.CSSProperties}>Pull requests <span className="text-signal">out.</span></span>
+        </p>
+        <Sticker tone="ink" tilt={-7} delay={500} className="absolute left-[46%] top-[-6px] text-[17px]">Drafts only</Sticker>
+        <Sticker tone="paper" tilt={-4} delay={650} className="absolute right-[2%] top-[44%] text-[17px]">In your own words</Sticker>
+        <Sticker tone="signal" tilt={4} delay={800} className="absolute bottom-[-18px] left-[30%] text-[17px]">Tested in a locked box</Sticker>
+      </div>
+      <Doodle doodle={heroLoop} draw="load" delay={350} duration={1400} className="absolute right-[-30px] top-[18px] w-[470px]" />
+      <Marquee curved items={["Tested", "Explained", "Follows the rules", "Not more PRs, better ones"]} className="absolute inset-x-[-12%] -bottom-20" />
+    </div>
+  );
+}

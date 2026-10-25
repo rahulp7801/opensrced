@@ -278,3 +278,7 @@
 .stage-headline-calm { animation: stage-headline 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
 .stage-settle { animation: stage-settle 0.38s cubic-bezier(0.22, 1, 0.36, 1) both; }
 .stage-tick { display: inline-block; animation: stage-tick 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* ── Stage ink-in (components/tour/stage-views.tsx, the close): each word fills pale cobalt →
+   cobalt → ink in turn, on mount. The reduced-motion rule above leaves the finished ink. ── */
+.stage-ink { animation: brand-ink 0.9s cubic-bezier(0.22, 1, 0.36, 1) var(--d, 0ms) both; }

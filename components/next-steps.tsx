@@ -11,7 +11,7 @@ export function NextSteps({ heading = "What happens next" }: { heading?: string 
       <ol className="mt-4 grid gap-x-8 gap-y-4 sm:grid-cols-2">
         {AFTER_PUBLISH.map((step, i) => (
           <li key={step.title} className="grid grid-cols-[1.75rem_1fr] gap-1">
-            <span className="kicker pt-[3px] text-signal">{String(i + 1).padStart(2, "0")}</span>
+            <span className="label-mono pt-[3px]">{i + 1}</span>
             <span><span className="font-semibold text-paper">{step.title}{/[.?!]$/.test(step.title) ? "" : "."}</span> <span className="text-paper-dim">{step.body}</span></span>
           </li>
         ))}

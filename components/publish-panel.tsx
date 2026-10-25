@@ -121,7 +121,7 @@ export function PublishPanel({ dispatchId, repo, dryRun = false, rerun, onPublis
     <section aria-label={dryRun ? "Preview result" : "Review before publishing"} className="border-b border-border-soft bg-ink-2 px-5 py-8 text-[16px] leading-[1.6] sm:px-8 sm:py-10">
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <div>
-          <p className="kicker text-signal">{dryRun ? "Practice run" : "Before anything is posted"}</p>
+          <p className="label-mono">{dryRun ? "Practice run" : "Before anything is posted"}</p>
           <h3 className="display mt-2 text-[30px] leading-none text-paper sm:text-[36px]">{dryRun ? "Preview: read the fix" : "Review before publishing"}</h3>
         </div>
         <span className="chip whitespace-normal" data-tone={verified ? "ok" : "alert"}><Term term="verified">Verification</Term>: {verdict}</span>
@@ -203,7 +203,7 @@ export function PublishPanel({ dispatchId, repo, dryRun = false, rerun, onPublis
             <ol className="mt-4 grid gap-3 sm:grid-cols-2">
               {publishSteps({ files: preview.files.length, signoff: preview.signoff, followupPr: preview.followup_pr }).map((s, i) => (
                 <li key={s} className="grid grid-cols-[1.75rem_1fr] gap-1 text-paper-dim">
-                  <span className="kicker pt-[3px] text-signal">{String(i + 1).padStart(2, "0")}</span>
+                  <span className="label-mono pt-[3px]">{i + 1}</span>
                   <span>{s}</span>
                 </li>
               ))}

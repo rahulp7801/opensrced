@@ -723,7 +723,7 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 border-t border-border-soft px-5 py-3 sm:px-8">
-        <span className="kicker mr-auto text-paper-muted">Agent log</span>
+        <span className="label-mono mr-auto">Agent log</span>
         {isRunning && !showSearch && (
           <span className="flex items-center gap-1.5 text-[12.5px] text-signal">
             <StatusDot tone="signal" /> streaming
@@ -1168,13 +1168,13 @@ function DiffPreviewFromLog({ log, prOpened, prUrl, dryRun }: { log: string; prO
               <div className="px-6 py-6 border-b border-border-soft space-y-6 sm:px-8">
                 {diagnosis && (
                   <div>
-                    <div className="kicker text-paper-muted mb-2">What was found</div>
+                    <div className="label-mono mb-2">What was found</div>
                     <Markdown text={diagnosis} />
                   </div>
                 )}
                 {risk && (
                   <div>
-                    <div className="kicker text-paper-muted mb-2">Risk &amp; testing</div>
+                    <div className="label-mono mb-2">Risk &amp; testing</div>
                     <Markdown text={risk} />
                   </div>
                 )}

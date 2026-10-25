@@ -8,7 +8,6 @@ import { circle } from "@/components/brand/doodle-data";
 
 import { useToast } from "@/components/toast";
 import { pollJson } from "@/lib/poll-json";
-import { cn } from "@/lib/utils";
 
 type GitHubPr = {
   repo: string;
@@ -121,23 +120,22 @@ export default function PRsPage() {
     <div className="mx-auto w-full max-w-[1200px] px-5 py-10 sm:px-8">
       <PageHeading
         title={<>Pull requests</>}
-        description="View and follow up on your open PRs. Click any PR to see review comments and push fixes."
+        description="Your open pull requests: read what reviewers asked, then draft the fixes and replies."
       />
 
-      <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Pull request view">
+      <div className="tab-strip" role="tablist" aria-label="Pull request view">
         <button
           id="prs-tab-inbox"
           role="tab"
           aria-selected={tab === "inbox"}
           aria-controls="prs-panel-inbox"
           onClick={() => setTab("inbox")}
-          className="pill"
         >
           Inbox
           {(() => {
             const actionable = githubPrs.filter((p) => p.reviewDecision === "CHANGES_REQUESTED" || (p.commentCount ?? 0) > 0);
             return actionable.length > 0 ? (
-              <span className="grid min-w-5 place-items-center rounded-full bg-alert px-1.5 text-[11.5px] font-semibold leading-5 text-white tabular-nums">{actionable.length}</span>
+              <span className="tab-count text-alert">{actionable.length}</span>
             ) : null;
           })()}
         </button>
@@ -147,14 +145,9 @@ export default function PRsPage() {
           aria-selected={tab === "github"}
           aria-controls="prs-panel-github"
           onClick={() => setTab("github")}
-          className="pill"
         >
           All PRs
-          {githubPrs.length > 0 && (
-            <span className={cn("text-[12px] tabular-nums", tab === "github" ? "text-ink/75" : "text-paper-muted")}>
-              {githubPrs.length}
-            </span>
-          )}
+          {githubPrs.length > 0 && <span className="tab-count">{githubPrs.length}</span>}
         </button>
         <button
           id="prs-tab-dashboard"
@@ -162,12 +155,11 @@ export default function PRsPage() {
           aria-selected={tab === "dashboard"}
           aria-controls="prs-panel-dashboard"
           onClick={() => setTab("dashboard")}
-          className="pill"
         >
           Opened with opensrcer
         </button>
       </div>
-      <p className="mt-3 max-w-3xl text-[13px] text-paper-muted">
+      <p className="mt-3 max-w-3xl text-[14px] text-paper-muted">
         Inbox and All PRs show every open pull request you started on GitHub. &ldquo;Opened with opensrcer&rdquo; lists only the ones opensrcer runs opened for you.
       </p>
 

@@ -57,7 +57,7 @@ export default async function SettingsPage({
   return (
     <div className="mx-auto w-full max-w-[1100px] px-5 py-10 sm:px-8">
       <PageHeading
-        kicker="Your account"
+        path="account / settings"
         title={<>Settings</>}
         description="Manage provider credentials, GitHub access, and your account."
       />

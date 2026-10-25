@@ -5,7 +5,6 @@ import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
 import { Doodle } from "@/components/brand/doodles";
 import { nodes } from "@/components/brand/doodle-data";
-import { cn } from "@/lib/utils";
 
 type GitHubRepo = {
   nameWithOwner: string;
@@ -120,11 +119,11 @@ export default function ReposPage() {
     <div className="mx-auto w-full max-w-[1200px] px-5 py-10 sm:px-8">
       <PageHeading
         title={<>Your repos</>}
-        description="Your GitHub repos. Build knowledge graphs, scan for issues, or explore any codebase."
+        description="Repositories you own, starred or contributed to: map one, or scan its issues."
       />
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-        <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Repository source">
+      <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+        <div className="tab-strip w-full sm:w-auto sm:flex-1" role="tablist" aria-label="Repository source">
           {([
             { key: "contributed" as Tab, label: "Contributed to" },
             { key: "starred" as Tab, label: "Starred" },
@@ -137,11 +136,10 @@ export default function ReposPage() {
               aria-selected={tab === t.key}
               aria-controls="repos-panel"
               onClick={() => setTab(t.key)}
-              className="pill"
             >
               {t.label}
               {states[t.key].repos.length > 0 && (
-                <span className={cn("text-[12px] tabular-nums", tab === t.key ? "text-ink/75" : "text-paper-muted")}>
+                <span className="tab-count">
                   {states[t.key].repos.length}{states[t.key].hasMore ? "+" : ""}
                 </span>
               )}

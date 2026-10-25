@@ -118,7 +118,7 @@ export default async function RepoFindingsPage({
 
       <section className="mt-6">
         <div className="flex items-center gap-3">
-          <span className="kicker text-paper-muted">
+          <span className="label-mono">
             security findings ({findings.length})
           </span>
           {findings.length > 0 && (
@@ -184,7 +184,7 @@ export default async function RepoFindingsPage({
       </section>
 
       <section className="mt-8">
-        <div className="kicker text-paper-muted">
+        <div className="label-mono">
           open issues ({issues.length})
         </div>
         {issues.length === 0 ? (

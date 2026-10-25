@@ -111,7 +111,7 @@ export function Onboarding({ localMode = false, inviteOnly = false }: { localMod
   return (
     <aside aria-label="Account setup" className="border-b border-border-soft bg-ink-2">
       <div className="mx-auto grid max-w-[1200px] grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 px-5 py-3.5 sm:grid-cols-[auto_1fr_auto_auto] sm:gap-5 sm:px-8">
-        <span className="kicker col-start-1 row-start-1 shrink-0 text-signal sm:col-start-auto sm:row-start-auto">
+        <span className="label-mono col-start-1 row-start-1 shrink-0 sm:col-start-auto sm:row-start-auto">
           Step {currentStepNumber} of {STEPS.length}
         </span>
 

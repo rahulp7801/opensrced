@@ -82,7 +82,7 @@ const SECTIONS: { title: string; body: React.ReactNode }[] = [
 export default function PrivacyPage() {
   return (
     <div className="mx-auto w-full max-w-[1000px] px-5 py-10 sm:px-8">
-      <PageHeading kicker="The fine print, in plain words" title="Privacy" description="What opensrcer stores, where it goes, and how long it is kept. Last updated October 7, 2026." />
+      <PageHeading path="about / privacy" title="Privacy" description="What opensrcer stores, where it goes, and how long it is kept. Last updated October 7, 2026." />
       <div className="divide-y divide-border border-t-2 border-paper">
         {SECTIONS.map((section) => (
           <section key={section.title} className="grid gap-3 py-8 md:grid-cols-[220px_minmax(0,1fr)] md:gap-10">

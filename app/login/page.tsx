@@ -23,14 +23,14 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <section>
         {preview ? (
           <>
-            <p className="kicker text-signal">Private preview</p>
+            <p className="label-mono">Private preview</p>
             <h1 className="display mt-5 max-w-lg text-[48px] leading-[0.95] tracking-[-0.025em] text-paper sm:text-[68px]">Sign in with your invite.</h1>
             <p className="mt-6 max-w-lg text-[17px] leading-[1.6] text-paper-dim">opensrcer is open to invited GitHub accounts while it&apos;s in preview. It opens to everyone soon.</p>
             <Link href="/demo" className="link mt-6 inline-flex min-h-11 items-center text-[16px]">Not invited yet? Watch a complete run in the product tour <span aria-hidden="true" className="ml-2">&rarr;</span></Link>
           </>
         ) : (
           <>
-            <p className="kicker text-signal">Connect your GitHub account</p>
+            <p className="label-mono">Connect your GitHub account</p>
             <h1 className="display mt-5 max-w-lg text-[48px] leading-[0.95] tracking-[-0.025em] text-paper sm:text-[68px]">Pick up where the issue leaves off.</h1>
             <p className="mt-6 max-w-lg text-[17px] leading-[1.6] text-paper-dim">Browse repositories, generate a patch, and review the change before opening a draft pull request.</p>
             <Link href="/demo" className="link mt-8 inline-flex min-h-11 items-center text-[16px]">Explore the demo without signing in <span aria-hidden="true" className="ml-2">&rarr;</span></Link>
@@ -59,7 +59,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         )}
 
         {canSignIn && <div className="mt-8 border-t border-border-soft pt-6">
-          <h3 className="kicker text-paper-muted">Access requested</h3>
+          <h3 className="label-mono">Access requested</h3>
           <ul className="mt-3 space-y-3 text-[15px] leading-[1.6] text-paper-dim">
             <li><strong className="font-medium text-paper">Public repositories</strong> to fork repositories and open draft pull requests.</li>
             <li><strong className="font-medium text-paper">Profile and email</strong> to identify your account and attribute commits.</li>

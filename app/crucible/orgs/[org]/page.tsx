@@ -62,7 +62,7 @@ export default async function OrgReposPage({
       )}
 
       <section className="mt-6">
-        <div className="kicker text-paper-muted">
+        <div className="label-mono">
           {repos.length} repo{repos.length === 1 ? "" : "s"} accessible
         </div>
         {repos.length === 0 ? (

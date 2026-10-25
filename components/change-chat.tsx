@@ -147,7 +147,7 @@ export function ChangeChat({ storageKey, repo, title, context, starters = STARTE
               {/* The question sits right, like a message you sent; the answer is a sheet below. */}
               <p className="ml-auto w-fit max-w-[85%] rounded-[18px] rounded-br-md bg-paper px-4 py-2 text-ink">{t.question}<span className="sr-only"> (you asked)</span></p>
               <div className="rounded-2xl bg-ink-2 px-4 py-3 text-paper-dim">
-                <p className="kicker text-paper-muted">AI answer (not verified)</p>
+                <p className="label-mono">AI answer (not verified)</p>
                 <p className="mt-1.5 whitespace-pre-wrap break-words leading-[1.65]">{t.answer || (pending && i === turns.length - 1 ? "Thinking…" : "")}</p>
               </div>
             </li>

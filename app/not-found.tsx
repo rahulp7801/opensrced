@@ -8,7 +8,7 @@ export default function NotFound() {
   return (
     <section className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col justify-center px-5 py-16 sm:px-8">
       <div className="relative max-w-2xl">
-        <p className="kicker text-signal">404</p>
+        <p className="label-mono">404</p>
         <h1 className="display mt-4 text-[48px] leading-[0.95] tracking-[-0.025em] text-paper sm:text-[72px]">Page not found.</h1>
         <p className="mt-5 max-w-xl text-[17px] leading-[1.6] text-paper-dim">
           We looked, and this page isn&apos;t here. Even good maps have blank corners.

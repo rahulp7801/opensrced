@@ -248,7 +248,7 @@ export function IssueScanner() {
             <div className="pb-5">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                  <p className="kicker text-signal">Scan complete</p>
+                  <p className="label-mono">Scan complete</p>
                   <h2 id="scan-results-title" className="display mt-2 break-all text-[28px] leading-none text-paper sm:text-[32px]">{scan.repo}</h2>
                   <p className="mt-2.5 text-[14px] text-paper-muted">
                     <span className="font-semibold text-paper">{scan.total}</span> open issue{scan.total === 1 ? "" : "s"};{" "}
@@ -528,7 +528,7 @@ function IssueDetail({ issue, rec }: { issue: Issue; rec: Recommendation }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div>
-        <h4 className="kicker text-paper-muted">Issue description</h4>
+        <h4 className="label-mono">Issue description</h4>
         <div className="mt-3 max-h-[420px] overflow-y-auto whitespace-pre-wrap rounded-2xl bg-surface p-5 text-[16px] leading-[1.65] text-paper-dim shadow-[inset_0_0_0_1px_var(--color-border-soft)]">
           {body}
         </div>
@@ -536,7 +536,7 @@ function IssueDetail({ issue, rec }: { issue: Issue; rec: Recommendation }) {
 
       <div className="flex flex-col gap-6">
         <div>
-          <h4 className="kicker text-paper-muted">Recommendation</h4>
+          <h4 className="label-mono">Recommendation</h4>
           <div className="callout mt-3" data-tone={rec.action === "solve" ? "signal" : undefined}>
             <div className={cn(
               "text-[16px] font-semibold",
@@ -554,7 +554,7 @@ function IssueDetail({ issue, rec }: { issue: Issue; rec: Recommendation }) {
         </div>
 
         <div>
-          <h4 className="kicker mb-3 text-paper-muted">Why &ldquo;{SCOPE_LABEL[issue.scope.bucket]}&rdquo;</h4>
+          <h4 className="label-mono mb-3">Why &ldquo;{SCOPE_LABEL[issue.scope.bucket]}&rdquo;</h4>
           <div className="text-[13px] leading-relaxed text-paper-muted">
             <p className="text-paper-dim">{issue.scope.reason}</p>
             {issue.scope.files.length > 0 && (

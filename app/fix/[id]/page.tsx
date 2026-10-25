@@ -80,7 +80,7 @@ export default function SharedFixPage() {
       {/* Header: the same rhythm as every app page (kicker, display title, quiet line). */}
       <div className="pt-2 sm:pt-6">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="kicker text-signal">shared fix</span>
+          <span className="label-mono">shared fix</span>
           {fix.pr_number && (
             <span className="chip chip-info">PR #{fix.pr_number}</span>
           )}
@@ -91,7 +91,7 @@ export default function SharedFixPage() {
 
         {fix.comment_body && (
           <div className="mt-6 border-l-2 border-signal pl-4 text-[16px] leading-[1.6] text-paper-dim">
-            <span className="kicker mb-1 block text-paper-muted">Review comment</span>
+            <span className="label-mono mb-1 block">Review comment</span>
             {fix.comment_body}
           </div>
         )}
@@ -100,7 +100,7 @@ export default function SharedFixPage() {
       {/* Explainer */}
       {fix.explainer && (
         <div className="callout callout-ok mt-8 px-5 py-4">
-          <span className="kicker mb-1.5 block text-ok">Why this fix</span>
+          <span className="label-mono mb-1.5 block text-ok">Why this fix</span>
           <p className="text-[16px] leading-[1.6] text-paper-dim whitespace-pre-wrap">{fix.explainer}</p>
 
         </div>
@@ -110,7 +110,7 @@ export default function SharedFixPage() {
       {fix.diff && (
         <div className="card mt-4 overflow-hidden">
           <div className="flex items-center justify-between border-b border-border-soft px-5 py-3">
-            <span className="kicker text-paper-muted">Diff</span>
+            <span className="label-mono">Diff</span>
             <button
               onClick={copyDiff}
               aria-live="polite"

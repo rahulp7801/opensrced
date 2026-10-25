@@ -211,7 +211,7 @@ function Counter({
   const size = display.length <= 4 ? "text-[52px]" : display.length <= 7 ? "text-[38px]" : "text-[28px]";
   return (
     <div className={cn("relative flex min-w-0 flex-col gap-2 bg-surface p-6", className)}>
-      <div className="kicker flex items-center gap-2 text-paper-muted"><span aria-hidden className={cn("size-1.5 rounded-full", dot)} />{label}</div>
+      <div className="label-mono flex items-center gap-2"><span aria-hidden className={cn("size-1.5 rounded-full", dot)} />{label}</div>
       <div className={cn("display num-tabular break-all leading-[0.9] text-paper", size)}>{display}</div>
 
       {sub && <div className="mt-1 text-[13px] text-paper-dim">{sub}</div>}

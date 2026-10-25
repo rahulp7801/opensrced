@@ -286,7 +286,7 @@ export function TriggerForm() {
             "A publishable run never posts by itself: it opens a draft PR from your GitHub account only after you read it and confirm.",
           ].map((item, index) => (
             <li key={item} className="grid grid-cols-[2rem_1fr] gap-2 py-4 text-[15px] leading-[1.55] text-paper-dim">
-              <span className="kicker pt-0.5 text-signal">{String(index + 1).padStart(2, "0")}</span>
+              <span className="label-mono pt-0.5">{index + 1}</span>
               <span>{item}</span>
             </li>
           ))}

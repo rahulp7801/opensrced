@@ -443,7 +443,7 @@ export default function GraphPage() {
     >
       <PageHeading
         title="Codebase map"
-        description="Build an interactive map of a GitHub repository, then trace dependencies, inspect impact, and ask questions about the code."
+        description="Map a GitHub repository, then ask how its code fits together."
       />
 
       {/* Repo input + build */}
@@ -594,7 +594,7 @@ export default function GraphPage() {
           <div className="card relative flex min-h-[360px] flex-col overflow-hidden xl:min-h-0 xl:w-[58%]">
             <div className="flex items-center justify-between gap-3 border-b border-border-soft px-5 py-3">
               <span className="text-[13px] text-paper-muted">
-                <span className="kicker text-signal">{engine === "crg" ? "map of a large repository" : "interactive map"}</span> — <span className="font-mono text-paper-dim">{owner}/{repo}</span>
+                <span className="label-mono">{engine === "crg" ? "map of a large repository" : "interactive map"}</span> — <span className="font-mono text-paper-dim">{owner}/{repo}</span>
               </span>
               {/* No "open fullscreen" link: as its own tab the graph HTML (built
                   from repository content) could navigate that tab; inside this
@@ -612,7 +612,7 @@ export default function GraphPage() {
           <div className="flex min-h-[300px] flex-col xl:min-h-0 xl:w-[42%]">
             {/* Quick actions */}
             <div className="mb-3 flex flex-wrap gap-1.5">
-              <span className="kicker mr-1 self-center text-paper-muted">
+              <span className="label-mono mr-1 self-center">
                 Suggestions
               </span>
               {(engine === "crg"
@@ -678,7 +678,7 @@ export default function GraphPage() {
               {results.map((r) => (
                 <div key={r._id} className="card overflow-hidden">
                   <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-border-soft px-5 py-3.5">
-                    <span className="kicker text-signal">
+                    <span className="label-mono">
                       You asked
                     </span>
                     <span className="text-[16px] font-semibold text-paper">
@@ -785,7 +785,7 @@ export default function GraphPage() {
           /* Empty state */
           <div className="mt-14 grid flex-1 gap-10 border-t-2 border-paper pt-8 lg:grid-cols-[0.85fr_1.15fr] lg:gap-16">
             <div className="relative">
-              <p className="kicker text-signal">What you can inspect</p>
+              <p className="label-mono">What you can inspect</p>
               <h2 className="display mt-4 text-[40px] leading-[0.95] text-paper sm:text-[52px]">Start with a repository</h2>
               <p className="mt-4 max-w-lg text-[16px] leading-[1.65] text-paper-muted">
                 Enter a public repository or one your connected GitHub account can access. Building the map reads source structure and relationships without calling an AI model.
@@ -975,7 +975,7 @@ function FollowUps({
 
   return (
     <div className="flex flex-wrap items-center gap-2 border-t border-border-soft bg-ink-2 px-5 py-3">
-      <span className="kicker text-paper-muted">
+      <span className="label-mono">
         Follow up:
       </span>
       {followUps.map((q) => (

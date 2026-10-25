@@ -3,6 +3,9 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
+import { Doodle } from "@/components/brand/doodles";
+import { circle } from "@/components/brand/doodle-data";
+
 import { useToast } from "@/components/toast";
 import { pollJson } from "@/lib/poll-json";
 import { cn } from "@/lib/utils";
@@ -121,25 +124,20 @@ export default function PRsPage() {
         description="View and follow up on your open PRs. Click any PR to see review comments and push fixes."
       />
 
-      <div className="mt-4 flex items-center gap-0 border-b border-border" role="tablist" aria-label="Pull request view">
+      <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Pull request view">
         <button
           id="prs-tab-inbox"
           role="tab"
           aria-selected={tab === "inbox"}
           aria-controls="prs-panel-inbox"
           onClick={() => setTab("inbox")}
-          className={cn(
-            "min-h-10 px-4 py-2 text-[12px] transition-colors border-b-2 -mb-px",
-            tab === "inbox"
-              ? "text-signal border-signal"
-              : "text-paper-muted border-transparent hover:text-paper",
-          )}
+          className="pill"
         >
           Inbox
           {(() => {
             const actionable = githubPrs.filter((p) => p.reviewDecision === "CHANGES_REQUESTED" || (p.commentCount ?? 0) > 0);
             return actionable.length > 0 ? (
-              <span className="ml-1.5 text-xs tabular-nums text-alert">{actionable.length}</span>
+              <span className="grid min-w-5 place-items-center rounded-full bg-alert px-1.5 text-[11.5px] font-semibold leading-5 text-white tabular-nums">{actionable.length}</span>
             ) : null;
           })()}
         </button>
@@ -149,17 +147,12 @@ export default function PRsPage() {
           aria-selected={tab === "github"}
           aria-controls="prs-panel-github"
           onClick={() => setTab("github")}
-          className={cn(
-            "min-h-10 px-4 py-2 text-[12px] transition-colors border-b-2 -mb-px",
-            tab === "github"
-              ? "text-signal border-signal"
-              : "text-paper-muted border-transparent hover:text-paper",
-          )}
+          className="pill"
         >
           All PRs
           {githubPrs.length > 0 && (
-            <span className="ml-1.5 text-xs tabular-nums text-paper-faint">
-              ({githubPrs.length})
+            <span className={cn("text-[12px] tabular-nums", tab === "github" ? "text-ink/75" : "text-paper-muted")}>
+              {githubPrs.length}
             </span>
           )}
         </button>
@@ -169,41 +162,33 @@ export default function PRsPage() {
           aria-selected={tab === "dashboard"}
           aria-controls="prs-panel-dashboard"
           onClick={() => setTab("dashboard")}
-          className={cn(
-            "min-h-10 px-4 py-2 text-[12px] transition-colors border-b-2 -mb-px",
-            tab === "dashboard"
-              ? "text-signal border-signal"
-              : "text-paper-muted border-transparent hover:text-paper",
-          )}
+          className="pill"
         >
           Opened with opensrcer
         </button>
       </div>
-      <p className="mt-2 text-xs text-paper-muted">
+      <p className="mt-3 max-w-3xl text-[13px] text-paper-muted">
         Inbox and All PRs show every open pull request you started on GitHub. &ldquo;Opened with opensrcer&rdquo; lists only the ones opensrcer runs opened for you.
       </p>
 
       {/* Inbox tab — prioritized overview */}
       {tab === "inbox" && (
-        <div id="prs-panel-inbox" role="tabpanel" aria-labelledby="prs-tab-inbox" className="mt-4">
+        <div id="prs-panel-inbox" role="tabpanel" aria-labelledby="prs-tab-inbox" className="mt-6">
           {loading && (
-            <div className="rounded-2xl border border-border-soft bg-surface divide-y divide-border-soft animate-pulse">
+            <div className="card divide-y divide-border-soft overflow-hidden animate-pulse">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="flex items-center gap-4 px-4 py-4">
-                  <div className="h-8 w-8 bg-surface-2 rounded-full" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 w-72 bg-surface-2 rounded" />
-                    <div className="h-3 w-48 bg-surface-2 rounded" />
-                  </div>
+                <div key={i} className="space-y-2 px-5 py-5">
+                  <div className="h-3 w-40 max-w-full rounded-full bg-surface-2" />
+                  <div className="h-3.5 w-72 max-w-full rounded-full bg-surface-3" />
                 </div>
               ))}
             </div>
           )}
 
           {error && (
-            <div className="rounded-xl border border-alert/30 bg-alert/5 px-4 py-3 text-[12px] text-alert flex items-center justify-between">
+            <div className="callout flex items-center justify-between gap-3 text-[13.5px]" data-tone="alert">
               <span>{error}</span>
-              <button onClick={handleRefresh} className="rounded-full text-xs border border-alert/30 px-2 py-0.5 hover:bg-alert/10 transition">retry</button>
+              <button onClick={handleRefresh} className="btn-quiet" data-size="sm">retry</button>
             </div>
           )}
 
@@ -228,7 +213,7 @@ export default function PRsPage() {
             );
 
             return (
-              <div className="space-y-4">
+              <div className="space-y-5">
                 {/* Needs action — top priority */}
                 {needsAction.length > 0 && (
                   <InboxSection
@@ -295,27 +280,22 @@ export default function PRsPage() {
 
       {/* GitHub PRs tab */}
       {tab === "github" && (
-        <div id="prs-panel-github" role="tabpanel" aria-labelledby="prs-tab-github" className="mt-4">
+        <div id="prs-panel-github" role="tabpanel" aria-labelledby="prs-tab-github" className="mt-6">
           {loading && (
-            <div className="rounded-2xl border border-border-soft bg-surface divide-y divide-border-soft animate-pulse">
+            <div className="card divide-y divide-border-soft overflow-hidden animate-pulse">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="flex items-center gap-4 px-4 py-3.5">
-                  <div className="h-4 w-40 bg-surface-2 rounded" />
-                  <div className="h-4 w-72 bg-surface-2 rounded" />
-                  <div className="ml-auto flex gap-3">
-                    <div className="h-4 w-16 bg-surface-2 rounded" />
-                    <div className="h-4 w-12 bg-surface-2 rounded" />
-                    <div className="h-4 w-16 bg-surface-2 rounded" />
-                  </div>
+                <div key={i} className="flex items-center gap-4 px-5 py-4">
+                  <div className="h-3 w-40 rounded-full bg-surface-2" />
+                  <div className="h-3 w-72 rounded-full bg-surface-3" />
                 </div>
               ))}
             </div>
           )}
 
           {error && (
-            <div className="rounded-xl border border-alert/30 bg-alert/5 px-4 py-3 text-[12px] text-alert flex items-center justify-between">
+            <div className="callout flex items-center justify-between gap-3 text-[13.5px]" data-tone="alert">
               <span>{error}</span>
-              <button onClick={handleRefresh} className="rounded-full text-xs border border-alert/30 px-2 py-0.5 hover:bg-alert/10 transition">
+              <button onClick={handleRefresh} className="btn-quiet" data-size="sm">
                 retry
               </button>
             </div>
@@ -328,9 +308,9 @@ export default function PRsPage() {
           {!loading && githubPrs.length > 0 && (
             <>
               {/* Filter bar */}
-              <div className="flex items-center gap-3 mb-3 flex-wrap">
+              <div className="mb-4 flex flex-wrap items-center gap-3">
                 {/* Summary stats */}
-                <div className="flex items-center gap-3 text-[11px]">
+                <div className="flex items-center gap-3 text-[13px]">
                   <span className="text-paper-muted">
                     <span className="text-paper tabular-nums">{githubPrs.length}</span> open
                   </span>
@@ -353,7 +333,7 @@ export default function PRsPage() {
                   {(() => {
                     const drafts = githubPrs.filter((p) => p.isDraft);
                     return drafts.length > 0 ? (
-                      <span className="text-paper-faint">
+                      <span className="text-paper-muted">
                         <span className="tabular-nums">{drafts.length}</span> draft
                       </span>
                     ) : null;
@@ -368,10 +348,10 @@ export default function PRsPage() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search PRs..."
-                    className="rounded-lg bg-surface border border-border px-2.5 py-1 text-[11px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50 w-full sm:w-[180px]"
+                    className="field min-h-10 w-full py-1.5 sm:w-[200px]"
                   />
                   {/* Status filter */}
-                  <div className="flex flex-wrap items-center gap-0.5" role="group" aria-label="Pull request status">
+                  <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Pull request status">
                     {([
                       { key: "all", label: "All" },
                       { key: "changes_requested", label: "Needs changes" },
@@ -383,12 +363,9 @@ export default function PRsPage() {
                         key={f.key}
                         aria-pressed={statusFilter === f.key}
                         onClick={() => setStatusFilter(f.key)}
-                        className={cn(
-                          "rounded-full text-xs px-2 py-1 transition border",
-                          statusFilter === f.key
-                            ? "text-signal border-signal/40 bg-signal/10"
-                            : "text-paper-faint border-transparent hover:text-paper-muted",
-                        )}
+                        className="pill"
+                        data-size="sm"
+                        data-quiet={statusFilter === f.key ? undefined : ""}
                       >
                         {f.label}
                       </button>
@@ -397,7 +374,8 @@ export default function PRsPage() {
                   <button
                     onClick={handleRefresh}
                     disabled={loading}
-                    className="rounded-full text-xs text-paper-dim hover:text-signal border border-border px-2 py-1 transition"
+                    className="btn-quiet"
+                    data-size="sm"
                   >
                     refresh
                   </button>
@@ -405,24 +383,24 @@ export default function PRsPage() {
               </div>
 
               {/* Table */}
-              <div className="rounded-2xl border border-border-soft bg-surface overflow-x-auto">
-                <table className="w-full text-[12.5px]">
+              <div className="card overflow-x-auto">
+                <table className="w-full text-[13.5px]">
                   <thead>
-                    <tr className="border-b border-border bg-ink/50 text-paper-muted">
-                      <th className="px-3 py-2 text-left text-xs font-medium">Repository</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium">Title</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium">Status</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium">Lines</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium">Updated</th>
-                      <th className="px-3 py-2 text-right text-xs font-medium">Actions</th>
+                    <tr className="border-b border-border-soft text-paper-muted">
+                      <th className="kicker px-4 py-3 text-left font-semibold first:pl-6">Repository</th>
+                      <th className="kicker px-4 py-3 text-left font-semibold">Title</th>
+                      <th className="kicker px-4 py-3 text-left font-semibold">Status</th>
+                      <th className="kicker px-4 py-3 text-left font-semibold">Lines</th>
+                      <th className="kicker px-4 py-3 text-left font-semibold">Updated</th>
+                      <th className="kicker px-4 py-3 pr-6 text-right font-semibold">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {paginated.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-[12px] text-paper-muted">
+                        <td colSpan={6} className="px-4 py-10 text-center text-[14px] text-paper-muted">
                           No PRs match your filters.{" "}
-                          <button onClick={() => { setStatusFilter("all"); setSearchQuery(""); }} className="text-signal hover:underline">
+                          <button onClick={() => { setStatusFilter("all"); setSearchQuery(""); }} className="link">
                             Clear filters
                           </button>
                         </td>
@@ -431,34 +409,35 @@ export default function PRsPage() {
                     {paginated.map((pr) => (
                       <tr
                         key={`${pr.repo}#${pr.number}`}
-                        className="group border-b border-border-soft last:border-0 transition-colors hover:bg-surface-2/60 cursor-pointer"
+                        className="group border-b border-border-soft last:border-0 transition-colors hover:bg-ink-2 cursor-pointer"
                       >
-                        <td className="px-3 py-2.5 text-paper-dim max-w-[200px] truncate">
+                        <td className="px-4 py-3.5 pl-6 text-paper-dim max-w-[200px] truncate">
                           <Link href={`/prs/${pr.repo}/${pr.number}`} className="hover:text-signal transition-colors">
                             {pr.repo}
                           </Link>
                         </td>
-                        <td className="px-3 py-2.5 text-paper max-w-[400px] truncate">
+                        <td className="px-4 py-3.5 font-medium text-paper max-w-[400px] truncate">
                           <Link href={`/prs/${pr.repo}/${pr.number}`} className="hover:text-signal transition-colors">
                             {pr.title}
                           </Link>
                         </td>
-                        <td className="px-3 py-2.5">
+                        <td className="px-4 py-3.5">
                           <PrBadge pr={pr} />
                         </td>
-                        <td className="px-3 py-2.5 tabular-nums">
+                        <td className="px-4 py-3.5 font-mono text-[12.5px] tabular-nums">
                           <span className="text-ok">+{pr.additions}</span>
-                          <span className="text-paper-faint"> / </span>
+                          <span className="text-paper-muted"> / </span>
                           <span className="text-alert">-{pr.deletions}</span>
                         </td>
-                        <td className="px-3 py-2.5 text-paper-muted whitespace-nowrap text-[11px]">
+                        <td className="px-4 py-3.5 text-paper-muted whitespace-nowrap text-[12.5px]">
                           {timeAgo(pr.updatedAt)}
                         </td>
-                        <td className="px-3 py-2.5 text-right">
+                        <td className="px-4 py-3.5 pr-6 text-right">
                           <div className="flex items-center justify-end gap-3">
                             <Link
                               href={`/prs/${pr.repo}/${pr.number}`}
-                              className="text-signal hover:underline text-[11px]"
+                              className="row-cta"
+                              data-size="sm"
                               onClick={(e) => e.stopPropagation()}
                             >
                               review
@@ -468,7 +447,7 @@ export default function PRsPage() {
                               target="_blank"
                               rel="noreferrer"
                               onClick={(e) => e.stopPropagation()}
-                              className="text-paper-muted hover:text-signal text-[11px]"
+                              className="text-paper-muted hover:text-signal text-[12.5px]"
                             >
                               #{pr.number} ↗
                             </a>
@@ -482,15 +461,16 @@ export default function PRsPage() {
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <div className="mt-3 flex items-center justify-between text-[11px]">
-                  <span className="text-paper-faint">
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-[13px]">
+                  <span className="text-paper-muted">
                     Showing {page * PAGE_SIZE + 1}-{Math.min((page + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
                   </span>
                   <div className="flex flex-wrap items-center gap-1">
                     <button
                       onClick={() => setPage(Math.max(0, page - 1))}
                       disabled={page === 0}
-                      className="rounded-full px-2.5 py-1 border border-border text-paper-dim hover:text-signal hover:border-signal/30 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="pill"
+                      data-size="sm"
                     >
                       prev
                     </button>
@@ -498,12 +478,9 @@ export default function PRsPage() {
                       <button
                         key={i}
                         onClick={() => setPage(i)}
-                        className={cn(
-                          "rounded-full px-2 py-1 border transition tabular-nums",
-                          i === page
-                            ? "border-signal/40 text-signal bg-signal/10"
-                            : "border-border text-paper-faint hover:text-paper-dim",
-                        )}
+                        aria-current={i === page ? "page" : undefined}
+                        className="pill tabular-nums"
+                        data-size="sm"
                       >
                         {i + 1}
                       </button>
@@ -511,7 +488,8 @@ export default function PRsPage() {
                     <button
                       onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
                       disabled={page >= totalPages - 1}
-                      className="rounded-full px-2.5 py-1 border border-border text-paper-dim hover:text-signal hover:border-signal/30 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="pill"
+                      data-size="sm"
                     >
                       next
                     </button>
@@ -530,39 +508,11 @@ export default function PRsPage() {
 }
 
 function PrBadge({ pr }: { pr: GitHubPr }) {
-  if (pr.isDraft) {
-    return (
-      <span className="text-xs font-medium text-paper-muted border border-border px-1.5 py-0.5">
-        draft
-      </span>
-    );
-  }
-  if (pr.reviewDecision === "APPROVED") {
-    return (
-      <span className="rounded-full text-xs font-medium text-ok border border-ok/30 px-1.5 py-0.5">
-        approved
-      </span>
-    );
-  }
-  if (pr.reviewDecision === "CHANGES_REQUESTED") {
-    return (
-      <span className="rounded-full text-xs font-medium text-alert border border-alert/30 px-1.5 py-0.5">
-        changes requested
-      </span>
-    );
-  }
-  if (pr.reviewDecision === "REVIEW_REQUIRED") {
-    return (
-      <span className="rounded-full text-xs font-medium text-signal border border-signal/30 px-1.5 py-0.5">
-        review needed
-      </span>
-    );
-  }
-  return (
-    <span className="rounded-full text-xs font-medium text-signal border border-signal/30 px-1.5 py-0.5">
-      open
-    </span>
-  );
+  if (pr.isDraft) return <span className="chip">draft</span>;
+  if (pr.reviewDecision === "APPROVED") return <span className="chip" data-tone="ok">approved</span>;
+  if (pr.reviewDecision === "CHANGES_REQUESTED") return <span className="chip" data-tone="alert">changes requested</span>;
+  if (pr.reviewDecision === "REVIEW_REQUIRED") return <span className="chip" data-tone="signal">review needed</span>;
+  return <span className="chip" data-tone="signal">open</span>;
 }
 
 function DashboardPrs() {
@@ -578,7 +528,7 @@ function DashboardPrs() {
 
   if (loading) {
     return (
-      <div className="mt-4 text-[12px] text-paper-muted animate-pulse-signal py-8 text-center">
+      <div role="status" className="mt-6 py-10 text-center text-[14px] text-paper-muted">
         Fetching pull requests opened with opensrcer...
       </div>
     );
@@ -586,7 +536,7 @@ function DashboardPrs() {
 
   if (error) {
     return (
-      <div role="alert" className="rounded-xl mt-4 border border-alert/30 bg-alert/5 p-8 text-center text-[12px] text-alert">
+      <div role="alert" className="callout mt-6 p-8 text-center text-[14px]" data-tone="alert">
         Could not load pull requests opened with opensrcer. {error}
       </div>
     );
@@ -594,7 +544,7 @@ function DashboardPrs() {
 
   if (!prs.length) {
     return (
-      <div className="rounded-2xl mt-4 border border-border-soft bg-surface p-8 text-center text-[12px] text-paper-muted">
+      <div className="card mt-6 p-10 text-center text-[14px] text-paper-muted">
         No pull requests opened with opensrcer yet. Runs you publish show up here.
       </div>
     );
@@ -614,7 +564,7 @@ function LazyPrTable({ prs }: { prs: unknown[] }) {
 
   if (!Table) return null;
   return (
-    <div className="mt-4">
+    <div className="mt-6">
       <Table prs={prs} />
     </div>
   );
@@ -625,17 +575,17 @@ function InboxSection({ title, subtitle, color, prs, actionHint }: { title: stri
   // glyph like "x" read as a close button.
   const dot = { alert: "bg-alert", ok: "bg-ok", signal: "bg-signal", info: "bg-info" }[color] ?? "bg-paper-faint";
   return (
-    <div className="rounded-2xl border border-border-soft bg-surface">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border-soft px-4 py-2.5">
-        <span aria-hidden className={cn("size-2 shrink-0 rounded-full", dot)} />
+    <div className="card overflow-hidden">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border-soft px-5 py-4 sm:px-6">
+        <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full", dot)} />
         <div>
-          <span className="text-[12px] text-paper font-medium">{title}</span>
-          <span className="ml-2 text-xs text-paper-faint tabular-nums">{prs.length}</span>
+          <span className="text-[16px] font-semibold text-paper">{title}</span>
+          <span className="ml-2 text-[13px] text-paper-muted tabular-nums">{prs.length}</span>
         </div>
-        <span className="w-full text-xs text-paper-faint sm:ml-1 sm:w-auto">{subtitle}</span>
+        <span className="w-full text-[13px] text-paper-muted sm:ml-1 sm:w-auto">{subtitle}</span>
       </div>
       {actionHint && (
-        <div className="px-4 py-1.5 border-b border-border-soft bg-ink/20 text-xs text-paper-faint">
+        <div className="border-b border-border-soft bg-ink-2 px-5 py-3 text-[13px] leading-[1.55] text-paper-dim sm:px-6">
           {actionHint}
         </div>
       )}
@@ -644,23 +594,23 @@ function InboxSection({ title, subtitle, color, prs, actionHint }: { title: stri
           <Link
             key={`${pr.repo}#${pr.number}`}
             href={`/prs/${pr.repo}/${pr.number}`}
-            className="group grid gap-2 px-4 py-3 transition hover:bg-surface-2/60 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
+            className="group grid gap-2 px-5 py-4 transition hover:bg-ink-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4 sm:px-6"
           >
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="truncate text-[11px] text-paper-dim">{pr.repo}</span>
-                <span className="text-xs text-paper-faint">#{pr.number}</span>
+                <span className="truncate text-[12.5px] font-medium text-paper-dim">{pr.repo}</span>
+                <span className="text-[12.5px] text-paper-muted">#{pr.number}</span>
               </div>
-              <div className="mt-0.5 text-[12px] leading-5 text-paper sm:truncate">{pr.title}</div>
+              <div className="mt-1 text-[15px] font-semibold leading-snug text-paper group-hover:text-signal sm:truncate">{pr.title}</div>
             </div>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:justify-end">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] sm:justify-end">
               {(pr.commentCount ?? 0) > 0 && (
                 <span className="text-info tabular-nums">{pr.commentCount} comment{pr.commentCount !== 1 ? "s" : ""}</span>
               )}
-              <span className="text-ok tabular-nums">+{pr.additions}</span>
-              <span className="text-alert tabular-nums">-{pr.deletions}</span>
-              <span className="text-paper-faint sm:w-16 sm:text-right">{timeAgo(pr.updatedAt)}</span>
-              <span className="hidden text-signal opacity-0 transition group-hover:opacity-100 sm:inline">review</span>
+              <span className="font-mono text-ok tabular-nums">+{pr.additions}</span>
+              <span className="font-mono text-alert tabular-nums">-{pr.deletions}</span>
+              <span className="text-paper-muted sm:w-16 sm:text-right">{timeAgo(pr.updatedAt)}</span>
+              <span className="row-cta hidden opacity-0 transition group-hover:opacity-100 sm:inline-flex" data-size="sm">review</span>
             </div>
           </Link>
         ))}
@@ -671,16 +621,17 @@ function InboxSection({ title, subtitle, color, prs, actionHint }: { title: stri
 
 function EmptyPrState({ account }: { account?: string }) {
   return (
-    <div className="rounded-2xl border border-border-soft bg-surface px-6 py-10 text-center sm:px-10">
-      <h2 className="text-lg font-medium text-paper">No open pull requests</h2>
-      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-paper-muted">
+    <div className="card relative overflow-hidden px-6 py-12 sm:px-12 sm:py-16">
+      <h2 className="display text-[36px] leading-none text-paper sm:text-[48px]">No open pull requests</h2>
+      <p className="mt-4 max-w-md text-[15px] leading-[1.6] text-paper-muted">
         {account ? `GitHub returned no open pull requests for ${account}.` : "Choose an issue and opensrcer will keep the resulting draft and review feedback here."}
       </p>
-      <div className="mt-5 flex flex-wrap justify-center gap-3">
-        <Link href="/discover" className="inline-flex min-h-11 items-center rounded-md bg-signal px-4 py-2 text-sm font-medium text-ink hover:bg-signal-soft">
+      <Doodle doodle={circle} draw="load" className="pointer-events-none absolute -right-4 top-6 hidden h-36 w-52 sm:block" />
+      <div className="mt-7 flex flex-wrap gap-3">
+        <Link href="/discover" className="btn-primary min-h-11 px-6">
           Find an issue
         </Link>
-        <Link href="/issues" className="inline-flex min-h-11 items-center rounded-md border border-border px-4 py-2 text-sm text-paper-dim hover:border-border-strong hover:text-paper">
+        <Link href="/issues" className="btn-quiet min-h-11 px-6">
           Browse suggested issues
         </Link>
       </div>

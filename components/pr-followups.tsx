@@ -55,7 +55,7 @@ export function PrFollowups({ prUrl }: { prUrl: string }) {
     return () => controller.abort();
   }, [load]);
 
-  if (!view) return error ? <p role="alert" className="mt-3 text-[11px] text-alert">{error}</p> : null;
+  if (!view) return error ? <p role="alert" className="mt-3 text-[12px] text-alert">{error}</p> : null;
 
   async function optIn(enabled: boolean) {
     setBusy("optin");
@@ -90,10 +90,10 @@ export function PrFollowups({ prUrl }: { prUrl: string }) {
   const events = [...view.recent].reverse();
   const open = view.state === "open";
   return (
-    <section aria-label="Follow-ups" className="rounded-2xl mt-4 border border-border-soft bg-surface px-4 py-3 text-[12px]">
+    <section aria-label="Follow-ups" className="card mt-4 px-4 py-3 text-[13px]">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-[13px] font-medium text-paper">Follow-ups</h2>
-        <span className="text-[11px] text-paper-muted">
+        <span className="text-[12px] text-paper-muted">
           <Term term="CI">CI</Term>: {view.ci === "none" ? "no checks" : view.ci}{view.mergeable_state === "dirty" ? <> · <Term term="merge conflict" /></> : ""}{view.state !== "open" ? ` · ${view.state}` : ""}
         </span>
       </div>
@@ -122,11 +122,11 @@ export function PrFollowups({ prUrl }: { prUrl: string }) {
           {view.followups && (
             <>
               <button onClick={() => void start("ci")} disabled={!view.can_fix_ci || busy !== null}
-                className="rounded-full border border-signal/50 bg-signal/10 px-3 py-1 text-[12px] text-signal hover:bg-signal/20 disabled:opacity-50">
+                className="row-cta" data-size="sm">
                 {busy === "ci" ? "starting…" : "Fix CI failure"}
               </button>
               <button onClick={() => void start("review")} disabled={!view.can_address_review || busy !== null}
-                className="rounded-full border border-signal/50 bg-signal/10 px-3 py-1 text-[12px] text-signal hover:bg-signal/20 disabled:opacity-50">
+                className="row-cta" data-size="sm">
                 {busy === "review" ? "starting…" : "Address review"}
               </button>
             </>
@@ -134,7 +134,7 @@ export function PrFollowups({ prUrl }: { prUrl: string }) {
         </div>
       )}
       {open && view.followups && (
-        <p className="mt-2 text-[11px] text-paper-muted">
+        <p className="mt-2 text-[12px] text-paper-muted">
           A follow-up starts an agent run on this PR&apos;s branch{view.linked_issue ? ` (issue #${view.linked_issue})` : ""}. It ends at the usual review step:
           nothing is pushed until you confirm it on the run page, and it adds one commit to this PR.
           {!view.linked_issue && " This PR's description names no issue (\"Fixes #N\"), so follow-ups cannot start."}

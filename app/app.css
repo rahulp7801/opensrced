@@ -59,10 +59,10 @@
     background: var(--color-surface-2);
     color: var(--color-paper-dim);
   }
-  .chip[data-tone="ok"] { background: color-mix(in srgb, var(--color-ok-dim) 70%, var(--color-surface)); color: var(--color-ok); }
-  .chip[data-tone="alert"] { background: color-mix(in srgb, var(--color-alert-dim) 70%, var(--color-surface)); color: var(--color-alert); }
-  .chip[data-tone="info"] { background: color-mix(in srgb, var(--color-info-dim) 70%, var(--color-surface)); color: var(--color-info); }
-  .chip[data-tone="signal"] { background: var(--color-signal-faint); color: var(--color-signal); }
+  .chip[data-tone="ok"], .chip-ok { background: color-mix(in srgb, var(--color-ok-dim) 70%, var(--color-surface)); color: var(--color-ok); }
+  .chip[data-tone="alert"], .chip-alert { background: color-mix(in srgb, var(--color-alert-dim) 70%, var(--color-surface)); color: var(--color-alert); }
+  .chip[data-tone="info"], .chip-info { background: color-mix(in srgb, var(--color-info-dim) 70%, var(--color-surface)); color: var(--color-info); }
+  .chip[data-tone="signal"], .chip-signal { background: var(--color-signal-faint); color: var(--color-signal); }
 
   /* ── Callouts: a soft sheet for notes, warnings and results. */
   .callout {
@@ -72,10 +72,10 @@
     box-shadow: inset 0 0 0 1px var(--color-border-soft);
     color: var(--color-paper-dim);
   }
-  .callout[data-tone="alert"] { background: color-mix(in srgb, var(--color-alert-dim) 32%, var(--color-surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-alert) 28%, transparent); color: var(--color-alert); }
-  .callout[data-tone="ok"] { background: color-mix(in srgb, var(--color-ok-dim) 34%, var(--color-surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-ok) 26%, transparent); color: var(--color-paper-dim); }
-  .callout[data-tone="info"] { background: color-mix(in srgb, var(--color-info-dim) 34%, var(--color-surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-info) 24%, transparent); color: var(--color-paper-dim); }
-  .callout[data-tone="signal"] { background: color-mix(in srgb, var(--color-signal-faint) 70%, var(--color-surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-signal) 26%, transparent); color: var(--color-paper-dim); }
+  .callout[data-tone="alert"], .callout-alert { background: color-mix(in srgb, var(--color-alert-dim) 32%, var(--color-surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-alert) 28%, transparent); color: var(--color-alert); }
+  .callout[data-tone="ok"], .callout-ok { background: color-mix(in srgb, var(--color-ok-dim) 34%, var(--color-surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-ok) 26%, transparent); color: var(--color-paper-dim); }
+  .callout[data-tone="info"], .callout-info { background: color-mix(in srgb, var(--color-info-dim) 34%, var(--color-surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-info) 24%, transparent); color: var(--color-paper-dim); }
+  .callout[data-tone="signal"], .callout-signal { background: color-mix(in srgb, var(--color-signal-faint) 70%, var(--color-surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-signal) 26%, transparent); color: var(--color-paper-dim); }
 
   /* ── Pills as toggles and tabs: pressed/selected inks in like aria-current. */
   .pill[aria-pressed="true"],

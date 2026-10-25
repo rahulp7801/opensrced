@@ -448,9 +448,9 @@ export const stageRefused: Chapter = {
 
 // Each row is something opensrcer does today (on the hosted site unless it says otherwise).
 const SLOP: Array<[string, string]> = [
-  ["Nobody asked for it", "Steers you to issues that are open to you: it flags assigned, already-fixed and vague issues, and refuses projects whose guide bans AI."],
+  ["Nobody asked for it", "Steers you to issues that are open to you: it flags assigned, already-fixed and vague issues, and refuses where the guide bans AI or a maintainer on the issue asks for human-written work."],
   ["Someone's already on it", "It won't publish while another pull request targets the issue."],
-  ["The sender can't explain it", "Nothing publishes until you've read the patch and confirmed you can explain it. The chat helps you get there."],
+  ["The sender can't explain it", "Nothing publishes until you explain the change in your own words, checked against the diff, and answer a practice review. The chat helps you get there."],
   ["Hidden AI", "Every pull request says who asked, which model, and what was and wasn't tested."],
   ["Untested", "It runs the project's tests in a machine with no credentials and re-runs them on the final patch; when the fix adds a test, it checks that test fails without the fix. No test it can run? It says unverified."],
   ["Sent in bulk", "Always a draft, with you as the author. One open pull request per project per person, and at most three a day."],

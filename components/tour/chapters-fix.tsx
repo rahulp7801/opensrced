@@ -300,7 +300,7 @@ export const review: Chapter = {
     { at: 7600, spot: "review-diff", text: "The patch is shown side by side: the one broken line out, a small fix in, and two new tests." },
     { at: 13200, text: "Copy the diff, or a ready-made commit message, if you'd rather apply it yourself." },
     { at: STEPS_AT, spot: "publish-steps", text: "Nothing is published until you say so, and it tells you exactly what publishing does, in plain words, before you confirm: one commit on a new branch, a draft pull request that says an AI tool helped, and nothing merged." },
-    { at: CONFIRM_AT - 600, text: "A preview stops here. For a publishable run, you confirm you've read it and can explain it to reviewers." },
+    { at: CONFIRM_AT - 600, text: "A preview stops here. For a publishable run, you explain it in your own words and confirm you've read it." },
     { at: PUBLISH_AT, text: "Then it's scanned for leaked secrets and opens as a draft pull request, with exactly this patch and text." },
     { at: REVIEW_PUBLISHED_AT + 600, spot: "next-steps", text: "And it tells you what happens next, etiquette included: mark it ready when you're happy, give it time, don't chase people, answer every review comment." },
   ],

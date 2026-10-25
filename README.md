@@ -39,7 +39,7 @@ workflow. Release acceptance and outstanding gates are tracked in
 | Explore | Inspect repository code with read-only tools and codebase graphs. |
 | Fix | Generate a patch in an isolated worker with a spend or turn limit and a timeout. Run locally with Docker, the agent edits the code and runs the project's own tests in a credential-free container, and the tool re-runs them on the final patch (including with the fix reverted). |
 | Review | Every run ends at a frozen preview: patch, PR text, verification evidence, and any blockers. Nothing is published automatically. |
-| Publish | After the user confirms they have read the change and can explain it, open a draft PR from their GitHub identity, with an AI-assistance disclosure and a DCO sign-off where the project requires one. |
+| Publish | After the user explains the change in their own words (checked against the diff, plus a short practice review) and confirms they have read it, open a draft PR from their GitHub identity, with an AI-assistance disclosure and a DCO sign-off where the project requires one. |
 | Pay | Locally, runs use the user's own Claude or ChatGPT subscription first; an Anthropic API key is the opt-in fallback. Hosted runs use the user's API key. |
 
 Private organization workflows use an optional GitHub App connection. The demo

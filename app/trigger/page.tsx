@@ -40,7 +40,7 @@ export default function TriggerPage() {
             {
               code: "03",
               title: "You decide what to publish",
-              body: "A publishable run waits for you: read the change, confirm you can explain it, and only then does it open a draft PR from your account. A preview can only be read.",
+              body: "A publishable run waits for you: read the change, explain it in your own words, and only then does it open a draft PR from your account. A preview can only be read.",
             },
           ].map((step) => (
             <li key={step.code} className="grid grid-cols-[2rem_1fr] gap-2">

@@ -341,9 +341,8 @@ function Spotlight({ selector, strong, within }: { selector: string | null; stro
       // Every match, as one box: a run of log lines lights up together.
       // Not yet revealed (Reveal marks it aria-hidden, or every child is) means nothing to
       // light yet: the ring waits for the content instead of framing empty space.
-      // (A button's own text counts as content: its decoration being aria-hidden doesn't hide it.)
-      const ownText = (el: Element) => [...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && Boolean(n.textContent?.trim()));
-      const hidden = (el: Element) => el.getAttribute("aria-hidden") === "true" || (!ownText(el) && el.children.length > 0 && [...el.children].every((c) => c.getAttribute("aria-hidden") === "true"));
+      // A button waiting for its click is always on screen; the check is for what notes point at.
+      const hidden = (el: Element) => !el.hasAttribute("data-waiting") && (el.getAttribute("aria-hidden") === "true" || (el.children.length > 0 && [...el.children].every((c) => c.getAttribute("aria-hidden") === "true")));
       const rects = selector && canvas ? [...canvas.querySelectorAll(selector)].filter((el) => !hidden(el)).map((el) => el.getBoundingClientRect()).filter((b) => b.width > 0) : [];
       if (!canvas || rects.length === 0) { setBox(null); return; }
       const r = { left: Math.min(...rects.map((b) => b.left)), top: Math.min(...rects.map((b) => b.top)), right: Math.max(...rects.map((b) => b.right)), bottom: Math.max(...rects.map((b) => b.bottom)), width: 1 };

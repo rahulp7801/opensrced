@@ -8,11 +8,11 @@ export default function StatsPage() {
     <div className="mx-auto w-full max-w-[1200px] px-5 py-10 sm:px-8">
       <PageHeading
         title={<>Impact</>}
-        description="Track recorded runs, patches, pull requests, and provider spend across your work."
+        description="What your runs produced: patches, pull requests, and what they cost."
       />
 
       {/* Dispatch stats */}
-      <div className="mt-6">
+      <div>
         <StatsBoard />
       </div>
     </div>

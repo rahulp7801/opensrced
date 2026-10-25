@@ -51,13 +51,13 @@ export default function SharedFixPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-[800px] px-4 py-12" aria-busy="true">
+      <div className="mx-auto w-full max-w-[860px] px-5 py-12 sm:px-8" aria-busy="true">
         {/* The skeleton has no text, so give assistive tech something to announce. */}
         <h1 className="sr-only">Loading shared fix…</h1>
         <div className="animate-pulse space-y-4">
-          <div className="h-6 w-48 bg-surface-2 rounded" />
-          <div className="h-4 w-96 bg-surface-2 rounded" />
-          <div className="h-64 bg-surface-2 rounded" />
+          <div className="h-3 w-32 rounded-full bg-surface-2" />
+          <div className="h-12 w-72 max-w-full rounded-2xl bg-surface-3" />
+          <div className="h-64 rounded-[20px] bg-surface-2" />
         </div>
       </div>
     );
@@ -65,10 +65,10 @@ export default function SharedFixPage() {
 
   if (error || !fix) {
     return (
-      <div className="mx-auto max-w-[800px] px-4 py-12 text-center">
-        <h1 className="serif text-[28px] text-paper">Could not load fix</h1>
-        <p className="mt-2 text-[13px] text-paper-dim">{error ?? "This shared fix link may have expired or been deleted."}</p>
-        <button onClick={() => window.location.reload()} className="rounded-full mt-4 border border-border px-3 py-2 text-[12px] text-paper-muted hover:border-signal hover:text-signal">
+      <div className="mx-auto w-full max-w-[860px] px-5 py-16 sm:px-8">
+        <h1 className="display text-[44px] leading-[0.95] tracking-[-0.025em] text-paper sm:text-[56px]">Could not load fix</h1>
+        <p className="mt-5 max-w-xl text-[16px] leading-[1.6] text-paper-muted">{error ?? "This shared fix link may have expired or been deleted."}</p>
+        <button onClick={() => window.location.reload()} className="btn-quiet mt-7">
           Try again
         </button>
       </div>
@@ -76,22 +76,22 @@ export default function SharedFixPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[800px] px-4 py-8">
-      {/* Header */}
-      <div className="rounded-2xl border border-border-soft bg-surface px-5 py-4">
-        <div className="flex items-center gap-3 mb-2">
-          <span className="text-xs font-medium text-signal">shared fix</span>
+    <div className="mx-auto w-full max-w-[860px] px-5 py-10 sm:px-8">
+      {/* Header: the same rhythm as every app page (kicker, display title, quiet line). */}
+      <div className="pt-2 sm:pt-6">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="label-mono">shared fix</span>
           {fix.pr_number && (
-            <span className="rounded-full text-xs text-info border border-info/30 px-1.5 py-0.5">PR #{fix.pr_number}</span>
+            <span className="chip chip-info">PR #{fix.pr_number}</span>
           )}
-          <span className="text-xs text-paper-faint ml-auto">{new Date(fix.created_at).toLocaleString()}</span>
+          <span className="ml-auto text-[13px] text-paper-muted">{new Date(fix.created_at).toLocaleString()}</span>
         </div>
-        <h1 className="serif text-[22px] text-paper">{fix.repo}</h1>
-        <p className="mt-1 text-[12px] text-paper-muted">Shared by an opensrcer user. opensrcer does not review shared fixes; check the code before you use it.</p>
+        <h1 className="display mt-4 break-all text-[40px] leading-[0.95] tracking-[-0.025em] text-paper sm:text-[56px]">{fix.repo}</h1>
+        <p className="mt-4 max-w-2xl text-[16px] leading-[1.6] text-paper-muted">Shared by an opensrcer user. opensrcer does not review shared fixes; check the code before you use it.</p>
 
         {fix.comment_body && (
-          <div className="mt-3 px-3 py-2 border-l-2 border-signal/40 bg-ink/30 text-[12px] text-paper-dim">
-            <span className="text-[11px] text-paper-faint font-medium block mb-1">Review comment</span>
+          <div className="mt-6 border-l border-border-strong pl-4 text-[16px] leading-[1.6] text-paper-dim">
+            <span className="label-mono mb-1 block">Review comment</span>
             {fix.comment_body}
           </div>
         )}
@@ -99,29 +99,33 @@ export default function SharedFixPage() {
 
       {/* Explainer */}
       {fix.explainer && (
-        <div className="rounded-xl mt-3 border border-ok/20 bg-ok/5 px-5 py-3">
-          <span className="text-[11px] text-ok font-medium block mb-1">Why this fix</span>
-          <p className="text-[12px] text-paper-dim whitespace-pre-wrap">{fix.explainer}</p>
+        <div className="callout callout-ok mt-8 px-5 py-4">
+          <span className="label-mono mb-1.5 block text-ok">Why this fix</span>
+          <p className="text-[16px] leading-[1.6] text-paper-dim whitespace-pre-wrap">{fix.explainer}</p>
+
         </div>
       )}
 
       {/* Diff */}
       {fix.diff && (
-        <div className="rounded-2xl mt-3 border border-border-soft bg-ink/30">
-          <div className="px-4 py-2 border-b border-border-soft flex items-center justify-between">
-            <span className="text-xs text-paper-muted font-medium">Diff</span>
+        <>
+        <p className="fig mt-8">
+          <span className="fig-tag">fig. 1</span>
+          <span>diff · {fix.repo}{fix.pr_number ? ` #${fix.pr_number}` : ""}</span>
+        </p>
+        <div className="card mt-2 overflow-hidden">
+          <div className="flex items-center justify-between border-b border-border-soft px-5 py-3">
+            <span className="label-mono">Diff</span>
             <button
               onClick={copyDiff}
               aria-live="polite"
-              className={cn(
-                "text-xs transition",
-                copyState === "error" ? "text-alert" : "text-paper-muted hover:text-paper",
-              )}
+              className={cn("btn-quiet", copyState === "error" && "text-alert")}
+              data-size="sm"
             >
               {copyState === "copied" ? "Copied" : copyState === "error" ? "Copy failed" : "Copy diff"}
             </button>
           </div>
-          <pre className="px-4 py-3 text-[10.5px] font-mono leading-snug overflow-x-auto">
+          <pre className="overflow-x-auto px-5 py-4 font-mono text-[13px] leading-relaxed">
             {fix.diff.split("\n").map((line, i) => {
               let cls = "text-paper-dim";
               if (line.startsWith("+") && !line.startsWith("+++")) cls = "text-ok";
@@ -131,20 +135,22 @@ export default function SharedFixPage() {
             })}
           </pre>
         </div>
+        </>
       )}
 
       {/* Full response */}
-      <details className="rounded-2xl mt-3 border border-border-soft bg-surface">
-        <summary className="px-4 py-2 cursor-pointer text-[11px] text-paper-muted hover:text-paper-dim transition">
+      <details className="card mt-4 overflow-hidden">
+        <summary className="flex min-h-11 cursor-pointer items-center px-5 text-[15px] font-medium text-paper hover:text-signal">
           Full AI response
         </summary>
-        <div className="px-4 py-3 text-[12px] text-paper-dim whitespace-pre-wrap break-words border-t border-border-soft">
+        <div className="border-t border-border-soft px-5 py-4 text-[16px] leading-[1.6] text-paper-dim whitespace-pre-wrap break-words">
           {fix.fix_response}
         </div>
       </details>
 
       {/* Footer */}
-      <div className="mt-6 text-center text-[11px] text-paper-faint">
+      <div className="mt-8 text-[13px] text-paper-muted">
+
         <p>Available until {new Date(Date.parse(fix.created_at) + SHARED_FIX_RETENTION_MS).toLocaleString()}</p>
       </div>
     </div>

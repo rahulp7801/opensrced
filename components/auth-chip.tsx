@@ -16,7 +16,7 @@ export function AuthChip({ localMode = false }: { localMode?: boolean }) {
       <Link
         href="/crucible"
         aria-label="Local settings"
-        className="ml-auto flex shrink-0 items-center gap-2 px-3 text-[11.5px] text-paper-muted transition hover:bg-surface-2/60 hover:text-paper"
+        className="ml-auto flex min-h-10 shrink-0 items-center gap-2 rounded-[10px] px-2.5 text-[13px] text-paper-muted transition hover:bg-surface hover:text-paper"
         title="Local development mode — open settings"
       >
         <span className="h-2 w-2 rounded-full bg-ok" aria-hidden />
@@ -27,8 +27,8 @@ export function AuthChip({ localMode = false }: { localMode?: boolean }) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center px-4 shrink-0" aria-hidden>
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-paper-faint animate-pulse" />
+      <div className="flex min-h-10 shrink-0 items-center px-4" aria-hidden>
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-paper-faint" />
       </div>
     );
   }
@@ -37,7 +37,7 @@ export function AuthChip({ localMode = false }: { localMode?: boolean }) {
     return (
       <Link
         href="/login"
-        className="flex shrink-0 items-center gap-2 px-4 text-[12px] font-medium text-paper-dim transition hover:text-paper whitespace-nowrap"
+        className="btn-primary ml-2 shrink-0 gap-2 rounded-[10px] px-3.5 text-[14px]"
       >
         <GithubLogo aria-hidden size={17} weight="fill" />
         Sign in
@@ -50,11 +50,11 @@ export function AuthChip({ localMode = false }: { localMode?: boolean }) {
   const picture = safeAvatarUrl(user.picture);
 
   return (
-    <div className="flex items-stretch shrink-0 ml-auto">
+    <div className="flex shrink-0 items-center gap-0.5">
       <Link
         href="/crucible"
         aria-label={`Settings for ${display}`}
-        className="flex items-center gap-2 px-3 hover:bg-surface-2/60 transition"
+        className="flex min-h-10 min-w-10 items-center justify-center gap-2 rounded-[10px] px-2 transition hover:bg-surface"
         title={`${display} — manage connections`}
       >
         {picture ? (
@@ -70,18 +70,17 @@ export function AuthChip({ localMode = false }: { localMode?: boolean }) {
             {initial}
           </span>
         )}
-        <span className="text-[11.5px] text-paper-muted max-w-[90px] truncate hidden lg:inline">
+        <span className="hidden max-w-[110px] truncate text-[12.5px] text-paper-muted lg:inline">
           {display}
         </span>
       </Link>
       <a
         href="/auth/logout"
         aria-label="Sign out"
-        className="flex items-center gap-2 px-3 text-[11px] text-paper-faint hover:text-alert transition whitespace-nowrap"
+        className="flex min-h-10 min-w-10 items-center justify-center gap-2 whitespace-nowrap rounded-[10px] px-2.5 text-paper-muted transition hover:bg-surface hover:text-alert"
         title="Sign out"
       >
-        <IconSignOut size={16} />
-        <span className="hidden sm:inline">Sign out</span>
+        <IconSignOut size={17} />
       </a>
     </div>
   );

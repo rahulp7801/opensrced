@@ -51,7 +51,7 @@ async function post(body: object): Promise<{ ok: boolean; status: number; data: 
   return { ok: res.ok, status: res.status, data: (await res.json().catch(() => ({}))) as Record<string, unknown> };
 }
 
-export function OwnWords({ storageKey, repo, title, context, copySources, practice = false, onResult }: {
+export function OwnWords({ storageKey, repo, title, context, copySources, practice = false, onResult, number }: {
   /** One per run, e.g. "run:<id>". */
   storageKey: string;
   repo?: string;
@@ -62,6 +62,8 @@ export function OwnWords({ storageKey, repo, title, context, copySources, practi
   /** A preview run: the same steps, nothing to unlock. */
   practice?: boolean;
   onResult: (result: OwnWordsResult) => void;
+  /** The part number, hung in the margin by the sheet around it. */
+  number?: React.ReactNode;
 }) {
   const [s, setS] = useState<Saved>(EMPTY);
   const [loaded, setLoaded] = useState(false);
@@ -145,50 +147,59 @@ export function OwnWords({ storageKey, repo, title, context, copySources, practi
     }
   }
 
-  const button = "inline-flex min-h-10 items-center rounded-full border px-3 text-[12px] disabled:opacity-50 sm:min-h-8";
   const covered = (ok: boolean | undefined, optional = false) => (ok ? "covered" : optional ? "not mentioned (optional)" : "missing");
+  // A small dot before each line of the check result; drawn in CSS so the text stays exactly the result.
+  const mark = "relative pl-4 before:absolute before:left-0 before:top-[0.6em] before:size-1.5 before:rounded-full before:bg-current";
   const r = s.result;
   return (
     <>
-      <section aria-labelledby={ids.a} className="mt-3 rounded-lg border border-signal/40 bg-ink px-3 py-2.5 text-[12px]">
-        <h4 id={ids.a} className="font-medium text-paper">Explain it in your own words</h4>
-        <p className="mt-1 text-paper-muted">Maintainers want to know the person sending a change understands it.{practice ? " This run is a preview, so this is practice." : ""} In a few sentences, answer:</p>
-        <ul className="mt-1 list-disc pl-5 text-paper-dim">
+      {/* The lesson, as a part of the review sheet: three questions, then your
+          answer written on ruled paper, then a practice review. */}
+      <section aria-labelledby={ids.a} className="relative mt-8 border-t border-border-soft pt-8">
+        <div className="relative flex items-baseline gap-3">
+          {number}
+          <h4 id={ids.a} className="text-[19px] font-semibold tracking-[-0.01em] text-paper">Explain it in your own words</h4>
+        </div>
+        <p className="mt-3 max-w-2xl text-paper-dim">Maintainers want to know the person sending a change understands it.{practice ? " This run is a preview, so this is practice." : ""} In a few sentences, answer:</p>
+        <ol className="mt-2 list-[lower-alpha] space-y-0.5 pl-6 text-[15px] text-paper-muted marker:font-mono marker:text-[12px] marker:text-paper-faint">
           <li>What was wrong?</li>
           <li>What did the change do?</li>
           <li>How do you know it works?</li>
-        </ul>
-        <label htmlFor={ids.text} className="mt-2 block text-paper">Your explanation</label>
+        </ol>
+        <label htmlFor={ids.text} className="label-mono mt-6 block">Your explanation</label>
         <textarea
           id={ids.text}
           aria-describedby={ids.hint}
           value={s.text}
           onChange={(e) => { setS((p) => ({ ...p, text: e.target.value })); setCopyWarning(false); }}
           maxLength={OWN_WORDS.max}
-          rows={5}
-          className="mt-1 block w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-[12px] text-paper placeholder:text-paper-faint focus:border-signal/50 focus:outline-none"
+          rows={7}
+          className="paper-field mt-1"
         />
-        <p id={ids.hint} className="mt-1 text-paper-muted">
-          At least {OWN_WORDS.min} characters ({text.length}/{OWN_WORDS.max}). It goes into the pull request under &quot;In the author&apos;s words&quot;.
-        </p>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <button type="button" onClick={() => void check()} disabled={!lengthOk || busy !== null || checksLeft === 0} className={`${button} border-signal/50 bg-signal/10 font-medium text-signal hover:bg-signal/20`}>
+        <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+          <p id={ids.hint} className="text-[14px] text-paper-muted">
+            At least {OWN_WORDS.min} characters. It goes into the pull request under &quot;In the author&apos;s words&quot;.
+          </p>
+          <span className="font-mono text-[12px] tabular-nums text-paper-faint">{text.length} / {OWN_WORDS.min} minimum</span>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button type="button" onClick={() => void check()} disabled={!lengthOk || busy !== null || checksLeft === 0} className="btn-quiet">
             {busy === "check" ? "Checking…" : "Check my explanation"}
           </button>
-          <span className="text-paper-muted">{checksLeft === 1 ? "1 check left" : `${checksLeft} checks left`}</span>
+          <span className="font-mono text-[12px] text-paper-muted">{checksLeft === 1 ? "1 check left" : `${checksLeft} checks left`}</span>
         </div>
-        <div aria-live="polite" className="mt-2 space-y-1">
+        <div aria-live="polite" className="mt-4 space-y-2 empty:hidden">
           {(copyWarning || (s.checkFailed && copied)) && <p className="text-alert">{COPY_MESSAGE}</p>}
           {r && !stale && (
             <>
-              <ul className="space-y-0.5">
-                <li className={r.rootCause ? "text-ok" : "text-alert"}>What was wrong: {covered(r.rootCause)}</li>
-                <li className={r.change ? "text-ok" : "text-alert"}>What the change did: {covered(r.change)}</li>
-                <li className={r.evidence ? "text-ok" : "text-paper-muted"}>How you know it works: {covered(r.evidence, true)}</li>
+              <ul className="space-y-1 font-medium">
+                <li className={cn(mark, r.rootCause ? "text-ok" : "text-alert")}>What was wrong: {covered(r.rootCause)}</li>
+                <li className={cn(mark, r.change ? "text-ok" : "text-alert")}>What the change did: {covered(r.change)}</li>
+                <li className={cn(mark, r.evidence ? "text-ok" : "text-paper-muted")}>How you know it works: {covered(r.evidence, true)}</li>
               </ul>
               {r.mistakes.map((m) => <p key={m} className="text-alert">That&apos;s not quite it: {m}</p>)}
               <p className="text-paper-dim">Tip: {r.tip}</p>
-              <p className={cn("font-medium", r.passed ? "text-ok" : "text-paper")}>{r.passed ? "Your explanation covers the change." : "Not there yet: fix what's above, then check again."}</p>
+              <p className={cn("text-[16px] font-semibold", r.passed ? "text-ok" : "text-paper")}>{r.passed ? "Your explanation covers the change." : "Not there yet: fix what's above, then check again."}</p>
             </>
           )}
           {stale && <p className="text-paper-muted">You&apos;ve edited it since the last check. Check it again.</p>}
@@ -198,19 +209,19 @@ export function OwnWords({ storageKey, repo, title, context, copySources, practi
       </section>
 
       {checked && !s.practiceFailed && (
-        <section aria-labelledby={ids.b} className="mt-3 rounded-lg border border-info/40 bg-ink px-3 py-2.5 text-[12px]">
-          <h4 id={ids.b} className="font-medium text-paper">Practice review</h4>
-          <p className="mt-1 text-paper-muted">{PRACTICE_INTRO}</p>
-          {busy === "questions" && <p role="status" className="mt-2 text-paper-muted">Writing 2 review questions about this change…</p>}
+        <section aria-labelledby={ids.b} className="mt-8">
+          <h4 id={ids.b} className="text-[17px] font-semibold tracking-[-0.01em] text-paper">Practice review</h4>
+          <p className="mt-2 max-w-2xl text-paper-dim">{PRACTICE_INTRO}</p>
+          {busy === "questions" && <p role="status" className="mt-4 text-paper-muted">Writing 2 review questions about this change…</p>}
           {!s.questions && busy !== "questions" && (
-            <button type="button" onClick={() => void loadQuestions()} className={`${button} mt-2 border-info/50 text-info hover:bg-info/10`}>Get the practice questions</button>
+            <button type="button" onClick={() => void loadQuestions()} className="btn-quiet mt-4">Get the practice questions</button>
           )}
           {s.questions?.map((q, i) => {
             const a = s.answers[i];
             const qid = `${ids.b}-q${i}`;
             return (
-              <div key={q} className="mt-3">
-                <p id={qid} className="text-paper"><span className="font-medium">Reviewer:</span> {q}</p>
+              <div key={q} className="mt-6 border-l border-border-strong pl-4 sm:pl-5">
+                <p id={qid} className="text-[16px] leading-[1.5] text-paper"><span className="font-semibold">Reviewer:</span> {q}</p>
                 <label htmlFor={`${qid}-a`} className="sr-only">Your answer to: {q}</label>
                 <textarea
                   id={`${qid}-a`}
@@ -219,18 +230,18 @@ export function OwnWords({ storageKey, repo, title, context, copySources, practi
                   maxLength={OWN_WORDS.answerMax}
                   rows={3}
                   placeholder="Your answer"
-                  className="mt-1 block w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-[12px] text-paper placeholder:text-paper-faint focus:border-info/50 focus:outline-none"
+                  className="paper-field mt-2"
                 />
-                <div className="mt-1 flex flex-wrap items-center gap-3">
-                  <button type="button" onClick={() => void answer(i)} disabled={(a?.draft.trim().length ?? 0) < OWN_WORDS.answerMin || busy !== null} className={`${button} border-info/50 text-info hover:bg-info/10`}>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <button type="button" onClick={() => void answer(i)} disabled={(a?.draft.trim().length ?? 0) < OWN_WORDS.answerMin || busy !== null} className="btn-quiet" data-size="sm">
                     {busy === i ? "Sending…" : a?.sent ? "Send again" : "Send answer"}
                   </button>
-                  <span className="text-paper-muted">At least {OWN_WORDS.answerMin} characters.</span>
+                  <span className="font-mono text-[12px] text-paper-muted">at least {OWN_WORDS.answerMin} characters</span>
                 </div>
-                <div aria-live="polite">
-                  {a?.feedback && <p className="mt-1 text-paper-dim"><span className="font-medium text-paper">Feedback:</span> {a.feedback.feedback}</p>}
-                  {a?.feedback?.followUp && <p className="mt-0.5 text-paper-muted">A reviewer might follow up: {a.feedback.followUp}</p>}
-                  {a?.error && <p className="mt-1 text-paper-muted">{a.error}</p>}
+                <div aria-live="polite" className="empty:hidden">
+                  {a?.feedback && <p className="mt-3 text-paper-dim"><span className="font-semibold text-paper">Feedback:</span> {a.feedback.feedback}</p>}
+                  {a?.feedback?.followUp && <p className="mt-1 text-paper-muted">A reviewer might follow up: {a.feedback.followUp}</p>}
+                  {a?.error && <p className="mt-3 text-paper-muted">{a.error}</p>}
                 </div>
               </div>
             );

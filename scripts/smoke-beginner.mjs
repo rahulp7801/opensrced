@@ -170,7 +170,7 @@ try {
     assert.equal(await setup.getByText(/subscription/).count(), 0, 'no subscription is promised where only a key is offered');
     // Suggested issues go through the scanner's check, not straight to a run.
     await page.getByText('unassigned, with no linked pull request', { exact: false }).waitFor();
-    assert.equal(await page.getByRole('link', { name: 'Fix issue', exact: true }).getAttribute('href'), '/issues?repo=acme%2Fcompiler&issue=72');
+    assert.equal(await page.getByRole('link', { name: 'Fix this issue', exact: true }).getAttribute('href'), '/issues?repo=acme%2Fcompiler&issue=72');
     await assertUsableControls(page, `${width} issues`);
     await assertAccessible(page, `${width} issues`);
     await page.goto(base + '/issues?repo=acme%2Fcompiler&issue=72');

@@ -9,26 +9,21 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
   }, [error]);
 
   return (
-    <section className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center px-5 py-16 sm:px-8" role="alert">
-      <p className="text-[13px] font-semibold text-alert">Unexpected error</p>
-      <h1 className="display mt-3 text-[40px] leading-[1.05] text-paper">This page could not finish loading.</h1>
-      <p className="mt-4 max-w-xl text-sm leading-6 text-paper-muted">
-        Retry the request. If it fails again, return to issue discovery and start from there.
-      </p>
-      <div className="mt-7 flex flex-wrap gap-3">
-        <button
-          type="button"
-          onClick={reset}
-          className="min-h-11 rounded-md bg-signal px-5 py-2.5 text-sm font-medium text-ink hover:bg-signal-soft"
-        >
-          Try again
-        </button>
-        <Link
-          href="/issues"
-          className="inline-flex min-h-11 items-center rounded-md border border-border px-5 py-2.5 text-sm text-paper hover:border-border-strong"
-        >
-          Browse issues
-        </Link>
+    <section className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col justify-center px-5 py-16 sm:px-8" role="alert">
+      <div className="max-w-2xl">
+        <p className="label-mono text-alert">Unexpected error</p>
+        <h1 className="display mt-4 text-[44px] leading-[0.95] tracking-[-0.025em] text-paper sm:text-[64px]">This page could not finish loading.</h1>
+        <p className="mt-5 max-w-xl text-[16px] leading-[1.6] text-paper-muted">
+          Retry the request. If it fails again, return to issue discovery and start from there.
+        </p>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <button type="button" onClick={reset} className="btn-primary">
+            Try again
+          </button>
+          <Link href="/issues" className="text-link">
+            Browse issues
+          </Link>
+        </div>
       </div>
     </section>
   );

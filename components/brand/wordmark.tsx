@@ -15,6 +15,7 @@ export function Wordmark({ draw = false, className }: { draw?: boolean; classNam
     <span role="img" aria-label="opensrcer" className={cn("wordmark inline-flex items-baseline whitespace-nowrap font-display font-extrabold leading-none tracking-[-0.025em] [font-stretch:80%]", className)}>
       <Doodle
         doodle={o}
+        weight={1}
         draw={draw ? "load" : "none"}
         delay={150}
         duration={700}

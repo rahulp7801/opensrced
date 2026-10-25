@@ -11,13 +11,13 @@ export default function DiscoverPage() {
         title={<>Browse repos</>}
         description={
           <>
-            Search public GitHub repositories by stars and language, then compare their open
-            issues by scope and complexity. Search uses GitHub only and does not consume AI credits.
+            Search public repositories by stars and language and compare their open issues; it
+            uses GitHub only, so it costs no AI credits.
           </>
         }
       />
-      <div className="mt-6">
-        <Suspense fallback={<div className="text-paper-muted text-[12px]">Loading…</div>}>
+      <div>
+        <Suspense fallback={<div className="text-paper-muted text-[13px]">Loading…</div>}>
           <DiscoverScanner />
         </Suspense>
       </div>

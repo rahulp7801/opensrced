@@ -42,16 +42,17 @@ export function ApiKeyGate({ localMode = false, inviteOnly = false }: { localMod
   if (!needsKey || (!user && !localMode) || hasKey === null || hasKey) return null;
 
   return (
-    <aside aria-label="Provider setup" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-b border-signal/40 bg-signal/5 px-4 py-2.5 text-[12px]">
-      <span className="font-medium text-signal">{subscriptions ? "Choose how runs are paid for" : "Anthropic key required"}</span>
-      <span className="hidden text-paper-muted md:inline">
+    <aside aria-label="Provider setup" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-b border-border-soft bg-signal-faint px-4 py-2.5 text-[15px]">
+      <span className="font-semibold text-signal">{subscriptions ? "Choose how runs are paid for" : "Anthropic key required"}</span>
+      <span className="hidden text-paper-dim md:inline">
         {subscriptions
           ? "Sign in with your Claude or ChatGPT subscription, or add an API key, to start an AI run."
           : "Add your Anthropic key to start an AI run. Gemini review is optional."}
       </span>
       <Link
         href="/crucible"
-        className="rounded-full inline-flex min-h-8 items-center border border-signal/30 px-2.5 text-signal transition hover:bg-signal/10"
+        className="btn-quiet"
+        data-size="sm"
       >
         Open settings
       </Link>

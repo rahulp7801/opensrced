@@ -34,7 +34,7 @@ export function DisconnectButton({ org }: { org: string }) {
       <button
         type="button"
         onClick={() => { setError(null); setState("confirming"); }}
-        className="text-[11px] text-paper-muted hover:text-alert transition-colors"
+        className="text-[12px] text-paper-muted hover:text-alert transition-colors"
         title="Revoke access to this org"
       >
         disconnect
@@ -44,7 +44,7 @@ export function DisconnectButton({ org }: { org: string }) {
 
   if (state === "confirming") {
     return (
-      <span className="flex flex-col items-end gap-1 text-[11px]">
+      <span className="flex flex-col items-end gap-1 text-[12px]">
         <span className="flex items-center gap-2">
           <span className="text-alert">revoke access?</span>
           <button
@@ -68,6 +68,6 @@ export function DisconnectButton({ org }: { org: string }) {
   }
 
   return (
-    <span className="text-[11px] text-paper-muted animate-pulse">revoking…</span>
+    <span className="text-[13px] text-paper-muted">revoking…</span>
   );
 }

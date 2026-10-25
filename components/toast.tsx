@@ -35,18 +35,23 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <Ctx.Provider value={{ toast }}>
       {children}
-      <div role="status" aria-live="polite" className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+      <div role="status" aria-live="polite" className="fixed bottom-4 right-4 left-4 z-50 flex flex-col items-end gap-2 pointer-events-none sm:left-auto">
+        {/* A near-black pill (the brand's CTA ink) with a tinted dot for the tone. */}
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={cn(
-              "pointer-events-auto animate-fade-rise border px-4 py-2.5 text-[12px] shadow-lg max-w-sm",
-              t.tone === "ok" && "border-ok/40 bg-ink text-ok",
-              t.tone === "signal" && "border-signal/40 bg-ink text-signal",
-              t.tone === "alert" && "border-alert/40 bg-ink text-alert",
-              t.tone === "info" && "border-info/40 bg-ink text-info",
-            )}
+            className="pointer-events-auto flex max-w-sm animate-fade-rise items-center gap-2.5 rounded-[20px] bg-paper px-4 py-2.5 text-[15px] font-medium text-ink"
           >
+            <span
+              aria-hidden
+              className={cn(
+                "size-2 shrink-0 rounded-full",
+                t.tone === "ok" && "bg-ok-dim",
+                t.tone === "signal" && "bg-signal-dim",
+                t.tone === "alert" && "bg-alert-dim",
+                t.tone === "info" && "bg-info-dim",
+              )}
+            />
             {t.message}
           </div>
         ))}

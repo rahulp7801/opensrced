@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
-import { cn } from "@/lib/utils";
 
 type GitHubRepo = {
   nameWithOwner: string;
@@ -25,14 +24,6 @@ type TabState = {
   nextCursor: string | null;
   loading: boolean;
   error: string | null;
-};
-
-const LANG_COLORS: Record<string, string> = {
-  Rust: "#dea584", Python: "#3572a5", TypeScript: "#3178c6",
-  JavaScript: "#f1e05a", Go: "#00add8", "C++": "#f34b7d",
-  Java: "#b07219", Ruby: "#701516", PHP: "#4F5D95",
-  "C#": "#178600", C: "#555555", Shell: "#89e051",
-  Kotlin: "#A97BFF", Swift: "#F05138",
 };
 
 const EMPTY_STATE: TabState = { repos: [], page: 0, hasMore: true, nextCursor: null, loading: false, error: null };
@@ -126,11 +117,11 @@ export default function ReposPage() {
     <div className="mx-auto w-full max-w-[1200px] px-5 py-10 sm:px-8">
       <PageHeading
         title={<>Your repos</>}
-        description="Your GitHub repos. Build knowledge graphs, scan for issues, or explore any codebase."
+        description="Repositories you own, starred or contributed to: map one, or scan its issues."
       />
 
-      <div className="mt-4 flex flex-wrap items-center gap-y-2 border-b border-border">
-        <div className="flex items-center" role="tablist" aria-label="Repository source">
+      <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+        <div className="tab-strip w-full sm:w-auto sm:flex-1" role="tablist" aria-label="Repository source">
           {([
             { key: "contributed" as Tab, label: "Contributed to" },
             { key: "starred" as Tab, label: "Starred" },
@@ -143,43 +134,39 @@ export default function ReposPage() {
               aria-selected={tab === t.key}
               aria-controls="repos-panel"
               onClick={() => setTab(t.key)}
-              className={cn(
-                "-mb-px border-b-2 px-4 py-2 text-[12px] transition-colors",
-                tab === t.key ? "border-signal text-signal" : "border-transparent text-paper-muted hover:text-paper",
-              )}
             >
               {t.label}
               {states[t.key].repos.length > 0 && (
-                <span className="ml-1.5 text-xs tabular-nums text-paper-faint">
-                  ({states[t.key].repos.length}{states[t.key].hasMore ? "+" : ""})
+                <span className="tab-count">
+                  {states[t.key].repos.length}{states[t.key].hasMore ? "+" : ""}
                 </span>
               )}
             </button>
           ))}
         </div>
 
-        <div className="rounded-2xl w-full sm:w-auto sm:ml-auto flex items-center gap-2 border border-border-soft bg-ink px-2.5 py-1 focus-within:border-signal/50 transition-colors">
-          <input
-            aria-label="Filter repositories"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="filter repos..."
-            className="w-full sm:w-48 bg-transparent text-[12px] text-paper placeholder:text-paper-faint focus:outline-none"
-          />
-        </div>
+        <input
+          type="search"
+          aria-label="Filter repositories"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Filter repos"
+          className="field sm:ml-auto sm:w-64"
+        />
       </div>
 
-      <div id="repos-panel" role="tabpanel" aria-labelledby={`repos-tab-${tab}`} className="mt-4">
+      <div id="repos-panel" role="tabpanel" aria-labelledby={`repos-tab-${tab}`} className="mt-6">
         {current.error && (
-          <div role="alert" className="mb-3 flex flex-col gap-3 rounded-xl border border-alert/30 bg-alert/5 px-4 py-3 text-[12px] text-alert sm:flex-row sm:items-center sm:justify-between">
+          <div role="alert" className="callout mb-4 flex flex-col gap-3 text-[15px] sm:flex-row sm:items-center sm:justify-between" data-tone="alert">
             <div>
-              <p className="font-medium">Couldn&apos;t load your repos from GitHub.</p>
+              <p className="font-semibold">Couldn&apos;t load your repos from GitHub.</p>
               {/* A bare server error adds nothing; a specific reason is worth showing. */}
-              {!/^internal server error\.?$/i.test(current.error.trim()) && <p className="mt-0.5 text-paper-muted">{current.error}</p>}
+              {!/^internal server error\.?$/i.test(current.error.trim()) && <p className="mt-0.5 text-paper-dim">{current.error}</p>}
             </div>
             <button
               type="button"
-              className="inline-flex min-h-10 shrink-0 items-center self-start rounded-md border border-alert/35 px-4 text-xs font-medium hover:bg-alert/10 disabled:opacity-50 sm:self-auto"
+              className="btn-quiet shrink-0 self-start sm:self-auto"
+              data-size="sm"
               disabled={current.loading}
               onClick={() => fetchPage(tab, current.page + 1, current.nextCursor)}
             >
@@ -189,32 +176,34 @@ export default function ReposPage() {
         )}
 
         {current.page === 0 && current.loading && (
-          <div className="text-[12px] text-paper-muted animate-pulse-signal py-8 text-center">
+          <div role="status" className="py-10 text-center text-[15px] text-paper-muted">
             Loading repos from GitHub...
           </div>
         )}
 
         {current.page > 0 && filtered.length === 0 && !current.loading && (
-          <div className="rounded-md border border-border bg-surface/40 p-8 text-center text-[12px] text-paper-muted">
-            {search ? "No repos match your search." : (
-              <>
-                <p className="text-sm font-medium text-paper">No repos here yet.</p>
-                <p className="mt-1">A good first step: pick a beginner-friendly issue in a public project.</p>
-                <div className="mt-4 flex flex-wrap justify-center gap-2">
-                  <Link href="/issues" className="row-cta">Find a beginner issue</Link>
-                  <Link href="/discover" className="btn-quiet">Discover projects</Link>
-                </div>
-              </>
-            )}
-          </div>
+          search ? (
+            <p className="border-y border-border-soft py-10 text-[15px] text-paper-muted">No repos match your search.</p>
+          ) : (
+            <div className="border-y border-border-soft py-10">
+              <p className="max-w-2xl font-display text-[22px] leading-[1.3] text-paper" style={{ fontWeight: 650 }}>
+                <span>No repos here yet.</span>{" "}
+                <span className="font-sans font-normal text-paper-muted">A good first step: pick a beginner-friendly issue in a public project.</span>
+              </p>
+              <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
+                <Link href="/issues" className="btn-primary">Find a beginner issue</Link>
+                <Link href="/discover" className="text-link">Discover projects</Link>
+              </div>
+            </div>
+          )
         )}
 
         {filtered.length > 0 && (
-          <div className="divide-y divide-border-soft overflow-hidden rounded-md border border-border bg-surface/40">
+          <div className="ruled">
             {filtered.map((repo) => (
               <div
                 key={repo.nameWithOwner}
-                className="group flex flex-wrap items-center gap-x-5 gap-y-2 px-5 py-4 transition-colors hover:bg-surface-2/50"
+                className="group flex flex-wrap items-center gap-x-5 gap-y-2 py-[18px]"
               >
 
                 <div className="min-w-0 flex-1">
@@ -223,7 +212,7 @@ export default function ReposPage() {
                       href={`https://github.com/${repo.nameWithOwner}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="truncate text-[15px] font-medium text-paper hover:text-signal"
+                      className="truncate text-[16px] font-semibold text-paper hover:text-signal"
                     >
                       {repo.nameWithOwner}
                     </a>
@@ -232,23 +221,18 @@ export default function ReposPage() {
                     )}
                   </div>
                   {repo.description && (
-                    <p className="mt-1 max-w-[560px] truncate text-[13px] text-paper-muted">{repo.description}</p>
+                    <p className="mt-1 max-w-[560px] truncate text-[14px] text-paper-muted">{repo.description}</p>
                   )}
                 </div>
-                <div className="hidden shrink-0 items-center gap-4 font-mono text-[11px] text-paper-muted sm:flex">
-                  {repo.language && (
-                    <span className="inline-flex items-center gap-1.5">
-                      <span aria-hidden="true" className="size-2 rounded-full" style={{ background: LANG_COLORS[repo.language] ?? "var(--color-paper-muted)" }} />
-                      {repo.language}
-                    </span>
-                  )}
+                <p className="meta hidden shrink-0 sm:flex">
+                  {repo.language && <span>{repo.language.toLowerCase()}</span>}
                   <span>★ {repo.stars.toLocaleString()}</span>
-                  {repo.updatedAt && <span className="text-paper-faint">{timeAgo(repo.updatedAt)}</span>}
-                </div>
-                <div className="ml-6 flex w-full items-center gap-2 sm:ml-0 sm:w-auto">
+                  {repo.updatedAt && <span>{timeAgo(repo.updatedAt)}</span>}
+                </p>
+                <div className="flex w-full items-center gap-5 sm:w-auto">
                   <Link
                     href={`/graph?repo=${encodeURIComponent(repo.nameWithOwner)}`}
-                    className="btn-quiet"
+                    className="text-link text-[14px]"
                   >
                     Graph
                   </Link>
@@ -256,7 +240,7 @@ export default function ReposPage() {
                     href={`/issues?repo=${encodeURIComponent(repo.nameWithOwner)}`}
                     className="row-cta"
                   >
-                    Issues
+                    Issues <span aria-hidden>→</span>
                   </Link>
                 </div>
               </div>
@@ -266,16 +250,11 @@ export default function ReposPage() {
 
         {/* Load more / loading indicator */}
         {current.hasMore && current.page > 0 && (
-          <div className="mt-3 text-center">
+          <div className="mt-5 text-center">
             <button
               onClick={() => fetchPage(tab, current.page + 1, current.nextCursor)}
               disabled={current.loading}
-              className={cn(
-                "rounded-full px-6 py-2 text-[11px] font-medium border transition",
-                current.loading
-                  ? "border-border text-paper-faint"
-                  : "border-signal/40 text-signal hover:bg-signal/10",
-              )}
+              className="btn-quiet"
             >
               {current.loading ? "loading..." : "load more"}
             </button>
@@ -283,7 +262,7 @@ export default function ReposPage() {
         )}
 
         {!current.hasMore && current.repos.length > 0 && (
-          <div className="mt-3 text-center text-xs text-paper-faint">
+          <div className="mt-5 text-center text-[12.5px] text-paper-muted">
             All {current.repos.length} repos loaded
           </div>
         )}

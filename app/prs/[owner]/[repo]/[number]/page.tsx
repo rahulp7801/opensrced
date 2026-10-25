@@ -836,47 +836,48 @@ export default function PrDetailPage() {
   // ── Render ─────────────────────────────────────────────────────────
 
   return (
-    <div className="mx-auto w-full max-w-[1200px] px-4 sm:px-6 py-6">
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-[11px] text-paper-muted mb-3">
-        <Link href="/prs" className="hover:text-signal transition-colors">PRs</Link>
-        <span className="text-paper-faint">/</span>
-        <span className="text-paper-dim">{params.owner}/{params.repo}</span>
-        <span className="text-paper-faint">/</span>
-        <span className="text-paper">#{prNumber}</span>
-      </nav>
-
+    <div className="mx-auto w-full max-w-[1200px] px-5 py-10 sm:px-8">
       <PageHeading
+        // The breadcrumb is the mono path line: back to the list, then this PR.
+        path={
+          <nav aria-label="Breadcrumb">
+            ship / <Link href="/prs" className="underline decoration-border-strong underline-offset-[3px] hover:text-signal">pull requests</Link> / {params.owner}/{params.repo} #{prNumber}
+          </nav>
+        }
         title={<>PR #{prNumber}</>}
         description={`Review and respond to feedback on ${repoFull}#${prNumber}`}
+        actions={
+          <>
+            {/* Session cost + keyboard shortcut hint */}
+            {sessionCost > 0 && (
+              <span className="text-[13px] text-paper-muted tabular-nums">
+                Session total: ${sessionCost.toFixed(4)}
+              </span>
+            )}
+            <button
+              onClick={() => setShowShortcuts(!showShortcuts)}
+              aria-expanded={showShortcuts}
+              className="btn-quiet"
+              data-size="sm"
+            >
+              ? shortcuts
+            </button>
+          </>
+        }
       />
 
-      {/* Session cost + keyboard shortcut hint */}
-      <div className="flex items-center justify-between mt-1 mb-2">
-        {sessionCost > 0 && (
-          <span className="text-xs text-paper-faint tabular-nums">
-            Session total: ${sessionCost.toFixed(4)}
-          </span>
-        )}
-        <button
-          onClick={() => setShowShortcuts(!showShortcuts)}
-          className="text-xs text-paper-faint hover:text-paper-muted transition-colors ml-auto"
-        >
-          ? shortcuts
-        </button>
-      </div>
 
       {/* Shortcuts overlay */}
       {showShortcuts && (
-        <div className="rounded-2xl mb-3 border border-border-soft bg-ink/80 px-4 py-3">
+        <div className="card mb-3 px-4 py-3">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-paper-muted">Keyboard shortcuts</span>
-            <button onClick={() => setShowShortcuts(false)} className="text-xs text-paper-faint hover:text-paper-muted">close</button>
+            <span className="text-[12.5px] font-medium text-paper-muted">Keyboard shortcuts</span>
+            <button onClick={() => setShowShortcuts(false)} className="text-[12.5px] text-paper-faint hover:text-paper-muted">close</button>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-1">
             {SHORTCUTS.map((s) => (
-              <div key={s.key} className="flex items-center gap-2 text-[11px]">
-                <kbd className="rounded-lg bg-surface border border-border px-1.5 py-0.5 text-xs text-paper font-mono min-w-[24px] text-center">{s.key}</kbd>
+              <div key={s.key} className="flex items-center gap-2 text-[12px]">
+                <kbd className="min-w-[24px] rounded-md bg-surface-2 px-1.5 py-0.5 text-center font-mono text-[12px] text-paper">{s.key}</kbd>
                 <span className="text-paper-dim">{s.label}</span>
               </div>
             ))}
@@ -886,9 +887,9 @@ export default function PrDetailPage() {
 
       {loading && <PrSkeleton />}
       {error && (
-        <div className="rounded-xl mt-8 border border-alert/30 bg-alert/5 px-4 py-3 text-[12px] text-alert flex items-center justify-between">
+        <div className="callout callout-alert mt-8 px-4 py-3 text-[13px] text-alert flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={() => fetchComments()} className="rounded-full text-xs border border-alert/30 px-2 py-0.5 hover:bg-alert/10 transition">
+          <button onClick={() => fetchComments()} className="btn-quiet text-alert" data-size="sm">
             retry
           </button>
         </div>
@@ -897,17 +898,14 @@ export default function PrDetailPage() {
       {pr && (
         <>
           {/* PR header */}
-          <div className="rounded-2xl mt-4 border border-border-soft bg-surface px-4 py-3">
-            <div className="flex items-center gap-3">
-              <span className={cn(
-                "text-xs font-medium px-1.5 py-0.5 border",
-                pr.state === "OPEN" ? "text-signal border-signal/30" : pr.state === "MERGED" ? "text-ok border-ok/30" : "text-paper-muted border-border",
-              )}>
+          <div className="card mt-4 px-5 py-5 sm:px-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className={cn("chip", pr.state === "OPEN" ? "chip-info" : pr.state === "MERGED" ? "chip-ok" : "")}>
                 {pr.state}
               </span>
-              <span className="text-[14px] text-paper font-medium">{pr.title}</span>
+              <span className="text-[19px] font-semibold leading-snug tracking-[-0.01em] text-paper">{pr.title}</span>
             </div>
-            <div className="mt-1.5 flex items-center gap-4 text-[11px] text-paper-muted flex-wrap">
+            <div className="mt-2.5 flex items-center gap-x-4 gap-y-1 text-[13px] text-paper-muted flex-wrap">
               <span>
                 {pr.author} wants to merge <span className="text-info">{pr.branch}</span> into <span className="text-info">{pr.base}</span>
               </span>
@@ -922,7 +920,7 @@ export default function PrDetailPage() {
               {showDiff && prDiff && (
                 <button
                   onClick={() => setDiffViewMode(diffViewMode === "unified" ? "split" : "unified")}
-                  className="text-paper-faint hover:text-paper-dim transition-colors text-xs"
+                  className="text-paper-faint hover:text-paper-dim transition-colors text-[12.5px]"
                 >
                   {diffViewMode === "unified" ? "split view" : "unified view"}
                 </button>
@@ -934,7 +932,7 @@ export default function PrDetailPage() {
                 refresh
               </button>
               {newCommentsCount > 0 && (
-                <span className="text-xs text-signal animate-pulse-signal">
+                <span className="text-[12.5px] text-signal">
                   {newCommentsCount} new
                 </span>
               )}
@@ -943,11 +941,16 @@ export default function PrDetailPage() {
 
           {/* Collapsible PR diff */}
           {showDiff && (
-            <div className="rounded-2xl border border-border-soft border-t-0 bg-ink/30 max-h-[500px] overflow-auto">
+            <>
+            <p className="fig mt-4">
+              <span className="fig-tag">fig. 1</span>
+              <span>diff · {repoFull} #{prNumber}</span>
+            </p>
+            <div className="mt-2 max-h-[500px] overflow-auto rounded-2xl bg-surface shadow-[inset_0_0_0_1px_var(--color-border-soft)]">
               {diffLoading ? (
-                <div className="px-4 py-3 text-[11px] text-paper-muted animate-pulse-signal">Loading diff...</div>
+                <div className="px-4 py-3 text-[12px] text-paper-muted">Loading diff...</div>
               ) : diffError ? (
-                <div role="alert" className="px-4 py-3 text-[11px] text-alert">
+                <div role="alert" className="px-4 py-3 text-[12px] text-alert">
                   {diffError}
                   <button onClick={() => void loadDiff()} className="ml-3 underline">Retry diff</button>
                 </div>
@@ -955,14 +958,15 @@ export default function PrDetailPage() {
                 diffViewMode === "split" ? (
                   <SplitDiffView diff={prDiff} />
                 ) : (
-                  <pre className="px-4 py-3 text-[10.5px] font-mono leading-snug">
+                  <pre className="px-4 py-3 text-[12px] font-mono leading-snug">
                     <DiffLines diff={prDiff} />
                   </pre>
                 )
               ) : (
-                <div className="px-4 py-3 text-[11px] text-paper-muted">No diff available</div>
+                <div className="px-4 py-3 text-[12px] text-paper-muted">No diff available</div>
               )}
             </div>
+            </>
           )}
 
           {/* Ask about this change: the PR's own patch and description, plus a
@@ -984,8 +988,8 @@ export default function PrDetailPage() {
           />
 
           {/* First contribution? The draft, the wait, the etiquette. */}
-          <details className="rounded-2xl mt-4 border border-border-soft bg-surface px-4 py-3">
-            <summary className="min-h-6 cursor-pointer text-[13px] font-medium text-paper">New to this? What happens next, and how to answer reviewers</summary>
+          <details className="card mt-4 px-4 py-3">
+            <summary className="min-h-10 cursor-pointer py-1.5 text-[16px] font-semibold text-paper">New to this? What happens next, and how to answer reviewers</summary>
             <div className="mt-3"><NextSteps heading="After your pull request opens" /></div>
           </details>
 
@@ -994,7 +998,7 @@ export default function PrDetailPage() {
 
           {/* Comment status bar */}
           {stats.total > 0 && (
-            <div className="mt-4 flex items-center gap-4 text-[11px] flex-wrap">
+            <div className="mt-4 flex items-center gap-4 text-[12px] flex-wrap">
               <span className="text-paper-muted">
                 <span className="tabular-nums text-paper">{stats.total}</span> review comment{stats.total !== 1 ? "s" : ""}
               </span>
@@ -1014,7 +1018,7 @@ export default function PrDetailPage() {
                 </span>
               )}
               {stats.pending === 0 && stats.total > 0 && (
-                <span className="rounded-full text-ok text-xs border border-ok/30 px-1.5 py-0.5">all addressed</span>
+                <span className="chip chip-ok">all addressed</span>
               )}
             </div>
           )}
@@ -1027,35 +1031,35 @@ export default function PrDetailPage() {
                   <button
                     onClick={handleFixAll}
                     disabled={isFixing || writesPending}
-                    className="rounded-full border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20 px-4 py-1.5 text-[11px] font-medium disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    className="btn-quiet" data-size="sm"
                   >
                     {isFixing && fixState?.commentId === "all" ? "generating fixes..." : `fix all ${actionableComments.length} comments`}
                   </button>
                 )}
               </div>
               {/* Fix mode selector */}
-              <div className="rounded-2xl flex items-start gap-3 border border-border-soft bg-ink/20 px-3 py-2">
-                <div className="flex items-center gap-0.5 border border-border shrink-0">
+              <div className="card flex flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center">
+                <div className="flex shrink-0 items-center gap-1 rounded-full bg-ink-2 p-1 shadow-[inset_0_0_0_1px_var(--color-border-soft)]">
                   <button
                     onClick={() => setFixMode("quick")}
-                    className={cn(
-                      "px-2.5 py-1 text-xs transition",
-                      fixMode === "quick" ? "bg-ok/15 text-ok" : "text-paper-faint hover:text-paper-muted",
-                    )}
+                    aria-pressed={fixMode === "quick"}
+                    className="pill"
+                    data-size="sm"
+                    data-quiet={fixMode === "quick" ? undefined : ""}
                   >
                     quick
                   </button>
                   <button
                     onClick={() => setFixMode("deep")}
-                    className={cn(
-                      "px-2.5 py-1 text-xs transition",
-                      fixMode === "deep" ? "bg-signal/15 text-signal" : "text-paper-faint hover:text-paper-muted",
-                    )}
+                    aria-pressed={fixMode === "deep"}
+                    className="pill"
+                    data-size="sm"
+                    data-quiet={fixMode === "deep" ? undefined : ""}
                   >
                     deep
                   </button>
                 </div>
-                <div className="text-xs leading-relaxed">
+                <div className="text-[12.5px] leading-relaxed">
                   {fixMode === "quick" ? (
                     <div>
                       <span className="text-ok font-medium">Quick fix</span>
@@ -1077,7 +1081,7 @@ export default function PrDetailPage() {
           {/* Review comments */}
           <div className="mt-4 space-y-3">
             {comments.length === 0 && (
-              <div className="rounded-lg border border-border bg-surface/40 px-4 py-6 text-center text-[12px] text-paper-muted">
+              <div className="card px-4 py-6 text-center text-[13px] text-paper-muted">
                 No review comments from maintainers yet.
               </div>
             )}
@@ -1092,47 +1096,45 @@ export default function PrDetailPage() {
                   key={c.id}
                   ref={(el) => { if (el) commentRefs.current.set(c.id, el); }}
                   className={cn(
-                    "rounded-2xl border bg-surface transition-all",
-                    c.isOwnComment ? "border-border-soft opacity-60" : "border-border",
-                    isFocused && "ring-1 ring-signal/50 border-signal/30",
-                    status === "fixed" && "border-l-2 border-l-ok",
-                    status === "replied" && "border-l-2 border-l-info",
+                    "card overflow-hidden transition-all",
+                    c.isOwnComment && "opacity-60",
+                    isFocused && "ring-2 ring-signal/40",
+                    status === "fixed" && "border-l-4 border-l-ok",
+                    status === "replied" && "border-l-4 border-l-info",
                   )}
                 >
                   {/* Comment header */}
-                  <div className="px-4 py-2 border-b border-border-soft flex items-center gap-2 flex-wrap">
-                    <span className="text-[11px] text-paper font-medium">{c.author}</span>
-                    {c.isOwnComment && <span className="text-[11px] text-paper-faint border border-border px-1 py-0.5">you</span>}
-                    <span className="text-xs text-paper-faint">
+                  <div className="px-5 py-3 border-b border-border-soft flex items-center gap-2 flex-wrap">
+                    <span className="text-[15px] text-paper font-semibold">{c.author}</span>
+                    {c.isOwnComment && <span className="chip">you</span>}
+                    <span className="text-[12.5px] text-paper-faint">
                       {new Date(c.createdAt).toLocaleDateString()} {new Date(c.createdAt).toLocaleTimeString()}
                     </span>
                     {/* Status indicator */}
                     {!c.isOwnComment && status !== "pending" && (
-                      <span className={cn(
-                        "text-[11px] font-medium px-1 py-0.5 border",
-                        status === "fixed" ? "text-ok border-ok/30" : "text-info border-info/30",
-                      )}>
+                      <span className={cn("chip", status === "fixed" ? "chip-ok" : "chip-info")}>
+
                         {status}
                       </span>
                     )}
                     {c.path && (
-                      <span className="ml-auto text-xs text-info font-mono">{c.path}{c.line ? `:${c.line}` : ""}</span>
+                      <span className="ml-auto text-[12.5px] text-info font-mono">{c.path}{c.line ? `:${c.line}` : ""}</span>
                     )}
                     {c.type === "review" && (
-                      <span className="rounded-full text-[11px] text-signal border border-signal/30 px-1 py-0.5">inline</span>
+                      <span className="chip">inline</span>
                     )}
                   </div>
 
                   {/* Diff hunk */}
                   {c.diffHunk && (
-                    <div className="px-4 py-2 border-b border-border-soft bg-ink/30 overflow-x-auto">
-                      <pre className="text-xs text-paper-faint font-mono whitespace-pre-wrap">{c.diffHunk}</pre>
+                    <div className="px-4 py-2 border-b border-border-soft bg-ink-2 overflow-x-auto">
+                      <pre className="text-[12.5px] text-paper-faint font-mono whitespace-pre-wrap">{c.diffHunk}</pre>
                     </div>
                   )}
 
                   {/* Comment body */}
                   <div className="px-4 py-3">
-                    <p className="text-[12px] text-paper-dim whitespace-pre-wrap break-words">{c.body}</p>
+                    <p className="text-[16px] leading-[1.6] text-paper-dim whitespace-pre-wrap break-words">{c.body}</p>
                   </div>
 
                   {/* Action buttons */}
@@ -1143,78 +1145,74 @@ export default function PrDetailPage() {
                           <button
                             onClick={() => handleDraftReply(c)}
                             disabled={isFixing || writesPending}
-                            className="rounded-full text-[11px] text-info border border-info/40 hover:bg-info/10 px-3 py-1 transition disabled:opacity-50"
+                            className="btn-quiet text-info" data-size="sm"
                           >
                             {fixState?.commentId === c.id && isFixing ? "drafting..." : "draft reply"}
                           </button>
                           <button
                             onClick={() => setShowReplyFor(showReplyFor === c.id ? null : c.id)}
-                            className="rounded-full text-[11px] text-paper-dim border border-border-soft hover:border-paper-muted hover:text-paper-dim px-3 py-1 transition"
+                            className="btn-quiet" data-size="sm"
                           >
                             reply manually
                           </button>
-                          <span className="text-xs text-paper-faint">question — AI will draft a reply</span>
+                          <span className="text-[12.5px] text-paper-faint">question — AI will draft a reply</span>
                         </>
                       ) : (
                         <>
                           <button
                             onClick={() => handleFix(c)}
                             disabled={isFixing || writesPending}
-                            className={cn(
-                              "rounded-full text-[11px] px-3 py-1 transition disabled:opacity-50 border",
-                              fixMode === "quick"
-                                ? "text-ok border-ok/40 hover:bg-ok/10"
-                                : "text-signal border-signal/40 hover:bg-signal/10",
-                            )}
+                            className="btn-quiet"
+                            data-size="sm"
                           >
                             {fixState?.commentId === c.id && isFixing ? "generating..." : fixMode === "quick" ? "quick fix" : "deep fix"}
                           </button>
                           <button
                             onClick={() => handleDraftReply(c)}
                             disabled={isFixing || writesPending}
-                            className="rounded-full text-[11px] text-info border border-info/40 hover:bg-info/10 px-3 py-1 transition disabled:opacity-50"
+                            className="btn-quiet text-info" data-size="sm"
                           >
                             draft reply
                           </button>
                           <button
                             onClick={() => setShowReplyFor(showReplyFor === c.id ? null : c.id)}
-                            className="rounded-full text-[11px] text-paper-dim border border-border-soft hover:border-paper-muted hover:text-paper-dim px-3 py-1 transition"
+                            className="btn-quiet" data-size="sm"
                           >
                             reply manually
                           </button>
                         </>
                       )}
                       {replySt?.status === "sent" && (
-                        <span className="text-xs text-ok">replied</span>
+                        <span className="text-[12.5px] text-ok">replied</span>
                       )}
                       {replySt?.status === "error" && (
-                        <span className="text-xs text-alert">failed to reply</span>
+                        <span className="text-[12.5px] text-alert">failed to reply</span>
                       )}
                     </div>
                   )}
 
                   {/* Reply input */}
                   {showReplyFor === c.id && (
-                    <div className="px-4 py-2.5 border-t border-border-soft bg-ink/20">
+                    <div className="px-4 py-2.5 border-t border-border-soft bg-ink-2">
                       <div className="flex gap-2">
                         <textarea
                           value={replyTexts.get(c.id) ?? ""}
                           onChange={(e) => setReplyTexts((prev) => new Map(prev).set(c.id, e.target.value))}
                           placeholder="Write a reply..."
                           rows={2}
-                          className="rounded-lg flex-1 bg-surface border border-border px-2.5 py-1.5 text-[12px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50 resize-y min-h-[40px]"
+                          className="field flex-1 resize-y min-h-[40px]"
                         />
                         <div className="flex flex-col gap-1 self-end">
                           <button
                             onClick={() => handleReply(c)}
                             disabled={!replyTexts.get(c.id)?.trim() || replySt?.status === "sending"}
-                            className="rounded-full border border-info/50 bg-info/10 text-info hover:bg-info/20 px-3 py-1.5 text-[11px] font-medium disabled:opacity-50 shrink-0 transition"
+                            className="btn-quiet text-info shrink-0" data-size="sm"
                           >
                             {replySt?.status === "sending" ? "..." : "send"}
                           </button>
                           <button
                             onClick={() => setShowReplyFor(null)}
-                            className="text-xs text-paper-faint hover:text-paper-muted transition"
+                            className="text-[12.5px] text-paper-faint hover:text-paper-muted transition"
                           >
                             cancel
                           </button>
@@ -1229,36 +1227,36 @@ export default function PrDetailPage() {
 
           {/* Fix output */}
           {fixState && (
-            <div ref={fixRef} className="rounded-2xl mt-4 border border-border-soft bg-surface">
+            <div ref={fixRef} className="card mt-4">
               <div className="px-4 py-2 border-b border-border-soft flex items-center gap-2">
-                <span className="text-xs font-medium text-signal">
+                <span className="text-[12.5px] font-medium text-signal">
                   {fixState.commentId === "all" ? "fix all comments" : "fix generation"}
                 </span>
                 {fixState.status === "generating" && (
                   <span className="ml-auto flex items-center gap-2">
-                    <span className="text-xs text-paper-dim">{fixState.step}</span>
-                    <span className="text-xs text-signal animate-pulse-signal">
+                    <span className="text-[12.5px] text-paper-dim">{fixState.step}</span>
+                    <span className="text-[12.5px] text-signal">
                       <LoadingDots />
                     </span>
-                    <button onClick={cancelGeneration} className="rounded-full text-xs text-paper-muted hover:text-alert transition border border-border px-1.5 py-0.5">cancel</button>
+                    <button onClick={cancelGeneration} className="btn-quiet" data-size="sm">cancel</button>
                   </span>
                 )}
                 {fixState.status === "done" && fixState.cost !== null && (
-                  <span className="ml-auto text-xs text-paper-muted tabular-nums">{costLabel(fixState.cost)}</span>
+                  <span className="ml-auto text-[12.5px] text-paper-muted tabular-nums">{costLabel(fixState.cost)}</span>
                 )}
-                {fixState.status === "cancelled" && <span className="ml-auto text-xs text-paper-muted">Cancelled</span>}
+                {fixState.status === "cancelled" && <span className="ml-auto text-[12.5px] text-paper-muted">Cancelled</span>}
                 {fixState.status === "error" && (
-                  <span className="ml-auto text-xs text-alert">failed</span>
+                  <span className="ml-auto text-[12.5px] text-alert">failed</span>
                 )}
               </div>
 
               {/* Live agent activity timeline */}
               {fixState.tools.length > 0 && (
-                <div className="px-4 py-2 border-b border-border-soft bg-ink/30">
+                <div className="px-4 py-2 border-b border-border-soft bg-ink-2">
                   <div className="flex items-center gap-1 mb-1.5">
-                    <span className="text-[11px] font-medium text-paper-faint">Agent activity</span>
-                    <span className="text-[11px] text-paper-faint tabular-nums">{fixState.tools.length} tool calls</span>
-                    {fixState.status === "generating" && <span className="text-[11px] text-signal animate-pulse-signal ml-1">live</span>}
+                    <span className="text-[12px] font-medium text-paper-faint">Agent activity</span>
+                    <span className="text-[12px] text-paper-faint tabular-nums">{fixState.tools.length} tool calls</span>
+                    {fixState.status === "generating" && <span className="text-[12px] text-signal ml-1">live</span>}
                   </div>
                   <div className="relative">
                     {/* Timeline line */}
@@ -1277,12 +1275,13 @@ export default function PrDetailPage() {
                         const isLast = i === fixState.tools.length - 1 && fixState.status === "generating";
                         return (
                           <div key={i} className={cn(
-                            "flex items-center gap-2 pl-3 text-xs",
+                            "flex items-center gap-2 pl-3 text-[12.5px]",
                             isLast && "font-medium",
                           )}>
                             <span className={cn(
                               "relative z-10 shrink-0 w-4 h-4 flex items-center justify-center text-[11px] font-mono rounded-full border",
-                              isLast ? "bg-signal/20 border-signal/50 text-signal" : "bg-ink border-border-soft",
+                              isLast ? "bg-signal-faint border-signal/50 text-signal" : "bg-ink-2 border-border-soft",
+
                               colorMap[t.tool] ?? "text-paper-faint",
                             )}>
                               {iconMap[t.tool] ?? "."}
@@ -1304,7 +1303,7 @@ export default function PrDetailPage() {
               {/* Response */}
               <div className="px-4 py-4 overflow-x-auto">
                 {fixState.status === "error" ? (
-                  <div className="text-[11px] text-alert whitespace-pre-wrap break-words">
+                  <div className="text-[12px] text-alert whitespace-pre-wrap break-words">
                     <p className="font-medium mb-1">Generation failed {fixRetryCount > 0 ? `(attempt ${fixRetryCount + 1}/3)` : ""}</p>
                     <p className="text-paper-muted">{fixState.response}</p>
                     <div className="mt-2 flex items-center gap-2">
@@ -1316,27 +1315,27 @@ export default function PrDetailPage() {
                             if (c) handleFix(c);
                           }
                         }}
-                        className="rounded-full text-xs text-signal border border-signal/30 px-2 py-0.5 hover:bg-signal/10 transition"
+                        className="btn-quiet" data-size="sm"
                       >
                         retry from scratch
                       </button>
                       {fixRetryCount < 3 && lastFixComment && (
                         <button
                           onClick={handleRetryWithContext}
-                          className="rounded-full text-xs text-ok border border-ok/30 px-2 py-0.5 hover:bg-ok/10 transition"
+                          className="btn-quiet text-ok" data-size="sm"
                         >
                           self-heal (retry with error context)
                         </button>
                       )}
                       {fixRetryCount >= 3 && (
-                        <span className="text-xs text-paper-faint">Max retries reached — try deep fix mode or fix manually</span>
+                        <span className="text-[12.5px] text-paper-faint">Max retries reached — try deep fix mode or fix manually</span>
                       )}
                     </div>
                   </div>
                 ) : fixState.response ? (
                   <FixResponse text={fixState.response} />
                 ) : (
-                  <div className="flex items-center gap-2 text-[11px] text-paper-muted">
+                  <div className="flex items-center gap-2 text-[12px] text-paper-muted">
                     <LoadingDots />
                     <span>{fixState.step}</span>
                   </div>
@@ -1351,7 +1350,7 @@ export default function PrDetailPage() {
               {/* Export buttons */}
               {fixState.status === "done" && extractDiff(fixState.response) && (
                 <div className="px-4 py-2 border-t border-border-soft flex items-center gap-2">
-                  <span className="text-xs text-paper-faint font-medium">export</span>
+                  <span className="text-[12.5px] text-paper-faint font-medium">export</span>
                   <button
                     onClick={async () => {
                       try {
@@ -1361,7 +1360,7 @@ export default function PrDetailPage() {
                         toast("Clipboard access failed. Download the patch instead.", "alert");
                       }
                     }}
-                    className="rounded-full text-xs text-paper-dim border border-border hover:border-paper-muted hover:text-paper px-2 py-0.5 transition"
+                    className="btn-quiet" data-size="sm"
                   >
                     copy diff
                   </button>
@@ -1377,7 +1376,7 @@ export default function PrDetailPage() {
                       URL.revokeObjectURL(url);
                       toast("Patch file downloaded", "ok");
                     }}
-                    className="rounded-full text-xs text-paper-dim border border-border hover:border-paper-muted hover:text-paper px-2 py-0.5 transition"
+                    className="btn-quiet" data-size="sm"
                   >
                     download .patch
                   </button>
@@ -1390,7 +1389,7 @@ export default function PrDetailPage() {
                         toast("Clipboard access failed. Try again from a secure browser window.", "alert");
                       }
                     }}
-                    className="rounded-full text-xs text-paper-faint border border-border hover:border-paper-muted hover:text-paper-dim px-2 py-0.5 transition"
+                    className="btn-quiet" data-size="sm"
                   >
                     copy full response
                   </button>
@@ -1434,32 +1433,32 @@ export default function PrDetailPage() {
                         sharing.current = false;
                       }
                     }}
-                    className="rounded-full text-xs text-signal border border-signal/30 hover:bg-signal/10 px-2 py-0.5 transition"
+                    className="btn-quiet" data-size="sm"
                   >
                     share fix
                   </button>
                 </div>
               )}
 
-              {verifyError && <p role="alert" className="px-4 py-3 text-xs text-alert">Verification could not finish: {verifyError}</p>}
+              {verifyError && <p role="alert" className="px-4 py-3 text-[12.5px] text-alert">Verification could not finish: {verifyError}</p>}
               {/* Verification results */}
               {fixState.status === "done" && extractDiff(fixState.response) && (
                 <div className="px-4 py-3 border-t border-border-soft">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-medium text-paper-muted">
+                    <span className="text-[12.5px] font-medium text-paper-muted">
                       verification checks
                     </span>
                     {verifying && (
-                      <span className="text-xs text-signal animate-pulse-signal flex items-center gap-1">
+                      <span className="text-[12.5px] text-signal flex items-center gap-1">
                         <LoadingDots /> running checks...
                       </span>
                     )}
                     {verifyResult && (
                       <span className={cn(
-                        "text-xs font-medium px-1.5 py-0.5 border",
-                        verifyResult.summary.verdict === "clean" ? "text-ok border-ok/30" :
-                        verifyResult.summary.verdict === "review" ? "text-signal border-signal/30" :
-                        "text-alert border-alert/30",
+                        "chip",
+                        verifyResult.summary.verdict === "clean" ? "chip-ok" :
+                        verifyResult.summary.verdict === "review" ? "chip-info" :
+                        "chip-alert",
                       )}>
                         {verifyResult.summary.verdict === "clean" ? "all clear" :
                          verifyResult.summary.verdict === "review" ? "review needed" : "blocked"}
@@ -1470,7 +1469,7 @@ export default function PrDetailPage() {
                   {verifyResult && (
                     <div className="space-y-1">
                       {verifyResult.checks.map((check, i) => (
-                        <div key={i} className="flex items-start gap-2 text-[11px]">
+                        <div key={i} className="flex items-start gap-2 text-[12px]">
                           <span className={cn(
                             "shrink-0 w-4 text-center font-mono",
                             check.status === "pass" ? "text-ok" :
@@ -1490,18 +1489,18 @@ export default function PrDetailPage() {
                           </span>
                         </div>
                       ))}
-                      <div className="mt-2 pt-2 border-t border-border-soft text-xs text-paper-faint">
+                      <div className="mt-2 pt-2 border-t border-border-soft text-[12.5px] text-paper-faint">
                         +{verifyResult.summary.linesAdded} / -{verifyResult.summary.linesRemoved} lines | {verifyResult.summary.filesChanged} file(s) | {verifyResult.summary.pass} passed, {verifyResult.summary.warn} warnings, {verifyResult.summary.fail} failed
                       </div>
                       {verifyResult.summary.fail > 0 && fixRetryCount < 3 && lastFixComment && (
                         <div className="mt-2 pt-2 border-t border-border-soft">
                           <button
                             onClick={handleRetryWithContext}
-                            className="rounded-full text-xs text-ok border border-ok/30 px-2.5 py-1 hover:bg-ok/10 transition"
+                            className="btn-quiet text-ok" data-size="sm"
                           >
                             Self-heal: retry fix using these verification results as context
                           </button>
-                          <span className="ml-2 text-xs text-paper-faint">Attempt {fixRetryCount + 1}/3</span>
+                          <span className="ml-2 text-[12.5px] text-paper-faint">Attempt {fixRetryCount + 1}/3</span>
                         </div>
                       )}
                     </div>
@@ -1511,40 +1510,37 @@ export default function PrDetailPage() {
 
               {/* Push controls */}
               {fixState.status === "done" && extractDiff(fixState.response) && (
-                <div className="px-4 py-3 border-t border-border-soft bg-ink/20">
+                <div className="px-4 py-3 border-t border-border-soft bg-ink-2">
                   <div className="flex items-center gap-3 flex-wrap">
-                    <span className="text-xs text-paper-faint font-medium">commit:</span>
+                    <span className="text-[12.5px] text-paper-faint font-medium">commit:</span>
                     <input
                       type="text"
                       value={commitMsg}
                       onChange={(e) => setCommitMsg(e.target.value)}
                       disabled={pushState === "pushing" || pushState === "pushed"}
-                      className="rounded-lg flex-1 min-w-[200px] max-w-md bg-surface border border-border px-2.5 py-1.5 text-[12px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-signal/50 disabled:opacity-50"
+                      className="field flex-1 min-w-[200px] max-w-md disabled:opacity-50"
                       placeholder="address review feedback"
                     />
                     <button
                       onClick={() => handlePush()}
                       disabled={pushState === "pushing" || pushState === "pushed"}
-                      className={cn(
-                        "px-4 py-1.5 text-[11px] font-medium transition shrink-0",
-                        pushState === "pushed" ? "border border-ok/50 bg-ok/10 text-ok" : "border border-signal/50 bg-signal/10 text-signal hover:bg-signal/20",
-                        "disabled:opacity-50 disabled:cursor-not-allowed",
-                      )}
+                      className={cn("shrink-0", pushState === "pushed" ? "btn-quiet text-ok" : "btn-primary")}
+                      data-size="sm"
                     >
                       {pushState === "pushing" ? "pushing..." : pushState === "pushed" ? "pushed" : "push fix"}
                     </button>
                   </div>
                   {pushMessage && (
                     <div className={cn(
-                      "mt-2 text-[11px] p-2 border",
-                      pushState === "error" ? "text-alert bg-alert/5 border-alert/20" : "text-ok bg-ok/5 border-ok/20",
+                      "callout mt-3 text-[13px]",
+                      pushState === "error" ? "callout-alert" : "callout-ok text-ok",
                     )}>
                       {pushState === "error" && (
                         <div className="flex items-start justify-between gap-2">
                           <span className="whitespace-pre-wrap break-words">{pushMessage}</span>
                           <button
                             onClick={() => handlePush()}
-                            className="rounded-full shrink-0 text-xs text-signal border border-signal/30 px-2 py-0.5 hover:bg-signal/10 transition"
+                            className="btn-quiet shrink-0" data-size="sm"
                           >
                             retry
                           </button>
@@ -1557,32 +1553,32 @@ export default function PrDetailPage() {
                   {/* Follow-up comment — auto-populated with explainer */}
                   <div className="mt-3 pt-3 border-t border-border-soft">
                     {autoExplainer && !followUpComment && (
-                      <div className="rounded-xl mb-2 px-3 py-2 border border-ok/20 bg-ok/5 text-[11px] text-paper-dim">
-                        <span className="text-[11px] text-ok font-medium block mb-1">auto-generated explanation</span>
+                      <div className="callout callout-ok mb-2 px-3 py-2 text-[12px] text-paper-dim">
+                        <span className="text-[12px] text-ok font-medium block mb-1">auto-generated explanation</span>
                         <p className="whitespace-pre-wrap">{autoExplainer}</p>
                         <button
                           onClick={() => { setFollowUpComment(autoExplainer); }}
-                          className="rounded-full mt-1.5 text-xs text-ok border border-ok/30 px-2 py-0.5 hover:bg-ok/10 transition"
+                          className="btn-quiet mt-1.5 text-ok" data-size="sm"
                         >
                           use as follow-up comment
                         </button>
                       </div>
                     )}
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs text-paper-faint font-medium">
+                      <span className="text-[12.5px] text-paper-faint font-medium">
                         follow-up comment
                       </span>
                       <button
                         onClick={handleGenerateFollowUp}
                         disabled={followUpGenerating || followUpSending || followUpSent}
-                        className="rounded-full text-xs text-info border border-info/30 hover:bg-info/10 px-2 py-0.5 transition disabled:opacity-50"
+                        className="btn-quiet text-info" data-size="sm"
                       >
                         {followUpGenerating ? "drafting..." : followUpComment ? "regenerate" : "draft detailed version"}
                       </button>
                       {followUpGenerating && (
-                        <button onClick={cancelGeneration} className="text-xs text-paper-muted hover:text-alert transition">cancel</button>
+                        <button onClick={cancelGeneration} className="text-[12.5px] text-paper-muted hover:text-alert transition">cancel</button>
                       )}
-                      <span className="text-[11px] text-paper-faint">
+                      <span className="text-[12px] text-paper-faint">
                         Explains the commit reasoning to the reviewer
                       </span>
                     </div>
@@ -1594,24 +1590,19 @@ export default function PrDetailPage() {
                           onChange={(e) => setFollowUpComment(e.target.value)}
                           disabled={followUpGenerating || followUpSending || followUpSent}
                           rows={5}
-                          className="rounded-lg w-full bg-surface border border-border px-3 py-2 text-[12px] text-paper placeholder:text-paper-faint focus:outline-none focus:border-info/50 disabled:opacity-50 resize-y"
+                          className="field w-full disabled:opacity-50 resize-y"
                           placeholder="Generating comment..."
                         />
                         <div className="mt-2 flex items-center gap-2">
                           <button
                             onClick={handleSendFollowUp}
                             disabled={!followUpComment.trim() || followUpGenerating || followUpSending || followUpSent}
-                            className={cn(
-                              "px-3 py-1 text-xs font-medium transition",
-                              followUpSent
-                                ? "border border-ok/50 bg-ok/10 text-ok"
-                                : "border border-info/50 bg-info/10 text-info hover:bg-info/20",
-                              "disabled:opacity-50 disabled:cursor-not-allowed",
-                            )}
+                            className={followUpSent ? "btn-quiet text-ok" : "btn-quiet"}
+                            data-size="sm"
                           >
                             {followUpSending ? "posting..." : followUpSent ? "sent" : "post comment to PR"}
                           </button>
-                          <span className="text-[11px] text-paper-faint">
+                          <span className="text-[12px] text-paper-faint">
                             {followUpSent ? "Comment posted on GitHub" : "Posts as a comment on the PR thread"}
                           </span>
                         </div>
@@ -1673,10 +1664,10 @@ function SplitDiffView({ diff }: { diff: string }) {
   const hunks = useMemo(() => parseSplitHunks(diff), [diff]);
 
   return (
-    <div className="grid grid-cols-2 text-[10.5px] font-mono leading-snug">
+    <div className="grid grid-cols-2 text-[12px] font-mono leading-snug">
       {hunks.map((hunk, hi) => (
         <React.Fragment key={hi}>
-          <div className="col-span-2 px-3 py-px text-paper-faint bg-ink/50">
+          <div className="col-span-2 px-3 py-px text-paper-faint bg-ink-2">
             {hunk.file === hunks[hi - 1]?.file ? "\u22ef" : hunk.file}
           </div>
           {hunk.before.map((left, i) => {
@@ -1688,9 +1679,9 @@ function SplitDiffView({ diff }: { diff: string }) {
                   className={cn(
                     "px-3 py-px whitespace-pre-wrap border-r border-border-soft",
                     left === null
-                      ? "bg-ink/40"
+                      ? "bg-surface-2/60"
                       : changed
-                        ? "text-alert bg-alert/5"
+                        ? "text-alert bg-alert-dim/20"
                         : "text-paper-dim",
                   )}
                 >
@@ -1700,9 +1691,9 @@ function SplitDiffView({ diff }: { diff: string }) {
                   className={cn(
                     "px-3 py-px whitespace-pre-wrap",
                     right === null
-                      ? "bg-ink/40"
+                      ? "bg-surface-2/60"
                       : changed
-                        ? "text-ok bg-ok/5"
+                        ? "text-ok bg-ok-dim/25"
                         : "text-paper-dim",
                   )}
                 >
@@ -1772,7 +1763,7 @@ function DiffPreview({ diff }: { diff: string }) {
 
   const diffContent = (
     <>
-      <div className="px-3 py-1.5 border-b border-border-soft bg-ink/50 text-xs text-paper-faint flex items-center justify-between">
+      <div className="px-3 py-1.5 border-b border-border-soft bg-ink-2 text-[12.5px] text-paper-faint flex items-center justify-between">
         <div>
           {files.map((f, i) => (
             <span key={i} className="mr-3 font-mono">{f}</span>
@@ -1783,7 +1774,7 @@ function DiffPreview({ diff }: { diff: string }) {
           <span className="text-alert tabular-nums">-{removed}</span>
         </div>
       </div>
-      <pre className="px-3 py-2 text-[10.5px] font-mono leading-snug">
+      <pre className="px-3 py-2 text-[12px] font-mono leading-snug">
         <DiffLines diff={diff} />
       </pre>
     </>
@@ -1795,7 +1786,7 @@ function DiffPreview({ diff }: { diff: string }) {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setExpanded(!expanded)}
-            className="flex items-center gap-2 text-xs text-paper-muted hover:text-paper-dim transition"
+            className="flex items-center gap-2 text-[12.5px] text-paper-muted hover:text-paper-dim transition"
           >
             <span className="font-medium">diff preview</span>
             <span className="text-ok tabular-nums">+{added}</span>
@@ -1806,7 +1797,7 @@ function DiffPreview({ diff }: { diff: string }) {
           <button
             ref={popOutButtonRef}
             onClick={() => setPoppedOut(true)}
-            className="text-xs text-paper-faint hover:text-info transition ml-2"
+            className="text-[12.5px] text-paper-faint hover:text-info transition ml-2"
             title="Open in floating panel"
           >
             pop out
@@ -1814,7 +1805,7 @@ function DiffPreview({ diff }: { diff: string }) {
         </div>
 
         {expanded && !poppedOut && (
-          <div className="rounded-2xl mt-2 border border-border-soft bg-ink/30 max-h-[400px] overflow-auto">
+          <div className="card mt-2 max-h-[400px] overflow-auto">
             {diffContent}
           </div>
         )}
@@ -1822,28 +1813,28 @@ function DiffPreview({ diff }: { diff: string }) {
 
       {/* Pop-out floating panel */}
       {poppedOut && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 backdrop-blur-sm" onClick={closePopOut}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-paper/45" onClick={closePopOut}>
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="diff-preview-dialog-title"
-            className="rounded-2xl bg-ink border border-border-soft shadow-2xl w-[90vw] max-w-[900px] max-h-[80vh] flex flex-col"
+            className="card w-[90vw] max-w-[900px] max-h-[80vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-4 py-2 border-b border-border-soft flex items-center justify-between shrink-0">
-              <span id="diff-preview-dialog-title" className="text-[11px] text-paper-muted font-medium">Diff preview</span>
+              <span id="diff-preview-dialog-title" className="text-[12px] text-paper-muted font-medium">Diff preview</span>
               <div className="flex items-center gap-3">
                 <button
                   onClick={copyDiff}
                   aria-live="polite"
-                  className={cn("text-xs transition", copyState === "error" ? "text-alert" : "text-paper-muted hover:text-paper")}
+                  className={cn("text-[12.5px] transition", copyState === "error" ? "text-alert" : "text-paper-muted hover:text-paper")}
                 >
                   {copyState === "copied" ? "Copied" : copyState === "error" ? "Copy failed" : "Copy diff"}
                 </button>
                 <button
                   ref={closeButtonRef}
                   onClick={closePopOut}
-                  className="text-xs text-paper-faint hover:text-alert transition"
+                  className="text-[12.5px] text-paper-faint hover:text-alert transition"
                 >
                   Close <span aria-hidden>(Esc)</span>
                 </button>
@@ -1859,16 +1850,11 @@ function DiffPreview({ diff }: { diff: string }) {
   );
 }
 
-// ── Loading dots animation ───────────────────────────────────────────
+// ── Quiet "still working" mark ────────────────────────────────────────
+// A plain ellipsis: a status in words reads calmer than bouncing dots.
 
 function LoadingDots() {
-  return (
-    <span className="inline-flex gap-px">
-      <span className="animate-bounce" style={{ animationDelay: "0ms", animationDuration: "1s" }}>.</span>
-      <span className="animate-bounce" style={{ animationDelay: "200ms", animationDuration: "1s" }}>.</span>
-      <span className="animate-bounce" style={{ animationDelay: "400ms", animationDuration: "1s" }}>.</span>
-    </span>
-  );
+  return <span aria-hidden="true">…</span>;
 }
 
 // ── Fix response renderer ────────────────────────────────────────────
@@ -1876,16 +1862,16 @@ function LoadingDots() {
 function FixResponse({ text }: { text: string }) {
   const blocks = parseMarkdownBlocks(text);
   return (
-    <div className="space-y-2.5 text-[12px] leading-relaxed text-paper-dim break-words">
+    <div className="space-y-2.5 text-[13px] leading-relaxed text-paper-dim break-words">
       {blocks.map((block, i) => {
         if (block.type === "code") {
           const isDiff = block.lang === "diff" || block.lang === "patch" || block.content.includes("@@");
           return (
             <div key={i} className="overflow-x-auto">
-              <div className="rounded-lg flex items-center px-3 py-1 bg-ink/80 border border-border-soft border-b-0 text-xs text-paper-muted">
+              <div className="rounded-lg flex items-center px-3 py-1 bg-ink-2 border border-border-soft border-b-0 text-[12.5px] text-paper-muted">
                 <span className="font-mono">{block.lang || (isDiff ? "diff" : "code")}</span>
               </div>
-              <pre className="rounded-lg overflow-x-auto px-3 py-2.5 bg-ink/60 border border-border-soft text-[11px] leading-snug font-mono">
+              <pre className="card overflow-x-auto px-3 py-2.5 text-[12px] leading-snug font-mono">
                 {isDiff ? (
                   <DiffLines diff={block.content} strong />
                 ) : (
@@ -1914,7 +1900,7 @@ function FixResponse({ text }: { text: string }) {
 function PrSkeleton() {
   return (
     <div className="mt-4 space-y-4 animate-pulse">
-      <div className="rounded-2xl border border-border-soft bg-surface px-4 py-3">
+      <div className="card px-4 py-3">
         <div className="flex items-center gap-3">
           <div className="h-5 w-14 bg-surface-2 rounded" />
           <div className="h-5 w-96 bg-surface-2 rounded" />
@@ -1926,7 +1912,7 @@ function PrSkeleton() {
       </div>
 
       {[1, 2].map((i) => (
-        <div key={i} className="rounded-2xl border border-border-soft bg-surface">
+        <div key={i} className="card">
           <div className="px-4 py-2 border-b border-border-soft flex items-center gap-2">
             <div className="h-4 w-20 bg-surface-2 rounded" />
             <div className="h-3 w-32 bg-surface-2 rounded" />

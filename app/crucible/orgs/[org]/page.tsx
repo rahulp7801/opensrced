@@ -37,7 +37,7 @@ export default async function OrgReposPage({
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 py-6">
+    <div className="mx-auto w-full max-w-[1200px] px-5 py-10 sm:px-8">
       <PageHeading
         title={<>{org}</>}
         description={
@@ -49,54 +49,54 @@ export default async function OrgReposPage({
         }
       />
 
-      <div className="mt-4 text-[12px] text-paper-muted">
+      <div className="mt-4 text-[13px] text-paper-muted">
         <Link href="/crucible" className="hover:text-paper">
           ← all connected orgs
         </Link>
       </div>
 
       {error && (
-        <div className="rounded-xl mt-4 border border-alert/30 bg-alert/5 p-3 text-[12.5px] text-alert">
+        <div className="callout callout-alert mt-4 p-3 text-[15px] text-alert">
           Failed to load repos: {error}
         </div>
       )}
 
       <section className="mt-6">
-        <div className="mono-label text-paper-muted">
+        <div className="label-mono">
           {repos.length} repo{repos.length === 1 ? "" : "s"} accessible
         </div>
         {repos.length === 0 ? (
-          <div className="rounded-2xl mt-2 border border-border-soft bg-surface p-6 text-[12.5px] text-paper-dim leading-relaxed">
+          <div className="card mt-2 p-6 text-[15px] text-paper-dim leading-relaxed">
             The installation has no repositories yet. Add repos via the GitHub
             App settings for <code>{org}</code>, then return here.
           </div>
         ) : (
-          <ul className="rounded-2xl mt-2 divide-y divide-border-soft border border-border-soft bg-surface">
+          <ul className="card mt-2 divide-y divide-border-soft">
             {repos.map((r) => (
               <li
                 key={r.fullName}
                 className="flex items-center justify-between px-4 py-3"
               >
                 <div className="min-w-0">
-                  <div className="text-[13.5px] text-paper truncate">
+                  <div className="text-[15px] text-paper truncate">
                     {r.name}
                     {r.private && (
-                      <span className="ml-2 text-[10.5px] text-paper-muted border border-border-soft px-1.5 py-0.5">
+                      <span className="chip ml-2">
                         private
                       </span>
                     )}
                   </div>
-                  <div className="text-[11.5px] text-paper-dim truncate">
+                  <div className="text-[12.5px] text-paper-dim truncate">
                     {r.description || "(no description)"}
                   </div>
-                  <div className="mt-0.5 text-[10.5px] text-paper-muted">
+                  <div className="mt-0.5 text-[12px] text-paper-muted">
                     {r.language || "—"} · default: {r.defaultBranch} · updated{" "}
                     {new Date(r.updatedAt).toLocaleDateString()}
                   </div>
                 </div>
                 <Link
                   href={`/crucible/orgs/${org}/repos/${r.name}`}
-                  className="text-[12px] text-paper-dim hover:text-paper shrink-0 ml-4"
+                  className="text-[13px] text-paper-dim hover:text-paper shrink-0 ml-4"
                 >
                   scan →
                 </Link>

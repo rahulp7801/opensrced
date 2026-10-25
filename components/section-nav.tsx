@@ -11,7 +11,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCurrentUser } from "@/lib/use-current-user";
-import { cn } from "@/lib/utils";
 import { isLinkActive, sectionFor } from "./nav-config";
 
 export function SectionNav({ localMode = false }: { localMode?: boolean }) {
@@ -26,11 +25,10 @@ export function SectionNav({ localMode = false }: { localMode?: boolean }) {
   return (
     // Not sticky on its own — app/layout.tsx sticks the header and this bar
     // together as one unit, so neither needs to know the other's height.
-    <nav aria-label={`${section.label} section`} className="border-b border-border-soft bg-ink/80 backdrop-blur-xl backdrop-saturate-150">
-      <div className="mx-auto flex min-h-[52px] w-full max-w-[1200px] items-center gap-1 overflow-x-auto px-5 sm:px-8">
-        <span className="mr-auto hidden shrink-0 pr-4 text-[19px] font-semibold tracking-[-0.02em] text-paper sm:inline">
-          {section.label}
-        </span>
+    // A minimal text tab strip until the pages carry their own sub-tabs under
+    // the title; then this component and its line in app/layout.tsx go.
+    <nav aria-label={`${section.label} section`} className="border-b border-border-soft bg-ink">
+      <div className="mx-auto flex min-h-11 w-full max-w-[1320px] items-stretch gap-6 overflow-x-auto px-4 sm:px-6 min-[1384px]:px-0">
         {section.links.map((link) => {
           const active = isLinkActive(path, link.href);
           return (
@@ -39,12 +37,7 @@ export function SectionNav({ localMode = false }: { localMode?: boolean }) {
               href={link.href}
               title={link.title}
               aria-current={active ? "page" : undefined}
-              className={cn(
-                "inline-flex min-h-10 items-center whitespace-nowrap rounded-full px-3 text-[13px] transition-colors",
-                active
-                  ? "bg-surface-3 font-medium text-paper"
-                  : "text-paper-muted hover:text-paper",
-              )}
+              className="tab-link text-[13.5px]"
             >
               {link.label}
             </Link>

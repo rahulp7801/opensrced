@@ -25,11 +25,10 @@ export function SectionNav({ localMode = false }: { localMode?: boolean }) {
   return (
     // Not sticky on its own — app/layout.tsx sticks the header and this bar
     // together as one unit, so neither needs to know the other's height.
+    // A minimal text tab strip until the pages carry their own sub-tabs under
+    // the title; then this component and its line in app/layout.tsx go.
     <nav aria-label={`${section.label} section`} className="border-b border-border-soft bg-ink">
-      <div className="mx-auto flex min-h-[56px] w-full max-w-[1320px] items-center gap-1 overflow-x-auto px-4 sm:px-8">
-        <span className="display mr-auto hidden shrink-0 pr-4 text-[22px] leading-none text-paper sm:inline">
-          {section.label}
-        </span>
+      <div className="mx-auto flex min-h-11 w-full max-w-[1320px] items-stretch gap-6 overflow-x-auto px-4 sm:px-6 min-[1384px]:px-0">
         {section.links.map((link) => {
           const active = isLinkActive(path, link.href);
           return (
@@ -38,8 +37,7 @@ export function SectionNav({ localMode = false }: { localMode?: boolean }) {
               href={link.href}
               title={link.title}
               aria-current={active ? "page" : undefined}
-              data-quiet
-              className="pill px-3.5 text-[13.5px]"
+              className="tab-link text-[13.5px]"
             >
               {link.label}
             </Link>

@@ -79,10 +79,10 @@ type Box = { x0: number; y0: number; x1: number; y1: number };
 function hexRgb(hex: string): Rgb {
   return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as Rgb;
 }
-/** 70% saturation: still colourful, but secondary. */
-function muted([r, g, b]: Rgb): Rgb {
+/** A colour at `k` of its saturation (the map's hues stay, but as texture). */
+function desat([r, g, b]: Rgb, k: number): Rgb {
   const grey = 0.3 * r + 0.59 * g + 0.11 * b;
-  return [r, g, b].map((c) => grey + (c - grey) * 0.7) as Rgb;
+  return [r, g, b].map((c) => grey + (c - grey) * k) as Rgb;
 }
 function rgba([r, g, b]: Rgb, a: number): string {
   return `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${a})`;
@@ -138,8 +138,9 @@ function prepare(snap: RepoSnapshot): Prepared {
   // The biggest communities get the first colours.
   const order = [...byCommunity.entries()].sort((a, b) => b[1].length - a[1].length).map(([c]) => c);
   const colour = new Map(order.map((c, i) => {
-    const full = hexRgb(PALETTE[i % PALETTE.length]);
-    return [c, { full, muted: muted(full) }];
+    const hue = hexRgb(PALETTE[i % PALETTE.length]);
+    // The overview at 65% saturation; once the answer is drawn, the rest recedes to 35%.
+    return [c, { full: desat(hue, 0.65), muted: desat(hue, 0.35) }];
   }));
   const { primary, path, hops } = snap.focus;
   const hop = new Map<number, number>([[primary, 0], ...hops]);
@@ -261,7 +262,7 @@ export function RepoMap({ buildAt, focusAt }: { buildAt: number; focusAt: number
               {crumbs.slice(0, depth).map((c, i) => <span key={c} className="stage-tick">{i > 0 && <span className="mx-1.5 text-paper-faint">›</span>}{c}</span>)}
             </span>
             <span className="min-w-0 truncate text-right text-paper-muted" style={{ opacity: chrome }}>
-              {stats.nodes.toLocaleString("en-US")} nodes · {stats.edges.toLocaleString("en-US")} edges · {stats.communities} communities
+              {stats.nodes.toLocaleString("en-US")} nodes · {stats.communities} communities
             </span>
           </div>
           {f >= F.legend && (
@@ -354,7 +355,7 @@ function draw(ctx: CanvasRenderingContext2D, p: Prepared, fr: Frame) {
         const col = p.colour.get(c)!;
         const tone = mix(col.full, col.muted, recede);
         for (const notes of [0, 1]) {
-          b.fillStyle = rgba(tone, (notes ? 0.45 : 0.95) * (1 - 0.38 * recede));
+          b.fillStyle = rgba(tone, (notes ? 0.4 : 0.8) * (1 - 0.44 * recede));
           b.beginPath();
           for (const i of ids) {
             if (p.note[i] !== notes || lit(i) || !onScreen(i)) continue;

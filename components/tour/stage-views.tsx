@@ -14,12 +14,12 @@
 import { ArrowUp } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { StatusChip } from "@/components/status-dot";
-import { AppWindow, Pips, Press, Reveal, SCOPE_LABEL, SCOPE_TONE, SEVERITY_TONE, TimeContext, Typed, progress, useFollow, useT, type Caption, type Chapter } from "./kit";
+import { AppWindow, Press, Reveal, SCOPE_LABEL, TimeContext, Typed, progress, useFollow, useT, type Caption, type Chapter } from "./kit";
 import { MAP_FOCUS_LENGTH, RepoMap } from "./repo-map";
-import { DEMO_PUBLISH_STEPS, Published, Term } from "./chapters-fix";
+import { DEMO_PUBLISH_STEPS, PrRailContext, Published, Term } from "./chapters-fix";
 import { useEffect, useState, type ReactNode } from "react";
 import { Doodle } from "@/components/brand/doodles";
-import { arrow, check, o, pass } from "@/components/brand/doodle-data";
+import { check, circle, o, pass } from "@/components/brand/doodle-data";
 import { Wordmark } from "@/components/brand/wordmark";
 import { DIAGNOSIS, PATCH_STATS, RISK } from "./data";
 import { projectRules, RULE_STATUS_LABEL, type RuleStatus } from "@/lib/project-rules";
@@ -84,29 +84,18 @@ function ScanView() {
               return (
                 <Reveal key={r.number} at={at} className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-2.5", r.reason && "opacity-70")}>
                   <div className="min-w-0">
-                    <p className="flex flex-wrap items-center gap-1.5 text-[13px] text-paper-muted">
-                      <span className="text-paper-dim">#{r.number}</span><span>Opened {r.opened}</span>
-                      <span className="tag" data-tone="info">{r.category}</span>
-                      {r.labels.filter((l) => l !== r.category).map((l) => <span key={l} className="tag">{l}</span>)}
-                    </p>
-                    <p className="mt-0.5 truncate text-[13px] font-medium text-paper">{r.title}</p>
-                    {!r.reason && (
-                      <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-paper-muted">
-                        <span className="inline-flex items-center gap-1"><span className="text-paper-faint">Likely change</span><StatusChip tone={SCOPE_TONE[r.scope!] ?? "muted"}>{SCOPE_LABEL[r.scope!] ?? r.scope}</StatusChip></span>
-                        <span className="inline-flex items-center gap-1"><span className="text-paper-faint">Risk</span><StatusChip tone={SEVERITY_TONE[r.risk!]}>{r.risk}</StatusChip></span>
-                        <span className="inline-flex items-center gap-1"><span className="text-paper-faint">Complexity</span><Pips value={r.complexity!} /></span>
-                        <span><span className="text-paper-faint">Estimate</span> ~{r.estimate}</span>
-                        <StatusChip tone="ok">Ready</StatusChip>
-                      </p>
-                    )}
-                    {r.reason && <p className="mt-1 text-[13px]"><StatusChip tone="muted">Needs review</StatusChip></p>}
+                    <p className="font-mono text-[13px] text-paper-muted">{[`#${r.number}`, r.category, ...r.labels.filter((l) => l !== r.category), `opened ${r.opened}`].join(" · ")}</p>
+                    <p className="mt-0.5 truncate text-[15px] font-medium text-paper">{r.title}</p>
+                    {r.reason
+                      ? <p className="mt-0.5 font-mono text-[13px] text-paper-muted">needs review</p>
+                      : <p className="mt-0.5 font-mono text-[13px] text-paper-muted">{[SCOPE_LABEL[r.scope!] ?? r.scope, `risk ${r.risk}`, `${r.complexity}/5`, `~${r.estimate}`].join(" · ")} · <span className="text-ok">ready</span></p>}
                   </div>
                   {r.reason ? (
                     <p className="max-w-[300px] text-[13px] leading-[1.45] text-paper-dim">{r.reason}</p>
                   ) : (
-                    <span className="flex gap-1.5 text-[13px]">
-                      <span className="rounded-full border border-border px-2.5 py-0.5 text-paper-dim">Preview patch</span>
-                      <span className="rounded-full border border-signal/40 bg-signal/10 px-2.5 py-0.5 font-medium text-signal">Fix it (you review first)</span>
+                    <span className="flex gap-4 text-[14px]">
+                      <span className="text-paper-dim underline decoration-border-strong underline-offset-4">Preview patch</span>
+                      <span className="font-medium text-signal underline decoration-signal/50 underline-offset-4">Fix it (you review first)</span>
                     </span>
                   )}
                 </Reveal>
@@ -234,7 +223,7 @@ function AskPanel({ turns, text = GRAPH_PANEL }: { turns: TimedTurn[]; text?: Pa
                 {[0, 1, 2].map((i) => <span key={i} className="size-1.5 animate-bounce rounded-full bg-paper-muted motion-reduce:animate-none" style={{ animationDelay: `${i * 140}ms` }} />)}
               </div>
             ) : (
-              <div data-spot="answer" className="mr-4 rounded-2xl rounded-tl-md border border-border-soft bg-surface px-3 py-2.5 text-[14px] leading-[1.5] text-paper">
+              <div data-spot="answer" className="text-[14px] leading-[1.5] text-paper">
                 {turn.lesson ? <LessonTyped lesson={turn.lesson} at={turn.answerAt} cps={ANSWER_CPS} /> : <Typed text={turn.answer} at={turn.answerAt} cps={ANSWER_CPS} />}
                 <Reveal at={turn.doneAt} className="mt-2 flex flex-wrap items-center gap-1.5">
                   {turn.cites.map((c) => <span key={c} className="rounded-md bg-signal/10 px-1.5 py-0.5 font-mono text-[13px] text-signal">{c}</span>)}
@@ -369,37 +358,32 @@ export function stageNotes(base: { pr: Chapter }) {
 const PR_FACTS: Array<[string, string]> = [
   ["Branch", RUN.branch],
   ["Into", "main"],
-  ["Commit author", "76501505+rahulp7801@users.noreply.github.com"],
+  ["Commit author", "…@users.noreply.github.com"],
   ["Status", "Draft, opened by rahulp7801"],
   ["Commit", "1, with “Assisted-by: claude-sonnet-5 via opensrcer”"],
   ["Closes", "#2 (“Fixes #2” in the description)"],
 ];
 
-// The card makes way before the notes reach the PR's AI-assistance section, which it would cover.
 const FACTS_AT = 2200;
-const FACTS_GONE_AT = 6600;
 
-/** The pull request screen with the GitHub steps it took, read off the PR itself. */
+/** The pull request screen with the GitHub steps it took, read off the PR itself, in the PR's right rail. */
 export function withPrFacts(chapter: Chapter): Chapter {
   const Inner = chapter.View;
+  const facts = (
+    <Reveal at={FACTS_AT} spot="pr-facts" className="border-t border-border-soft pt-3">
+      <p className="text-[15px] font-medium text-paper">What it did on GitHub</p>
+      <dl className="mt-2 space-y-2">
+        {PR_FACTS.map(([k, v], i) => (
+          <Reveal key={k} at={FACTS_AT + 300 + i * 450}>
+            <dt className="text-[13px] text-paper-muted">{k}</dt>
+            <dd className="break-words font-mono text-[13px] text-paper">{v}</dd>
+          </Reveal>
+        ))}
+      </dl>
+    </Reveal>
+  );
   function View() {
-    const t = useT();
-    return (
-      <div className="relative h-full">
-        <Inner />
-        {t < FACTS_GONE_AT + 400 && <div style={{ opacity: 1 - progress(t, FACTS_GONE_AT, FACTS_GONE_AT + 400) }}><Reveal at={FACTS_AT} spot="pr-facts" className="absolute bottom-5 right-5 z-10 w-[360px] rounded-2xl border border-border bg-surface p-4">
-          <p className="text-[13px] font-semibold uppercase tracking-[0.08em] text-signal">What it did on GitHub</p>
-          <dl className="mt-2 space-y-1.5">
-            {PR_FACTS.map(([k, v], i) => (
-              <Reveal key={k} at={FACTS_AT + 300 + i * 450} className="grid grid-cols-[110px_minmax(0,1fr)] gap-2 text-[13px]">
-                <dt className="text-paper-muted">{k}</dt>
-                <dd className="break-words font-mono text-[13px] text-paper">{v}</dd>
-              </Reveal>
-            ))}
-          </dl>
-        </Reveal></div>}
-      </div>
-    );
+    return <PrRailContext.Provider value={facts}><Inner /></PrRailContext.Provider>;
   }
   return { ...chapter, View };
 }
@@ -485,11 +469,12 @@ export const stageRefused: Chapter = {
 // The presenter's own statement (Rahul's words; no provenance pill): no logos, just the name.
 function BuiltView() {
   return (
-    <div className="flex h-full items-center bg-ink">
-      <p className="max-w-[900px] font-display text-[52px] [text-wrap:pretty] font-[650] leading-[1.12] tracking-[-0.02em] text-paper [font-stretch:92%]">
+    <div className="flex h-full flex-col justify-center bg-ink">
+      <p className="max-w-[24ch] font-display text-[44px] [text-wrap:pretty] font-[650] leading-[1.15] tracking-[-0.02em] text-paper [font-stretch:92%]">
         <span className="stage-rise inline">Built the way it asks you to build.</span>{" "}
-        <span className="stage-rise inline font-sans font-[450] tracking-normal text-paper-muted [font-stretch:100%]" style={{ animationDelay: "500ms" }}>I used GitHub Copilot mostly for scaffolding; what it drafted, I reviewed and own.</span>
+        <span className="stage-rise inline font-sans font-[450] tracking-normal text-paper-muted [font-stretch:100%]" style={{ animationDelay: "500ms" }}>I&nbsp;used GitHub Copilot mostly for scaffolding; what it drafted, I&nbsp;reviewed and own.</span>
       </p>
+      <p className="stage-rise mt-7 text-[18px] text-paper" style={{ animationDelay: "900ms" }}>Rahul</p>
     </div>
   );
 }
@@ -522,20 +507,20 @@ const SLOP_LINE_AT = 700 + SLOP.length * SLOP_STEP + 400; // after the last row
 
 // The closing line, inked in word by word once the rows have had their moment.
 const CLOSE_AT = SLOP_LINE_AT + 2600;
-const CLOSE_CLAIM = "Not more pull requests.";
-const CLOSE_REST = "Better ones: tested in a locked box, explained in your words, following each project's rules.";
+const CLOSE_LINES = ["Not more pull requests.", "Better ones."];
+const CLOSE_REST = "Tested in a locked box, explained in your words, following each project's rules.";
 
 function SlopView() {
   const t = useT();
   if (t >= CLOSE_AT) return <CloseView />;
   return (
-    <div className="flex h-full flex-col justify-center bg-ink">
+    <div className="flex h-full flex-col justify-start bg-ink pt-4">
       <div className="divide-y divide-border">
         {SLOP.map(([problem, answer], i) => (
           <Reveal key={problem} at={700 + i * SLOP_STEP} className="grid grid-cols-[320px_minmax(0,1fr)] items-baseline gap-10 py-7">
-            <p className="relative w-fit text-[22px] font-medium text-paper-faint">
+            <p className="relative w-fit text-[22px] font-medium text-paper">
               {problem}
-              {t >= 700 + i * SLOP_STEP + 450 && <Doodle doodle={pass} draw="load" duration={600} tone="current" stretch className="absolute left-[-3%] top-[52%] h-[0.32em] w-[106%] text-paper-muted" />}
+              {t >= 700 + i * SLOP_STEP + 600 && <Doodle doodle={pass} draw="load" duration={600} stretch className="absolute left-[-3%] top-[50%] h-[0.28em] w-[106%] text-signal" />}
             </p>
             <p className="text-[20px] leading-[1.4] text-paper">{answer}</p>
           </Reveal>
@@ -546,18 +531,24 @@ function SlopView() {
 }
 
 function CloseView() {
-  const words = CLOSE_CLAIM.split(" ");
+  let i = 0;
+  const ink = (text: string) => text.split(" ").map((word) => <span key={word + i} className="stage-ink" style={{ "--d": `${300 + i++ * 140}ms` } as React.CSSProperties}>{word} </span>);
   return (
-    <div className="stage-enter relative flex h-full flex-col justify-end bg-ink pb-10">
-      <Wordmark className="absolute left-0 top-6 text-[40px] text-paper" />
-      <CodeMap className="absolute right-0 top-4 w-[280px]" />
-      <p className="max-w-[720px] font-display text-[56px] [text-wrap:pretty] font-[650] leading-[1.08] tracking-[-0.02em] text-paper [font-stretch:92%]">
-        {words.map((word, i) => <span key={i} className="stage-ink" style={{ "--d": `${300 + i * 140}ms` } as React.CSSProperties}>{word} </span>)}
-        <span className="stage-rise font-sans font-[450] tracking-normal text-paper-muted [font-stretch:100%]" style={{ animationDelay: `${500 + words.length * 140}ms` }}>{CLOSE_REST}</span>
+    <div className="stage-enter relative flex h-full flex-col justify-end bg-ink pb-8">
+      {/* The code map's lit path ends at the wordmark's "o". */}
+      <span className="absolute left-0 top-6 inline-block">
+        <Wordmark className="text-[40px] text-paper" />
+        <CodeMap variant="close" className="absolute w-[300px]" style={{ left: -5, top: 5 }} />
+      </span>
+      <p className="display text-[96px] leading-[1] tracking-[-0.025em]">
+        <span className="block text-paper-muted [--ink-to:var(--color-paper-muted)]">{ink(CLOSE_LINES[0])}</span>
+        <span className="block text-paper">{ink(CLOSE_LINES[1])}</span>
       </p>
-      <div className="mt-9 flex items-baseline justify-between gap-6 border-t border-border pt-4">
-        <p className="font-mono text-[17px] text-paper-dim">github.com/{DEMO_REPO}/pull/{RUN.pr}</p>
-        <p className="text-[18px] text-paper">Rahul <span className="font-mono text-[16px] text-paper-muted">· @rahulp7801</span></p>
+      <p className="stage-rise mt-5 text-[20px] text-paper-muted" style={{ animationDelay: "1500ms" }}>{CLOSE_REST}</p>
+      <div className="mt-8 flex items-baseline gap-8 border-t border-border pt-4 font-mono text-[15px] text-paper-dim">
+        <span>opensrced.vercel.app</span>
+        <span><span className="text-paper-faint">the real PR</span> github.com/{DEMO_REPO}/pull/{RUN.pr}</span>
+        <span className="ml-auto font-sans text-[18px] text-paper">Rahul <span className="font-mono text-[15px] text-paper-muted">· @rahulp7801</span></span>
       </div>
     </div>
   );
@@ -591,7 +582,6 @@ const PROOF: Array<{ at: number; text: string; verify?: true; receipt?: string }
   { at: 2200, text: "Installed what the project needs." },
   { at: 3800, text: "Ran the project's own tests on the fix: they pass.", verify: true, receipt: "node --test · exit 0 · 6/6 pass" },
   { at: 5800, text: "Undid the fix and ran them again: the new tests fail. So they really catch the bug.", verify: true, receipt: "fix reverted · node --test · exit 1 · 2 fail" },
-  { at: 8000, text: "Ready for your review. Nothing has been published." },
 ];
 // The tick, drawn by hand beside the proof that the new tests catch the bug.
 const TICK_AT = 5800 + 1400;
@@ -611,13 +601,12 @@ function VerifiedView() {
           </div>
           {verified ? <span className="stage-settle"><StatusChip tone="ok">verified</StatusChip></span> : <StatusChip tone="signal">testing</StatusChip>}
         </div>
-        <ol className="space-y-2.5">
-          {PROOF.filter((p) => !p.verify).slice(0, 2).map((p) => <ProofStep key={p.text} {...p} />)}
-          <li data-spot="verify" className="relative space-y-2.5">
+        <ol className="border-t border-border-soft">
+          {PROOF.filter((p) => !p.verify).map((p) => <ProofStep key={p.text} {...p} />)}
+          <li data-spot="verify" className="relative">
             {PROOF.filter((p) => p.verify).map((p) => <ProofStep key={p.text} {...p} />)}
             {t >= TICK_AT && <Doodle doodle={check} draw="load" duration={800} className="absolute bottom-3 right-6 h-[64px] w-[80px] text-signal" />}
           </li>
-          <ProofStep {...PROOF[PROOF.length - 1]} />
         </ol>
       </div>
     </AppWindow>
@@ -626,7 +615,7 @@ function VerifiedView() {
 
 function ProofStep({ at, text, verify, receipt }: { at: number; text: string; verify?: true; receipt?: string }) {
   return (
-    <Reveal at={at} className="flex items-start gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-[17px] leading-snug text-paper">
+    <Reveal at={at} className="flex items-start gap-3 border-b border-border-soft py-3 text-[17px] leading-snug text-paper">
       {/* A tick only where something was checked; the other steps are just what happened. */}
       {verify ? <span aria-hidden className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-ok/15 text-[13px] font-semibold text-ok">✓</span> : <span aria-hidden className="mt-2.5 size-1.5 shrink-0 rounded-full bg-border-strong" />}
       <span className="min-w-0">
@@ -717,9 +706,9 @@ function PromiseView() {
       <p className="kicker text-[16px] text-paper-muted">A contribution a maintainer would actually want</p>
       <div className="mt-4 divide-y divide-border">
         {PILLARS.map(([title, text], i) => (
-          <Reveal key={title} at={150 + i * 600} className="grid grid-cols-[minmax(0,1fr)_360px] items-baseline gap-10 py-5">
+          <Reveal key={title} at={150 + i * 600} className="grid grid-cols-[minmax(0,1fr)_360px] items-end gap-10 py-5">
             <p className="display text-[80px] leading-none tracking-[-0.025em] text-paper">{title}{i === PILLARS.length - 1 ? <span className="text-signal">.</span> : "."}</p>
-            <p className="text-[19px] leading-snug text-paper-dim">{text}</p>
+            <p className="pb-[0.55em] text-[19px] leading-snug text-paper-dim">{text}</p>
           </Reveal>
         ))}
       </div>
@@ -768,9 +757,9 @@ function RulesView() {
           <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[13px] text-info">#2</span></p>
           <p className="mt-0.5 truncate text-[18px] font-medium text-paper">truncate cuts mid-word and returns more than max characters</p>
         </div>
-        <ol className="space-y-2">
+        <ol className="border-t border-border-soft">
           <RulesStep {...RULES_FEED[0]} />
-          <li data-spot="rules" className="space-y-2">
+          <li data-spot="rules">
             {RULES_FEED.filter((s) => s.rules).map((s) => <RulesStep key={s.text} {...s} />)}
           </li>
           {RULES_FEED.slice(3).map((s) => <RulesStep key={s.text} {...s} />)}
@@ -782,7 +771,7 @@ function RulesView() {
 
 function RulesStep({ at, text, points }: { at: number; text: string; points?: string[] }) {
   return (
-    <Reveal at={at} className="flex items-start gap-3 rounded-xl border border-border bg-surface px-4 py-2 text-[16px] leading-snug text-paper">
+    <Reveal at={at} className="flex items-start gap-3 border-b border-border-soft py-3 text-[17px] leading-snug text-paper">
       <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-border-strong" />
       <span>
         {text}
@@ -831,7 +820,7 @@ function SignInView() {
           <Press at={SIGN_IN_PRESS_AT} className="shrink-0 rounded-full border border-signal/50 bg-signal/10 px-4 py-1.5 text-[14px] font-medium text-signal">Sign in with Claude &amp; start</Press>
         </div>
         {t >= SIGN_IN_PRESS_AT && t < SIGN_IN_PANEL_AT && <p className="text-[15px] text-paper-muted">Starting your run… Claude&apos;s sign-in page opens here in a moment.</p>}
-        <Reveal at={SIGN_IN_PANEL_AT} spot="sign-in" className="rounded-2xl border border-signal/40 bg-signal/[0.05] p-5">
+        <Reveal at={SIGN_IN_PANEL_AT} spot="sign-in" className="rounded-2xl border border-signal/30 bg-surface p-5">
           <p className="text-[18px] font-medium text-signal">Sign in to Claude to start this run</p>
           <p className="mt-1.5 text-[16px] leading-snug text-paper-dim">This run uses your own Claude subscription. Sign in on Claude&apos;s page, then paste the code it shows you here.</p>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-[14px]">
@@ -884,7 +873,7 @@ const DEMO_RULES = projectRules({
   body: "",
   rules: { pr_template: false, template_headings: null, agent_instructions: false, notes: 0, discuss_first: null, competing_prs: "none", disclosed: true },
 });
-const RULE_TONE: Record<RuleStatus, string> = { done: "border-ok/40 text-ok", action: "border-signal/40 text-signal", blocked: "border-alert/40 text-alert", check: "border-info/40 text-info", unknown: "border-border text-paper-muted", none: "border-border text-paper-muted" };
+const RULE_TONE: Record<RuleStatus, string> = { done: "text-ok", action: "text-signal", blocked: "text-alert", check: "text-info", unknown: "text-paper-muted", none: "text-paper-muted" };
 
 // EXAMPLE answers: what the review screen's AI calls return, written here for this
 // change and checked against PR #7's diff. Labeled as examples in the notes.
@@ -920,6 +909,8 @@ function StageReviewView() {
   const t = useT();
   const section = t < R.rules ? "found" : t < R.chat ? "rules" : t < R.own ? "chat" : t < R.practice ? "own" : t < R.publish ? "practice" : "publish";
   const typed = OWN_WORDS_TEXT.slice(0, Math.max(0, Math.min(OWN_WORDS_TEXT.length, Math.floor(((t - R.ownTypeAt) / 1000) * 40))));
+  // If a section is still taller than the window, the body follows it down, like the chat panel.
+  const bodyRef = useFollow(Math.floor(t / 250));
   return (
     <AppWindow path={`/dispatches?dispatch=${RUN.id}`} section="Fix" tab="Runs">
       <div className="absolute inset-0 bg-ink p-3">
@@ -929,7 +920,7 @@ function StageReviewView() {
             <p className="text-[13px] text-paper-muted">{PATCH_STATS.files} files changed · <span className="text-ok">+{PATCH_STATS.additions}</span> · <span className="text-alert">-{PATCH_STATS.deletions}</span> · <span className="text-ok">verified</span></p>
           </div>
           {t >= PUBLISHED_AT ? <Published /> : (
-            <div className="min-h-0 flex-1 overflow-hidden px-4 py-3">
+            <div ref={bodyRef} className="min-h-0 flex-1 overflow-hidden px-4 py-3">
               {section === "found" && (
                 <div className="space-y-3">
                   <Reveal at={300} spot="review-found">
@@ -944,12 +935,11 @@ function StageReviewView() {
               )}
               {section === "rules" && (
                 <Section title="This project's rules" spot="rules-list">
-                  <p className="text-paper-muted">Why this matters: maintainers set these rules, and following them is what makes a contribution welcome.</p>
-                  <ul className="mt-1 space-y-0.5">
+                  <ul className="mt-1">
                     {DEMO_RULES.map((row, i) => (
-                      <Reveal as="li" key={row.id} at={R.rules + 300 + i * 80} className="rounded-lg border border-border-soft bg-surface px-3 py-0.5 text-[13px] leading-snug">
-                        <p className="flex flex-wrap items-baseline gap-2"><span className={cn("rounded-full border px-2 text-[13px]", RULE_TONE[row.status])}>{RULE_STATUS_LABEL[row.status]}</span><span className="font-medium text-paper">{row.label}:</span><span className="text-paper-dim">{row.text}</span></p>
-                        {row.detail && <p className="text-[13px] leading-snug text-paper-muted">{row.detail}</p>}
+                      <Reveal as="li" key={row.id} at={R.rules + 300 + i * 80} className="grid grid-cols-[96px_minmax(0,1fr)] items-baseline gap-3 border-b border-border-soft py-1.5 text-[14px] leading-snug">
+                        <span className={cn("font-mono text-[13px] lowercase", RULE_TONE[row.status])}>{RULE_STATUS_LABEL[row.status]}</span>
+                        <p><span className="font-medium text-paper">{row.label}:</span> <span className="text-paper-dim">{row.text}</span></p>
                       </Reveal>
                     ))}
                   </ul>
@@ -975,10 +965,10 @@ function StageReviewView() {
               {section === "own" && (
                 <Section title="Explain it in your own words" spot="own-words">
                   <p className="text-paper-muted">Maintainers want to know the person sending a change understands it. In a few sentences, answer:</p>
-                  <ul className="mt-1 list-disc pl-5 text-paper-dim"><li>What was wrong?</li><li>What did the change do?</li><li>How do you know it works?</li></ul>
-                  <p className="mt-2 text-paper">Your explanation</p>
+                  {t < R.results && <ul className="mt-1 list-disc pl-5 text-paper-dim"><li>What was wrong?</li><li>What did the change do?</li><li>How do you know it works?</li></ul>}
+                  {t < R.results && <p className="mt-2 text-paper">Your explanation</p>}
                   <p className="mt-1 min-h-[64px] rounded-lg border border-border bg-surface px-3 py-2 text-[14px] leading-6 text-paper">{typed}&nbsp;</p>
-                  <p className="mt-1 text-[13px] text-paper-muted">At least 80 characters ({typed.length}/2000). It goes into the pull request under &quot;In the author&apos;s words&quot;.</p>
+                  {t < R.results && <p className="mt-1 text-[13px] text-paper-muted">At least 80 characters ({typed.length}/2000). It goes into the pull request under &quot;In the author&apos;s words&quot;.</p>}
                   <div className="mt-2 flex items-center gap-3">
                     <Press at={R.check} label="Check my explanation" className="rounded-full border border-signal/50 bg-signal/10 px-3 py-1 font-medium text-signal">Check my explanation</Press>
                     <span key={t >= R.check ? "4" : "5"} className="stage-tick text-paper-muted">{t >= R.check ? "4 checks left" : "5 checks left"}</span>
@@ -1031,13 +1021,11 @@ function StageReviewView() {
                 I&apos;ve read this change and can explain it to reviewers.
               </Press>
               <span className="relative ml-auto">
-                {t >= R.confirm + 300 && t < R.publishAt && <span data-waiting="" className="absolute -top-[54px] right-[calc(100%+4px)] block h-[56px] w-[74px]"><Doodle doodle={arrow} draw="load" duration={850} className="h-full w-full opacity-80" /></span>}
                 <Press at={R.publishAt} label="Publish draft PR" className={cn("rounded-full border px-3 py-0.5 font-medium", t >= R.confirm ? "border-ok/40 bg-ok/10 text-ok" : "border-border text-paper-faint")}>
                   {t >= R.publishAt ? `Draft PR #${RUN.pr} opened ↗` : "Publish draft PR"}
                 </Press>
               </span>
             </div>
-            {t < R.confirm && <p className="mt-1 text-[13px] text-paper-muted">To publish: explain the change in your own words, answer the practice review, and tick the box.</p>}
           </div>
         </div>
       </div>
@@ -1087,11 +1075,18 @@ export function StageTitle() {
     <div className="relative flex h-full flex-col justify-end bg-ink pb-10">
       <Wordmark draw className="absolute left-0 top-6 text-[40px] text-paper" />
       <p className="absolute right-0 top-9 font-mono text-[14px] tracking-[0.02em] text-paper-faint">Demo · opensrced.vercel.app</p>
-      <CodeMap className="absolute right-0 top-20 w-[360px]" />
-      <p className="kicker text-[16px] text-paper-muted">Your first open-source contribution, guided</p>
-      <p className="display mt-5 text-[104px] leading-[0.98] tracking-[-0.025em] text-paper">
+      <p className="text-[20px] text-paper-muted">Your first open-source contribution, guided.</p>
+      <p className="display mt-4 text-[104px] leading-[0.98] tracking-[-0.025em] text-paper">
         <span className="rise block">Issues in.</span>
-        <span className="rise block" style={{ "--delay": "120ms" } as React.CSSProperties}>Pull requests <span className="text-signal">out.</span></span>
+        <span className="rise block" style={{ "--delay": "120ms" } as React.CSSProperties}>
+          Pull requests{" "}
+          <span className="relative inline-block text-signal">
+            out.
+            {/* The code map's lit path arrives here and rings the word. */}
+            <Doodle doodle={circle} draw="load" delay={1700} duration={700} stretch className="absolute -left-[0.1em] -top-[0.02em] h-[calc(100%+0.06em)] w-[calc(100%+0.2em)] text-signal" />
+            <CodeMap variant="title" className="absolute w-[280px]" style={{ left: "calc(100% - 31px)", top: -153 }} />
+          </span>
+        </span>
       </p>
     </div>
   );
@@ -1099,27 +1094,34 @@ export function StageTitle() {
 
 // ── The code map: the posters' motif ────────────────────────────────────────
 
-// A small code graph in the product's own language: a handful of nodes, hairline calls, and
-// one path lit in cobalt, drawn on, ending in an open ring (the wordmark's "o"). Decorative.
-const MAP_NODES: Array<[number, number, number]> = [[40, 196, 6], [112, 122, 7], [176, 206, 5], [236, 92, 6], [300, 176, 7], [204, 34, 5], [326, 54, 5]];
-const MAP_EDGES: Array<[number, number]> = [[0, 1], [1, 2], [1, 3], [3, 5], [3, 4], [4, 6], [2, 4], [5, 6]];
-const MAP_PATH = [0, 1, 3, 4]; // lit from a function outward; ends in the ring
+// A small code graph in the product's own language: a handful of nodes, hairline calls, and one
+// path lit in cobalt, drawn from the far side toward the thing it annotates. Decorative.
+// Each variant's lit path ends at its first node, which the caller places on that thing: on the
+// title (end bottom-left) the ring around "out."; on the close (end top-left) the wordmark's "o".
+const MAPS = {
+  title: {
+    nodes: [[40, 196, 6], [112, 122, 7], [176, 206, 5], [236, 92, 6], [300, 176, 7], [204, 34, 5], [326, 54, 5]],
+    edges: [[0, 1], [1, 2], [1, 3], [3, 5], [3, 4], [4, 6], [2, 4], [5, 6]],
+    path: [4, 3, 1, 0],
+  },
+  close: {
+    nodes: [[20, 20, 6], [80, 100, 7], [40, 190, 5], [190, 130, 6], [300, 200, 7], [180, 222, 5], [314, 92, 5]],
+    edges: [[0, 1], [1, 2], [1, 3], [3, 5], [3, 4], [4, 6], [2, 5], [6, 3]],
+    path: [4, 3, 1, 0],
+  },
+} as const;
 const MAP_VIEW = { w: 360, h: 240 };
 
-function CodeMap({ className }: { className?: string }) {
-  const end = MAP_NODES[MAP_PATH[MAP_PATH.length - 1]];
-  const points = MAP_PATH.map((i) => `${MAP_NODES[i][0]},${MAP_NODES[i][1]}`).join(" ");
+function CodeMap({ variant, className, style }: { variant: keyof typeof MAPS; className?: string; style?: React.CSSProperties }) {
+  const { nodes, edges, path } = MAPS[variant];
+  const points = path.map((i) => `${nodes[i][0]},${nodes[i][1]}`).join(" ");
   return (
-    <div className={cn("relative", className)} aria-hidden>
-      <svg viewBox={`0 0 ${MAP_VIEW.w} ${MAP_VIEW.h}`} className="block w-full" fill="none" strokeLinecap="round" strokeLinejoin="round">
-        <g stroke="var(--color-border)" strokeWidth="1">
-          {MAP_EDGES.map(([a, b], i) => <line key={i} x1={MAP_NODES[a][0]} y1={MAP_NODES[a][1]} x2={MAP_NODES[b][0]} y2={MAP_NODES[b][1]} />)}
-        </g>
-        {MAP_NODES.map(([x, y, r], i) => <circle key={i} cx={x} cy={y} r={r} fill="var(--color-border-strong)" className="stage-node" style={{ "--d": `${80 + i * 60}ms` } as React.CSSProperties} />)}
-        <polyline points={points} stroke="var(--color-signal)" strokeWidth="2.5" pathLength={1} className="stage-draw" style={{ "--d": "500ms", animationDuration: "1.2s" } as React.CSSProperties} />
-      </svg>
-      {/* The path settles into the wordmark's pen ring. */}
-      <Doodle doodle={o} draw="load" delay={1600} duration={700} className="absolute size-[54px] -translate-x-1/2 -translate-y-1/2 text-signal" style={{ left: `${(end[0] / MAP_VIEW.w) * 100}%`, top: `${(end[1] / MAP_VIEW.h) * 100}%` }} />
-    </div>
+    <svg aria-hidden viewBox={`0 0 ${MAP_VIEW.w} ${MAP_VIEW.h}`} className={cn("block overflow-visible", className)} style={style} fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <g stroke="var(--color-border)" strokeWidth="1">
+        {edges.map(([a, b], i) => <line key={i} x1={nodes[a][0]} y1={nodes[a][1]} x2={nodes[b][0]} y2={nodes[b][1]} />)}
+      </g>
+      {nodes.map(([x, y, r], i) => <circle key={i} cx={x} cy={y} r={i === path[path.length - 1] ? 0 : r} fill="var(--color-border-strong)" className="stage-node" style={{ "--d": `${80 + i * 60}ms` } as React.CSSProperties} />)}
+      <polyline points={points} stroke="var(--color-signal)" strokeWidth="2.5" pathLength={1} className="stage-draw" style={{ "--d": "500ms", animationDuration: "1.2s" } as React.CSSProperties} />
+    </svg>
   );
 }

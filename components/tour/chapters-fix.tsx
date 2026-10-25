@@ -4,6 +4,7 @@
 // real run on issue #2, reviewing its patch, a run that cannot finish, the run
 // history, and the draft pull request it opened (rahulp7801/opensrcer-demo #7).
 
+import { createContext, useContext, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { StatusChip, StatusDot } from "@/components/status-dot";
 import { AppWindow, Inline, LogLine, PageHead, Press, Reveal, Typed, progress, useAutoScroll, useFollow, useT, type Chapter } from "./kit";
@@ -309,8 +310,12 @@ export const review: Chapter = {
 
 // ── 7. The draft pull request ─────────────────────────────────────────────
 
+/** On the stage, a block for the PR page's right rail (what it did on GitHub); the tour shows none. */
+export const PrRailContext = createContext<ReactNode>(null);
+
 function PrView() {
   const scrollRef = useAutoScroll(3600, 10500);
+  const rail = useContext(PrRailContext);
   return (
     <AppWindow host="github.com" path={`/${DEMO_REPO}/pull/${RUN.pr}`}>
       <div ref={scrollRef} className="h-full overflow-hidden bg-surface px-4 py-4 sm:px-7">
@@ -328,7 +333,7 @@ function PrView() {
             <span className="ml-auto hidden font-mono sm:inline"><span className="text-ok">+{PATCH_STATS.additions}</span> <span className="text-alert">−{PATCH_STATS.deletions}</span></span>
           </div>
         </Reveal>
-        <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_200px]">
+        <div className={cn("mt-4 grid gap-5", rail ? "lg:grid-cols-[minmax(0,1fr)_240px]" : "lg:grid-cols-[minmax(0,1fr)_200px]")}>
           <Reveal at={900} spot="pr-body" className="overflow-hidden rounded-lg border border-border">
             <p className="border-b border-border bg-surface-2/60 px-3 py-1.5 text-[11.5px] text-paper-muted"><span className="font-semibold text-paper">rahulp7801</span> commented just now</p>
             <div className="space-y-2.5 px-3 py-3 text-[12px] leading-[1.6] text-paper-dim">
@@ -343,6 +348,7 @@ function PrView() {
           <Reveal at={2000} className="hidden space-y-3 text-[11.5px] text-paper-muted lg:block">
             <div><p className="font-semibold text-paper-dim">Reviewers</p><p>No reviews</p></div>
             <div><p className="font-semibold text-paper-dim">Development</p><p>Successfully merging this pull request may close <span className="text-signal">#2</span>.</p></div>
+            {rail}
           </Reveal>
         </div>
         <Reveal at={7600} className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface-2/50 px-3 py-2.5 text-[12px]">

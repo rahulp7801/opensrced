@@ -96,6 +96,12 @@ export function parseExplanationCheck(reply: string): ExplanationCheck {
 
 /** Passing needs the cause and the change right, with no mistakes. How the
  *  author knows it works is advice only. */
+/** Whether the contributor's own words say how they know it works. The model tends to credit
+ *  the recorded test result even when the explanation never mentions it, so this is decided here. */
+export function mentionsEvidence(explanation: string): boolean {
+  return /\b(?:tests?|tested|testing|pytest|jest|unit|ran|run|runs|checked|verified|passe[sd]|fail(?:s|ed)?|CI|assert(?:s|ion)?)\b/i.test(explanation);
+}
+
 export function explanationPasses(c: ExplanationCheck): boolean {
   return c.rootCause && c.change && c.mistakes.length === 0;
 }
@@ -123,9 +129,10 @@ export function checkPrompt(change: ChangeInput, explanation: string) {
     `You check whether a contributor understands a code change before they send it to an open-source project${change.repo ? ` (${change.repo})` : ""}, from their own explanation.`,
     "", UNTRUSTED, "",
     "Decide, judging meaning against the diff and the description, not wording, grammar or jargon (a non-native writer with the right idea passes):",
-    "- rootCause: true if the explanation correctly says what was wrong (the bug or the need).",
-    "- change: true if it correctly says what the change does.",
-    "- evidence: true if it says how they know it works (a test, a check they ran, or the recorded test result), consistent with the context.",
+    "Judge only what the explanation itself says. Never credit something because the context shows it; the point is whether the contributor can say it.",
+    "- rootCause: true if the explanation correctly says what was wrong (the bug or the need), specifically enough to recognise it (e.g. what input gave what wrong result). \"It didn't work\" or \"it looked wrong\" is not a root cause.",
+    "- change: true if it correctly says what the code now does differently. \"I fixed it\" or \"it works now\" does not say what changed.",
+    "- evidence: true only if the explanation itself mentions how they know it works (a test, a check they ran, or the recorded test result), consistent with the context.",
     "- mistakes: up to 3 statements in the explanation that are wrong or contradict the diff, each one short sentence saying what is actually true. Vague is not a mistake; wrong is. Empty when nothing is wrong.",
     "- tip: one or two plain, friendly sentences on what to add or fix (or what is good, if it is complete).",
     "", JSON_ONLY,
@@ -196,7 +203,11 @@ export async function handleUnderstand(req: Request, deps: ExplainDeps, log: (li
       // The same copy check the page runs, against the AI's own text.
       if (looksCopied(explanation, [change.context.description])) throw new ExplainInputError(COPY_MESSAGE);
       prompt = checkPrompt(change, clean(explanation, OWN_WORDS.max));
-      parse = (reply) => { const c = parseExplanationCheck(reply); return { ...c, passed: explanationPasses(c) }; };
+      parse = (reply) => {
+        const parsed = parseExplanationCheck(reply);
+        const c = parsed.evidence && !mentionsEvidence(explanation) ? { ...parsed, evidence: false } : parsed;
+        return { ...c, passed: explanationPasses(c) };
+      };
     } else if (step === "questions") {
       prompt = questionsPrompt(change);
       parse = (reply) => ({ questions: parsePracticeQuestions(reply) });

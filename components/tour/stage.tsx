@@ -20,7 +20,7 @@ import { ArrowGlyph } from "@/components/brand/pill";
 import { pacedBy } from "./chapters";
 import { preloadRepoSnapshot } from "./repo-map";
 import { pr } from "./chapters-fix";
-import { StageTitle, stageExplore, stageNotes, stageProblem, stagePromise, stageRefused, stageReview, stageRules, stageScan, stageSlop, stageVerified, withPrFacts, withSignInStart } from "./stage-views";
+import { StageTitle, stageExplore, stageNotes, stageProblem, stagePromise, stageRefused, stageReview, stageRules, stageScan, stageSlop, stageVerified, withPrFacts } from "./stage-views";
 
 /** How much slower than written the stage plays its animations. The presenter
  *  sets the pace between steps; this only stretches what plays by itself. */
@@ -38,9 +38,9 @@ const SKIP = new Set(["Copy diff", "Commit msg", "Ready (3)", "Build graph", "Re
 /** The four phases, and the one line each one is about (shown in the notes). */
 const PHASES: Phase[] = [
   { name: "Why", by: "0:00", say: "The problem every maintainer here knows, and the promise: contributions a maintainer would actually want.", chapters: [stageProblem, stagePromise] },
-  { name: "Find", by: "1:05", say: "Pick an issue that's open to you, and understand the code before touching it.", chapters: [stageScan, stageExplore] },
-  { name: "Prove", by: "2:50", say: "It follows the project's rules, stops when they say no, and proves the fix with the project's own tests.", chapters: [withSignInStart(stageRules), stageRefused, stageVerified] },
-  { name: "Ship", by: "5:40", say: "It explains every change, you confirm you understand it, a human publishes, and nothing is hidden.", chapters: [stageReview, withPrFacts(S.pr), stageSlop] },
+  { name: "Find", by: "0:50", say: "Pick an issue that's open to you, and understand the code before touching it.", chapters: [stageScan, stageExplore] },
+  { name: "Prove", by: "2:15", say: "It reads the project's rules, finds the cause, and proves the fix: the bug, the patch, and the test failing without it and passing with it.", chapters: [stageRules, stageVerified] },
+  { name: "Ship", by: "3:45", say: "You explain it in your own words (it catches what you get wrong), a human publishes a transparent draft, and it says no where it isn't welcome.", chapters: [stageReview, withPrFacts(S.pr), stageRefused, stageSlop] },
 ];
 
 const STEPS = PHASES.flatMap((phase, p) => phase.chapters.map((c) => ({ phase: p, chapter: pacedBy(c, STAGE_PACE) })));
@@ -443,6 +443,9 @@ function Spotlight({ selector, strong, within }: { selector: string | null; stro
 
 /** For questions from the room; the notes window only, never the stage. */
 const IF_ASKED = [
+  "Sign-in: a run uses the Claude plan you already pay for. You sign in on Claude's own page inside the run's machine; opensrcer never sees your login. Hit your plan's limit and the run stops; it switches to an API key only if you've turned that on.",
+  "This project's rules (on the review screen, one row each): contribution guide read (CONTRIBUTING.md, .github/PULL_REQUEST_TEMPLATE.md, docs/contributing.md); PR template followed (3 of 3 headings); sign-off and CLA not required; AI policy: welcomes AI-assisted contributions, disclosure added; no other open PR; tests verified.",
+  "Publishing: forks the project to your account, saves exactly this patch as one commit on a new branch, opens a draft PR with the AI disclosure. Nothing merges until you mark it ready. Afterwards it coaches: don't chase people, answer every review comment.",
   "Big-repo replays: 4 real bugs the maintainers had already fixed (React, Flask, pydantic, vLLM), each started from just before their fix. In 2 the maintainers' own tests pass on opensrcer's fix; 2 were correct but narrower, and the preview now names the variants it didn't cover. (Flask's tests came from the issue itself, which the reporter wrote.)",
   "What it doesn't do: it doesn't run the project's own CI; CI on the pull request is still the project's. It can be wrong, which is why a person has to explain the change before anything is published.",
   "Caps: one open opensrcer pull request per project per person, and three a day.",

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   COPY_MESSAGE, COPY_THRESHOLD, ReplyFormatError, copyOverlap, explanationPasses, handleUnderstand, looksCopied,
-  parseExplanationCheck, parsePracticeFeedback, parsePracticeQuestions,
+  mentionsEvidence, parseExplanationCheck, parsePracticeFeedback, parsePracticeQuestions,
 } from "../understanding";
 import type { ExplainDeps } from "../explain";
 
@@ -40,6 +40,11 @@ test("explanation check replies: good, fenced, wrong shape and oversize", () => 
     "not json", "[]", check({ rootCause: "yes" }), check({ mistakes: "none" }), check({ mistakes: ["a", "b", "c", "d"] }),
     check({ mistakes: ["x".repeat(201)] }), check({ tip: "" }), check({ tip: "x".repeat(301) }), check({ evidence: undefined }), "x".repeat(6001),
   ]) assert.throws(() => parseExplanationCheck(bad), ReplyFormatError, bad.slice(0, 60));
+});
+
+test("evidence counts only when the contributor's own words mention how they know", () => {
+  for (const text of ["The new test fails without the fix.", "I ran pytest and it passes.", "CI is green and the assertion holds."]) assert.equal(mentionsEvidence(text), true, text);
+  for (const text of ["I fixed to_pascal so names look right now.", "It works now.", ""]) assert.equal(mentionsEvidence(text), false, text);
 });
 
 test("an explanation passes on cause and change with no mistakes; evidence is advice", () => {

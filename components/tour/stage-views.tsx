@@ -16,21 +16,18 @@ import { cn } from "@/lib/utils";
 import { StatusChip } from "@/components/status-dot";
 import { AppWindow, Press, Reveal, SCOPE_LABEL, TimeContext, Typed, progress, useFollow, useT, type Caption, type Chapter } from "./kit";
 import { MAP_FOCUS_LENGTH, RepoMap } from "./repo-map";
-import { PrDataContext, PrRailContext, Published, Term } from "./chapters-fix";
-import { publishSteps } from "@/lib/beginner-guide";
+import { PrDataContext, PrRailContext } from "./chapters-fix";
 import { useEffect, useState, type ReactNode } from "react";
 import { Doodle } from "@/components/brand/doodles";
 import { check, circle, o, pass } from "@/components/brand/doodle-data";
 import { Wordmark } from "@/components/brand/wordmark";
-import { STORY_DIAGNOSIS as DIAGNOSIS, STORY_DIFF, STORY_ISSUE, STORY_PATCH_STATS as PATCH_STATS, STORY_PR_BODY, STORY_PROFILE, STORY_REPO, STORY_RISK as RISK, STORY_RUN as RUN, STORY_TEST_COMMAND } from "./stage-story";
-import { projectRules, RULE_STATUS_LABEL, type RuleStatus } from "@/lib/project-rules";
+import { STORY_DIAGNOSIS as DIAGNOSIS, STORY_DIFF, STORY_ISSUE, STORY_PATCH_STATS as PATCH_STATS, STORY_PR_BODY, STORY_REPO, STORY_RISK as RISK, STORY_RUN as RUN, STORY_TEST_COMMAND } from "./stage-story";
 import { PRACTICE_INTRO } from "@/components/own-words";
 import { Inline } from "./kit";
 
 // The stage tells one story on Pydantic: the scanned issue, the code the map traces, the run that fixes it.
 const DEMO_REPO = STORY_REPO;
 const ISSUE_TAG = `#${STORY_ISSUE.number}`;
-const DEMO_PUBLISH_STEPS = publishSteps({ files: PATCH_STATS.files, signoff: false });
 /** The PR page and the published panel, showing the Pydantic pull request. */
 // The PR page scrolls slowly on stage, so each point can be made while its part is in view.
 const PR_SCROLL: [number, number] = [4000, 20000];
@@ -63,7 +60,7 @@ const READY = SCAN.filter((r) => !r.reason);
 const SHOW_ALL_AT = 2400; // the presenter switches the filter to All…
 // …each skipped issue then arrives slowly enough to talk over (the list scrolls to it)…
 const SKIPPED = SCAN.filter((r) => r.reason);
-const SKIP_STEP = 2400;
+const SKIP_STEP = 1100;
 const skipAt = (i: number) => SHOW_ALL_AT + 600 + i * SKIP_STEP;
 const SHOW_READY_AT = skipAt(SKIPPED.length) + 2500; // …and back to Ready once every verdict has been seen
 
@@ -134,9 +131,7 @@ export const stageScan: Chapter = {
   captions: [
     { at: 0, text: "Step one: an issue that's actually open to a newcomer. Claude Code assumes you already have one." },
     { at: SHOW_ALL_AT, text: "Show everything it found, including what it filtered out, and why." },
-    { at: SHOW_ALL_AT + 600, spot: "scan-list", text: "Assigned? Skip. A pull request already open? Skip, help them instead. Already fixed but still open? Skip. That alone saves maintainers duplicate PRs." },
-    { at: skipAt(SKIPPED.findIndex((r) => r.category === "question")), spot: "scan-list", text: "Questions, wontfix and vague issues are flagged too, with the reason." },
-    { at: skipAt(SKIPPED.length), text: "What's left is actually open to a newcomer, each with its scope, risk, complexity and a time estimate." },
+    { at: SHOW_ALL_AT + 600, spot: "scan-list", text: "Assigned? Skip. A pull request already open? Skip, help them instead. Already fixed? Skip. Questions, wontfix and vague ones are flagged too, each with the reason. That alone saves maintainers duplicate PRs." },
     { at: SHOW_READY_AT, text: "Back to the ready ones. This is the contribution etiquette Claude Code assumes you already know. We'll take the first: to_pascal leaves double underscores in the names it generates." },
   ],
   View: ScanView,
@@ -269,7 +264,7 @@ function AskPanel({ turns, text = GRAPH_PANEL }: { turns: TimedTurn[]; text?: Pa
 // Explore on a large real repository: pydantic/pydantic, mapped by the site's own graph builder.
 const MAP_REPO = "pydantic/pydantic";
 const MAP_PANEL: PanelText = { ...GRAPH_PANEL, placeholder: `Ask about ${MAP_REPO}…` };
-const BUILT_AT = 3600;
+const BUILT_AT = 2600;
 // Asked on the real Explore page against the real graph (public/demo/pydantic-graph.json has the
 // full answer). The lesson's lines verbatim, trimmed with "…"; the cites and cost are the run's.
 const MAP_LESSON: Lesson = [
@@ -277,7 +272,7 @@ const MAP_LESSON: Lesson = [
   ["If you change it:", "Any model using alias_generator=to_pascal will generate different field names in JSON/dict output … Run these first: pytest tests/test_utils.py tests/test_computed_fields.py tests/test_deprecated.py"],
   ["Try this:", "Open tests/test_utils.py and find test_snake2pascal() to see exactly what transformation is expected, then run that one test to confirm your understanding."],
 ];
-const FIRST = schedule(BUILT_AT + 1600, [
+const FIRST = schedule(BUILT_AT + 900, [
   {
     prompt: "Where is to_pascal used, and what breaks if I change it?",
     answer: lessonText(MAP_LESSON), lesson: MAP_LESSON,
@@ -561,72 +556,63 @@ export const stageSlop: Chapter = {
   View: SlopView,
 };
 
-// ── Fix: a verified run, now that tests run on the hosted site ──────────────
+// ── Fix: the proof, on one screen ───────────────────────────────────────────
 
-// The run's verification, from the real results: Pydantic's alias-generator tests (tests/test_utils.py)
-// plus the new test pass with the fix (45) and the new test fails with it reverted (2 of 45).
-const PROOF: Array<{ at: number; text: string; verify?: true; receipt?: string }> = [
-  { at: 600, text: "Started a separate test machine with no passwords or keys. It can only reach package registries and GitHub." },
-  { at: 2200, text: "Installed what the project needs." },
-  { at: 3800, text: "Ran the project's own tests on the fix: they pass.", verify: true, receipt: "pytest · exit 0 · 45 passed" },
-  { at: 5800, text: "Undid the fix and ran them again: the new test fails. So it really catches the bug.", verify: true, receipt: "fix reverted · pytest · exit 1 · 2 failed, 43 passed" },
-];
-// The tick, drawn by hand beside the proof that the new tests catch the bug.
-const TICK_AT = 5800 + 1400;
-const VERIFY_AT = 3800;
+// Bug, fix, and the regression test failing without the fix and passing with it, all from the
+// real run against Pydantic's pydantic/alias_generators.py and its alias-generator tests
+// (pytest output copied as printed; test file shortened to tests/test_utils.py).
+const BUG_AT = 600, FIX_AT = 2200, VERIFY_AT = 3800, PASS_AT = 5800;
+const TICK_AT = PASS_AT + 1400;
 const PROOF_DONE_AT = 8000;
+const WITHOUT = [
+  "FAILED tests/test_utils.py::test_to_pascal_repeated_underscores[my__field-MyField]",
+  "    assert 'My__Field' == 'MyField'",
+  "FAILED tests/test_utils.py::test_to_pascal_repeated_underscores[user___id-UserId]",
+  "2 failed, 43 passed",
+];
+
+function ProofRow({ at, label, tone, children, spot }: { at: number; label: string; tone?: "alert" | "ok"; children: ReactNode; spot?: string }) {
+  return (
+    <Reveal at={at} spot={spot} className="grid grid-cols-[150px_minmax(0,1fr)] gap-4 border-b border-border-soft px-4 py-2.5 last:border-b-0">
+      <p className={cn("pt-0.5 text-[14px] font-medium", tone === "alert" ? "text-alert" : tone === "ok" ? "text-ok" : "text-paper")}>{label}</p>
+      <div className="min-w-0 font-mono text-[13px] leading-[1.55] text-paper [font-variant-ligatures:none]">{children}</div>
+    </Reveal>
+  );
+}
 
 function VerifiedView() {
   const t = useT();
   const verified = t >= PROOF_DONE_AT;
   return (
     <AppWindow path="/dispatches" section="Fix" tab="Runs">
-      <div className="flex h-full flex-col gap-4 p-5">
-        <div className="flex items-start justify-between gap-3 rounded-2xl border border-border-soft bg-surface px-5 py-4">
+      <div className="flex h-full flex-col gap-3 p-4">
+        <div className="flex items-start justify-between gap-3 rounded-2xl border border-border-soft bg-surface px-5 py-3">
           <div className="min-w-0">
-            <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[13px] text-info">{ISSUE_TAG}</span></p>
+            <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[13px] text-info">{ISSUE_TAG}</span> · tests run in a locked box: no keys, only package registries and GitHub</p>
             <p className="mt-0.5 truncate text-[18px] font-medium text-paper">{STORY_ISSUE.title}</p>
           </div>
           {verified ? <span className="stage-settle"><StatusChip tone="ok">verified</StatusChip></span> : <StatusChip tone="signal">testing</StatusChip>}
         </div>
-        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,430px)] gap-4">
-          <ol className="border-t border-border-soft">
-            {PROOF.filter((p) => !p.verify).map((p) => <ProofStep key={p.text} {...p} />)}
-            <li data-spot="verify" className="relative">
-              {PROOF.filter((p) => p.verify).map((p) => <ProofStep key={p.text} {...p} />)}
-              {t >= TICK_AT && <Doodle doodle={check} draw="load" duration={800} className="absolute bottom-3 right-2 h-[56px] w-[70px] text-signal" />}
-            </li>
-          </ol>
-          <ChangeAndTest />
+        <div className="relative rounded-2xl border border-border-soft bg-surface">
+          <ProofRow at={BUG_AT} label="The bug" spot="bug">
+            <p>to_pascal(&apos;my__field&apos;) <span className="text-paper-muted">returns</span> <span className="text-alert">&apos;My__Field&apos;</span> <span className="text-paper-muted">· expected</span> <span className="text-ok">&apos;MyField&apos;</span></p>
+          </ProofRow>
+          <ProofRow at={FIX_AT} label="The fix" spot="change">
+            <p className="text-paper-muted">{STORY_DIFF.file}</p>
+            <p className="whitespace-pre-wrap break-all bg-alert/10 px-1 text-alert">- {STORY_DIFF.removed.trim()}</p>
+            <p className="whitespace-pre-wrap break-all bg-ok/10 px-1 text-ok">+ {STORY_DIFF.added.trim()}</p>
+            <p className="mt-1 text-paper-muted">repeated underscores between letters collapse first; &apos;__private&apos; still gives &apos;__Private&apos;</p>
+          </ProofRow>
+          <ProofRow at={VERIFY_AT} label="Without the fix" tone="alert" spot="verify">
+            {WITHOUT.map((l) => <p key={l} className={cn("whitespace-pre-wrap break-all", l.startsWith("FAILED") || l.includes("failed") ? "text-alert" : "text-paper-dim")}>{l}</p>)}
+          </ProofRow>
+          <ProofRow at={PASS_AT} label="With the fix" tone="ok" spot="verify">
+            <p className="text-ok">45 passed <span className="text-paper-muted">· Pydantic&apos;s 42 alias-generator tests + the 3 new cases</span></p>
+          </ProofRow>
+          {t >= TICK_AT && <Doodle doodle={check} draw="load" duration={800} className="absolute bottom-2 right-5 h-[52px] w-[66px] text-signal" />}
         </div>
       </div>
     </AppWindow>
-  );
-}
-
-/** The final patch beside the proof: the one changed line, and the new test that fails without it. */
-function ChangeAndTest() {
-  return (
-    <Reveal at={2200} spot="change" className="min-w-0 overflow-hidden rounded-xl border border-border-soft bg-surface font-mono text-[12px] leading-[1.55] [font-variant-ligatures:none]">
-      <p className="border-b border-border-soft px-3 py-1.5 text-paper-muted">{STORY_DIFF.file}</p>
-      <p className="whitespace-pre-wrap break-all bg-alert/10 px-3 text-alert">- {STORY_DIFF.removed.trim()}</p>
-      <p className="whitespace-pre-wrap break-all bg-ok/10 px-3 text-ok">+ {STORY_DIFF.added.trim()}</p>
-      <p className="mt-2 border-y border-border-soft px-3 py-1.5 text-paper-muted">{STORY_DIFF.testFile} <span className="text-ok">(new test)</span></p>
-      <pre className="overflow-hidden whitespace-pre-wrap px-3 py-1.5 text-paper">{STORY_DIFF.test.map((l) => "+ " + l).join("\n")}</pre>
-    </Reveal>
-  );
-}
-
-function ProofStep({ at, text, verify, receipt }: { at: number; text: string; verify?: true; receipt?: string }) {
-  return (
-    <Reveal at={at} className="flex items-start gap-3 border-b border-border-soft py-3 text-[17px] leading-snug text-paper">
-      {/* A tick only where something was checked; the other steps are just what happened. */}
-      {verify ? <span aria-hidden className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-ok/15 text-[13px] font-semibold text-ok">✓</span> : <span aria-hidden className="mt-2.5 size-1.5 shrink-0 rounded-full bg-border-strong" />}
-      <span className="min-w-0">
-        {text}
-        {receipt && <span className="mt-2 block w-fit rounded-md bg-surface-2 px-2.5 py-1 font-mono text-[16px] text-paper-dim">{receipt}</span>}
-      </span>
-    </Reveal>
   );
 }
 
@@ -634,16 +620,15 @@ export const stageVerified: Chapter = {
   id: "verified",
   act: "Fix",
   label: "Tests, verified",
-  title: "Tests that prove the fix",
+  title: "The bug, the fix, the proof",
   duration: PROOF_DONE_AT + 2500,
   source: "The run's verification: real results on Pydantic's alias-generator tests",
-  headlines: [{ at: 0, text: "It proves the fix works, in a locked box." }],
+  headlines: [{ at: 0, text: "The bug, the fix, and the proof. Judge it yourself." }],
   captions: [
-    { at: 0, text: "The centerpiece: it proves the fix works before you ever see it. Same issue, same run, on the hosted site." },
-    { at: 600, text: "In a second machine with no passwords or keys, that only reaches package registries and GitHub." },
-    { at: 2200, spot: "change", text: "Here's the change itself: one line in to_pascal, and a new test beside Pydantic's own." },
-    { at: VERIFY_AT, spot: "verify", text: "It runs Pydantic's own tests on the final patch: all 45 pass. Then it undoes the fix: the new test fails. So it really catches the bug." },
-    { at: VERIFY_AT + 2600, spot: "verify", text: "For maintainers who ask: ${STORY_TEST_COMMAND}, exit 0, 45 passed; with the fix reverted, exit 1, the two new cases failing and the 43 others passing. With no runnable test it says unverified, and CI on the pull request is still the project's own." },
+    { at: 0, spot: "bug", text: "This is the part maintainers care about. Here's the bug: to_pascal turns my__field into My__Field." },
+    { at: FIX_AT, spot: "change", text: "Here's the change itself: one line in to_pascal." },
+    { at: VERIFY_AT, spot: "verify", text: "In a locked box with no keys, it undoes the fix and runs Pydantic's own tests: the new test fails, on exactly the bug. With the fix, all 45 pass. So it really catches the bug." },
+    { at: VERIFY_AT + 2600, spot: "verify", text: `For maintainers who ask: ${STORY_TEST_COMMAND}; exit 1 without the fix (2 failed, 43 passed), exit 0 with it (45 passed). With no runnable test it says unverified, and CI on the pull request is still the project's own.` },
   ],
   View: VerifiedView,
 };
@@ -791,7 +776,7 @@ export const stageRules: Chapter = {
   source: "The run, in plain words",
   headlines: [{ at: 0, text: "It reads the project's rules first." }],
   captions: [
-    { at: 0, text: "One click starts the run, in a throwaway machine with a spend cap and a time limit." },
+    { at: 0, text: "Now fix it. One click starts the run on the to_pascal issue, on the Claude plan you already pay for, in a throwaway machine with a spend cap." },
     { at: 2200, spot: "rules", text: "It reads the project's rules first: contribution guide, PR template, AI policy, sign-off. Pydantic welcomes AI help if you fully understand the code, and asks for tests and its PR checklist, so that's what it does." },
     { at: 6600, text: "Then it reads the code around the bug and writes down the cause before the fix. If it can't find the root cause, it says so rather than guess." },
   ],
@@ -861,38 +846,44 @@ export function withSignInStart(chapter: Chapter): Chapter {
 
 // ── Review: the change explained, the rules, the chat, your own words ───────
 
-// "This project's rules" for the run, computed by lib/project-rules.ts from what lib/contrib-profile.ts reads
-// in pydantic/pydantic (STORY_PROFILE): its guide and AI policy, its PR template followed, no other open PR.
-const DEMO_RULES = projectRules({
-  profile: { dco: false, cla: null, aiPolicy: STORY_PROFILE.aiPolicy, aiTrailer: null, sources: STORY_PROFILE.sources },
-  signoff: false,
-  executed: true,
-  verification: { status: "verified", reason: "declared tests pass, and fail with the source change reverted", plan: { setup: ["uv sync --group testing"], test: [STORY_TEST_COMMAND], lint: [] }, regression: "reproduced", evidence: [] },
-  blockers: [],
-  warnings: [],
-  body: "",
-  rules: { pr_template: true, template_headings: { kept: STORY_PROFILE.templateHeadings, total: STORY_PROFILE.templateHeadings }, agent_instructions: false, notes: 0, discuss_first: null, competing_prs: "none", disclosed: true },
-});
-const RULE_TONE: Record<RuleStatus, string> = { done: "text-ok", action: "text-signal", blocked: "text-alert", check: "text-info", unknown: "text-paper-muted", none: "text-paper-muted" };
-
 // What the review screen's AI calls return for this change, in the product's shapes:
 // the change chat teaches and ends with a "Check yourself" question.
 const CHAT_QUESTION = "Explain this fix like I'm new to the project";
 const CHAT_ANSWER = "This fix makes to_pascal clean up double underscores. … It title-cases the name, then removes an underscore only when a letter or digit sits on both sides. In my__field each underscore has another underscore beside it, so both survived: My__Field. … Now it first squeezes repeated underscores between letters into one, so you get MyField, while __private keeps its leading underscores. … Check yourself: why does the pattern need a letter or digit on both sides?";
-const OWN_WORDS_TEXT = "to_pascal left double underscores in names, so my__field became My__Field. Now it collapses repeated underscores between letters before title-casing, and leading ones like __private stay. The new test fails without the fix and passes with it.";
-const PRACTICE = [
-  { q: "Does this change what to_camel returns?", a: "Yes. to_camel calls to_pascal, so my__field now gives myField. Same fix.", feedback: "That answers it and matches the diff.", followUp: "Should the PR say that to_camel changes too?" },
-  { q: "Why not collapse leading underscores too?", a: "They mean private or dunder names, so __private has to stay __Private.", feedback: "That answers it and matches the diff.", followUp: "Is there a test that keeps __private as it is?" },
+
+// The own-words check and the practice review, as the product's real checker answered them
+// (lib/understanding.ts handleUnderstand on this diff and its test results, 2026-10-26): a first
+// explanation that misreads the fix is caught, then the rewrite passes. Replies trimmed with "…".
+const ATTEMPTS = [
+  {
+    text: "The fix strips every underscore out of the name before title-casing it, so my__field now becomes MyField instead of My__Field.",
+    rootCause: true, change: false, evidence: false, passed: false,
+    mistake: "The fix does not strip every underscore out; it only collapses repeated underscores between alphanumeric characters into a single underscore.",
+    tip: "The explanation should say that repeated underscores between letters/digits are collapsed to a single underscore (not removed entirely), and that leading/trailing underscores are preserved.",
+  },
+  {
+    text: "to_pascal left double underscores in names, so my__field became My__Field. Now it collapses repeated underscores between letters before title-casing, and leading ones like __private stay. The new test fails without the fix and passes with it.",
+    rootCause: true, change: true, evidence: true, passed: true, mistake: null,
+    tip: "Great explanation! You clearly identified the bug, the fix, and verified it with tests.",
+  },
 ];
+const PRACTICE = {
+  q: "Does this change what to_camel returns?",
+  answers: [
+    { a: "No, the change is only in to_pascal.", feedback: "The answer is incomplete. … since `to_camel` typically calls `to_pascal` internally, it would also return different values.", followUp: "Does `to_camel` call `to_pascal` internally, or is it implemented separately?" },
+    { a: "Yes. to_camel calls to_pascal, so my__field now gives myField. Same fix.", feedback: "The answer correctly identifies that to_camel will be affected since it calls to_pascal. …", followUp: null },
+  ],
+};
 
 // When each section is on screen (one at a time, as a presenter walks the real page).
 const R = {
-  rules: 6500, chat: 13500, own: 22500, practice: 34500, publish: 45500,
-  chatPress: 14800, answerAt: 16000, ownTypeAt: 23500, check: 30500, results: 31200,
-  confirm: 48500, publishAt: 50000,
+  chat: 6500, own: 15500, practice: 37500,
+  chatPress: 7800, answerAt: 9000,
+  type: [16500, 26500], check: [20300, 33200], results: [21000, 33900],
+  confirm: 50500, publishAt: 52000,
 };
 const PUBLISHED_AT = R.publishAt + 500;
-const PRACTICE_TIMES = [{ q: 35000, type: 35800, send: 38600, fb: 39200 }, { q: 40300, type: 40800, send: 44200, fb: 44700 }];
+const PRACTICE_TIMES = [{ type: 38800, send: 40500, fb: 41100 }, { type: 44500, send: 46800, fb: 47400 }];
 
 function Section({ title, children, spot }: { title: string; children: ReactNode; spot?: string }) {
   return (
@@ -903,10 +894,31 @@ function Section({ title, children, spot }: { title: string; children: ReactNode
   );
 }
 
+/** The own-words results, worded as components/own-words.tsx words them. */
+function CheckResult({ a, at }: { a: (typeof ATTEMPTS)[number]; at: number }) {
+  const line = (ok: boolean, what: string, optional = false) => <p className={ok ? "text-ok" : optional ? "text-paper-muted" : "text-alert"}>{what}: {ok ? "covered" : optional ? "not mentioned (optional)" : "missing"}</p>;
+  return (
+    <div className="mt-2 space-y-0.5 text-[14px]">
+      <Reveal at={at}>{line(a.rootCause, "What was wrong")}</Reveal>
+      <Reveal at={at + 250}>{line(a.change, "What the change did")}</Reveal>
+      <Reveal at={at + 500}>{line(a.evidence, "How you know it works", true)}</Reveal>
+      {a.mistake && <Reveal at={at + 750}><p className="text-alert">That&apos;s not quite it: {a.mistake}</p></Reveal>}
+      <Reveal at={at + 1000}><p className="text-paper-dim">Tip: {a.tip}</p></Reveal>
+      <Reveal at={at + 1250}><p className={cn("font-semibold", a.passed ? "text-ok" : "text-paper")}>{a.passed ? "Your explanation covers the change." : "Not there yet: fix what's above, then check again."}</p></Reveal>
+    </div>
+  );
+}
+
 function StageReviewView() {
   const t = useT();
-  const section = t < R.rules ? "found" : t < R.chat ? "rules" : t < R.own ? "chat" : t < R.practice ? "own" : t < R.publish ? "practice" : "publish";
-  const typed = OWN_WORDS_TEXT.slice(0, Math.max(0, Math.min(OWN_WORDS_TEXT.length, Math.floor(((t - R.ownTypeAt) / 1000) * 40))));
+  const section = t < R.chat ? "found" : t < R.own ? "chat" : t < R.practice ? "own" : "practice";
+  const attempt = t >= R.type[1] ? 1 : 0;
+  const draft = ATTEMPTS[attempt].text;
+  const typed = draft.slice(0, Math.max(0, Math.min(draft.length, Math.floor(((t - R.type[attempt]) / 1000) * 40))));
+  const checked = t >= R.results[attempt];
+  const answer = t >= PRACTICE_TIMES[1].type ? 1 : 0;
+  const pt = PRACTICE_TIMES[answer];
+  const checksLeft = 5 - (t >= R.check[1] ? 2 : t >= R.check[0] ? 1 : 0);
   // If a section is still taller than the window, the body follows it down, like the chat panel.
   const bodyRef = useFollow(Math.floor(t / 250));
   return (
@@ -917,101 +929,65 @@ function StageReviewView() {
             <p className="truncate text-[15px] font-medium text-paper">{RUN.prTitle}</p>
             <p className="text-[13px] text-paper-muted">{PATCH_STATS.files} files changed · <span className="text-ok">+{PATCH_STATS.additions}</span> · <span className="text-alert">-{PATCH_STATS.deletions}</span> · <span className="text-ok">verified</span></p>
           </div>
-          {t >= PUBLISHED_AT ? <PrDataContext.Provider value={STORY_PR}><Published /></PrDataContext.Provider> : (
-            <div ref={bodyRef} className="min-h-0 flex-1 overflow-hidden px-4 py-3">
-              {section === "found" && (
-                <div className="space-y-3">
-                  <Reveal at={300} spot="review-found">
-                    <p className="mono-label">What was found</p>
-                    <p className="mt-1 text-[14px] leading-6 text-paper-dim"><Inline text={DIAGNOSIS} /></p>
-                  </Reveal>
-                  <Reveal at={2800} spot="review-risk">
-                    <p className="mono-label">Risk &amp; testing</p>
-                    <ul className="mt-1 space-y-1 text-[13.5px] leading-6 text-paper-dim">{RISK.map((r) => <li key={r}>· <Inline text={r} /></li>)}</ul>
-                  </Reveal>
+          <div ref={bodyRef} className="min-h-0 flex-1 overflow-hidden px-4 py-3">
+            {section === "found" && (
+              <div className="space-y-3">
+                <Reveal at={300} spot="review-found">
+                  <p className="mono-label">What was found</p>
+                  <p className="mt-1 text-[14px] leading-6 text-paper-dim"><Inline text={DIAGNOSIS} /></p>
+                </Reveal>
+                <Reveal at={2800} spot="review-risk">
+                  <p className="mono-label">Risk &amp; testing</p>
+                  <ul className="mt-1 space-y-1 text-[13.5px] leading-6 text-paper-dim">{RISK.map((r) => <li key={r}>· <Inline text={r} /></li>)}</ul>
+                </Reveal>
+              </div>
+            )}
+            {section === "chat" && (
+              <Section title="Ask about this change">
+                <p className="text-paper-muted">Not sure what the change does or why? Ask about it here.</p>
+                <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[14px]">
+                  <Press at={R.chatPress} label={CHAT_QUESTION} className="text-paper underline decoration-border-strong underline-offset-4">→ {CHAT_QUESTION}</Press>
+                  {["What could this break?", "How do I explain this to a reviewer?"].map((q) => <span key={q} className="text-paper-dim">→ {q}</span>)}
                 </div>
-              )}
-              {section === "rules" && (
-                <Section title="This project's rules" spot="rules-list">
-                  <ul className="mt-1">
-                    {DEMO_RULES.map((row, i) => (
-                      <Reveal as="li" key={row.id} at={R.rules + 300 + i * 80} className="flex items-baseline justify-between gap-4 border-b border-border-soft py-1.5 text-[14px] leading-snug">
-                        <p><span className="font-medium text-paper">{row.label}</span> <span className="text-paper-dim">{row.text}</span></p>
-                        <span className={cn("shrink-0 font-mono text-[13px]", RULE_TONE[row.status])}>● {RULE_STATUS_LABEL[row.status]}</span>
-                      </Reveal>
-                    ))}
-                  </ul>
-                </Section>
-              )}
-              {section === "chat" && (
-                <Section title="Ask about this change">
-                  <p className="text-paper-muted">Not sure what the change does or why? Ask about it here.</p>
-                  <p className="mt-1 text-[13px] text-paper-muted">Answers are based on this change and the project&apos;s rules; check them against the code. Each answer comes from one AI call that reads only what is shown here; it does not run the code.</p>
-                  <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[14px]">
-                    <Press at={R.chatPress} label={CHAT_QUESTION} className="text-paper underline decoration-border-strong underline-offset-4">→ {CHAT_QUESTION}</Press>
-                    {["What could this break?", "How do I explain this to a reviewer?"].map((q) => <span key={q} className="text-paper-dim">→ {q}</span>)}
+                {t >= R.chatPress + 400 && <p className="mt-2.5 text-paper"><span className="font-medium text-signal">You:</span> {CHAT_QUESTION}</p>}
+                {t >= R.answerAt && (
+                  <div data-spot="chat-answer" className="mt-1.5 rounded-lg border border-border-soft bg-surface px-3 py-2">
+                    <p className="text-[13px] text-info">AI answer (not verified)</p>
+                    <p className="mt-1 text-[14px] leading-6 text-paper"><Typed text={CHAT_ANSWER} at={R.answerAt} cps={80} /></p>
                   </div>
-                  {t >= R.chatPress + 400 && <p className="mt-2.5 text-paper"><span className="font-medium text-signal">You:</span> {CHAT_QUESTION}</p>}
-                  {t >= R.answerAt && (
-                    <div data-spot="chat-answer" className="mt-1.5 rounded-lg border border-border-soft bg-surface px-3 py-2">
-                      <p className="text-[13px] text-info">AI answer (not verified)</p>
-                      <p className="mt-1 text-[14px] leading-6 text-paper"><Typed text={CHAT_ANSWER} at={R.answerAt} cps={80} /></p>
-                    </div>
-                  )}
-                </Section>
-              )}
-              {section === "own" && (
-                <Section title="Explain it in your own words" spot="own-words">
-                  <p className="text-paper-muted">Maintainers want to know the person sending a change understands it. In a few sentences, answer:</p>
-                  {t < R.results && <ul className="mt-1 list-disc pl-5 text-paper-dim"><li>What was wrong?</li><li>What did the change do?</li><li>How do you know it works?</li></ul>}
-                  {t < R.results && <p className="mt-2 text-paper">Your explanation</p>}
-                  <p className="mt-1 min-h-[64px] rounded-lg border border-border bg-surface px-3 py-2 text-[14px] leading-6 text-paper">{typed}&nbsp;</p>
-                  {t < R.results && <p className="mt-1 text-[13px] text-paper-muted">At least 80 characters ({typed.length}/2000). It goes into the pull request under &quot;In the author&apos;s words&quot;.</p>}
-                  <div className="mt-2 flex items-center gap-3">
-                    <Press at={R.check} label="Check my explanation" className="rounded-[10px] border border-border px-3 py-1 font-medium text-paper">Check my explanation</Press>
-                    <span key={t >= R.check ? "4" : "5"} className="stage-tick text-paper-muted">{t >= R.check ? "4 checks left" : "5 checks left"}</span>
-                  </div>
-                  {t >= R.results && (
-                    <div className="mt-2 space-y-0.5">
-                      <Reveal at={R.results}><p className="text-ok">What was wrong: covered</p></Reveal>
-                      <Reveal at={R.results + 300}><p className="text-ok">What the change did: covered</p></Reveal>
-                      <Reveal at={R.results + 600}><p className="text-ok">How you know it works: covered</p></Reveal>
-                      <Reveal at={R.results + 900}><p className="text-paper-dim">Tip: Clear and complete; saying what the new tests check helps reviewers.</p></Reveal>
-                      <Reveal at={R.results + 1200}><p className="font-medium text-ok">Your explanation covers the change.</p></Reveal>
-                    </div>
-                  )}
-                </Section>
-              )}
-              {section === "practice" && (
-                <Section title="Practice review" spot="practice">
-                  <p className="text-paper-muted">{PRACTICE_INTRO}</p>
-                  <div className="mt-2 space-y-3">
-                    {PRACTICE.map((p, i) => {
-                      const at = PRACTICE_TIMES[i];
-                      return (
-                        <Reveal key={p.q} at={at.q}>
-                          <p className="text-paper"><span className="font-medium">Reviewer:</span> {p.q}</p>
-                          <p className="mt-1 min-h-[30px] rounded-lg border border-border bg-surface px-3 py-1.5 text-[13.5px] text-paper"><Typed text={p.a} at={at.type} cps={45} />&nbsp;</p>
-                          <div className="mt-1 flex items-center gap-3 text-[13px]">
-                            <Press at={at.send} label="Send answer" className="rounded-[10px] border border-border px-3 py-0.5 text-paper">{t >= at.send ? "Send again" : "Send answer"}</Press>
-                            <span className="text-paper-muted">At least 20 characters.</span>
-                          </div>
-                          {t >= at.fb && <p className="mt-1 text-paper-dim"><span className="font-medium text-paper">Feedback:</span> {p.feedback}</p>}
-                          {t >= at.fb && <p className="mt-0.5 text-paper-muted">A reviewer might follow up: {p.followUp}</p>}
-                        </Reveal>
-                      );
-                    })}
-                  </div>
-                </Section>
-              )}
-              {section === "publish" && (
-                <Section title="What happens when you publish" spot="publish-steps">
-                  <ol className="list-decimal space-y-1 pl-5 text-[13.5px] leading-6 text-paper-dim">{DEMO_PUBLISH_STEPS.map((s) => <li key={s}>{s}</li>)}</ol>
-                  <p data-spot="glossary" className="mt-2 flex flex-wrap gap-x-3 text-paper-muted">Words used here: <Term>fork</Term><Term>branch</Term><Term>draft PR</Term><Term>AI disclosure</Term></p>
-                </Section>
-              )}
-            </div>
-          )}
+                )}
+              </Section>
+            )}
+            {section === "own" && (
+              <Section title="Explain it in your own words" spot="own-words">
+                {!checked && <p className="text-paper-muted">Maintainers want to know the person sending a change understands it. Say what was wrong, what the change did, and how you know it works.</p>}
+                <p className="mt-1 min-h-[52px] rounded-lg border border-border bg-surface px-3 py-2 text-[14px] leading-6 text-paper">{typed}&nbsp;</p>
+                <div className="mt-2 flex items-center gap-3">
+                  <Press at={R.check[0]} label="Check my explanation" className={cn("rounded-[10px] border border-border px-3 py-1 font-medium text-paper", attempt === 1 && "hidden")}>Check my explanation</Press>
+                  <Press at={R.check[1]} label="Check my explanation" className={cn("rounded-[10px] border border-border px-3 py-1 font-medium text-paper", attempt === 0 && "hidden")}>Check my explanation</Press>
+                  <span key={checksLeft} className="stage-tick font-mono text-[12px] text-paper-muted">{checksLeft} checks left</span>
+                </div>
+                {checked && <CheckResult key={attempt} a={ATTEMPTS[attempt]} at={R.results[attempt]} />}
+              </Section>
+            )}
+            {section === "practice" && (
+              <Section title="Practice review" spot="practice">
+                <p className="text-paper-muted">{PRACTICE_INTRO}</p>
+                <p className="mt-2 text-paper"><span className="font-medium">Reviewer:</span> {PRACTICE.q}</p>
+                <p className="mt-1 min-h-[30px] rounded-lg border border-border bg-surface px-3 py-1.5 text-[13.5px] text-paper"><Typed key={answer} text={PRACTICE.answers[answer].a} at={pt.type} cps={45} />&nbsp;</p>
+                <div className="mt-1 flex items-center gap-3 text-[13px]">
+                  <Press at={PRACTICE_TIMES[0].send} label="Send answer" className={cn("rounded-[10px] border border-border px-3 py-0.5 text-paper", answer === 1 && "hidden")}>Send answer</Press>
+                  <Press at={PRACTICE_TIMES[1].send} label="Send again" className={cn("rounded-[10px] border border-border px-3 py-0.5 text-paper", answer === 0 && "hidden")}>Send again</Press>
+                </div>
+                {t >= pt.fb && (
+                  <Reveal key={answer} at={pt.fb} spot="practice-feedback">
+                    <p className="mt-1.5 text-paper-dim"><span className="font-medium text-paper">Feedback:</span> {PRACTICE.answers[answer].feedback}</p>
+                    {PRACTICE.answers[answer].followUp && <p className="mt-0.5 text-paper-muted">A reviewer might follow up: {PRACTICE.answers[answer].followUp}</p>}
+                  </Reveal>
+                )}
+              </Section>
+            )}
+          </div>
           <div className="min-h-[64px] border-t border-border px-4 py-2 text-[14px]">
             <div className="flex flex-wrap items-center gap-2">
               <Press at={R.confirm} label="I've read this change" className="flex items-center gap-1.5 text-paper">
@@ -1035,31 +1011,29 @@ export const stageReview: Chapter = {
   id: "review",
   act: "Fix",
   label: "Review",
-  title: "Review, explain, publish",
-  duration: PUBLISHED_AT + 8500,
-  holds: [R.rules, R.chat, R.own, R.practice, R.publish],
-  source: "The review screen for the run",
+  title: "Explain it, then publish",
+  duration: PUBLISHED_AT + 2500,
+  holds: [R.chat, R.own, R.practice],
+  source: "The review screen for the run; the own-words and practice replies are the real checker's",
   headlines: [
     { at: 0, text: "It explains every change in plain English." },
-    { at: R.rules, text: "It checks the project's rules, one by one." },
     { at: R.chat, text: "It teaches you the change…" },
     { at: R.own, text: "Then it checks you learned it, in your own words." },
+    { at: R.results[0], text: "It catches what you got wrong.", mark: "got wrong" },
+    { at: R.results[1], text: "You can't publish what you can't explain." },
     { at: R.practice, text: "Then a practice review, before the real one." },
-    { at: R.publish, text: "You confirm you understand it." },
     { at: R.publishAt, text: "A human publishes. Nothing is hidden." },
   ],
   captions: [
-    { at: 0, spot: "review-found", text: "It explains every change: what was wrong and what changed, in plain words." },
-    { at: 2800, spot: "review-risk", text: "And what to double-check." },
-    { at: R.rules, spot: "rules-list", text: "Then this project's rules, one by one, and how each was handled." },
+    { at: 0, spot: "review-found", text: "It explains every change: what was wrong and what changed, in plain words, and what to double-check." },
     { at: R.chat, spot: "chat-answer", text: "Not sure what it does? Ask, in plain English. Answers are labeled not verified, so you check them against the code." },
-    { at: R.own, spot: "own-words", text: "Before you can publish, you explain it in your own words. The AI checks it against the actual change; pasting the AI's own text is rejected." },
-    { at: R.results, spot: "own-words", text: "It goes into the pull request under “In the author's words”, so the maintainer reads the human's explanation, not the AI's." },
-    { at: R.practice, spot: "practice", text: "Then two practice questions, the kind a maintainer would ask about this exact change." },
-    { at: R.publish, spot: "publish-steps", text: "Then exactly what publishing does, and your confirmation. Publish stays locked until all of that is done." },
-    { at: R.publishAt, text: "Only then is it scanned for leaked secrets and opened, as a draft, in your name." },
-    { at: R.publish + 2500, spot: "glossary", text: "Terms a beginner trips on are explained on tap: fork, branch, draft PR." },
-    { at: PUBLISHED_AT + 600, spot: "next-steps", text: "And it coaches what happens next: don't chase people, answer every review comment." },
+    { at: R.own, spot: "own-words", text: "Before you can publish, you explain it in your own words. Here the first try gets it wrong: it says every underscore is stripped." },
+    { at: R.results[0], spot: "own-words", text: "The check catches it: what the change did is missing, and it says exactly what's not right. Not there yet." },
+    { at: R.type[1], spot: "own-words", text: "So you rewrite it, properly this time, and say how you know it works." },
+    { at: R.results[1], spot: "own-words", text: "Now it passes. It goes into the pull request under “In the author's words”, so the maintainer reads your explanation, not the AI's." },
+    { at: R.practice, spot: "practice", text: "Then a practice question, the kind a maintainer would ask. A half answer gets feedback and a follow-up; the corrected one passes." },
+    { at: R.confirm, text: "Then you confirm you understand it, and publish." },
+    { at: R.publishAt, text: "It's scanned for leaked secrets and opened, as a draft, in your name." },
   ],
   View: StageReviewView,
 };

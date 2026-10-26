@@ -20,7 +20,7 @@ import { ArrowGlyph } from "@/components/brand/pill";
 import { pacedBy } from "./chapters";
 import { preloadRepoSnapshot } from "./repo-map";
 import { pr } from "./chapters-fix";
-import { StageTitle, stageBuilt, stageExplore, stageNotes, stageProblem, stagePromise, stageRefused, stageReview, stageRules, stageScan, stageSlop, stageVerified, withPrFacts, withSignInStart } from "./stage-views";
+import { StageTitle, stageExplore, stageNotes, stageProblem, stagePromise, stageRefused, stageReview, stageRules, stageScan, stageSlop, stageVerified, withPrFacts, withSignInStart } from "./stage-views";
 
 /** How much slower than written the stage plays its animations. The presenter
  *  sets the pace between steps; this only stretches what plays by itself. */
@@ -40,7 +40,7 @@ const PHASES: Phase[] = [
   { name: "Why", by: "0:00", say: "The problem every maintainer here knows, and the promise: contributions a maintainer would actually want.", chapters: [stageProblem, stagePromise] },
   { name: "Find", by: "1:05", say: "Pick an issue that's open to you, and understand the code before touching it.", chapters: [stageScan, stageExplore] },
   { name: "Prove", by: "2:50", say: "It follows the project's rules, stops when they say no, and proves the fix with the project's own tests.", chapters: [withSignInStart(stageRules), stageRefused, stageVerified] },
-  { name: "Ship", by: "5:40", say: "It explains every change, you confirm you understand it, a human publishes, and nothing is hidden.", chapters: [stageReview, withPrFacts(S.pr), stageBuilt, stageSlop] },
+  { name: "Ship", by: "5:40", say: "It explains every change, you confirm you understand it, a human publishes, and nothing is hidden.", chapters: [stageReview, withPrFacts(S.pr), stageSlop] },
 ];
 
 const STEPS = PHASES.flatMap((phase, p) => phase.chapters.map((c) => ({ phase: p, chapter: pacedBy(c, STAGE_PACE) })));

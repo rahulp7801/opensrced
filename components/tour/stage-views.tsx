@@ -66,9 +66,11 @@ function ScanView() {
   const all = t >= SHOW_ALL_AT && t < SHOW_READY_AT;
   const rows = all ? SCAN : READY;
   let skipped = 0;
+  // All nine rows don't fit: the page scrolls gently to each skipped issue as it arrives.
+  const followRef = useFollow(Math.floor(t / 250));
   return (
     <AppWindow path={`/issues?repo=${SCAN_REPO}`} section="Find" tab="Issues">
-      <div className="h-full overflow-hidden px-4 py-3 sm:px-6">
+      <div ref={followRef} className="h-full overflow-hidden scroll-smooth px-4 py-3 sm:px-6">
         <div className="rounded-xl border border-border-soft bg-surface">
           <div className="flex items-end justify-between gap-4 border-b border-border-soft px-4 py-3">
             <div>
@@ -467,39 +469,10 @@ export const stageRefused: Chapter = {
   headlines: [{ at: 0, text: "And when the rules say no, it stops." }, { at: MAINT_AT, text: "It listens to maintainers, even in the comments." }],
   provenance: [{ at: 0, text: "Example project" }, { at: MAINT_AT, text: "Real issue · names hidden" }],
   captions: [
-    { at: 0, spot: "refusal", text: "And it says no. This guide bans AI-written pull requests, so publishing is refused, quoting the guide, with no Publish button. Same when someone else already has a pull request open." },
+    { at: 0, spot: "refusal", text: "Not every project wants AI help, and it respects that. On a project whose guide bans AI-written pull requests, publishing is refused, quoting the guide, with no Publish button. Same when someone else already has a pull request open." },
     { at: MAINT_AT, spot: "maint", text: "And it listens to maintainers in the issue itself. On a real project, a maintainer asked for a human-written pull request, so opensrcer refused to publish. Name and quote hidden; the preview still helps you write the fix yourself." },
   ],
   View: RefusedView,
-};
-
-// ── How it was built ──────────────────────────────────────────────────────
-
-// The presenter's own statement (Rahul's words; no provenance pill): no logos, just the name.
-function BuiltView() {
-  return (
-    <div className="flex h-full flex-col justify-center bg-ink">
-      <p className="max-w-[24ch] font-display text-[44px] [text-wrap:pretty] font-[650] leading-[1.15] tracking-[-0.02em] text-paper [font-stretch:92%]">
-        <span className="stage-rise inline">Built the way it asks you to build.</span>{" "}
-        <span className="stage-rise inline font-sans font-[450] tracking-normal text-paper-muted [font-stretch:100%]" style={{ animationDelay: "500ms" }}>I&nbsp;used GitHub Copilot mostly for scaffolding; what it drafted, I&nbsp;reviewed and own.</span>
-      </p>
-      <p className="stage-rise mt-7 text-[18px] text-paper" style={{ animationDelay: "900ms" }}>Rahul</p>
-    </div>
-  );
-}
-
-export const stageBuilt: Chapter = {
-  id: "built",
-  act: "Ship",
-  label: "How it was built",
-  title: "Built the way it asks you to build",
-  duration: 6500,
-  source: "The presenter, on how opensrcer was built",
-  poster: true,
-  captions: [
-    { at: 0, text: "One more thing. I built opensrcer with an AI assistant too: GitHub Copilot, mostly for scaffolding. Everything it drafted, I reviewed and own. That's the same bar opensrcer holds every contributor to." },
-  ],
-  View: BuiltView,
 };
 
 // ── Close: why this isn't AI slop ───────────────────────────────────────────

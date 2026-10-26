@@ -304,5 +304,7 @@ export type Chapter = {
   provenance?: Caption[];
   /** On the stage only: a slide on the paper itself, without the app's window frame. */
   poster?: boolean;
+  /** On the stage only: where the chapter swaps to a new screen; the stage holds there until →. */
+  holds?: number[];
   View: () => ReactNode;
 };

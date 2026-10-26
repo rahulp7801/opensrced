@@ -472,6 +472,7 @@ export const stageRefused: Chapter = {
   label: "When it says no",
   title: "When it says no",
   duration: MAINT_AT + 7500,
+  holds: [MAINT_AT],
   source: "Example: a fictional project whose guide bans AI; then a real issue, names hidden",
   headlines: [{ at: 0, text: "And when the rules say no, it stops." }, { at: MAINT_AT, text: "It listens to maintainers, even in the comments." }],
   provenance: [{ at: 0, text: "Example project" }, { at: MAINT_AT, text: "Real issue · names hidden" }],
@@ -548,6 +549,7 @@ export const stageSlop: Chapter = {
   label: "Not slop",
   title: "Why this isn't AI slop",
   duration: SLOP_LINE_AT + 7500,
+  holds: [CLOSE_AT],
   source: "What opensrcer does today",
   poster: true,
   headlines: [{ at: 0, text: "What slop is made of, and what opensrcer does instead." }, { at: CLOSE_AT, text: "" }],
@@ -827,6 +829,7 @@ export function withSignInStart(chapter: Chapter): Chapter {
   return {
     ...chapter,
     duration: chapter.duration + SIGN_IN_LENGTH,
+    holds: [SIGN_IN_LENGTH, ...(chapter.holds ?? []).map((at) => at + SIGN_IN_LENGTH)],
     headlines: [{ at: 0, text: "No API bill: it runs on the Claude plan you already pay for." }, ...(chapter.headlines ?? []).map(later)],
     // The sign-in note ends with the sign-in step, even when the run itself carries none.
     provenance: [{ at: 0, text: "The sign-in step, as the site shows it" }, ...(chapter.provenance ?? [{ at: 0, text: "" }]).map(later)],
@@ -1017,6 +1020,7 @@ export const stageReview: Chapter = {
   label: "Review",
   title: "Review, explain, publish",
   duration: PUBLISHED_AT + 8500,
+  holds: [R.rules, R.chat, R.own, R.practice, R.publish],
   source: "The review screen for the Flask run",
   headlines: [
     { at: 0, text: "It explains every change in plain English." },

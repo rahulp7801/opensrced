@@ -47,6 +47,11 @@ const STEPS = PHASES.flatMap((phase, p) => phase.chapters.map((c) => ({ phase: p
 const STARTS = STEPS.reduce<number[]>((acc, _s, i) => [...acc, i === 0 ? 0 : acc[i - 1] + STEPS[i - 1].chapter.duration], []);
 const TOTAL = STARTS[STARTS.length - 1] + STEPS[STEPS.length - 1].chapter.duration;
 const PHASE_STARTS = PHASES.map((_p, i) => STARTS[STEPS.findIndex((s) => s.phase === i)]);
+// Nothing swaps to a new screen on its own: where a chapter changes screens (its holds), the
+// stage waits for →, as it does at a chapter's end.
+const BEATS = STEPS.map(({ chapter }) => chapter.holds ?? []);
+// A hold that comes due this soon after an on-screen click comes with the click, not on a second press.
+const AFTER_PRESS = 2000;
 // Given to the app windows so they leave out their own address bar: the stage shows no URLs.
 const NO_URL = () => {};
 
@@ -64,7 +69,7 @@ function stepAt(t: number): number {
   return i;
 }
 
-type Waiting = { kind: "press"; at: number; label: string } | { kind: "next" };
+type Waiting = { kind: "press"; at: number; label: string } | { kind: "next" } | { kind: "beat" };
 /** What the stage tells the notes window. */
 export type StageState = { step: number; local: number; waiting: Waiting | null; playing: boolean; started: boolean; ended: boolean; startedAt: number | null };
 type StageCommand = { type: "cmd"; cmd: "next" | "back" | "phase" | "hello"; phase?: number };
@@ -93,6 +98,7 @@ export function StageDemo() {
   const hurry = useRef(false); // fast-forward to the next stop
   const done = useRef(new Set<string>()); // clicks already made, as "step:at"
   const history = useRef<Array<{ t: number; kind: Waiting["kind"] }>>([]); // stops passed, for Back
+  const lastPress = useRef(-Infinity); // when the last on-screen click was made, on the timeline
   const rootRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -126,7 +132,14 @@ export function StageDemo() {
       last = now;
       if (waitingRef.current) return;
       const i = stepAt(tRef.current);
-      if (i + 1 < STEPS.length && next >= STARTS[i + 1] - 1) {
+      // Hold before the next talking point in this chapter until the presenter presses →.
+      const beat = BEATS[i].find((b) => STARTS[i] + b > tRef.current && STARTS[i] + b <= next && STARTS[i] + b - lastPress.current > AFTER_PRESS);
+      if (beat !== undefined) {
+        next = STARTS[i] + beat - 1;
+        hurry.current = false;
+        setWaiting({ kind: "beat" });
+        play(false);
+      } else if (i + 1 < STEPS.length && next >= STARTS[i + 1] - 1) {
         // Each chapter's last frame holds until the presenter moves on.
         next = STARTS[i + 1] - 1;
         hurry.current = false;
@@ -151,7 +164,8 @@ export function StageDemo() {
     const w = waitingRef.current;
     if (w) {
       history.current.push({ t: tRef.current, kind: w.kind });
-      if (w.kind === "press") done.current.add(`${stepAt(tRef.current)}:${w.at}`);
+      if (w.kind === "press") { done.current.add(`${stepAt(tRef.current)}:${w.at}`); lastPress.current = tRef.current; }
+      else if (w.kind === "beat") seek(tRef.current + 1); // onto the point, so the clock doesn't hold on it again
       else seek(STARTS[stepAt(tRef.current) + 1]);
       setWaiting(null);
       hurry.current = false;
@@ -174,9 +188,10 @@ export function StageDemo() {
       setWaiting(null);
       return;
     }
-    // A click stop comes back by itself as its button comes due; a chapter end is held here.
-    setWaiting(prev.kind === "next" ? { kind: "next" } : null);
-    seek(prev.kind === "next" ? prev.t : prev.t - 1);
+    // A click stop comes back by itself as its button comes due; a chapter end or a point is held here.
+    lastPress.current = -Infinity;
+    setWaiting(prev.kind === "press" ? null : { kind: prev.kind });
+    seek(prev.kind === "press" ? prev.t - 1 : prev.t);
   }, [play, seek, setWaiting]);
 
   const toPhase = useCallback((p: number) => {
@@ -322,7 +337,7 @@ export function StageDemo() {
         <p className="font-mono text-[13px] tracking-[0.02em] text-paper-faint">
           {started && <><span className="text-paper">{step.phase + 1}</span> / {PHASES.length}<span className="ml-3 text-paper">{PHASES[step.phase].name}</span></>}
         </p>
-        {waiting?.kind === "next" && !ended && (
+        {(waiting?.kind === "next" || waiting?.kind === "beat") && !ended && (
           <button type="button" onClick={forward} aria-label="Next step" className={cn("absolute right-0 z-[70] grid size-11 place-items-center rounded-full bg-signal text-white transition-opacity duration-300 focus-visible:opacity-100", controls ? "opacity-100" : "opacity-0")}>
             <ArrowRight aria-hidden size={18} weight="bold" />
           </button>
@@ -481,6 +496,7 @@ export function StageNotes() {
     : state.ended ? "That's the end of the demo."
     : state.waiting?.kind === "press" ? `Click “${state.waiting.label}”`
     : state.waiting?.kind === "next" ? (nextStep ? `Next: ${nextStep.chapter.title}${nextStep.phase !== s!.phase ? ` (${PHASES[nextStep.phase].name} phase)` : ""}` : "End of the demo")
+    : state.waiting?.kind === "beat" ? `Next screen: ${chapter!.headlines?.find((h) => h.at > state.local)?.text || chapter!.captions.find((c) => c.at > state.local)?.text.split(/(?<=[.:?!])\s/)[0] || "continue"}`
     : "Playing… (→ skips ahead to the next step)";
 
   return (

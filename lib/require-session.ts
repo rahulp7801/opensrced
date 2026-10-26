@@ -10,17 +10,11 @@
 // a deterministic 503 if that flag reaches production, before any route runs.
 
 import { auth0 } from "@/lib/auth0";
-import { hasAccess } from "@/lib/access";
+import { canUse } from "@/lib/access-server";
+import { authDisabled } from "@/lib/auth-config";
 
-/** True only when auth is disabled AND we're not in production. */
-export function authDisabled(): boolean {
-  return process.env.AUTH_DISABLED === "1" && process.env.NODE_ENV !== "production";
-}
-
-/** True for the unsafe production configuration middleware must reject. */
-export function unsafeAuthConfig(): boolean {
-  return process.env.AUTH_DISABLED === "1" && process.env.NODE_ENV === "production";
-}
+// Defined in lib/auth-config.ts so the edge middleware can use them without this module.
+export { authDisabled, unsafeAuthConfig } from "@/lib/auth-config";
 
 /** Null when the caller is authorized; otherwise the 401 to return as-is. */
 export async function requireSession(): Promise<Response | null> {
@@ -29,7 +23,7 @@ export async function requireSession(): Promise<Response | null> {
     const session = await auth0.getSession();
     // In the invite-only preview a signed-in account also needs an invite;
     // middleware says so first, this keeps the rule if middleware is bypassed.
-    if (session?.user) return hasAccess(session.user.sub) ? null : Response.json({ error: "opensrcer is invite-only for now." }, { status: 403 });
+    if (session?.user) return await canUse(session.user.sub) ? null : Response.json({ error: "opensrcer is invite-only for now." }, { status: 403 });
   } catch {
     // No request context or a malformed session cookie — treat as anonymous.
   }
@@ -49,7 +43,7 @@ export async function sessionUserId(): Promise<string | null> {
     const session = await auth0.getSession();
     const sub = session?.user?.sub ?? null;
     // An account without an invite owns nothing during the private preview.
-    return sub && hasAccess(sub) ? sub : null;
+    return sub && await canUse(sub) ? sub : null;
   } catch {
     return null;
   }

@@ -4,3 +4,13 @@ export function authConfigured(env: Record<string, string | undefined> = process
   const clientAuthentication = env.AUTH0_CLIENT_SECRET || env.AUTH0_CLIENT_ASSERTION_SIGNING_KEY;
   return Boolean(env.AUTH0_SECRET && domain && appBaseUrl && env.AUTH0_CLIENT_ID && clientAuthentication);
 }
+
+/** True only when auth is disabled AND we're not in production. */
+export function authDisabled(): boolean {
+  return process.env.AUTH_DISABLED === "1" && process.env.NODE_ENV !== "production";
+}
+
+/** True for the unsafe production configuration middleware must reject. */
+export function unsafeAuthConfig(): boolean {
+  return process.env.AUTH_DISABLED === "1" && process.env.NODE_ENV === "production";
+}

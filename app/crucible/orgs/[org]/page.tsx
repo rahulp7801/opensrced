@@ -5,7 +5,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth0 } from "@/lib/auth0";
-import { hasAccess } from "@/lib/access";
+import { canUse } from "@/lib/access-server";
 import { PageHeading } from "@/components/page-heading";
 import { mappingForRequest } from "@/lib/crucible/tokens";
 import { listInstallationRepos } from "@/lib/crucible/advisories";
@@ -22,7 +22,7 @@ export default async function OrgReposPage({
   const { org } = await params;
   const session = await auth0.getSession();
   // Invite rule enforced here too, not only in middleware.
-  const sub = hasAccess(session?.user?.sub) ? session?.user?.sub : undefined;
+  const sub = await canUse(session?.user?.sub) ? session?.user?.sub : undefined;
   if (!sub) notFound();
 
   const mapping = await mappingForRequest(sub, org);

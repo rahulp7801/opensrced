@@ -7,7 +7,7 @@ import Link from "next/link";
 
 export function SessionGate({ children, allowAnonymous = false }: { children: ReactNode; allowAnonymous?: boolean }) {
   const path = usePathname();
-  if (allowAnonymous || ["/", "/login", "/demo", "/privacy"].includes(path) || path.startsWith("/fix/") || path.startsWith("/demo/")) return children;
+  if (allowAnonymous || ["/", "/login", "/join", "/demo", "/privacy"].includes(path) || path.startsWith("/fix/") || path.startsWith("/demo/")) return children;
   return <Suspense fallback={<p className="p-8 text-[14px] text-paper-muted">Checking sign-in...</p>}><SignedIn>{children}</SignedIn></Suspense>;
 }
 

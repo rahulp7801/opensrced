@@ -2,7 +2,8 @@
 // preview. Public on purpose (signed-out and not-invited callers ask too);
 // it reveals nothing beyond the caller's own status. See lib/access.ts.
 import { auth0 } from "@/lib/auth0";
-import { hasAccess, inviteOnly } from "@/lib/access";
+import { inviteOnly } from "@/lib/access";
+import { canUse } from "@/lib/access-server";
 import { authDisabled } from "@/lib/require-session";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export async function GET() {
     try {
       const session = await auth0.getSession();
       signedIn = Boolean(session?.user);
-      invited = signedIn && hasAccess(session?.user?.sub);
+      invited = signedIn && await canUse(session?.user?.sub);
     } catch {
       // No usable session: report signed out.
     }

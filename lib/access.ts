@@ -34,3 +34,4 @@ export function hasAccess(sub: string | null | undefined, invited = invitedGithu
   const match = typeof sub === "string" ? /^github\|(\d+)$/.exec(sub) : null;
   return Boolean(match && invited.has(match[1]));
 }
+

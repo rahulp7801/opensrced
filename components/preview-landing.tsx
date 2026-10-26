@@ -34,7 +34,8 @@ export function PreviewLanding() {
             <InviteNotice />
           </Suspense>
           <div className="mt-7 flex flex-wrap items-center gap-3">
-            <CtaPill href="/demo">Watch the product tour</CtaPill>
+            <CtaPill href="/join">Get early access</CtaPill>
+            <Link href="/demo" className="text-link ml-2 text-[16px]">Watch the product tour</Link>
             <Link href="/login" className="text-link ml-2 text-[16px]">Have an invite? Sign in</Link>
           </div>
         </div>

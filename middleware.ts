@@ -19,7 +19,7 @@ import { unknownRoute } from "@/lib/app-routes";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
-import { authDisabled, unsafeAuthConfig } from "@/lib/require-session";
+import { authDisabled, unsafeAuthConfig } from "@/lib/auth-config";
 import { authConfigured } from "@/lib/auth-config";
 
 const AUTH_DISABLED = authDisabled();
@@ -28,6 +28,9 @@ const AUTH_DISABLED = authDisabled();
 const PUBLIC_PATHS = new Set([
   // Landing page — public, explains what opensrcer is.
   "/",
+  // The early-access form and the endpoint it posts to (lib/interest.ts).
+  "/join",
+  "/api/interest",
   // Liveness probe — must answer without a session so container healthchecks
   // and uptime monitors work. Reports dependency presence and config mode,
   // never secrets. See app/api/health/route.ts.
@@ -119,6 +122,9 @@ const UNCONFIGURED_PUBLIC_PREFIXES = ["/fix/", "/api/fixes/"];
 // links keep working so invited users can still share results.
 const PREVIEW_PUBLIC_PATHS = new Set([
   "/",
+  // The early-access form and the endpoint it posts to: for people without an invite.
+  "/join",
+  "/api/interest",
   "/login",
   "/privacy",
   "/robots.txt",
@@ -182,6 +188,29 @@ function isPublic(pathname: string): boolean {
 
 /** A signed-in account without an invite: APIs refuse, pages go to the
  *  preview page, which explains that access is by invitation for now. */
+// Accounts approved at /admin/access aren't in OPENSRCER_INVITED_GITHUB_IDS, and the approvals
+// live in Blob storage, which can't load on the edge. /api/access (Node) answers for them,
+// about the caller only; each answer is reused for 30 seconds per account.
+const APPROVAL_TTL_MS = 30_000;
+const approvals = new Map<string, { at: number; ok: boolean }>();
+
+/** Whether a signed-in account may use the app: invited, or approved from the admin page. */
+async function admitted(req: NextRequest, sub: string): Promise<boolean> {
+  if (hasAccess(sub)) return true;
+  const hit = approvals.get(sub);
+  if (hit && Date.now() - hit.at < APPROVAL_TTL_MS) return hit.ok;
+  let ok = false;
+  try {
+    const res = await fetch(new URL("/api/access", req.url), { headers: { cookie: req.headers.get("cookie") ?? "" }, cache: "no-store", signal: AbortSignal.timeout(5_000) });
+    ok = res.ok && ((await res.json()) as { invited?: unknown }).invited === true;
+  } catch {
+    // Can't ask: fail closed for this account until the next try.
+  }
+  if (approvals.size > 1000) approvals.clear();
+  approvals.set(sub, { at: Date.now(), ok });
+  return ok;
+}
+
 function notInvited(req: NextRequest, pathname: string, authRes: NextResponse): NextResponse {
   const response = pathname.startsWith("/api/")
     ? NextResponse.json({ error: "opensrcer is invite-only for now." }, { status: 403, headers: { "Cache-Control": "no-store" } })
@@ -316,7 +345,7 @@ export async function middleware(req: NextRequest) {
   if (pathname === "/login" && !AUTH_DISABLED) {
     const session = await auth0.getSession(req);
     if (session?.user) {
-      return hasAccess(session.user.sub)
+      return await admitted(req, session.user.sub)
         ? NextResponse.redirect(new URL("/discover", req.url))
         : notInvited(req, pathname, authRes);
     }
@@ -328,7 +357,7 @@ export async function middleware(req: NextRequest) {
   if (unknownRoute(pathname)) return authRes;
 
   const session = await auth0.getSession(req);
-  if (session?.user) return hasAccess(session.user.sub) ? authRes : notInvited(req, pathname, authRes);
+  if (session?.user) return await admitted(req, session.user.sub) ? authRes : notInvited(req, pathname, authRes);
 
   // API routes get 401 JSON; pages get redirected to login.
   if (pathname.startsWith("/api/")) {

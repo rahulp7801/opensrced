@@ -23,6 +23,15 @@ const SECTIONS: { title: string; body: React.ReactNode }[] = [
     ),
   },
   {
+    title: "Early-access requests",
+    body: (
+      <>
+        If you ask for early access, opensrcer stores the name, email and GitHub username you enter, privately, so the
+        team can give that GitHub account access and email you about it. Ask to have your request removed at any time.
+      </>
+    ),
+  },
+  {
     title: "Your AI provider keys",
     body: (
       <>

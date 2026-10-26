@@ -6,7 +6,7 @@ import { readJsonBody } from "@/lib/request-body";
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
-import { hasAccess } from "@/lib/access";
+import { canUse } from "@/lib/access-server";
 import { CapacityError } from "@/lib/concurrency";
 import { RunTargetError, startAgenticDispatch, startFindingDispatch } from "@/lib/agentic-dispatcher";
 import { mappingForRequest, resolveRunTokenForRequest } from "@/lib/crucible/tokens";
@@ -26,7 +26,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   const session = await auth0.getSession();
   // Invite rule enforced here too, not only in middleware.
-  const sub = hasAccess(session?.user?.sub) ? session?.user?.sub : undefined;
+  const sub = await canUse(session?.user?.sub) ? session?.user?.sub : undefined;
   if (!sub) {
     return NextResponse.json({ status: "error", message: "unauthenticated" }, { status: 401 });
   }

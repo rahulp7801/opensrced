@@ -442,16 +442,24 @@ function Spotlight({ selector, strong, within }: { selector: string | null; stro
 }
 
 /** For questions from the room; the notes window only, never the stage. */
-const IF_ASKED = [
-  "Sign-in: a run uses the Claude plan you already pay for. You sign in on Claude's own page inside the run's machine; opensrcer never sees your login. Hit your plan's limit and the run stops; it switches to an API key only if you've turned that on.",
-  "This project's rules (on the review screen, one row each): contribution guide read (CONTRIBUTING.md, .github/PULL_REQUEST_TEMPLATE.md, docs/contributing.md); PR template followed (3 of 3 headings); sign-off and CLA not required; AI policy: welcomes AI-assisted contributions, disclosure added; no other open PR; tests verified.",
-  "Publishing: forks the project to your account, saves exactly this patch as one commit on a new branch, opens a draft PR with the AI disclosure. Nothing merges until you mark it ready. Afterwards it coaches: don't chase people, answer every review comment.",
-  "Big-repo replays: 4 real bugs the maintainers had already fixed (React, Flask, pydantic, vLLM), each started from just before their fix. In 2 the maintainers' own tests pass on opensrcer's fix; 2 were correct but narrower, and the preview now names the variants it didn't cover. (Flask's tests came from the issue itself, which the reporter wrote.)",
-  "What it doesn't do: it doesn't run the project's own CI; CI on the pull request is still the project's. It can be wrong, which is why a person has to explain the change before anything is published.",
-  "Caps: one open opensrcer pull request per project per person, and three a day.",
-  "Cost: about ten cents for a small fix on an Anthropic API key, about 40 to 50 cents on the big projects, or your Claude plan instead.",
-  "The graph on screen is for you; the agent works from the code itself. In a run it looks up the function's definition and reads its tests before editing, and it has tools to find every caller.",
-  "opensrcer's own CI: unit tests, 7 browser smoke tests, a secret scan (gitleaks) and CodeQL on every change to main.",
+const IF_ASKED: Array<[string, string]> = [
+  ["How is this different from just using Claude Code?", "It uses Claude Code underneath, so the coding is the same. The difference is everything around it: it finds an issue that's open to you, follows the project's rules, proves the fix with the project's own tests, won't let you publish until you can explain the change, and opens a transparent draft PR."],
+  ["Is that a real Pydantic pull request?", "No. The Pydantic walkthrough is a demo scenario on the real product screens, and the issue and PR numbers are the demo's. What's real: Pydantic's rules and AI policy, the code map, the Explore answer, the fix and its test results (45 pass; 2 fail without the fix), and the explanation checker's replies. A real end-to-end run is on my demo repo: a verified draft PR I can show you."],
+  ["Has one been merged yet?", "Not yet, partly on purpose: I didn't want to aim it at real projects before maintainers like you weighed in. I replayed 4 real bugs maintainers had already fixed (React, Flask, pydantic, vLLM): in 2 the maintainers' own tests pass on its fix; 2 were right but narrower, and it now names the cases it missed. If you maintain a project that wants newcomers, I'd love to try it with you watching."],
+  ["What if our project bans AI pull requests?", "Then it never sends you one. It reads your contributing guide and AI policy; a ban blocks publishing, with no Publish button. It also stops if a maintainer asks for human-written work in the issue comments. Your CONTRIBUTING file is the off switch."],
+  ["Why Pydantic?", "Its contributing guide says it welcomes AI help if you fully understand the code you submit. That's exactly the bar opensrcer enforces. Flask's organization closes AI PRs on sight, so opensrcer would refuse there, and now detects that wording."],
+  ["Can't someone paste the AI's explanation, or write something vague?", "Pasting the AI's own text is rejected. The explanation is checked against the actual change: you just saw a wrong one caught. It raises the bar; it doesn't prove understanding, which is why there's a practice review and the maintainer still reviews it."],
+  ["What if the AI's fix is wrong?", "It can be. That's why it proves the fix with your tests (the new test must fail without it), says when it's unverified, makes the person explain it, and only ever opens drafts that say what was and wasn't tested."],
+  ["Does it replace our CI?", "No. It runs the project's tests in a sandbox before anyone sees the fix, but CI on the pull request is still yours."],
+  ["Won't this flood maintainers with beginner PRs?", "It's built to do the opposite: one open PR per project per person, three a day, drafts only, and it skips issues someone is already working on."],
+  ["Is it safe? Can it leak anything?", "Code runs in a throwaway machine with no passwords or keys that can only reach package registries and GitHub. Pushing happens separately, it scans for leaked secrets first, and nothing posts until a person confirms."],
+  ["Does it see my Claude login? What does it cost?", "A run uses the Claude plan you already pay for: you sign in on Claude's own page inside the run's machine, and opensrcer never sees your login. On an API key it's about ten cents for a small fix, 40 to 50 cents on big projects."],
+  ["What rules did it follow here?", "Pydantic's contributing guide and PR template (CONTRIBUTING.md, docs/contributing.md, .github/PULL_REQUEST_TEMPLATE.md): template followed, 3 of 3 headings; no sign-off or CLA needed; AI policy: welcomes AI help, disclosure added; no other open PR; tests verified."],
+  ["What does publishing do?", "Forks the project to your account, saves exactly this patch as one commit on a new branch, and opens a draft PR with the AI disclosure. Nothing merges until you mark it ready. Afterwards it coaches: don't chase people, answer every review comment."],
+  ["Does the agent use the map?", "The map is for you to understand the code. The agent works from the code itself, with tools to find a function's definition, its callers and its tests."],
+  ["Can I try it?", "It's invite-only right now: sign up at opensrced.vercel.app/join and I'll let you in."],
+  ["How is opensrcer itself tested?", "Unit tests, 7 browser smoke tests, a secret scan (gitleaks) and CodeQL on every change to main."],
+  ["(If you don't know)", "\"Good question, and I don't want to guess. Find me after and we'll look at it together.\""],
 ];
 
 function clock(ms: number): string {
@@ -553,10 +561,15 @@ export function StageNotes() {
       </div>
       <p className="text-[12px] text-paper-muted">Keys work here too: → or Page Down next, ← back, 1-4 jump to a phase.</p>
       <details className="rounded-2xl border border-border-soft bg-surface px-5 py-4 text-[15px] leading-[1.5] text-paper">
-        <summary className="cursor-pointer font-medium">If asked</summary>
-        <ul className="mt-3 list-disc space-y-2 pl-5 text-paper-dim">
-          {IF_ASKED.map((line) => <li key={line}>{line}</li>)}
-        </ul>
+        <summary className="cursor-pointer font-medium">If asked: questions and answers</summary>
+        <dl className="mt-3 space-y-3">
+          {IF_ASKED.map(([q, a]) => (
+            <div key={q}>
+              <dt className="font-semibold text-paper">{q}</dt>
+              <dd className="mt-0.5 text-paper-dim">{a}</dd>
+            </div>
+          ))}
+        </dl>
       </details>
     </div>
   );

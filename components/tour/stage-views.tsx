@@ -859,7 +859,7 @@ const ATTEMPTS = [
     text: "The fix strips every underscore out of the name before title-casing it, so my__field now becomes MyField instead of My__Field.",
     rootCause: true, change: false, evidence: false, passed: false,
     mistake: "The fix does not strip every underscore out; it only collapses repeated underscores between alphanumeric characters into a single underscore.",
-    tip: "The explanation should say that repeated underscores between letters/digits are collapsed to a single underscore (not removed entirely), and that leading/trailing underscores are preserved.",
+    tip: "The explanation should say that repeated underscores between letters/digits are collapsed to a single underscore (not removed entirely) …",
   },
   {
     text: "to_pascal left double underscores in names, so my__field became My__Field. Now it collapses repeated underscores between letters before title-casing, and leading ones like __private stay. The new test fails without the fix and passes with it.",
@@ -920,7 +920,8 @@ function StageReviewView() {
   const pt = PRACTICE_TIMES[answer];
   const checksLeft = 5 - (t >= R.check[1] ? 2 : t >= R.check[0] ? 1 : 0);
   // If a section is still taller than the window, the body follows it down, like the chat panel.
-  const bodyRef = useFollow(Math.floor(t / 250));
+  // The own-words step fits its panel; following it down would clip its title as the results appear.
+  const bodyRef = useFollow(section === "own" ? -1 : Math.floor(t / 250));
   return (
     <AppWindow path={`/dispatches?dispatch=${RUN.id}`} section="Fix" tab="Runs">
       <div className="absolute inset-0 bg-ink p-3">

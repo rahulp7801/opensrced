@@ -319,6 +319,9 @@ else who signs in is sent back to the preview page with an "invite-only" note.
 
 - Invite someone: add their id (`gh api users/<login> --jq .id`) to
   `OPENSRCER_INVITED_GITHUB_IDS` (comma-separated) and redeploy.
+- Or let people ask: `/join` (public) collects name, email and GitHub username;
+  admins in `OPENSRCER_ADMIN_GITHUB_IDS` approve them at `/admin/access`, which
+  admits that account within about 30 seconds, without a redeploy.
 - Open to everyone: remove `OPENSRCER_ACCESS` and redeploy; the full landing
   page and demo return.
 - `scripts/smoke-invite.mjs` (also in CI) checks all three kinds of visitor.

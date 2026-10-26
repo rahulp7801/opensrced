@@ -1,7 +1,7 @@
 "use client";
 
-// The stage's map of a large, real repository: pallets/flask's code graph, built by the site's
-// own graph builder (graphify) and exported as a snapshot (public/demo/flask-graph.json; see
+// The stage's map of a large, real repository: pydantic/pydantic's code graph, built by the site's
+// own graph builder (graphify) and exported as a snapshot (public/demo/pydantic-graph.json; see
 // RepoSnapshot). The layout was computed for the presentation from that real graph (the
 // snapshot's `layout` says how); graphify's own view lays it out live in the browser.
 // A canvas draws the dense overview (thousands of nodes coloured by community, hairline edges) on the paper and
@@ -40,7 +40,7 @@ export type RepoSnapshot = {
   breadcrumb: string[];
 };
 
-const SNAPSHOT_URL = "/demo/flask-graph.json";
+const SNAPSHOT_URL = "/demo/pydantic-graph.json";
 let snapshotLoad: Promise<RepoSnapshot> | null = null;
 /** Starts loading the snapshot (once), so it is in hand before the Explore stop. */
 export function preloadRepoSnapshot(): Promise<RepoSnapshot> {
@@ -70,7 +70,7 @@ const TOP = 32;
 const BOTTOM = 30;
 const EDGE = 56; // labels this close to the pane's side are not drawn
 // The files named on the settled map, the most telling first (others fill in if these don't fit).
-const TELLING = ["flask/views.py", "test_views.py", "test_async.py", "config.py"];
+const TELLING = ["deprecated/decorator.py", "test_utils.py", "test_deprecated.py", "test_computed_fields.py"];
 
 type Rgb = [number, number, number];
 type Cam = { x: number; y: number; k: number };

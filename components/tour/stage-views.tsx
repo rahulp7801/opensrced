@@ -6,7 +6,7 @@
 //     (lib/issues.ts, drawn as components/issue-scanner.tsx draws them);
 //   - Explore's plain-English questions, which are answered from the repository's
 //     code graph, point to the files involved and show their cost (app/api/graph/query);
-//   - the real pallets/flask graph and a real Explore answer, drawn on it for the stage
+//   - the real pydantic/pydantic graph and a real Explore answer, drawn on it for the stage
 //     (repo-map.tsx; demo only: the hops are the graph's own relations).
 // The notes carry the pitch: the guided path for someone new to open source, and
 // why maintainers can trust what it sends them.
@@ -22,19 +22,19 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Doodle } from "@/components/brand/doodles";
 import { check, circle, o, pass } from "@/components/brand/doodle-data";
 import { Wordmark } from "@/components/brand/wordmark";
-import { FLASK_DIAGNOSIS as DIAGNOSIS, FLASK_ISSUE, FLASK_PATCH_STATS as PATCH_STATS, FLASK_PR_BODY, FLASK_REPO, FLASK_RISK as RISK, FLASK_RUN as RUN } from "./stage-flask";
+import { STORY_DIAGNOSIS as DIAGNOSIS, STORY_DIFF, STORY_ISSUE, STORY_PATCH_STATS as PATCH_STATS, STORY_PR_BODY, STORY_PROFILE, STORY_REPO, STORY_RISK as RISK, STORY_RUN as RUN, STORY_TEST_COMMAND } from "./stage-story";
 import { projectRules, RULE_STATUS_LABEL, type RuleStatus } from "@/lib/project-rules";
 import { PRACTICE_INTRO } from "@/components/own-words";
 import { Inline } from "./kit";
 
-// The stage tells one story on Flask: the scanned issue, the code the map traces, the run that fixes it.
-const DEMO_REPO = FLASK_REPO;
-const ISSUE_TAG = `#${FLASK_ISSUE.number}`;
+// The stage tells one story on Pydantic: the scanned issue, the code the map traces, the run that fixes it.
+const DEMO_REPO = STORY_REPO;
+const ISSUE_TAG = `#${STORY_ISSUE.number}`;
 const DEMO_PUBLISH_STEPS = publishSteps({ files: PATCH_STATS.files, signoff: false });
-/** The PR page and the published panel, showing the Flask pull request. */
+/** The PR page and the published panel, showing the Pydantic pull request. */
 // The PR page scrolls slowly on stage, so each point can be made while its part is in view.
 const PR_SCROLL: [number, number] = [4000, 20000];
-const FLASK_PR = { repo: FLASK_REPO, pr: RUN.pr, title: RUN.prTitle, base: RUN.base, head: RUN.head, issue: FLASK_ISSUE.number, body: FLASK_PR_BODY, stats: PATCH_STATS, scroll: PR_SCROLL };
+const STORY_PR = { repo: STORY_REPO, pr: RUN.pr, title: RUN.prTitle, base: RUN.base, head: RUN.head, issue: STORY_ISSUE.number, body: STORY_PR_BODY, stats: PATCH_STATS, scroll: PR_SCROLL };
 
 
 /** A chapter with speaker notes added for the stage, merged in time order. */
@@ -47,17 +47,17 @@ export function withNotes(chapter: Chapter, notes: Caption[]): Chapter {
 type ScanRow = { number: number; title: string; category: string; labels: string[]; opened: string; scope?: string; risk?: "low" | "medium"; complexity?: number; estimate?: string; reason?: string };
 
 // The verdicts and their reasons are the scanner's own wording; the first ready issue is the one the stage fixes.
-const SCAN_REPO = FLASK_REPO;
+const SCAN_REPO = STORY_REPO;
 const SCAN: ScanRow[] = [
-  { number: FLASK_ISSUE.number, title: FLASK_ISSUE.title, category: "bug", labels: ["bug"], opened: "3d ago", scope: "leaf", risk: "medium", complexity: 2, estimate: "30m" },
-  { number: 5909, title: "flask run --debug ignores FLASK_RUN_PORT", category: "bug", labels: ["bug"], opened: "4d ago", reason: "Already assigned to @mira-dev — someone's on it. Skip." },
-  { number: 5906, title: "url_for builds the wrong URL behind a proxy with a path prefix", category: "bug", labels: ["bug"], opened: "5d ago", reason: "1 open PR already targets this issue. Review or help with it instead." },
-  { number: 5903, title: "get_json(silent=True) still logs a warning for an empty body", category: "bug", labels: ["bug"], opened: "6d ago", scope: "leaf", risk: "low", complexity: 2, estimate: "45m" },
-  { number: 5899, title: "send_file sets the wrong ETag for in-memory files", category: "bug", labels: ["bug"], opened: "9d ago", reason: "Appears already resolved (comment by @core-dev (maintainer) says \"fixed in #5901\"). Skip — the ticket is stale-open." },
-  { number: 5895, title: "Docs: the config page lists the wrong default for SESSION_COOKIE_SAMESITE", category: "docs", labels: ["docs"], opened: "12d ago", scope: "doc", risk: "low", complexity: 1, estimate: "15m" },
-  { number: 5890, title: "How do I share a database connection across blueprints?", category: "question", labels: ["question"], opened: "14d ago", reason: "Question, not an actionable issue." },
-  { number: 5884, title: "Rewrite the CLI on a different framework", category: "refactor", labels: ["wontfix"], opened: "21d ago", reason: "Labeled as non-actionable." },
-  { number: 5880, title: "Doesn't work on Windows", category: "other", labels: [], opened: "25d ago", reason: "Unclear scope — issue body too sparse." },
+  { number: STORY_ISSUE.number, title: STORY_ISSUE.title, category: "bug", labels: ["bug"], opened: "3d ago", scope: "leaf", risk: "medium", complexity: 2, estimate: "30m" },
+  { number: 12468, title: "model_json_schema drops descriptions on nested Annotated fields", category: "bug", labels: ["bug V2"], opened: "4d ago", reason: "Already assigned to @mira-dev — someone's on it. Skip." },
+  { number: 12465, title: "TypeAdapter ignores strict=True for nested dataclasses", category: "bug", labels: ["bug V2"], opened: "5d ago", reason: "1 open PR already targets this issue. Review or help with it instead." },
+  { number: 12462, title: "field_validator error names the alias instead of the field", category: "bug", labels: ["bug V2"], opened: "6d ago", scope: "leaf", risk: "low", complexity: 2, estimate: "45m" },
+  { number: 12458, title: "computed_field loses its alias in model_dump(by_alias=True)", category: "bug", labels: ["bug V2"], opened: "9d ago", reason: "Appears already resolved (comment by @core-dev (maintainer) says \"fixed in #12460\"). Skip — the ticket is stale-open." },
+  { number: 12455, title: "Docs: the serialization page shows an old model_dump signature", category: "docs", labels: ["documentation"], opened: "12d ago", scope: "doc", risk: "low", complexity: 1, estimate: "15m" },
+  { number: 12451, title: "How do I validate a dict with dynamic keys?", category: "question", labels: ["question"], opened: "14d ago", reason: "Question, not an actionable issue." },
+  { number: 12446, title: "Rewrite the validation core in pure Python", category: "refactor", labels: ["wontfix"], opened: "21d ago", reason: "Labeled as non-actionable." },
+  { number: 12440, title: "Doesn't work with my settings", category: "other", labels: [], opened: "25d ago", reason: "Unclear scope — issue body too sparse." },
 ];
 const READY = SCAN.filter((r) => !r.reason);
 const SHOW_ALL_AT = 2400; // the presenter switches the filter to All…
@@ -129,7 +129,7 @@ export const stageScan: Chapter = {
   label: "Vet the issues",
   title: "Only issues that are open to you",
   duration: SHOW_READY_AT + 3000,
-  source: "The scan of Flask's open issues; the verdicts are the scanner's own",
+  source: "The scan of Pydantic's open issues; the verdicts are the scanner's own",
   headlines: [{ at: 0, text: "It only picks issues that are open to you." }],
   captions: [
     { at: 0, text: "Step one: an issue that's actually open to a newcomer. Claude Code assumes you already have one." },
@@ -137,7 +137,7 @@ export const stageScan: Chapter = {
     { at: SHOW_ALL_AT + 600, spot: "scan-list", text: "Assigned? Skip. A pull request already open? Skip, help them instead. Already fixed but still open? Skip. That alone saves maintainers duplicate PRs." },
     { at: skipAt(SKIPPED.findIndex((r) => r.category === "question")), spot: "scan-list", text: "Questions, wontfix and vague issues are flagged too, with the reason." },
     { at: skipAt(SKIPPED.length), text: "What's left is actually open to a newcomer, each with its scope, risk, complexity and a time estimate." },
-    { at: SHOW_READY_AT, text: "Back to the ready ones. This is the contribution etiquette Claude Code assumes you already know. We'll take the first: render_template lets context processors override the values you pass it." },
+    { at: SHOW_READY_AT, text: "Back to the ready ones. This is the contribution etiquette Claude Code assumes you already know. We'll take the first: to_pascal leaves double underscores in the names it generates." },
   ],
   View: ScanView,
 };
@@ -266,22 +266,22 @@ function AskPanel({ turns, text = GRAPH_PANEL }: { turns: TimedTurn[]; text?: Pa
   );
 }
 
-// Explore on a large real repository: pallets/flask, mapped by the site's own graph builder.
-const MAP_REPO = "pallets/flask";
+// Explore on a large real repository: pydantic/pydantic, mapped by the site's own graph builder.
+const MAP_REPO = "pydantic/pydantic";
 const MAP_PANEL: PanelText = { ...GRAPH_PANEL, placeholder: `Ask about ${MAP_REPO}…` };
 const BUILT_AT = 3600;
-// Asked on the real Explore page against the real graph (public/demo/flask-graph.json has the
+// Asked on the real Explore page against the real graph (public/demo/pydantic-graph.json has the
 // full answer). The lesson's lines verbatim, trimmed with "…"; the cites and cost are the run's.
 const MAP_LESSON: Lesson = [
-  ["In short:", "render_template() converts template names into rendered HTML strings. It's used by 31 places across Flask—mainly route handlers that return templated pages—and changing it could break any view that displays dynamic content."],
-  ["If you change it:", "… Run tests/test_views.py and tests/test_signals.py first—they directly test template rendering and context injection"],
-  ["Try this:", "Open src/flask/templating.py and look at the _render() function just above render_template() at L123 to see what it actually does."],
+  ["In short:", "to_pascal() converts snake_case strings to PascalCase and is used by to_camel(), model creation, and deprecated decorator code to generate field aliases automatically."],
+  ["If you change it:", "Any model using alias_generator=to_pascal will generate different field names in JSON/dict output … Run these first: pytest tests/test_utils.py tests/test_computed_fields.py tests/test_deprecated.py"],
+  ["Try this:", "Open tests/test_utils.py and find test_snake2pascal() to see exactly what transformation is expected, then run that one test to confirm your understanding."],
 ];
 const FIRST = schedule(BUILT_AT + 1600, [
   {
-    prompt: "Where is render_template used, and what breaks if I change it?",
+    prompt: "Where is to_pascal used, and what breaks if I change it?",
     answer: lessonText(MAP_LESSON), lesson: MAP_LESSON,
-    cites: ["src/flask/templating.py", "tests/test_views.py", "tests/test_signals.py"], cost: "$0.0201",
+    cites: ["pydantic/alias_generators.py", "tests/test_utils.py", "tests/test_deprecated.py"], cost: "$0.0204",
   },
 ]);
 // The stage draws the answer on the map while it streams in, so both play at once.
@@ -326,7 +326,7 @@ export const stageExplore: Chapter = {
   label: "Explore the code",
   title: "Ask the code in plain English",
   duration: EXPLORE_END + 2500,
-  source: "The real pallets/flask graph and a real Explore answer; the zoom is drawn for the stage",
+  source: "The real pydantic/pydantic graph and a real Explore answer; the zoom is drawn for the stage",
   provenance: [{ at: 0, text: "real answer · zoom drawn for the talk" }],
   headlines: [
     { at: 0, text: "Understand the code before you change it." },
@@ -335,9 +335,9 @@ export const stageExplore: Chapter = {
   ],
   captions: [
     { at: 0, text: "Before changing anything, understand the code. Explore maps the repository straight from its source code: no AI, and nothing to install on your machine." },
-    { at: BUILT_AT, spot: "graph", text: "This is Flask: 2,169 nodes (files, functions, classes and their docstring notes) in 201 communities, and the links between them, mapped by the site's own graph builder. (The layout was computed for this talk from that real graph.)" },
+    { at: BUILT_AT, spot: "graph", text: "This is Pydantic: 6,907 nodes (the files, functions and classes of its main package and tests) in 330 communities, and the links between them, mapped by the site's own graph builder. (The layout was computed for this talk from that real graph.)" },
     { at: FIRST.turns[0].typeAt, spot: "ask", text: `Then ask the question you'd normally grep for: “${FIRST.turns[0].prompt}” The answer comes from the map and points to the files involved.` },
-    { at: FOCUS_AT, spot: "graph", text: "As the answer streams in, the map zooms from all of Flask down to render_template(), then lights everything that depends on it, one, two and three hops out." },
+    { at: FOCUS_AT, spot: "graph", text: "As the answer streams in, the map zooms from all of Pydantic down to to_pascal(), then lights everything that depends on it, one and two hops out." },
     { at: FIRST.turns[0].doneAt, spot: "answer", text: "The answer teaches: what it does in one line, where it lives, what to run if you change it, and one thing to try yourself. Know what your change touches before you touch it." },
   ],
   View: StageExploreView,
@@ -365,17 +365,17 @@ export function stageNotes(base: { pr: Chapter }) {
       { at: at(0.32), spot: "pr-verified", text: "The description shows the tests it ran and the result: verified." },
       { at: at(0.55), spot: "pr-ai", text: "And it discloses itself: who asked, which model, what was and wasn't tested, plus an Assisted-by trailer and a sign-off where the project asks." },
       { at: at(0.85), text: "It stays a draft until you mark it ready. The maintainer always knows." },
-    ]), []), source: "The Flask pull request", duration: PR_SCROLL[1] + 3000 },
+    ]), []), source: "The Pydantic pull request", duration: PR_SCROLL[1] + 3000 },
   };
 }
 
 // ── Ship: what it did on GitHub, as the pull request shows it ───────────────
 
-// Flask isn't the contributor's own repository, so it forks first and opens the PR from the fork.
+// Pydantic isn't the contributor's own repository, so it forks first and opens the PR from the fork.
 const PR_FACTS: Array<[string, string]> = [
-  ["Fork", "rahulp7801/flask"],
+  ["Fork", "rahulp7801/pydantic"],
   ["Branch", RUN.head.split(":")[1]],
-  ["Into", `${FLASK_REPO} · ${RUN.base}`],
+  ["Into", `${STORY_REPO} · ${RUN.base}`],
   ["Commit author", "…@users.noreply.github.com"],
   ["Status", "Draft, opened by rahulp7801"],
   ["Commit", "1, with “Assisted-by: claude-sonnet-5 via opensrcer”"],
@@ -401,7 +401,7 @@ export function withPrFacts(chapter: Chapter): Chapter {
     </Reveal>
   );
   function View() {
-    return <PrDataContext.Provider value={FLASK_PR}><PrRailContext.Provider value={facts}><Inner /></PrRailContext.Provider></PrDataContext.Provider>;
+    return <PrDataContext.Provider value={STORY_PR}><PrRailContext.Provider value={facts}><Inner /></PrRailContext.Provider></PrDataContext.Provider>;
   }
   return { ...chapter, View };
 }
@@ -563,13 +563,13 @@ export const stageSlop: Chapter = {
 
 // ── Fix: a verified run, now that tests run on the hosted site ──────────────
 
-// The Flask run's verification, in plain words: Flask's template and signal tests on the
-// final patch, then again with the source change reverted, where the new test fails.
+// The run's verification, from the real results: Pydantic's alias-generator tests (tests/test_utils.py)
+// plus the new test pass with the fix (45) and the new test fails with it reverted (2 of 45).
 const PROOF: Array<{ at: number; text: string; verify?: true; receipt?: string }> = [
   { at: 600, text: "Started a separate test machine with no passwords or keys. It can only reach package registries and GitHub." },
   { at: 2200, text: "Installed what the project needs." },
-  { at: 3800, text: "Ran the project's own tests on the fix: they pass.", verify: true, receipt: "pytest · exit 0 · 72 passed" },
-  { at: 5800, text: "Undid the fix and ran them again: the new test fails. So it really catches the bug.", verify: true, receipt: "fix reverted · pytest · exit 1 · 1 failed" },
+  { at: 3800, text: "Ran the project's own tests on the fix: they pass.", verify: true, receipt: "pytest · exit 0 · 45 passed" },
+  { at: 5800, text: "Undid the fix and ran them again: the new test fails. So it really catches the bug.", verify: true, receipt: "fix reverted · pytest · exit 1 · 2 failed, 43 passed" },
 ];
 // The tick, drawn by hand beside the proof that the new tests catch the bug.
 const TICK_AT = 5800 + 1400;
@@ -585,19 +585,35 @@ function VerifiedView() {
         <div className="flex items-start justify-between gap-3 rounded-2xl border border-border-soft bg-surface px-5 py-4">
           <div className="min-w-0">
             <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[13px] text-info">{ISSUE_TAG}</span></p>
-            <p className="mt-0.5 truncate text-[18px] font-medium text-paper">{FLASK_ISSUE.title}</p>
+            <p className="mt-0.5 truncate text-[18px] font-medium text-paper">{STORY_ISSUE.title}</p>
           </div>
           {verified ? <span className="stage-settle"><StatusChip tone="ok">verified</StatusChip></span> : <StatusChip tone="signal">testing</StatusChip>}
         </div>
-        <ol className="border-t border-border-soft">
-          {PROOF.filter((p) => !p.verify).map((p) => <ProofStep key={p.text} {...p} />)}
-          <li data-spot="verify" className="relative">
-            {PROOF.filter((p) => p.verify).map((p) => <ProofStep key={p.text} {...p} />)}
-            {t >= TICK_AT && <Doodle doodle={check} draw="load" duration={800} className="absolute bottom-3 right-6 h-[64px] w-[80px] text-signal" />}
-          </li>
-        </ol>
+        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,430px)] gap-4">
+          <ol className="border-t border-border-soft">
+            {PROOF.filter((p) => !p.verify).map((p) => <ProofStep key={p.text} {...p} />)}
+            <li data-spot="verify" className="relative">
+              {PROOF.filter((p) => p.verify).map((p) => <ProofStep key={p.text} {...p} />)}
+              {t >= TICK_AT && <Doodle doodle={check} draw="load" duration={800} className="absolute bottom-3 right-2 h-[56px] w-[70px] text-signal" />}
+            </li>
+          </ol>
+          <ChangeAndTest />
+        </div>
       </div>
     </AppWindow>
+  );
+}
+
+/** The final patch beside the proof: the one changed line, and the new test that fails without it. */
+function ChangeAndTest() {
+  return (
+    <Reveal at={2200} spot="change" className="min-w-0 overflow-hidden rounded-xl border border-border-soft bg-surface font-mono text-[12px] leading-[1.55] [font-variant-ligatures:none]">
+      <p className="border-b border-border-soft px-3 py-1.5 text-paper-muted">{STORY_DIFF.file}</p>
+      <p className="whitespace-pre-wrap break-all bg-alert/10 px-3 text-alert">- {STORY_DIFF.removed.trim()}</p>
+      <p className="whitespace-pre-wrap break-all bg-ok/10 px-3 text-ok">+ {STORY_DIFF.added.trim()}</p>
+      <p className="mt-2 border-y border-border-soft px-3 py-1.5 text-paper-muted">{STORY_DIFF.testFile} <span className="text-ok">(new test)</span></p>
+      <pre className="overflow-hidden whitespace-pre-wrap px-3 py-1.5 text-paper">{STORY_DIFF.test.map((l) => "+ " + l).join("\n")}</pre>
+    </Reveal>
   );
 }
 
@@ -620,13 +636,14 @@ export const stageVerified: Chapter = {
   label: "Tests, verified",
   title: "Tests that prove the fix",
   duration: PROOF_DONE_AT + 2500,
-  source: "The Flask run's verification",
+  source: "The run's verification: real results on Pydantic's alias-generator tests",
   headlines: [{ at: 0, text: "It proves the fix works, in a locked box." }],
   captions: [
     { at: 0, text: "The centerpiece: it proves the fix works before you ever see it. Same issue, same run, on the hosted site." },
     { at: 600, text: "In a second machine with no passwords or keys, that only reaches package registries and GitHub." },
-    { at: VERIFY_AT, spot: "verify", text: "It runs Flask's own tests on the final patch: all 72 pass. Then it undoes the fix: the new test fails. So it really catches the bug." },
-    { at: VERIFY_AT + 2600, spot: "verify", text: "For maintainers who ask: pytest on the template and signal tests, exit 0, 72 passed; with the fix reverted, exit 1, the new test failing. With no runnable test it says unverified, and CI on the pull request is still the project's own." },
+    { at: 2200, spot: "change", text: "Here's the change itself: one line in to_pascal, and a new test beside Pydantic's own." },
+    { at: VERIFY_AT, spot: "verify", text: "It runs Pydantic's own tests on the final patch: all 45 pass. Then it undoes the fix: the new test fails. So it really catches the bug." },
+    { at: VERIFY_AT + 2600, spot: "verify", text: "For maintainers who ask: ${STORY_TEST_COMMAND}, exit 0, 45 passed; with the fix reverted, exit 1, the two new cases failing and the 43 others passing. With no runnable test it says unverified, and CI on the pull request is still the project's own." },
   ],
   View: VerifiedView,
 };
@@ -716,20 +733,20 @@ export const stagePromise: Chapter = {
   poster: true,
   captions: [
     { at: 0, text: "opensrcer helps a beginner make the contribution a maintainer would actually want: tested, explained, and following the project's rules." },
-    { at: 150 + PILLARS.length * 600, text: "Everything from here is the real product, on one Flask issue from start to finish. Nothing posts until you confirm." },
+    { at: 150 + PILLARS.length * 600, text: "Everything from here is the real product, on one Pydantic issue from start to finish. Nothing posts until you confirm." },
   ],
   View: PromiseView,
 };
 
 // ── It reads the rules first ─────────────────────────────────────────────────
 
-// The Flask run, in plain words: Flask's contributing guide and PR template, then the cause.
+// The run, in plain words: Pydantic's contributing guide (its AI policy) and PR template, then the cause.
 const RULES_FEED: Array<{ at: number; text: string; rules?: true; points?: string[] }> = [
   { at: 600, text: "Started a throwaway machine with a spend cap and a time limit." },
-  { at: 2200, text: "Read Flask's contributing guide and pull request template.", rules: true },
-  { at: 3800, text: "It follows what they ask for:", rules: true, points: ["a test in tests/ that fails without the fix", "an entry in CHANGES.rst", "the PR template's checklist"] },
-  { at: 6600, text: "Read render_template, _render and their tests, and found what else goes through _render." },
-  { at: 8600, text: "Found the cause: _render lets context processors overwrite the values you pass to render_template." },
+  { at: 2200, text: "Read Pydantic's contributing guide and pull request template.", rules: true },
+  { at: 3800, text: "It follows what they ask for:", rules: true, points: ["AI help is welcome if you fully understand the code", "unit tests for the change", "the PR template's checklist"] },
+  { at: 6600, text: "Read to_pascal, to_camel and their tests, and found what else calls to_pascal." },
+  { at: 8600, text: "Found the cause: to_pascal only removes an underscore with a letter or digit on both sides, so a double underscore survives." },
 ];
 const RULES_DONE_AT = 8600;
 
@@ -739,7 +756,7 @@ function RulesView() {
       <div className="flex h-full flex-col gap-3 p-4">
         <div className="rounded-2xl border border-border bg-surface px-5 py-3">
           <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[13px] text-info">{ISSUE_TAG}</span></p>
-          <p className="mt-0.5 truncate text-[18px] font-medium text-paper">{FLASK_ISSUE.title}</p>
+          <p className="mt-0.5 truncate text-[18px] font-medium text-paper">{STORY_ISSUE.title}</p>
         </div>
         <ol className="border-t border-border-soft">
           <RulesStep {...RULES_FEED[0]} />
@@ -771,11 +788,11 @@ export const stageRules: Chapter = {
   label: "Rules first",
   title: "It reads the project's rules first",
   duration: RULES_DONE_AT + 2500,
-  source: "The Flask run, in plain words",
+  source: "The run, in plain words",
   headlines: [{ at: 0, text: "It reads the project's rules first." }],
   captions: [
     { at: 0, text: "One click starts the run, in a throwaway machine with a spend cap and a time limit." },
-    { at: 2200, spot: "rules", text: "It reads the project's rules first: contribution guide, PR template, AI policy, sign-off. Flask asks for a test, a changelog entry and its PR checklist, so that's what it does." },
+    { at: 2200, spot: "rules", text: "It reads the project's rules first: contribution guide, PR template, AI policy, sign-off. Pydantic welcomes AI help if you fully understand the code, and asks for tests and its PR checklist, so that's what it does." },
     { at: 6600, text: "Then it reads the code around the bug and writes down the cause before the fix. If it can't find the root cause, it says so rather than guess." },
   ],
   View: RulesView,
@@ -798,7 +815,7 @@ function SignInView() {
         <div className="flex items-center justify-between gap-4 rounded-2xl border border-border-soft bg-surface px-5 py-4">
           <div className="min-w-0">
             <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[13px] text-info">{ISSUE_TAG}</span></p>
-            <p className="mt-0.5 truncate text-[18px] font-medium text-paper">{FLASK_ISSUE.title}</p>
+            <p className="mt-0.5 truncate text-[18px] font-medium text-paper">{STORY_ISSUE.title}</p>
           </div>
           <Press at={SIGN_IN_PRESS_AT} className="shrink-0 rounded-[10px] bg-paper px-4 py-1.5 text-[14px] font-medium text-ink">Sign in with Claude &amp; start</Press>
         </div>
@@ -834,7 +851,7 @@ export function withSignInStart(chapter: Chapter): Chapter {
     // The sign-in note ends with the sign-in step, even when the run itself carries none.
     provenance: [{ at: 0, text: "The sign-in step, as the site shows it" }, ...(chapter.provenance ?? [{ at: 0, text: "" }]).map(later)],
     captions: [
-      { at: 0, text: "Now fix it. One click starts the run on the render_template issue. It runs on the Claude plan you already pay for, so there's no API bill." },
+      { at: 0, text: "Now fix it. One click starts the run on the to_pascal issue. It runs on the Claude plan you already pay for, so there's no API bill." },
       { at: SIGN_IN_PANEL_AT, spot: "sign-in", text: "You sign in on Claude's own page, inside the run's machine; opensrcer never sees your login. Hit your plan's limit? The run stops. It switches to an API key only if you've turned that on." },
       ...chapter.captions.map(later),
     ],
@@ -844,28 +861,28 @@ export function withSignInStart(chapter: Chapter): Chapter {
 
 // ── Review: the change explained, the rules, the chat, your own words ───────
 
-// "This project's rules" for the Flask run, computed by lib/project-rules.ts itself: Flask's
-// PR template followed, no discuss-first signal, no other open PR, the AI note added.
+// "This project's rules" for the run, computed by lib/project-rules.ts from what lib/contrib-profile.ts reads
+// in pydantic/pydantic (STORY_PROFILE): its guide and AI policy, its PR template followed, no other open PR.
 const DEMO_RULES = projectRules({
-  profile: { dco: false, cla: null, aiPolicy: { stance: "unknown", source: null, excerpt: null }, aiTrailer: null, sources: [] },
+  profile: { dco: false, cla: null, aiPolicy: STORY_PROFILE.aiPolicy, aiTrailer: null, sources: STORY_PROFILE.sources },
   signoff: false,
   executed: true,
-  verification: { status: "verified", reason: "declared tests pass, and fail with the source change reverted", plan: { setup: ["pip install -e . -r requirements/tests.txt"], test: ["python -m pytest tests/test_templating.py tests/test_signals.py"], lint: [] }, regression: "reproduced", evidence: [] },
+  verification: { status: "verified", reason: "declared tests pass, and fail with the source change reverted", plan: { setup: ["uv sync --group testing"], test: [STORY_TEST_COMMAND], lint: [] }, regression: "reproduced", evidence: [] },
   blockers: [],
   warnings: [],
   body: "",
-  rules: { pr_template: true, template_headings: { kept: 2, total: 2 }, agent_instructions: false, notes: 0, discuss_first: null, competing_prs: "none", disclosed: true },
+  rules: { pr_template: true, template_headings: { kept: STORY_PROFILE.templateHeadings, total: STORY_PROFILE.templateHeadings }, agent_instructions: false, notes: 0, discuss_first: null, competing_prs: "none", disclosed: true },
 });
 const RULE_TONE: Record<RuleStatus, string> = { done: "text-ok", action: "text-signal", blocked: "text-alert", check: "text-info", unknown: "text-paper-muted", none: "text-paper-muted" };
 
-// What the review screen's AI calls return for the Flask change, in the product's shapes:
+// What the review screen's AI calls return for this change, in the product's shapes:
 // the change chat teaches and ends with a "Check yourself" question.
 const CHAT_QUESTION = "Explain this fix like I'm new to the project";
-const CHAT_ANSWER = "This fix makes render_template respect the values you pass it. … Before rendering, _render asks every context processor for extra values and merges them in, so a processor returning name=\"Guest\" replaced your name=\"Ada\". … Now it copies what you passed first, lets the processors fill in the rest, then puts your values back on top. … Check yourself: why does it copy the context before calling update_template_context, not after?";
-const OWN_WORDS_TEXT = "Context processors were overwriting values passed to render_template, so name=\"Ada\" rendered as Guest. Now _render saves the passed values and puts them back after the processors run. The new test fails without the fix and passes with it.";
+const CHAT_ANSWER = "This fix makes to_pascal clean up double underscores. … It title-cases the name, then removes an underscore only when a letter or digit sits on both sides. In my__field each underscore has another underscore beside it, so both survived: My__Field. … Now it first squeezes repeated underscores between letters into one, so you get MyField, while __private keeps its leading underscores. … Check yourself: why does the pattern need a letter or digit on both sides?";
+const OWN_WORDS_TEXT = "to_pascal left double underscores in names, so my__field became My__Field. Now it collapses repeated underscores between letters before title-casing, and leading ones like __private stay. The new test fails without the fix and passes with it.";
 const PRACTICE = [
-  { q: "What if a context processor overrides a value on purpose?", a: "Not for values the view passes. The docs already say passed values win, so that relied on the bug.", feedback: "That answers it and matches the diff.", followUp: "Should the changelog entry mention that?" },
-  { q: "Does stream_template get the same fix?", a: "No, it builds its context in _stream. I'd say so in the PR and fix it separately.", feedback: "That answers it and matches the diff.", followUp: "Would a follow-up issue for stream_template help reviewers?" },
+  { q: "Does this change what to_camel returns?", a: "Yes. to_camel calls to_pascal, so my__field now gives myField. Same fix.", feedback: "That answers it and matches the diff.", followUp: "Should the PR say that to_camel changes too?" },
+  { q: "Why not collapse leading underscores too?", a: "They mean private or dunder names, so __private has to stay __Private.", feedback: "That answers it and matches the diff.", followUp: "Is there a test that keeps __private as it is?" },
 ];
 
 // When each section is on screen (one at a time, as a presenter walks the real page).
@@ -900,7 +917,7 @@ function StageReviewView() {
             <p className="truncate text-[15px] font-medium text-paper">{RUN.prTitle}</p>
             <p className="text-[13px] text-paper-muted">{PATCH_STATS.files} files changed · <span className="text-ok">+{PATCH_STATS.additions}</span> · <span className="text-alert">-{PATCH_STATS.deletions}</span> · <span className="text-ok">verified</span></p>
           </div>
-          {t >= PUBLISHED_AT ? <PrDataContext.Provider value={FLASK_PR}><Published /></PrDataContext.Provider> : (
+          {t >= PUBLISHED_AT ? <PrDataContext.Provider value={STORY_PR}><Published /></PrDataContext.Provider> : (
             <div ref={bodyRef} className="min-h-0 flex-1 overflow-hidden px-4 py-3">
               {section === "found" && (
                 <div className="space-y-3">
@@ -1021,7 +1038,7 @@ export const stageReview: Chapter = {
   title: "Review, explain, publish",
   duration: PUBLISHED_AT + 8500,
   holds: [R.rules, R.chat, R.own, R.practice, R.publish],
-  source: "The review screen for the Flask run",
+  source: "The review screen for the run",
   headlines: [
     { at: 0, text: "It explains every change in plain English." },
     { at: R.rules, text: "It checks the project's rules, one by one." },

@@ -32,6 +32,7 @@ test("each rule maps to its row text and status", () => {
     ["cla", base(), "No CLA found", "none"],
     ["ai", base({ profile: { ...base().profile!, aiPolicy: { stance: "disclose", source: "CONTRIBUTING.md", excerpt: "Disclose AI use." } } }), "Asks contributors to disclose AI use: disclosure added", "done", 'CONTRIBUTING.md: "Disclose AI use."'],
     ["ai", base({ profile: { ...base().profile!, aiPolicy: { stance: "ban", source: "AI_POLICY.md", excerpt: "We do not accept AI-generated PRs." } } }), "Bans AI-generated contributions: publishing refused", "blocked"],
+    ["ai", base({ profile: { ...base().profile!, aiPolicy: { stance: "welcome", source: "docs/contributing.md", excerpt: "We welcome the use of AI when contributing to Pydantic." } } }), "Welcomes AI-assisted contributions: disclosure added", "done", 'docs/contributing.md: "We welcome the use of AI when contributing to Pydantic."'],
     ["ai", base(), "No AI policy found: disclosure added anyway", "done"],
     ["ai", base({ rules: rules({ disclosed: false }) }), "No AI policy found; disclosure is turned off for this organization", "none"],
     ["discuss", base({ draft_issue_comment: "Hi", rules: rules({ discuss_first: 'the issue is labeled "needs discussion"' }) }), "Asks to discuss before a PR: a comment is drafted for you to post", "action", 'Why: the issue is labeled "needs discussion".'],

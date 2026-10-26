@@ -22,7 +22,9 @@ import { cloneLimits } from "./limits";
 import { sanitizeForPrompt } from "./sanitize";
 import { discussFirstReason } from "./contrib-guard";
 
-export type AiStance = "ban" | "disclose" | "unknown";
+/** What a project says about AI help: banned, allowed if disclosed, welcomed (often on
+ *  conditions, quoted in the excerpt), or nothing found. */
+export type AiStance = "ban" | "disclose" | "welcome" | "unknown";
 
 export type AiPolicy = { stance: AiStance; source: string | null; excerpt: string | null };
 
@@ -80,7 +82,7 @@ const AI = String.raw`(?:AI|A\.I\.|LLM|large language model|generative|machine[-
 
 const BAN_PATTERNS = [
   new RegExp(String.raw`(?:do not|don't|will not|won't|cannot|can't|no longer|never)\s+(?:accept|merge|allow|permit|take)\b[^.\n]{0,80}?\b${AI}`, "i"),
-  new RegExp(String.raw`\b${AI}[- ]?(?:generated|written|authored|created|produced|assisted)?\b[^.\n]{0,80}?\b(?:(?:are|is|will be)\s+(?:not\s+(?:accepted|allowed|permitted|welcome)|prohibited|forbidden|banned|rejected))`, "i"),
+  new RegExp(String.raw`\b${AI}[- ]?(?:generated|written|authored|created|produced|assisted)?\b[^.\n]{0,80}?\b(?:(?:are|is|will be)\s+(?:not\s+(?:accepted|allowed|permitted|welcome)|prohibited|forbidden|banned|rejected|closed))`, "i"),
   new RegExp(String.raw`\b(?:prohibit|ban|forbid|reject)s?\b[^.\n]{0,40}?\b${AI}[- ]?(?:generated|written|assisted)`, "i"),
 ];
 
@@ -90,6 +92,17 @@ const DISCLOSE_PATTERNS = [
   new RegExp(String.raw`\b(?:if|when)\s+you\s+(?:used?|rel(?:y|ied) on)\s+(?:an?\s+)?${AI}[^.\n]{0,80}?\b(?:disclose|mention|state|declare|note|say)\b`, "i"),
   /\bAI assistance was used\b/i,
 ];
+
+// A project that says AI help is welcome (Pydantic: "We welcome the use of AI when
+// contributing to Pydantic. However, users should certify that they fully understand...").
+const WELCOME_PATTERNS = [
+  new RegExp(String.raw`\bwe\s+(?:welcome|accept|allow|encourage)\s+(?:the\s+use\s+of\s+)?${AI}`, "i"),
+  new RegExp(String.raw`\b${AI}[- ]?(?:assisted|generated)?\s+(?:contributions?|pull requests?|PRs?|code)\s+(?:are|is)\s+(?:welcome|allowed|accepted|fine|ok(?:ay)?)\b`, "i"),
+  new RegExp(String.raw`\byou\s+(?:may|can|are\s+welcome\s+to)\s+use\s+${AI}`, "i"),
+];
+
+/** Ban outranks a disclosure requirement, which outranks a welcome (several files may say different things). */
+const STANCE_RANK: Record<AiStance, number> = { unknown: 0, welcome: 1, disclose: 2, ban: 3 };
 
 function sentenceAround(text: string, index: number): string {
   const start = Math.max(text.lastIndexOf("\n", index), text.lastIndexOf(". ", index)) + 1;
@@ -110,6 +123,10 @@ export function classifyAiPolicy(text: string): { stance: AiStance; excerpt: str
   for (const re of DISCLOSE_PATTERNS) {
     const m = re.exec(text);
     if (m) return { stance: "disclose", excerpt: sentenceAround(text, m.index) };
+  }
+  for (const re of WELCOME_PATTERNS) {
+    const m = re.exec(text);
+    if (m) return { stance: "welcome", excerpt: sentenceAround(text, m.index) };
   }
   return { stance: "unknown", excerpt: null };
 }
@@ -320,7 +337,7 @@ export function detectProfile(dir: string, repoFull: string): ContribProfile {
   let aiPolicy: AiPolicy = { stance: "unknown", source: null, excerpt: null };
   for (const [file, text] of docs) {
     const c = classifyAiPolicy(text);
-    if (c.stance === "ban" || (c.stance === "disclose" && aiPolicy.stance === "unknown")) aiPolicy = { stance: c.stance, source: file, excerpt: c.excerpt };
+    if (STANCE_RANK[c.stance] > STANCE_RANK[aiPolicy.stance]) aiPolicy = { stance: c.stance, source: file, excerpt: c.excerpt };
     if (aiPolicy.stance === "ban") break;
   }
 
@@ -346,6 +363,7 @@ export function detectProfile(dir: string, repoFull: string): ContribProfile {
 export function profilePromptNotes(p: ContribProfile): string {
   const parts: string[] = [...p.notes.map((n) => `- ${n}`)];
   if (p.dco) parts.push("- This repository requires a DCO sign-off; the commit will be signed off for the user. Do not add a Signed-off-by line yourself.");
+  if (p.aiPolicy.stance === "welcome") parts.push(`- This repository welcomes AI assistance on its own terms (${p.aiPolicy.source}): ${p.aiPolicy.excerpt ?? ""} The host adds a factual disclosure; the contributor must understand and explain the change.`);
   if (p.aiPolicy.stance === "disclose") parts.push(`- This repository requires disclosing AI assistance (${p.aiPolicy.source}). The host adds a factual disclosure; do not remove or contradict it.`);
   if (p.prTemplate) {
     parts.push("", "The repository's PR template follows. Your `## PR body` must fill in its sections (keep its headings; drop its HTML comments).",

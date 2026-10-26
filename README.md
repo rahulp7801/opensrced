@@ -4,6 +4,8 @@
 [![CodeQL](https://github.com/rahulp7801/opensrced/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/rahulp7801/opensrced/actions/workflows/codeql.yml)
 [![Release](https://img.shields.io/github/v/release/rahulp7801/opensrced?include_prereleases)](https://github.com/rahulp7801/opensrced/releases)
 
+Winner of CitrusHack 2026.
+
 opensrcer helps a person turn a GitHub issue into a pull request they
 understand and can stand behind. An AI agent drafts and tests the fix in an
 isolated box. The person reviews it, explains it in their own words, and
@@ -37,6 +39,14 @@ project still lacks those. Open release gates are tracked in
 lists the missing dependencies; it does not prove that GitHub or a model
 provider works.
 
+**Early access.** When the app is invite-only (`OPENSRCER_ACCESS=invite`),
+anyone can ask for access at `/join`. The form stores a name, email and GitHub
+username privately (`lib/interest.ts`). Admins listed in
+`OPENSRCER_ADMIN_GITHUB_IDS` approve, decline, revoke or remove requests at
+`/admin/access` and can export them as CSV. Approving admits that GitHub
+account within about 30 seconds, with no redeploy (`lib/access-server.ts`
+`canUse`; the edge middleware asks `/api/access`).
+
 ## How a run works
 
 1. **Find an issue.** Discover and Issues search public repositories and score
@@ -53,8 +63,12 @@ provider works.
 3. **Read the project's rules.** The run clones the repository and builds a
    contribution profile from its own files: CONTRIBUTING, PR template,
    `AGENTS.md` or `CLAUDE.md`, AI policy, DCO sign-off, CLA, and the commit
-   trailer it expects (`lib/contrib-profile.ts`). The guards below run here, before any model
-   spend.
+   trailer it expects (`lib/contrib-profile.ts`). The AI policy is read as one
+   of four stances (`classifyAiPolicy`): **ban**, **disclose** (AI help allowed
+   if disclosed), **welcome** (AI help welcome on the project's conditions, such
+   as Pydantic's "We welcome the use of AI when contributing to Pydantic") or
+   **unknown**. Only a ban blocks publishing. The guards below run here, before
+   any model spend.
 4. **Triage.** One cheap call on the fast model decides whether the issue is
    worth a full run. A live run is refused if triage says no (`lib/triage.ts`).
 5. **Fix and test in an exec box.** The agent (Claude Code, or locally the
@@ -301,6 +315,7 @@ needs a private Blob store, Sandbox access and a worker snapshot built with
 | `OPENSRCER_AI_DISCLOSURE` | on | `0` turns disclosure off for private-organization runs only. |
 | `OPENSRCER_RUN_TESTS` | `off` | Legacy host test runner. Runs repository code as the server user; leave off and use the exec box. |
 | `OPENSRCER_ACCESS`, `OPENSRCER_INVITED_GITHUB_IDS` | open | `invite` makes the app invite-only by numeric GitHub id. |
+| `OPENSRCER_ADMIN_GITHUB_IDS` | none | Numeric GitHub ids that manage access requests at `/admin/access`. Unset, nobody can. |
 | `BLOB_READ_WRITE_TOKEN`, `OPENSRCER_WORKER_SNAPSHOT_ID` | none | Hosted storage and worker snapshot. Hosted mode is automatic on Vercel (`OPENSRCER_EXECUTION=sandbox` elsewhere). |
 
 Run-scale knobs (turns, budgets, timeouts, exec box memory and CPU) are in
@@ -359,7 +374,7 @@ reverted. Nothing is pushed or posted. Results so far:
 
 | Path | Contents |
 | --- | --- |
-| `app/` | Next.js pages and API routes (`app/api/`), including `/demo` (product tour) and `/demo/stage` (presenter demo). |
+| `app/` | Next.js pages and API routes (`app/api/`), including `/demo` (product tour) and `/demo/stage` (presenter demo: one pydantic/pydantic story from scan and code map to a fix of `to_pascal` in `pydantic/alias_generators.py`, its tests, review and a draft PR; the map and Explore answer are real, the issue and PR numbers are a demo scenario). |
 | `components/` | React UI: publish panel, change chat, own-words gate, scanners, tour. |
 | `lib/` | Server logic: dispatch, guards, verification, exec box, hosted workers, payment, GitHub. Tests in `lib/__tests__/`. |
 | `mcp-server/` | The repository tools the agent uses (read, search, definitions, graph queries; edit and run commands with an exec box). Own package. |

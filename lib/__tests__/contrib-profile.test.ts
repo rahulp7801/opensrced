@@ -21,6 +21,13 @@ test("classifyAiPolicy: bans, disclosure requirements, and silence", () => {
     "If you used an LLM, you must state this in the PR description.",
   ];
   for (const text of disclose) assert.equal(classifyAiPolicy(text).stance, "disclose", text);
+  // Real policies: Pydantic welcomes AI on conditions; Pallets (Flask) closes AI PRs on sight.
+  const pydantic = "## AI policy\n\nWe welcome the use of AI when contributing to Pydantic. However, users should certify that they fully understand the code being submitted.";
+  assert.deepEqual(classifyAiPolicy(pydantic), { stance: "welcome", excerpt: "We welcome the use of AI when contributing to Pydantic." });
+  for (const text of ["AI-assisted contributions are welcome.", "You may use AI tools, but review the output."]) assert.equal(classifyAiPolicy(text).stance, "welcome", text);
+  assert.equal(classifyAiPolicy("AI-generated PRs and issues are closed on sight, without review or discussion.").stance, "ban");
+  // A ban anywhere outranks a welcome elsewhere in the same text.
+  assert.equal(classifyAiPolicy("We welcome the use of AI for docs.\nAI-generated code is not accepted.").stance, "ban");
   for (const text of ["Please add tests.", "We use a CLA bot.", "Pure code-agent PRs are not allowed. A human must review."]) {
     assert.notEqual(classifyAiPolicy(text).stance, "ban", text);
   }

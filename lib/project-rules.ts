@@ -82,6 +82,9 @@ export function projectRules(p: RulesPreview): RuleRow[] {
     else if (profile.aiPolicy.stance === "disclose") rows.push(disclosed
       ? { ...ai, status: "done", text: "Asks contributors to disclose AI use: disclosure added", ...withWhere }
       : { ...ai, status: "check", text: "Asks contributors to disclose AI use, but disclosure is turned off for this organization", ...withWhere });
+    else if (profile.aiPolicy.stance === "welcome") rows.push(disclosed
+      ? { ...ai, status: "done", text: "Welcomes AI-assisted contributions: disclosure added", ...withWhere }
+      : { ...ai, status: "check", text: "Welcomes AI-assisted contributions; disclosure is turned off for this organization", ...withWhere });
     else rows.push(disclosed
       ? { ...ai, status: "done", text: "No AI policy found: disclosure added anyway" }
       : { ...ai, status: "none", text: "No AI policy found; disclosure is turned off for this organization" });

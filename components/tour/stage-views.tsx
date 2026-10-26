@@ -32,7 +32,9 @@ const DEMO_REPO = FLASK_REPO;
 const ISSUE_TAG = `#${FLASK_ISSUE.number}`;
 const DEMO_PUBLISH_STEPS = publishSteps({ files: PATCH_STATS.files, signoff: false });
 /** The PR page and the published panel, showing the Flask pull request. */
-const FLASK_PR = { repo: FLASK_REPO, pr: RUN.pr, title: RUN.prTitle, base: RUN.base, head: RUN.head, issue: FLASK_ISSUE.number, body: FLASK_PR_BODY, stats: PATCH_STATS };
+// The PR page scrolls slowly on stage, so each point can be made while its part is in view.
+const PR_SCROLL: [number, number] = [4000, 20000];
+const FLASK_PR = { repo: FLASK_REPO, pr: RUN.pr, title: RUN.prTitle, base: RUN.base, head: RUN.head, issue: FLASK_ISSUE.number, body: FLASK_PR_BODY, stats: PATCH_STATS, scroll: PR_SCROLL };
 
 
 /** A chapter with speaker notes added for the stage, merged in time order. */
@@ -59,7 +61,11 @@ const SCAN: ScanRow[] = [
 ];
 const READY = SCAN.filter((r) => !r.reason);
 const SHOW_ALL_AT = 2400; // the presenter switches the filter to All…
-const SHOW_READY_AT = 13500; // …and back to Ready once every verdict has been seen
+// …each skipped issue then arrives slowly enough to talk over (the list scrolls to it)…
+const SKIPPED = SCAN.filter((r) => r.reason);
+const SKIP_STEP = 2400;
+const skipAt = (i: number) => SHOW_ALL_AT + 600 + i * SKIP_STEP;
+const SHOW_READY_AT = skipAt(SKIPPED.length) + 2500; // …and back to Ready once every verdict has been seen
 
 function ScanView() {
   const t = useT();
@@ -89,7 +95,7 @@ function ScanView() {
           <div data-spot="scan-list" className="divide-y divide-border-soft">
             {rows.map((r) => {
               // Skipped issues arrive one by one after the switch to All, each with its reason.
-              const at = r.reason ? SHOW_ALL_AT + 600 + skipped++ * 1200 : 0;
+              const at = r.reason ? skipAt(skipped++) : 0;
               return (
                 <Reveal key={r.number} at={at} className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-2.5", r.reason && "opacity-70")}>
                   <div className="min-w-0">
@@ -129,8 +135,8 @@ export const stageScan: Chapter = {
     { at: 0, text: "Step one: an issue that's actually open to a newcomer. Claude Code assumes you already have one." },
     { at: SHOW_ALL_AT, text: "Show everything it found, including what it filtered out, and why." },
     { at: SHOW_ALL_AT + 600, spot: "scan-list", text: "Assigned? Skip. A pull request already open? Skip, help them instead. Already fixed but still open? Skip. That alone saves maintainers duplicate PRs." },
-    { at: SHOW_ALL_AT + 4200, spot: "scan-list", text: "Questions, wontfix and vague issues are flagged too, with the reason." },
-    { at: SHOW_ALL_AT + 7200, text: "What's left is actually open to a newcomer, each with its scope, risk, complexity and a time estimate." },
+    { at: skipAt(SKIPPED.findIndex((r) => r.category === "question")), spot: "scan-list", text: "Questions, wontfix and vague issues are flagged too, with the reason." },
+    { at: skipAt(SKIPPED.length), text: "What's left is actually open to a newcomer, each with its scope, risk, complexity and a time estimate." },
     { at: SHOW_READY_AT, text: "Back to the ready ones. This is the contribution etiquette Claude Code assumes you already know. We'll take the first: render_template lets context processors override the values you pass it." },
   ],
   View: ScanView,
@@ -351,14 +357,15 @@ function staged(chapter: Chapter, headlines: Caption[], captions: Caption[]): Ch
 
 /** The review and the pull request as the stage tells them. */
 export function stageNotes(base: { pr: Chapter }) {
+  // Each note comes due as the slow scroll (PR_SCROLL) brings its part of the page into view.
+  const at = (p: number) => Math.round(PR_SCROLL[0] + p * (PR_SCROLL[1] - PR_SCROLL[0]));
   return {
-    pr: withProvenance(staged(base.pr, [{ at: 0, text: "The maintainer always knows AI helped." }], [
+    pr: { ...withProvenance(staged(base.pr, [{ at: 0, text: "The maintainer always knows AI helped." }], [
       { at: 0, spot: "pr-facts", text: "Every GitHub step done right: its own branch, your private noreply email, the right base branch, and a description that closes the issue." },
-      { at: 5800, spot: "pr-verified", text: "The description shows the tests it ran and the result: verified." },
-      { at: 7400, spot: "pr-ai", text: "And it discloses itself: who asked, which model, what was and wasn't tested, plus an Assisted-by trailer and a sign-off where the project asks." },
-      { at: 9000, text: "It stays a draft until you mark it ready. The maintainer always knows." },
-    ]), []),
-    source: "The Flask pull request",
+      { at: at(0.32), spot: "pr-verified", text: "The description shows the tests it ran and the result: verified." },
+      { at: at(0.55), spot: "pr-ai", text: "And it discloses itself: who asked, which model, what was and wasn't tested, plus an Assisted-by trailer and a sign-off where the project asks." },
+      { at: at(0.85), text: "It stays a draft until you mark it ready. The maintainer always knows." },
+    ]), []), source: "The Flask pull request", duration: PR_SCROLL[1] + 3000 },
   };
 }
 
@@ -529,7 +536,7 @@ function CloseView() {
       <p className="stage-rise mt-5 text-[20px] text-paper-muted" style={{ animationDelay: "1500ms" }}>{CLOSE_REST}</p>
       <div className="mt-8 flex items-baseline gap-8 border-t border-border pt-4 font-mono text-[15px] text-paper-dim">
         <span>opensrced.vercel.app</span>
-        <span className="ml-auto font-sans text-[18px] text-paper">Rahul <span className="font-mono text-[15px] text-paper-muted">· @rahulp7801</span></span>
+        <span className="ml-auto font-sans text-[18px] text-paper">Rahul Puritipati <span className="font-mono text-[15px] text-paper-muted">· @rahulp7801</span></span>
       </div>
     </div>
   );

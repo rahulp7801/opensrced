@@ -317,12 +317,14 @@ export const PrRailContext = createContext<ReactNode>(null);
 /** The pull request the PR page and the published panel show: the tour's run by default; the stage tells its own. */
 export const PrDataContext = createContext({
   repo: DEMO_REPO, pr: RUN.pr, title: RUN.prTitle, base: "main", head: RUN.branch, issue: ISSUE.number as number, body: PR_BODY, stats: PATCH_STATS,
+  /** When the page scrolls from top to bottom (ms into the chapter); the stage scrolls slower, to talk over. */
+  scroll: [3600, 10500] as [number, number],
 });
 
 function PrView() {
-  const scrollRef = useAutoScroll(3600, 10500);
-  const rail = useContext(PrRailContext);
   const d = useContext(PrDataContext);
+  const scrollRef = useAutoScroll(...d.scroll);
+  const rail = useContext(PrRailContext);
   return (
     <AppWindow host="github.com" path={`/${d.repo}/pull/${d.pr}`}>
       <div ref={scrollRef} className="h-full overflow-hidden bg-surface px-4 py-4 sm:px-7">

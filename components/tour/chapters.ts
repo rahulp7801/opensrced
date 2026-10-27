@@ -75,7 +75,6 @@ export const CHAPTERS: Chapter[] = [
   paced(trust, 1.5),
   paced(control, 1),
   paced(retold({ ...stageSlop, act: "Trust" }, [
-    ["The heart of it", "The heart of it: you can't publish what you can't explain, and the chat is there so you can. And it opens one pull request per project, drafts only, each saying what was and wasn't tested."],
     ["It's built to make better", "It's built to make better contributors, not more pull requests."],
   ]), 1),
 ];

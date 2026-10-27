@@ -78,7 +78,7 @@ export function projectRules(p: RulesPreview): RuleRow[] {
   else {
     const where = profile.aiPolicy.source ? `${profile.aiPolicy.source}${profile.aiPolicy.excerpt ? `: "${profile.aiPolicy.excerpt}"` : ""}` : undefined;
     const withWhere = where ? { detail: where } : {};
-    if (profile.aiPolicy.stance === "ban") rows.push({ ...ai, status: "blocked", text: "Bans AI-generated contributions: publishing refused", ...withWhere });
+    if (profile.aiPolicy.stance === "ban") rows.push({ ...ai, status: "blocked", text: "Bans AI-generated contributions: no code is written", ...withWhere });
     else if (profile.aiPolicy.stance === "disclose") rows.push(disclosed
       ? { ...ai, status: "done", text: "Asks contributors to disclose AI use: disclosure added", ...withWhere }
       : { ...ai, status: "check", text: "Asks contributors to disclose AI use, but disclosure is turned off for this organization", ...withWhere });

@@ -175,6 +175,8 @@ type FetchedIssue = {
 /** The requested issue cannot be run (missing, inaccessible, or a pull
  *  request). Its message is safe to show the user; routes answer 400. */
 export class RunTargetError extends Error {}
+/** After a refusal where the project or a maintainer said no to AI: what is (and isn't) left. */
+const NO_CODE = "No code is written, not even a preview. You can still explore the code and ask about it in Explore.";
 
 export async function fetchIssue(
   repoFull: string,
@@ -672,18 +674,17 @@ async function spawnDispatch(
       const repo = await prepareRepo(repoFull, token, opts.repoRef);
       profile = detectProfile(repo.dir, repoFull);
       out.write(`[exec] checkout ${repo.sha}\n${profileLogLine(profile)}`);
-      // Guards before any model spend. Previews (dry runs) still run so the
-      // user can look, and are labeled; publishing re-checks all of these.
+      // Guards before any model spend; publishing re-checks all of these. Where the project or
+      // a maintainer has said no to AI, nothing is written, not even a preview: AI output must
+      // not become the base for the contributor's own fix. Explore (read-only) still works.
       // No AI policy of its own: the organization's default guide applies (Pallets for Flask).
       const ban = aiBanReason(profile) ?? (profile.aiPolicy.stance === "unknown" ? await orgAiBanReason(repoFull, token ?? undefined) : null);
-      if (ban && !opts.dryRun) throw new RunTargetError(`Refused: ${ban}. A preview (dry run) is still possible.`);
-      if (ban) out.write(`[guard] preview only: ${ban}\n`);
+      if (ban) throw new RunTargetError(`Refused: ${ban}. ${NO_CODE}`);
       // A follow-up updates the user's own PR, which of course targets the issue.
       if (!opts.followupPr) {
         const events = await issueTimeline(repoFull, target.issueNumber, token).catch(() => []);
         const objection = maintainerObjectionReason(maintainerAiObjection(events));
-        if (objection && !opts.dryRun) throw new RunTargetError(`Refused: ${objection}. A preview (dry run) is still possible.`);
-        if (objection) out.write(`[guard] preview only: ${objection}\n`);
+        if (objection) throw new RunTargetError(`Refused: ${objection}. ${NO_CODE}`);
         const competing = opts.allowClosedIssue ? null : competingPrReason(openPrsFromTimeline(events));
         if (competing && !opts.dryRun) throw new RunTargetError(`Refused: ${competing}`);
         if (competing) out.write(`[guard] preview only: ${competing}\n`);

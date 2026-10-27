@@ -46,7 +46,7 @@ export function maintainerAiObjection(events: TimelineEvent[]): { author: string
 
 export function maintainerObjectionReason(o: { author: string; excerpt: string } | null): string | null {
   if (!o) return null;
-  return `a maintainer asked for human-written work on this issue (@${o.author}: "${o.excerpt}"). opensrcer won't open an AI-assisted pull request here; you can still use this preview to write the fix yourself`;
+  return `a maintainer asked for human-written work on this issue (@${o.author}: "${o.excerpt}"). opensrcer won't write code for this issue`;
 }
 
 /** Open pull requests that cross-reference an issue, from its timeline.

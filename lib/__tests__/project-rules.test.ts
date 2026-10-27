@@ -31,7 +31,7 @@ test("each rule maps to its row text and status", () => {
     ["cla", base({ profile: { ...base().profile!, cla: "Sign the Meta CLA at https://code.facebook.com/cla." } }), "Required: you must sign it yourself before maintainers can merge", "action", "Sign the Meta CLA at https://code.facebook.com/cla."],
     ["cla", base(), "No CLA found", "none"],
     ["ai", base({ profile: { ...base().profile!, aiPolicy: { stance: "disclose", source: "CONTRIBUTING.md", excerpt: "Disclose AI use." } } }), "Asks contributors to disclose AI use: disclosure added", "done", 'CONTRIBUTING.md: "Disclose AI use."'],
-    ["ai", base({ profile: { ...base().profile!, aiPolicy: { stance: "ban", source: "AI_POLICY.md", excerpt: "We do not accept AI-generated PRs." } } }), "Bans AI-generated contributions: publishing refused", "blocked"],
+    ["ai", base({ profile: { ...base().profile!, aiPolicy: { stance: "ban", source: "AI_POLICY.md", excerpt: "We do not accept AI-generated PRs." } } }), "Bans AI-generated contributions: no code is written", "blocked"],
     ["ai", base({ profile: { ...base().profile!, aiPolicy: { stance: "welcome", source: "docs/contributing.md", excerpt: "We welcome the use of AI when contributing to Pydantic." } } }), "Welcomes AI-assisted contributions: disclosure added", "done", 'docs/contributing.md: "We welcome the use of AI when contributing to Pydantic."'],
     ["ai", base(), "No AI policy found: disclosure added anyway", "done"],
     ["ai", base({ rules: rules({ disclosed: false }) }), "No AI policy found; disclosure is turned off for this organization", "none"],

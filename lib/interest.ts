@@ -5,6 +5,7 @@
 // redeploy. The list operations are pure, so they are tested without storage.
 
 import { readJson, updateJson } from "./blob-store";
+import { parseRunTarget } from "./run-target";
 
 export const INTEREST_PATH = "access/interest.json";
 /** More requests than this and the form says sign-ups are full (keeps the blob small). */
@@ -12,6 +13,8 @@ export const MAX_REQUESTS = 5000;
 
 export type InterestStatus = "new" | "approved" | "declined";
 export const INTEREST_STATUSES: readonly InterestStatus[] = ["new", "approved", "declined"];
+/** A maintainer's request (/join?maintainer): keep opensrcer off their repository, or try it on it. */
+export type MaintainerIntent = "opt-out" | "try";
 
 export type InterestRequest = {
   id: string;
@@ -22,13 +25,16 @@ export type InterestRequest = {
   /** Numeric GitHub account id, or null when GitHub couldn't be asked at sign-up. */
   githubId: number | null;
   status: InterestStatus;
+  /** Maintainers only: their repository ("owner/name") and what they want for it. */
+  repo?: string;
+  intent?: MaintainerIntent;
   createdAt: string;
   updatedAt: string;
 };
 
 /** A field the visitor got wrong, with a message to show beside it. */
 export class InterestInputError extends Error {
-  constructor(readonly field: "name" | "email" | "github", message: string) {
+  constructor(readonly field: "name" | "email" | "github" | "repo" | "intent", message: string) {
     super(message);
     this.name = "InterestInputError";
   }
@@ -49,8 +55,9 @@ export class InterestFullError extends Error {
 const GITHUB_LOGIN = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** The form's three fields, cleaned and checked. Accepts "@login" and GitHub profile URLs. */
-export function normalizeInterest(input: { name?: unknown; email?: unknown; github?: unknown }): { name: string; email: string; github: string } {
+/** The form's three fields, cleaned and checked. Accepts "@login" and GitHub profile URLs.
+ *  A maintainer's form adds the repository and what they want for it. */
+export function normalizeInterest(input: { name?: unknown; email?: unknown; github?: unknown; repo?: unknown; intent?: unknown }): { name: string; email: string; github: string; repo?: string; intent?: MaintainerIntent } {
   const name = typeof input.name === "string" ? input.name.replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim() : "";
   if (!name) throw new InterestInputError("name", "Please enter your name.");
   if (name.length > 100) throw new InterestInputError("name", "That name is too long (100 characters at most).");
@@ -61,14 +68,19 @@ export function normalizeInterest(input: { name?: unknown; email?: unknown; gith
   const raw = typeof input.github === "string" ? input.github.trim() : "";
   const github = raw.replace(/^(?:https?:\/\/)?(?:www\.)?github\.com\//i, "").replace(/^@/, "").replace(/\/+$/, "");
   if (!GITHUB_LOGIN.test(github)) throw new InterestInputError("github", "Please enter your GitHub username, like octocat.");
-  return { name, email, github };
+  if (input.repo === undefined && input.intent === undefined) return { name, email, github };
+
+  if (input.intent !== "opt-out" && input.intent !== "try") throw new InterestInputError("intent", "Choose whether to opt your repository out or try it.");
+  let repo: string;
+  try { repo = parseRunTarget(input.repo).repo; } catch { throw new InterestInputError("repo", "Please enter your repository, like pallets/flask."); }
+  return { name, email, github, repo, intent: input.intent };
 }
 
 /** Adds a request, or updates the one with the same email or GitHub login (someone
  *  signing up twice shouldn't appear twice). A re-submission keeps the existing status. */
 export function upsertRequest(
   list: InterestRequest[],
-  fields: { name: string; email: string; github: string; githubId: number | null },
+  fields: { name: string; email: string; github: string; githubId: number | null; repo?: string; intent?: MaintainerIntent },
   now: string,
   newId: string,
 ): InterestRequest[] {
@@ -93,9 +105,15 @@ export function removeRequest(list: InterestRequest[], id: string): InterestRequ
   return list.filter((r) => r.id !== id);
 }
 
-/** The GitHub ids that approval has admitted, as strings (lib/access.ts compares strings). */
+/** The GitHub ids that approval has admitted, as strings (lib/access.ts compares strings).
+ *  Approving an opt-out keeps opensrcer off a repository; it admits nobody. */
 export function approvedIdsFrom(list: InterestRequest[]): Set<string> {
-  return new Set(list.filter((r) => r.status === "approved" && r.githubId !== null).map((r) => String(r.githubId)));
+  return new Set(list.filter((r) => r.status === "approved" && r.githubId !== null && r.intent !== "opt-out").map((r) => String(r.githubId)));
+}
+
+/** Repositories whose maintainers opted out, once an admin approved it (lowercase "owner/name"). */
+export function optedOutFrom(list: InterestRequest[]): Set<string> {
+  return new Set(list.filter((r) => r.status === "approved" && r.intent === "opt-out" && r.repo).map((r) => r.repo!.toLowerCase()));
 }
 
 /** Comma-separated values for a spreadsheet; fields that start like a formula are quoted with a leading '. */
@@ -117,6 +135,7 @@ export async function listRequests(): Promise<InterestRequest[]> {
 export async function updateRequests(change: (list: InterestRequest[]) => InterestRequest[]): Promise<void> {
   await updateJson<InterestRequest[]>(INTEREST_PATH, [], change);
   approvedCache = null;
+  optedOutCache = null;
 }
 
 // Approved ids, read at most every 30 seconds per server instance: the access check
@@ -135,6 +154,24 @@ export async function approvedGithubIds(): Promise<Set<string>> {
     approvedCache = { at: Date.now(), ids: new Set() };
   }
   return approvedCache.ids;
+}
+
+// Opted-out repositories, read at most every 30 seconds per server instance, like approvals.
+let optedOutCache: { at: number; repos: Set<string> } | null = null;
+
+/** Why a run or publish on this repository is refused because its maintainers opted out, or null.
+ *  Fails open, logged: an unreadable store must not stop every run (a CONTRIBUTING.md ban
+ *  still applies). */
+export async function optOutReason(repo: string): Promise<string | null> {
+  if (!optedOutCache || Date.now() - optedOutCache.at >= APPROVED_TTL_MS) {
+    try {
+      optedOutCache = { at: Date.now(), repos: optedOutFrom(await listRequests()) };
+    } catch (error) {
+      console.error("[opt-out] could not read opted-out repositories", error);
+      return null;
+    }
+  }
+  return optedOutCache.repos.has(repo.toLowerCase()) ? "this repository's maintainers opted out of opensrcer" : null;
 }
 
 /** The numeric id of a GitHub login, or null when GitHub can't be asked right now.

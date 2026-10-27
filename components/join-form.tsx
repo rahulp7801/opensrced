@@ -3,8 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 
-type Field = "name" | "email" | "github";
-type State = { kind: "idle" } | { kind: "sending" } | { kind: "done"; name: string; email: string } | { kind: "error"; message: string; field?: Field };
+type Field = "name" | "email" | "github" | "repo" | "intent";
+type State = { kind: "idle" } | { kind: "sending" } | { kind: "done"; name: string; email: string; optOut: boolean } | { kind: "error"; message: string; field?: Field };
 
 const FIELDS: Array<{ id: Field; label: string; type: string; autoComplete: string; placeholder: string; hint?: string }> = [
   { id: "name", label: "Name", type: "text", autoComplete: "name", placeholder: "Ada Lovelace" },
@@ -12,8 +12,9 @@ const FIELDS: Array<{ id: Field; label: string; type: string; autoComplete: stri
   { id: "github", label: "GitHub username", type: "text", autoComplete: "username", placeholder: "octocat", hint: "Access is given to this GitHub account; you sign in with it." },
 ];
 
-/** The early-access form: name, email, GitHub username. Posts to /api/interest. */
-export function JoinForm() {
+/** The early-access form: name, email, GitHub username. Posts to /api/interest.
+ *  For maintainers, also their repository and whether to opt it out or try it. */
+export function JoinForm({ maintainer = false }: { maintainer?: boolean }) {
   const [state, setState] = useState<State>({ kind: "idle" });
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -23,7 +24,7 @@ export function JoinForm() {
     try {
       const res = await fetch("/api/interest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
       const body = (await res.json().catch(() => ({}))) as { error?: string; field?: Field };
-      if (res.ok) setState({ kind: "done", name: data.name.trim().split(" ")[0], email: data.email.trim() });
+      if (res.ok) setState({ kind: "done", name: data.name.trim().split(" ")[0], email: data.email.trim(), optOut: data.intent === "opt-out" });
       else setState({ kind: "error", message: body.error ?? "Something went wrong. Please try again.", field: body.field });
     } catch {
       setState({ kind: "error", message: "Couldn't reach opensrcer. Check your connection and try again." });
@@ -34,7 +35,11 @@ export function JoinForm() {
     return (
       <div role="status" className="mt-10 max-w-[560px] rounded-2xl border border-border-soft bg-surface px-6 py-6">
         <p className="font-display text-[26px] font-[650] leading-tight text-paper [font-stretch:92%]">You&apos;re on the list{state.name ? `, ${state.name}` : ""}.</p>
-        <p className="mt-2 text-[16px] leading-[1.55] text-paper-muted">We&apos;ll email {state.email} when your access is ready. Until then, the product tour shows a full run.</p>
+        <p className="mt-2 text-[16px] leading-[1.55] text-paper-muted">
+          {state.optOut
+            ? <>Once we&apos;ve confirmed you maintain it, opensrcer won&apos;t write code for it or open pull requests on it; we&apos;ll email {state.email}. To make it immediate, add a line to CONTRIBUTING.md saying you don&apos;t accept AI-generated contributions: opensrcer reads it before every run.</>
+            : <>We&apos;ll email {state.email} when your access is ready. Until then, the product tour shows a full run.</>}
+        </p>
         <p className="mt-4"><Link href="/demo" className="text-link text-[16px]">Watch the product tour</Link></p>
       </div>
     );
@@ -58,6 +63,24 @@ export function JoinForm() {
           </div>
         );
       })}
+      {maintainer && (
+        <>
+          <div>
+            <label htmlFor="join-repo" className="field-label">Your repository</label>
+            <input id="join-repo" name="repo" type="text" placeholder="owner/name" required maxLength={200} disabled={sending} className="field" autoCapitalize="none" spellCheck={false}
+              aria-invalid={(state.kind === "error" && state.field === "repo") || undefined} aria-describedby={state.kind === "error" && state.field === "repo" ? "join-error" : undefined} />
+          </div>
+          <fieldset aria-describedby={state.kind === "error" && state.field === "intent" ? "join-error" : undefined}>
+            <legend className="field-label">What would you like?</legend>
+            {([["opt-out", "Opt it out", "opensrcer won't write code for it or open pull requests on it."], ["try", "Try it with us", "Get access, and we'll set it up around your contribution rules."]] as const).map(([value, label, hint]) => (
+              <label key={value} className="mt-2 flex items-start gap-2.5 text-[15px] text-paper">
+                <input type="radio" name="intent" value={value} required disabled={sending} className="mt-1" />
+                <span>{label}<span className="block text-[13.5px] text-paper-muted">{hint}</span></span>
+              </label>
+            ))}
+          </fieldset>
+        </>
+      )}
       {/* Hidden from people (and from assistive tech); bots fill it in. */}
       <div aria-hidden className="absolute -left-[9999px] h-px w-px overflow-hidden">
         <label htmlFor="join-website">Website</label>
@@ -66,7 +89,7 @@ export function JoinForm() {
       {state.kind === "error" && <p id="join-error" role="alert" className="text-[15px] text-alert">{state.message}</p>}
       <div className="flex flex-wrap items-center gap-4">
         <button type="submit" disabled={sending} className="btn-primary inline-flex min-h-11 items-center px-6 text-[16px] disabled:opacity-60">
-          {sending ? "Sending…" : "Request access"}
+          {sending ? "Sending…" : maintainer ? "Send" : "Request access"}
         </button>
         <p className="text-[13.5px] text-paper-muted">Used only to give you access and tell you about it. <Link href="/privacy" className="text-link">Privacy</Link></p>
       </div>

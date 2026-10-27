@@ -88,7 +88,6 @@ export function AdminAccess() {
                 <a href={`https://github.com/${r.github}`} target="_blank" rel="noreferrer" className="text-link">@{r.github}</a>
                 <span className="text-paper-muted">{new Date(r.createdAt).toLocaleString()}</span>
                 {r.githubId === null && <span className="text-paper-muted">GitHub id looked up on approval</span>}
-                {r.repo && <span className={r.intent === "opt-out" ? "text-alert" : "text-paper"}>Maintainer · {r.intent === "opt-out" ? "opt out" : "try it"} <a href={`https://github.com/${r.repo}`} target="_blank" rel="noreferrer" className="text-link">{r.repo}</a> (check they maintain it before approving)</span>}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">

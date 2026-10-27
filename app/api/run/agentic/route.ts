@@ -9,7 +9,6 @@ import { parseRunTarget } from "@/lib/run-target";
 import { CapacityError } from "@/lib/concurrency";
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { startCloudRun } from "@/lib/cloud-runs";
-import { optOutReason } from "@/lib/interest";
 
 // startCloudRun's bounded steps (capacity reads, record writes, Sandbox.create,
 // protocol check, launch) can exceed 120s; a kill mid-start strands the lease.
@@ -73,8 +72,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const optedOut = await optOutReason(target.repo);
-    if (optedOut) throw new RunTargetError(`Refused: ${optedOut}. No code is written, not even a preview. You can still explore the code and ask about it in Explore.`);
     if (author && token) {
       const existing = await findOpenRunPr(parseRunTarget(canonicalRepoUrl).repo, issue_number, author.login, token, req.signal);
       if (existing) throw new RunTargetError(`You already have an open pull request for this issue: ${existing}. Close it before starting another live run.`);

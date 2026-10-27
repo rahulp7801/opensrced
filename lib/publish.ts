@@ -8,7 +8,6 @@
 import { join } from "node:path";
 import { appendFile } from "node:fs/promises";
 import { createDraftPrFromLog, neutralizeMentions, type PrResult } from "./agentic-pr";
-import { optOutReason } from "./interest";
 import { aiBanReason, competingPrReason, issueTimeline, orgAiBanReason, maintainerAiObjection, maintainerObjectionReason, openOpensrcerPrs, openPrsFromTimeline, prCaps, publishedInLastDay, type TimelineEvent } from "./contrib-guard";
 import { listAll, patch, read } from "./dispatch-store";
 import { forgetFinished } from "./dispatcher";
@@ -116,7 +115,7 @@ export function assertPublishable(run: PublishTarget, confirmed: unknown, stored
 export async function liveGuards(opts: {
   repoFull: string; issue: number; token: string; login: string; preview: PrPreview; publishedAt: Array<string | undefined>;
 }): Promise<void> {
-  const ban = (await optOutReason(opts.repoFull)) ?? (opts.preview.profile ? aiBanReason(opts.preview.profile) : null);
+  const ban = opts.preview.profile ? aiBanReason(opts.preview.profile) : null;
   if (ban) throw new PublishError(409, `Refused: ${ban}.`);
   // A project that states no AI policy of its own falls under its organization's default guide.
   if (!opts.preview.profile || opts.preview.profile.aiPolicy.stance === "unknown") {

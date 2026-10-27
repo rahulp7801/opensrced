@@ -2,7 +2,7 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import {
   InterestFullError, InterestInputError, InterestNotFoundError, MAX_REQUESTS,
-  approvedIdsFrom, normalizeInterest, optedOutFrom, removeRequest, requestsCsv, setRequestStatus, upsertRequest,
+  approvedIdsFrom, normalizeInterest, removeRequest, requestsCsv, setRequestStatus, upsertRequest,
   type InterestRequest,
 } from "../interest";
 import { canUse, isAdmin } from "../access-server";
@@ -94,42 +94,6 @@ describe("approvedIdsFrom", () => {
     ]);
     assert.deepEqual([...ids], ["10"]);
     assert.deepEqual([...approvedIdsFrom([])], []);
-  });
-
-  test("an approved opt-out admits nobody", () => {
-    assert.deepEqual([...approvedIdsFrom([req({ githubId: 10, status: "approved", repo: "o/r", intent: "opt-out" }), req({ id: "b", githubId: 20, status: "approved", repo: "o/s", intent: "try" })])], ["20"]);
-  });
-});
-
-describe("maintainers", () => {
-  test("the repository and the choice are cleaned, from a URL or owner/name", () => {
-    const base = { name: "Ada", email: "a@b.co", github: "ada" };
-    assert.deepEqual(normalizeInterest({ ...base, repo: "https://github.com/Pallets/flask/", intent: "opt-out" }), { ...base, repo: "Pallets/flask", intent: "opt-out" });
-    assert.equal(normalizeInterest({ ...base, repo: "pydantic/pydantic", intent: "try" }).repo, "pydantic/pydantic");
-  });
-
-  for (const [field, extra] of [
-    ["intent", { repo: "o/r" }],
-    ["intent", { repo: "o/r", intent: "delete-everything" }],
-    ["repo", { intent: "opt-out" }],
-    ["repo", { repo: "not a repo", intent: "opt-out" }],
-    ["repo", { repo: "", intent: "try" }],
-  ] as const) {
-    test(`rejects ${JSON.stringify(extra)} on ${field}`, () => {
-      assert.throws(() => normalizeInterest({ name: "Ada", email: "a@b.co", github: "ada", ...extra }), (e) => e instanceof InterestInputError && e.field === field);
-    });
-  }
-
-  test("only approved opt-outs keep opensrcer off a repository, matched without case", () => {
-    const repos = optedOutFrom([
-      req({ id: "a", status: "approved", repo: "Pallets/Flask", intent: "opt-out" }),
-      req({ id: "b", status: "new", repo: "o/new", intent: "opt-out" }),
-      req({ id: "c", status: "declined", repo: "o/declined", intent: "opt-out" }),
-      req({ id: "d", status: "approved", repo: "o/try", intent: "try" }),
-      req({ id: "e", status: "approved" }),
-    ]);
-    assert.deepEqual([...repos], ["pallets/flask"]);
-    assert.deepEqual([...optedOutFrom([])], []);
   });
 });
 

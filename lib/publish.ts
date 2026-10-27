@@ -8,7 +8,7 @@
 import { join } from "node:path";
 import { appendFile } from "node:fs/promises";
 import { createDraftPrFromLog, neutralizeMentions, type PrResult } from "./agentic-pr";
-import { aiBanReason, competingPrReason, issueTimeline, maintainerAiObjection, maintainerObjectionReason, openOpensrcerPrs, openPrsFromTimeline, prCaps, publishedInLastDay, type TimelineEvent } from "./contrib-guard";
+import { aiBanReason, competingPrReason, issueTimeline, orgAiBanReason, maintainerAiObjection, maintainerObjectionReason, openOpensrcerPrs, openPrsFromTimeline, prCaps, publishedInLastDay, type TimelineEvent } from "./contrib-guard";
 import { listAll, patch, read } from "./dispatch-store";
 import { forgetFinished } from "./dispatcher";
 import { readPreview, type PrPreview } from "./pr-preview";
@@ -117,6 +117,11 @@ export async function liveGuards(opts: {
 }): Promise<void> {
   const ban = opts.preview.profile ? aiBanReason(opts.preview.profile) : null;
   if (ban) throw new PublishError(409, `Refused: ${ban}.`);
+  // A project that states no AI policy of its own falls under its organization's default guide.
+  if (!opts.preview.profile || opts.preview.profile.aiPolicy.stance === "unknown") {
+    const orgBan = await orgAiBanReason(opts.repoFull, opts.token);
+    if (orgBan) throw new PublishError(409, `Refused: ${orgBan}.`);
+  }
   if (opts.issue > 0) {
     let events: TimelineEvent[];
     try { events = await issueTimeline(opts.repoFull, opts.issue, opts.token); }

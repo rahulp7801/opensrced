@@ -403,11 +403,14 @@ export function withPrFacts(chapter: Chapter): Chapter {
 
 // ── Fix: when it says no ────────────────────────────────────────────────────
 
-// The run page's review panel when a blocker applies (components/publish-panel.tsx):
-// the reason is shown and there is no confirm box and no Publish button. EXAMPLE:
-// a fictional project and guide; the wording is lib/contrib-guard.ts's.
-const BAN_REPO = "acme/forms";
-const BAN_EXCERPT = "We don't accept pull requests written by AI tools.";
+// Publishing to pallets/flask: Flask has no guide of its own, so its organization's default
+// (pallets/.github CONTRIBUTING.md) applies, and it closes AI-generated PRs on sight.
+// lib/publish.ts liveGuards refuses with lib/contrib-guard.ts orgAiBanReason's words (checked
+// against GitHub on 2026-10-26).
+const BAN_REPO = "pallets/flask";
+const BAN_REFUSAL = 'Refused: this project does not accept AI-generated contributions (pallets/.github CONTRIBUTING.md: "AI-generated PRs and issues are closed on sight, without review or discussion.").';
+const BAN_PRESS_AT = 1600;
+const BAN_REFUSED_AT = 2300;
 
 // The guard's own words (lib/contrib-guard.ts maintainerObjectionReason), with the name and
 // the quote replaced. A REAL issue in a major open-source project; who and where stay hidden.
@@ -438,22 +441,28 @@ function MaintainerView() {
 }
 
 function RefusedView() {
-  if (useT() >= MAINT_AT) return <MaintainerView />;
+  const t = useT();
+  if (t >= MAINT_AT) return <MaintainerView />;
   return (
     <AppWindow path={`/dispatches?dispatch=c_example`} section="Fix" tab="Runs">
       <div className="p-6">
         <div data-spot="refusal" className="mx-auto max-w-[860px] overflow-hidden rounded-2xl border border-border-soft bg-surface">
           <div className="border-b border-border px-5 py-3">
-            <p className="text-[13px] text-paper-muted">{BAN_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[13px] text-info">#412</span></p>
-            <p className="mt-0.5 text-[17px] font-medium text-paper">Form reset doesn&apos;t clear validation errors</p>
+            <p className="text-[13px] text-paper-muted">{BAN_REPO}</p>
+            <p className="mt-0.5 text-[17px] font-medium text-paper">A fix, ready to publish</p>
           </div>
           <Reveal at={400} className="px-5 py-4 text-[15px]">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <p className="text-[16px] font-medium text-paper">Review before publishing</p>
-              <span className="text-alert">Verification: not verified (no code was run)</span>
+              <span className="text-ok">Verification: verified</span>
             </div>
-            <p className="mt-1.5 text-paper-muted">Nothing has been posted. Publishing opens a draft PR from your account with exactly this patch and text (1 file).</p>
-            <p role="alert" className="mt-3 rounded-lg border border-alert/30 bg-alert/5 px-3 py-2.5 text-alert">Blocked: this project does not accept AI-generated contributions (CONTRIBUTING.md: &quot;{BAN_EXCERPT}&quot;)</p>
+            <p className="mt-1.5 text-paper-muted">Nothing has been posted. Publishing opens a draft PR from your account with exactly this patch and text.</p>
+            <div className="mt-3 flex items-center gap-3">
+              <span className={cn("rounded-[10px] px-3 py-1 font-medium transition-transform", t >= BAN_PRESS_AT && t < BAN_PRESS_AT + 250 ? "scale-[0.96] bg-paper text-ink" : "bg-paper text-ink", t >= BAN_REFUSED_AT && "opacity-40")}>Publish draft PR</span>
+              {t >= BAN_PRESS_AT && t < BAN_REFUSED_AT && <span className="text-paper-muted">Checking the project&apos;s rules again…</span>}
+            </div>
+            {t >= BAN_REFUSED_AT && <p role="alert" className="stage-settle mt-3 rounded-lg border border-alert/30 bg-alert/5 px-3 py-2.5 text-alert">{BAN_REFUSAL}</p>}
+            {t >= BAN_REFUSED_AT && <p className="stage-settle mt-2 text-paper-muted">Nothing was posted.</p>}
           </Reveal>
         </div>
       </div>
@@ -468,11 +477,11 @@ export const stageRefused: Chapter = {
   title: "When it says no",
   duration: MAINT_AT + 7500,
   holds: [MAINT_AT],
-  source: "Example: a fictional project whose guide bans AI; then a real issue, names hidden",
-  headlines: [{ at: 0, text: "And when the rules say no, it stops." }, { at: MAINT_AT, text: "It listens to maintainers, even in the comments." }],
-  provenance: [{ at: 0, text: "Example project" }, { at: MAINT_AT, text: "Real issue · names hidden" }],
+  source: "Flask's real policy (its organization's guide) refused at publish; then a real issue, names hidden",
+  headlines: [{ at: 0, text: "And when a project says no, it stops." }, { at: MAINT_AT, text: "It listens to maintainers, even in the comments." }],
+  provenance: [{ at: 0, text: "Flask's real policy" }, { at: MAINT_AT, text: "Real issue · names hidden" }],
   captions: [
-    { at: 0, spot: "refusal", text: "Not every project wants AI help, and it respects that. On a project whose guide bans AI-written pull requests, publishing is refused, quoting the guide, with no Publish button. Same when someone else already has a pull request open." },
+    { at: 0, spot: "refusal", text: "Not every project wants AI help, and it respects that. Flask's organization closes AI-generated pull requests on sight. So when you try to publish a fix to Flask, it refuses, quoting their guide, and nothing is posted. Same when someone else already has a pull request open." },
     { at: MAINT_AT, spot: "maint", text: "And it listens to maintainers in the issue itself. On a real project, a maintainer asked for a human-written pull request, so opensrcer refused to publish. Name and quote hidden; the preview still helps you write the fix yourself." },
   ],
   View: RefusedView,

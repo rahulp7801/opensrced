@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
-  aiBanReason, competingPrReason, discussFirstReason, draftIssueComment, fetchRepoPolicy, maintainerAiObjection, maintainerObjectionReason, openPrsFromTimeline, prCaps, publishedInLastDay, type TimelineEvent,
+  aiBanReason, competingPrReason, discussFirstReason, orgAiBanReason, draftIssueComment, fetchRepoPolicy, maintainerAiObjection, maintainerObjectionReason, openPrsFromTimeline, prCaps, publishedInLastDay, type TimelineEvent,
 } from "../contrib-guard";
 
 test("openPrsFromTimeline: recorded facebook/react#37837 timeline has 4 competing open PRs", () => {
@@ -72,6 +72,22 @@ test("fetchRepoPolicy classifies the repository's own files in one GraphQL call"
   } finally {
     globalThis.fetch = original;
   }
+});
+
+test("an organization-wide guide's AI ban applies to its projects (Pallets for Flask)", async () => {
+  const pallets = "## AI-Generated Contributions\n\nAI-generated PRs and issues are closed on sight, without review or discussion.\nThis applies regardless of code quality or correctness.";
+  const asked: string[] = [];
+  const fetchText = async (path: string) => {
+    asked.push(path);
+    if (path === "/repos/pallets/.github/contents/CONTRIBUTING.md") return pallets;
+    throw new Error("404");
+  };
+  const reason = await orgAiBanReason("pallets/flask", undefined, fetchText);
+  assert.equal(reason, 'this project does not accept AI-generated contributions (pallets/.github CONTRIBUTING.md: "AI-generated PRs and issues are closed on sight, without review or discussion.")');
+  assert.deepEqual(asked, ["/repos/pallets/.github/contents/CONTRIBUTING.md"], "stops at the first guide that bans");
+  // No org guide, or one that doesn't ban: nothing to refuse.
+  assert.equal(await orgAiBanReason("acme/app", undefined, async () => { throw new Error("404"); }), null);
+  assert.equal(await orgAiBanReason("acme/app", undefined, async () => "We welcome the use of AI when contributing."), null);
 });
 
 test("aiBanReason and the drafted issue comment", () => {

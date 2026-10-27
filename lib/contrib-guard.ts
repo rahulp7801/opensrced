@@ -9,7 +9,7 @@
 // GitHub; the discuss-first path hands the user a drafted comment to post
 // themselves.
 
-import { githubApi, githubGraphql } from "./github-api";
+import { githubApi, githubGraphql, githubText } from "./github-api";
 import { classifyAiPolicy, type AiStance, type ContribProfile } from "./contrib-profile";
 
 export type TimelineEvent = {
@@ -152,6 +152,29 @@ export async function fetchRepoPolicy(owner: string, repo: string, token: string
 export function aiBanReason(profile: Pick<ContribProfile, "aiPolicy">): string | null {
   if (profile.aiPolicy.stance !== "ban") return null;
   return `this project does not accept AI-generated contributions (${profile.aiPolicy.source}: "${profile.aiPolicy.excerpt}")`;
+}
+
+/** Where GitHub looks for an organization's default contributing guide (its `.github` repository). */
+const ORG_GUIDES = ["CONTRIBUTING.md", ".github/CONTRIBUTING.md", "docs/CONTRIBUTING.md"];
+
+/** An organization-wide ban on AI contributions, from the owner's `.github` repository, which
+ *  GitHub applies to its projects that have no guide of their own (Pallets, for Flask: "AI-generated
+ *  PRs and issues are closed on sight"). Null when there is none; a guide that can't be read
+ *  (most owners have none) is skipped. */
+export async function orgAiBanReason(
+  repo: string,
+  token: string | undefined,
+  fetchText: (path: string) => Promise<string> = (path) => githubText(path, token ?? null, "application/vnd.github.raw", 200_000),
+): Promise<string | null> {
+  const owner = repo.split("/")[0];
+  for (const file of ORG_GUIDES) {
+    let text: string;
+    try { text = await fetchText(`/repos/${owner}/.github/contents/${file}`); }
+    catch { continue; }
+    const policy = classifyAiPolicy(text);
+    if (policy.stance === "ban") return aiBanReason({ aiPolicy: { stance: "ban", source: `${owner}/.github ${file}`, excerpt: policy.excerpt } });
+  }
+  return null;
 }
 
 /** A comment the user can post on the issue themselves (never auto-posted):

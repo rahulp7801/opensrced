@@ -1,13 +1,15 @@
-// The tour's running order: six acts. The main story
-// follows one real issue (find it, understand it, run it, review it, ship it);
-// the rest of each act shows the remaining features.
+// The tour's running order: six acts. The main story is the stage demo's
+// (components/tour/stage-views.tsx): one Pydantic issue, found, understood, fixed with
+// proof, explained in your own words and published; the rest of each act shows the
+// remaining features.
 
 import { createElement } from "react";
 import { TimeContext, useT, type Chapter } from "./kit";
-import { choose, find, intro, setup, suggested, understand } from "./chapters-find";
-import { failure, history, newRun, pr, review, run } from "./chapters-fix";
+import { setup } from "./chapters-find";
+import { failure, history, pr } from "./chapters-fix";
 import { impact, orgs, reply, respond, secure, share } from "./chapters-ship";
-import { control, outro, trust } from "./chapters-trust";
+import { control, trust } from "./chapters-trust";
+import { stageExplore, stageNotes, stageProblem, stagePromise, stageRefused, stageReview, stageRules, stageScan, stageSlop, stageVerified, withPrFacts } from "./stage-views";
 
 /** How much slower than written the whole tour plays. Chapters are scripted
  *  tight; on a stage, and for people learning the product, every caption needs
@@ -38,19 +40,32 @@ export function pacedBy(chapter: Chapter, pace: number): Chapter {
 
 const paced = (chapter: Chapter, pace: number) => pacedBy(chapter, pace * TOUR_PACE);
 
+/** A stage chapter with the captions that speak to the room retold for a visitor,
+ *  matched by how each one starts. A line that no longer exists is an error, not a no-op. */
+function retold(chapter: Chapter, lines: Array<[string, string]>): Chapter {
+  for (const [from] of lines) {
+    if (!chapter.captions.some((c) => c.text.startsWith(from))) throw new Error(`${chapter.id}: no caption starts "${from}"`);
+  }
+  return { ...chapter, captions: chapter.captions.map((c) => ({ ...c, text: lines.find(([from]) => c.text.startsWith(from))?.[1] ?? c.text })) };
+}
+
 export const CHAPTERS: Chapter[] = [
-  paced(intro, 1.5),
+  paced(retold(stageProblem, [
+    ["Start with the worry", "Maintainers are drowning in AI pull requests: huge diffs, no tests, rules ignored, from people who can't answer one review question."],
+    ["Illustrations, but", "The problem isn't AI; it's contributions nobody understood."],
+  ]), 1),
+  paced(stagePromise, 1),
   paced(setup, 1),
-  paced(find, 1.4),
-  paced(suggested, 1),
-  paced(choose, 1.3),
-  paced(understand, 1.3),
-  paced(newRun, 1),
-  paced(run, 1.3),
-  paced(review, 1.4),
+  paced(retold(stageScan, [["Show everything it found", "It shows everything it found, including what it filtered out, and why."]]), 1),
+  paced(retold(stageExplore, [["This is Pydantic", "This is Pydantic: 6,907 nodes (the files, functions and classes of its main package and tests) in 330 communities, and the links between them, mapped by the site's own graph builder."]]), 1),
+  paced(stageRules, 1),
+  paced(retold(stageVerified, [["For maintainers who ask: ", "The exact run: "]].map(([from, to]) => [from, to + stageVerified.captions.find((c) => c.text.startsWith(from))!.text.slice(from.length)])), 1),
+  paced(stageReview, 1),
   paced(failure, 1),
   paced(history, 1),
-  paced(pr, 1.25),
+  paced(withPrFacts(stageNotes({ pr }).pr), 1),
+  // After the pull request, as on stage; the tour's acts must run in order.
+  paced({ ...stageRefused, act: "Ship" }, 1),
   paced(respond, 1.4),
   paced(reply, 1),
   paced(share, 1),
@@ -59,7 +74,10 @@ export const CHAPTERS: Chapter[] = [
   paced(secure, 1.2),
   paced(trust, 1.5),
   paced(control, 1),
-  paced(outro, 1.3),
+  paced(retold({ ...stageSlop, act: "Trust" }, [
+    ["The heart of it", "The heart of it: you can't publish what you can't explain, and the chat is there so you can. And it opens one pull request per project, drafts only, each saying what was and wasn't tested."],
+    ["It's built to make better", "It's built to make better contributors, not more pull requests."],
+  ]), 1),
 ];
 
 /** Where each chapter starts on the whole tour's timeline, plus the total. */

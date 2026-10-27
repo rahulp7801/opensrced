@@ -16,7 +16,6 @@ import { ArrowCounterClockwise, ArrowRight, CornersIn, CornersOut, HandPointing,
 import { cn } from "@/lib/utils";
 import { CHAPTERS, STARTS, TOTAL } from "./chapters";
 import { ACTS, InteractContext, TimeContext, progress, type Interact } from "./kit";
-import { RUN } from "./data";
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2] as const;
 type Speed = (typeof SPEEDS)[number];
@@ -99,6 +98,8 @@ type Mode = "try" | "watch";
 /** What a click-through tour is paused on: a scripted click, or the end of a chapter. */
 type Waiting = { kind: "press"; at: number; label: string } | { kind: "next" };
 const TICK_MS = 50;
+/** How long a caption needs on screen, per character (about 17 characters a second, at 1x). */
+const READ_MS_PER_CHAR = 60;
 
 function clock(ms: number): string {
   const s = Math.floor(ms / 1000);
@@ -132,6 +133,7 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
   const waitingRef = useRef<Waiting | null>(null);
   // Clicks already made in the current chapter, as "chapter:at".
   const done = useRef(new Set<string>());
+  const shown = useRef({ key: "", since: 0 }); // the caption on screen, and since when (wall clock)
   // Set when the visitor acts from inside the stage: the next button asked for takes focus.
   const refocus = useRef(false);
   const nextRef = useRef<HTMLButtonElement>(null);
@@ -180,8 +182,14 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
       let next = Math.min(TOTAL, tRef.current + (now - last) * speed);
       last = now;
       if (waitingRef.current) return;
-      // Click-through mode holds the last frame of each chapter until the visitor moves on.
       const i = chapterAt(tRef.current);
+      // A caption stays up until it has had time to be read: the frame waits for it.
+      const caps = CHAPTERS[i].captions;
+      const k = Math.max(0, caps.findIndex((c, j) => tRef.current - STARTS[i] >= c.at && (j + 1 === caps.length || tRef.current - STARTS[i] < caps[j + 1].at)));
+      if (shown.current.key !== `${i}:${k}`) shown.current = { key: `${i}:${k}`, since: now };
+      const ends = STARTS[i] + (k + 1 < caps.length ? caps[k + 1].at : CHAPTERS[i].duration);
+      if (next >= ends && now - shown.current.since < (caps[k].text.length * READ_MS_PER_CHAR) / speed) next = Math.max(tRef.current, ends - 1);
+      // Click-through mode holds the last frame of each chapter until the visitor moves on.
       if (modeRef.current === "try" && i + 1 < CHAPTERS.length && next >= STARTS[i + 1] - 1) {
         next = STARTS[i + 1] - 1;
         setWaiting({ kind: "next" });
@@ -495,9 +503,9 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
                 <div style={{ zoom: scale ?? 1 }} className="mx-4 w-full max-w-[600px] animate-fade-rise rounded-[28px] border border-border-soft bg-surface px-7 py-8 text-center shadow-[0_30px_80px_-30px_rgb(0_0_0/0.35)] motion-reduce:animate-none sm:px-10">
                   <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-signal">That&apos;s the tour</p>
                   <h2 className="display mt-3 text-[30px] leading-[1.05] text-paper sm:text-[34px]">Issues in. Pull requests out.</h2>
-                  <p className="mx-auto mt-3 max-w-[46ch] text-[15px] leading-6 text-paper-muted">One real issue, {RUN.seconds} seconds of agent time, {Math.round(RUN.cost * 100)} cents, and a draft pull request you review line by line.</p>
+                  <p className="mx-auto mt-3 max-w-[46ch] text-[15px] leading-6 text-paper-muted">One Pydantic issue: found, proved with its own tests, explained in your own words, and opened as a draft in your name.</p>
                   <div className="mt-6 flex flex-wrap justify-center gap-3">
-                    <Link href="/login" className="inline-flex min-h-11 items-center rounded-full bg-signal px-5 text-[15px] font-medium text-white transition hover:brightness-110">{inviteOnly ? "Have an invite? Sign in" : "Connect GitHub"}</Link>
+                    <Link href={inviteOnly ? "/join" : "/login"} className="inline-flex min-h-11 items-center rounded-full bg-signal px-5 text-[15px] font-medium text-white transition hover:brightness-110">{inviteOnly ? "Request early access" : "Connect GitHub"}</Link>
                     <button type="button" onClick={replay} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-surface px-5 text-[15px] font-medium text-paper transition hover:border-border-strong">
                       <ArrowCounterClockwise aria-hidden size={16} weight="bold" />Watch again
                     </button>
@@ -625,11 +633,11 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
           <section aria-label="Next steps" className="mx-auto mt-10 flex w-full max-w-[1180px] flex-col gap-5 border-t border-border py-8 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-[19px] font-semibold tracking-[-0.02em] text-paper">{inviteOnly ? "opensrcer is in private preview." : "Ready to try it on a real repository?"}</h2>
-              <p className="mt-1 text-[14px] text-paper-muted">{inviteOnly ? "Invited accounts can sign in now. Everyone else, it's coming soon." : "Connect GitHub, add your provider key, and review every change before it ships."}</p>
+              <p className="mt-1 text-[14px] text-paper-muted">{inviteOnly ? "Invited accounts can sign in now. Everyone else can request early access." : "Connect GitHub, add your provider key, and review every change before it ships."}</p>
             </div>
             <div className="flex shrink-0 items-center gap-6">
-              <Link href="/" className="text-[15px] text-paper-muted transition hover:text-paper">{inviteOnly ? "Back to home" : "How it works"}</Link>
-              <Link href="/login" className="btn-primary min-h-11 px-5 text-[15px]">{inviteOnly ? "Have an invite? Sign in" : "Connect GitHub"}</Link>
+              {inviteOnly ? <Link href="/login" className="text-[15px] text-paper-muted transition hover:text-paper">Have an invite? Sign in</Link> : <Link href="/" className="text-[15px] text-paper-muted transition hover:text-paper">How it works</Link>}
+              <Link href={inviteOnly ? "/join" : "/login"} className="btn-primary min-h-11 px-5 text-[15px]">{inviteOnly ? "Request early access" : "Connect GitHub"}</Link>
             </div>
           </section>
         </>

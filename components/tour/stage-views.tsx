@@ -428,7 +428,7 @@ function MaintainerView() {
         <Reveal at={MAINT_AT + 600} spot="maint" className="rounded-2xl border border-border bg-surface px-6 py-5">
           <p className="text-[19px] font-medium text-paper">Review before publishing</p>
           <p role="alert" className="mt-3 rounded-lg border border-alert/30 bg-alert/5 px-4 py-3 text-[19px] leading-relaxed text-alert">
-            Blocked: a maintainer asked for human-written work on this issue <span className="text-paper-muted">(their name and words are withheld for this talk)</span>. opensrcer won&apos;t open an AI-assisted pull request here; you can still use this preview to write the fix yourself
+            Blocked: a maintainer asked for human-written work on this issue <span className="text-paper-muted">(their name and words are withheld here)</span>. opensrcer won&apos;t open an AI-assisted pull request here; you can still use this preview to write the fix yourself
           </p>
         </Reveal>
         </div>
@@ -473,7 +473,7 @@ export const stageRefused: Chapter = {
   provenance: [{ at: 0, text: "Flask's real policy" }, { at: MAINT_AT, text: "Real issue · names hidden" }],
   captions: [
     { at: 0, spot: "refusal", text: "Not every project wants AI help, and it respects that. Flask's organization closes AI-generated pull requests on sight. So when you start a run on Flask, it refuses before writing any code, quoting their guide. Nothing is spent and nothing is posted. Same when someone else already has a pull request open." },
-    { at: MAINT_AT, spot: "maint", text: "And it listens to maintainers in the issue itself. On a real project, a maintainer asked for a human-written pull request, so opensrcer refused to publish. Name and quote hidden; the preview still helps you write the fix yourself." },
+    { at: MAINT_AT, spot: "maint", text: "And it listens to maintainers in the issue itself. On a real project, a maintainer asked for a human-written pull request, so opensrcer refused to publish. Name and quote withheld; the preview still helps you write the fix yourself." },
   ],
   View: RefusedView,
 };

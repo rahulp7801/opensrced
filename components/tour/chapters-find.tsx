@@ -91,7 +91,7 @@ function SetupView() {
           <div className="grid gap-3 md:grid-cols-[190px_minmax(0,1fr)]">
             <div>
               <p className="text-[13px] font-semibold text-paper">How runs are paid for</p>
-              <p className="mt-1 text-[11.5px] leading-5 text-paper-muted">Use your own Claude subscription first, with an API key as an optional fallback. Gemini keys power patch review.</p>
+              <p className="mt-1 text-[11.5px] leading-5 text-paper-muted">Runs use your own Anthropic API key, capped per run. Gemini keys power patch review.</p>
               <p className="mt-2 text-[11px] leading-5 text-paper-faint">opensrcer never asks for, sees, or stores your Claude or ChatGPT login.</p>
             </div>
             <div className="space-y-3 rounded-xl border border-border-soft bg-surface p-3">
@@ -99,20 +99,12 @@ function SetupView() {
                 <p className="text-[12px] font-medium text-paper">Payment order</p>
                 <ol className="mt-1.5 space-y-1.5">
                   <Reveal as="li" at={6800} className={cn("rounded-lg border px-2.5 py-2", t >= 7600 ? "border-signal/50 bg-signal/[0.06]" : "border-border")}>
-                    <p className="flex items-center gap-2 text-[12px] font-medium text-paper"><span className="font-mono text-[11px] text-paper-muted">1.</span>Claude subscription</p>
-                    <p className="mt-0.5 text-[11px] leading-5 text-paper-muted">Recommended. Runs Claude Code with your own Claude Pro, Max, Team or Enterprise plan; no API charges.</p>
-                  </Reveal>
-                  <Reveal as="li" at={7100} className="rounded-lg border border-border px-2.5 py-2">
-                    <p className="flex items-center gap-2 text-[12px] font-medium text-paper"><span className="font-mono text-[11px] text-paper-muted">2.</span>Anthropic API key</p>
+                    <p className="flex items-center gap-2 text-[12px] font-medium text-paper"><span className="font-mono text-[11px] text-paper-muted">1.</span>Anthropic API key</p>
                     <p className="mt-0.5 text-[11px] leading-5 text-paper-muted">Billed per token to your API account, capped by the budget below.</p>
                   </Reveal>
                 </ol>
-                <Reveal at={7600}><p className="mt-1.5 text-[11px] leading-5 text-paper-muted">Hosted runs ask you to sign in to Claude inside each run&apos;s isolated worker. opensrcer never sees or keeps your Claude login. ChatGPT plans are available only when you run opensrcer yourself: hosted use needs OpenAI&apos;s approval.</p></Reveal>
+                <Reveal at={7600}><p className="mt-1.5 text-[11px] leading-5 text-paper-muted">Subscription sign-in for hosted runs is not enabled on this deployment yet; runs use your API key. ChatGPT plans are available only when you run opensrcer yourself: hosted use needs OpenAI&apos;s approval.</p></Reveal>
               </div>
-              <Reveal at={8600} className="flex items-start gap-2 text-[12px] text-paper">
-                <span aria-hidden className="mt-0.5 grid h-3.5 w-3.5 shrink-0 place-items-center rounded-[3px] border border-border" />
-                <span>Use my API key when my plan is unavailable<span className="block text-[11px] leading-5 text-paper-muted">Off by default, so API spend is never a surprise. Applies when you are signed out or hit your plan&apos;s usage limit.</span></span>
-              </Reveal>
               <Reveal at={9800}>
                 <p className="text-[12px] font-medium text-paper">Agent budget per run</p>
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
@@ -143,10 +135,9 @@ export const setup: Chapter = {
   source: "The sign-in and settings screens",
   captions: [
     { at: 0, text: "Sign in with GitHub. opensrcer asks only for what it needs: public repositories to open draft pull requests, and your profile to put your name on commits." },
-    { at: 6200, text: "Then choose how runs are paid for. First choice: your own Claude subscription. No API bill: it runs on the Claude plan you already pay for." },
-    { at: 8600, text: "Hit your plan's limit? The run stops and says so. It switches to your API key only if you've turned that on, and it's off by default, so there are no surprise bills." },
-    { at: 9800, text: "Pick a spend cap per run for API-key runs. A run stops at it, whatever it's in the middle of." },
-    { at: 14600, text: "That's the whole setup. ChatGPT plans work when you run opensrcer yourself." },
+    { at: 6200, text: "Then add your own Anthropic API key: runs are paid with it. A fix like the one in this tour costs about ten cents." },
+    { at: 9800, text: "Pick a spend cap per run. A run stops at it, whatever it's in the middle of." },
+    { at: 14600, text: "That's the whole setup. Claude and ChatGPT plans work when you run opensrcer yourself." },
   ],
   View: SetupView,
 };

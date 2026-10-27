@@ -84,9 +84,9 @@ try {
         const chapters = tour.locator('nav[aria-label="Tour chapters"] button');
         assert.equal(await chapters.count(), 21, 'every chapter is listed');
         const position = tour.getByRole('slider', { name: 'Tour position' });
-        await chapters.filter({ hasText: 'Watch it run' }).click();
-        await tour.getByText('Watch the agent work').first().waitFor();
-        assert.equal(await chapters.filter({ hasText: 'Watch it run' }).getAttribute('aria-current'), 'step');
+        await chapters.filter({ hasText: 'Rules first' }).click();
+        await tour.getByText("It reads the project's rules first").first().waitFor();
+        assert.equal(await chapters.filter({ hasText: 'Rules first' }).getAttribute('aria-current'), 'step');
         const before = Number(await position.inputValue());
         await play.click();
         await tour.getByRole('button', { name: 'Pause', exact: true }).waitFor();
@@ -95,7 +95,7 @@ try {
         assert.ok(Number(await position.inputValue()) > before, 'playing advances the tour');
         await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
         await page.keyboard.press('ArrowRight');
-        await tour.getByText('Review every line').first().waitFor();
+        await tour.getByText('The bug, the fix, the proof').first().waitFor();
         // Click-through mode (the default): the tour stops for the visitor's click, and the app's menus navigate.
         const stage = tour.getByRole('region', { name: 'The opensrcer app (demo)' });
         await chapters.filter({ hasText: 'Get set up' }).click();
@@ -109,9 +109,9 @@ try {
         await tour.getByText('Your turn:').waitFor({ state: 'detached' });
         await page.waitForTimeout(600);
         assert.ok(Number(await position.inputValue()) > waitingAt, 'the click carries the tour on');
-        await chapters.filter({ hasText: 'Browse repos' }).click();
+        await chapters.filter({ hasText: 'Vet the issues' }).click();
         await stage.getByRole('button', { name: 'Fix', exact: true }).click();
-        assert.equal(await chapters.filter({ hasText: 'Start a run' }).getAttribute('aria-current'), 'step', 'the app menus navigate');
+        assert.equal(await chapters.filter({ hasText: 'Rules first' }).getAttribute('aria-current'), 'step', 'the app menus navigate');
         await tour.getByRole('button', { name: 'Watch', exact: true }).click();
         assert.equal(await tour.getByRole('region', { name: 'The opensrcer app (demo)' }).count(), 0, 'watch mode turns the stage back into a picture');
         await position.fill(await position.getAttribute('max'));
@@ -119,7 +119,7 @@ try {
         await tour.getByRole('button', { name: 'Watch again', exact: true }).waitFor();
         // textContent: the transcript sits in a collapsed <details>, which innerText skips.
         const transcript = await main.locator('details').textContent() ?? '';
-        for (const title of ['What opensrcer does', 'Watch the agent work', 'A draft pull request, in your name', 'Safe by default']) {
+        for (const title of ['What maintainers are drowning in', 'The bug, the fix, the proof', 'A draft pull request, in your name', 'Safe by default']) {
           assert.ok(transcript.includes(title), `the transcript covers "${title}"`);
         }
       }

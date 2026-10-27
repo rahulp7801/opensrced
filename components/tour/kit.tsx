@@ -163,8 +163,8 @@ const SUBTABS: Record<Section, string[]> = {
 /** In click-through mode, where each menu item of the mock app goes: the
  *  chapter that shows that page. Items not listed here stay inert. */
 const MENU_TARGETS: Record<string, string> = {
-  Find: "find", "Browse repos": "find", Issues: "suggested",
-  Fix: "newrun", "New run": "newrun", Runs: "run",
+  Find: "scan", "Browse repos": "scan", Issues: "scan",
+  Fix: "rules", "New run": "rules", Runs: "history",
   Ship: "respond", "Pull requests": "respond", Impact: "impact",
   Explore: "understand", Settings: "setup",
 };

@@ -443,7 +443,7 @@ function Spotlight({ selector, strong, within }: { selector: string | null; stro
 
 /** For questions from the room; the notes window only, never the stage. */
 const IF_ASKED: Array<[string, string]> = [
-  ["How is this different from just using Claude Code?", "It uses Claude Code underneath, so the coding is the same. The difference is everything around it: it finds an issue that's open to you, follows the project's rules, proves the fix with the project's own tests, won't let you publish until you can explain the change, and opens a transparent draft PR."],
+  ["Why not Copilot, or Claude Code with custom instructions?", "\"Copilot and Claude Code help you write code. opensrcer helps you make a contribution, and those aren't the same problem.\" PRs get closed because the issue was taken, the project didn't want AI, or the author couldn't answer a review question. A custom instruction is a polite request to the model; here, when Flask says no AI the model is never called, and when you can't explain your change, publish doesn't unlock. Walls, not instructions."],
   ["Is that a real Pydantic pull request?", "No. The Pydantic walkthrough is a demo scenario on the real product screens, and the issue and PR numbers are the demo's. What's real: Pydantic's rules and AI policy, the code map, the Explore answer, the fix and its test results (45 pass; 2 fail without the fix), and the explanation checker's replies. A real end-to-end run is on my demo repo: a verified draft PR I can show you."],
   ["Has one been merged yet?", "Not yet, partly on purpose: I didn't want to aim it at real projects before maintainers like you weighed in. I replayed 4 real bugs maintainers had already fixed (React, Flask, pydantic, vLLM): in 2 the maintainers' own tests pass on its fix; 2 were right but narrower, and it now names the cases it missed. If you maintain a project that wants newcomers, I'd love to try it with you watching."],
   ["What if our project bans AI pull requests?", "Then it never sends you one. It reads your contributing guide and AI policy, including your organization's default guide (that's how it knows Flask's), and a ban refuses the run before any code is written, not even a preview: AI output must not become the base for someone's fix. All that's left is Explore, to understand the code. Same when a maintainer asks for human-written work in the issue comments. Your CONTRIBUTING file is the off switch."],
@@ -462,6 +462,59 @@ const IF_ASKED: Array<[string, string]> = [
   ["How is opensrcer itself tested?", "Unit tests, 7 browser smoke tests, a secret scan (gitleaks) and CodeQL on every change to main."],
   ["(If you don't know)", "\"Good question, and I don't want to guess. Find me after and we'll look at it together.\""],
 ];
+
+/** What to say at each moment, in the notes window only (the tour shows the captions). Each
+ *  row: how the stage caption starts, the line to say (**key words** in bold), and the detail
+ *  to give only if asked. Every caption has a line and every line a caption, or this throws. */
+const SAY: Array<[string, string, string?]> = [
+  ["Start with the worry", "If you maintain a project, you've seen these. **Huge diffs, no tests, rules ignored**, from people who can't answer one review question."],
+  ["Illustrations, but", "The problem isn't AI. It's **contributions nobody understood.**", "These four are illustrations, not real pull requests."],
+  ["opensrcer helps a beginner", "opensrcer helps a beginner make the contribution a maintainer actually wants. **Tested. Explained. Follows the rules.**"],
+  ["Everything from here", "I'll show you **one Pydantic issue, start to finish.** Nothing posts until you confirm.", "Real product screens; the issue and PR numbers are the demo's."],
+  ["Step one", "Let's contribute to Pydantic. Step one: **find an issue that's actually open to you.**", "Pydantic welcomes AI help if you understand the code you send."],
+  ["Show everything it found", "Let me show everything it found, **including what it skipped.**"],
+  ["Assigned? Skip.", "Assigned? Skip. PR already open? Skip. Already fixed? Skip. **Each with the reason.** That alone saves maintainers duplicate PRs."],
+  ["Back to the ready ones", "We'll take the first one: **to_pascal leaves double underscores** in the names it generates."],
+  ["Before changing anything", "Before changing anything, **understand the code.**", "The map is built from the source code: no AI, nothing to install."],
+  ["This is Pydantic", "This is Pydantic: **almost seven thousand pieces of code**, and how they connect.", "6,907 nodes in 330 communities, from the site's own graph builder."],
+  ["Then ask the question", "So I ask, in plain English: **where is to_pascal used, and what breaks if I change it?**"],
+  ["As the answer streams", "Watch the map while the answer comes in. **(Stay quiet for a moment.)**", "It zooms to to_pascal, then lights what depends on it, one and two hops out."],
+  ["The answer teaches", "16 places depend on it, and it tells you what to test. **Know what your change touches before you touch it.**"],
+  ["Now fix it", "Now fix it. One click starts a run, **on your own API key, in a throwaway machine.**", "About ten cents for a fix like this, with a spend cap per run."],
+  ["It reads the project's rules first", "**It reads the project's rules first.** Pydantic welcomes AI help if you understand the code, and it asks for tests.", "Contribution guide, PR template, AI policy, sign-off."],
+  ["Then it reads the code", "It finds the **root cause** before it writes a fix. If it can't, it says so."],
+  ["This is the part maintainers", "**This is the part maintainers care about.** The bug: to_pascal turns my__field into My__Field."],
+  ["Here's the change itself", "The fix: **one line.**"],
+  ["In a locked box", "In a locked box, it undoes the fix and runs Pydantic's own tests. **Without the fix, the new test fails. With it, all 45 pass.**", "Locked box: no keys, it can only reach package registries and GitHub."],
+  ["For maintainers who ask", "So it really catches the bug. **Judge it yourself: it's all on one screen.**", "pytest -k on the alias-generator tests: exit 1 without the fix (2 failed, 43 passed), exit 0 with it (45 passed). Ruff and pyright clean. The full suite is their CI on the draft."],
+  ["It explains every change", "Now the human part. It **explains the change in plain English**, and what to double-check."],
+  ["Not sure what it does?", "Not sure? **Ask the chat.** It teaches, and ends with a question to check yourself.", "Chat answers are labeled not verified."],
+  ["Before you can publish", "But before you can publish, **you explain it in your own words.** Watch: this first try is wrong. It says every underscore is stripped."],
+  ["The check catches it", "**It catches it.** It doesn't strip every underscore; it only collapses repeated ones. Not there yet."],
+  ["So you rewrite it", "So you rewrite it, properly. **You can't publish what you can't explain.**"],
+  ["Now it passes", "Now it passes. And **your words go into the PR**, so the maintainer reads your explanation, not the AI's."],
+  ["Then a practice question", "Then a practice question, **the kind a maintainer would ask.** A half answer gets feedback and a follow-up."],
+  ["Then you confirm", "Then you confirm you understand it, and **a human publishes.**"],
+  ["It's scanned for leaked secrets", "It's checked for leaked secrets and opened **as a draft, in your name.**"],
+  ["Every GitHub step", "**Every GitHub step, done right**: your fork, its own branch, a description that closes the issue."],
+  ["The description shows", "It shows **the tests it ran, and the result.**"],
+  ["And it discloses itself", "And it says plainly **that AI helped**: which model, what was and wasn't tested."],
+  ["It stays a draft", "It stays a draft until you mark it ready. **The maintainer always knows.**"],
+  ["Not every project wants AI help", "Not every project wants AI help. **Flask closes AI pull requests on sight.** So on Flask, it refuses before writing a single line. Not even a preview.", "The rule is in Pallets' organization-wide CONTRIBUTING.md. All that's left is Explore."],
+  ["And it listens to maintainers", "It even listens to maintainers in the comments. **A maintainer asked for human-written work, so it won't write code for that issue.**", "A real issue on a major project; who and where stay private."],
+  ["Back to where we started", "Back to where we started: **what slop is made of.**"],
+  ["The heart of it", "Nobody asked for it, can't explain it, untested: **you just watched it handle each one.**"],
+  ["And it can't flood you", "And it can't flood you: **one open PR per project, three a day, drafts only.**"],
+  ["It's built to make better", "Not more pull requests. **Better ones.** Thank you. **(Then stop talking.)**"],
+];
+const sayFor = (text: string) => SAY.find(([from]) => text.startsWith(from));
+for (const { chapter } of STEPS) for (const c of chapter.captions) if (!sayFor(c.text)) throw new Error(`No spoken line for the caption "${c.text.slice(0, 60)}"`);
+for (const [from] of SAY) if (!STEPS.some(({ chapter }) => chapter.captions.some((c) => c.text.startsWith(from)))) throw new Error(`Spoken line matches no caption: "${from}"`);
+
+/** A spoken line with its **key words** set in bold. */
+function Said({ text }: { text: string }) {
+  return <>{text.split("**").map((part, i) => (i % 2 ? <strong key={i} className="font-semibold text-signal">{part}</strong> : part))}</>;
+}
 
 function clock(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -542,10 +595,15 @@ export function StageNotes() {
                 const nextAt = chapter.captions.find((n) => n.at > c.at)?.at ?? Infinity;
                 const current = (state?.local ?? 0) >= c.at && (state?.local ?? 0) < nextAt;
                 const past = (state?.local ?? 0) >= nextAt;
-                return (
-                  <li key={`${c.at}:${c.text}`} className={cn("text-[19px] leading-[1.45] transition-colors", current ? "font-medium text-paper" : past ? "text-paper-muted" : "text-paper-dim")}>
-                    {current && <span aria-hidden className="mr-2 text-signal">▸</span>}{c.text}
+                const [, say, detail] = sayFor(c.text)!;
+                // The line you're on, big; the rest small, so the eye lands in one place.
+                return current ? (
+                  <li key={`${c.at}:${c.text}`} className="border-l-4 border-signal py-1 pl-4">
+                    <p className="text-[27px] leading-[1.3] text-paper"><Said text={say} /></p>
+                    {detail && <p className="mt-2 text-[15px] leading-snug text-paper-muted">If asked: {detail}</p>}
                   </li>
+                ) : (
+                  <li key={`${c.at}:${c.text}`} className={cn("pl-5 text-[15px] leading-snug", past ? "text-paper-faint" : "text-paper-dim")}>{say.replace(/\*\*/g, "")}</li>
                 );
               })}
             </ul>

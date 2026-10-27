@@ -13,6 +13,20 @@ const ada = { name: "Ada Lovelace", email: "ada@example.com", github: "ada", git
 const req = (over: Partial<InterestRequest> = {}): InterestRequest => ({ id: "r1", ...ada, status: "new", createdAt: NOW, updatedAt: NOW, ...over });
 
 describe("normalizeInterest", () => {
+  for (const role of ["Student", "Contributor", "Maintainer", "Other"]) {
+    test(`keeps the role ${role}`, () => {
+      assert.equal(normalizeInterest({ name: "A", email: "a@b.co", github: "x", role }).role, role);
+    });
+  }
+  for (const role of ["", "maintainer", "Admin", 3, null]) {
+    test(`rejects the role ${JSON.stringify(role)}`, () => {
+      assert.throws(() => normalizeInterest({ name: "A", email: "a@b.co", github: "x", role }), (e) => e instanceof InterestInputError && e.field === "role");
+    });
+  }
+  test("a request without a role (an older client) is still accepted", () => {
+    assert.equal("role" in normalizeInterest({ name: "A", email: "a@b.co", github: "x" }), false);
+  });
+
   test("cleans the three fields", () => {
     assert.deepEqual(normalizeInterest({ name: "  Ada \n Lovelace ", email: " Ada@Example.COM ", github: "@octo-cat" }), { name: "Ada Lovelace", email: "ada@example.com", github: "octo-cat" });
   });
@@ -100,7 +114,7 @@ describe("approvedIdsFrom", () => {
 describe("requestsCsv", () => {
   test("quotes cells and defuses formulas", () => {
     const csv = requestsCsv([req({ name: '=HYPERLINK("x")', githubId: null })]);
-    assert.equal(csv, 'name,email,github,github_id,status,requested_at\n"\'=HYPERLINK(""x"")","ada@example.com","ada","","new","2026-10-25T12:00:00.000Z"\n');
+    assert.equal(csv, 'name,email,github,github_id,status,requested_at,role\n"\'=HYPERLINK(""x"")","ada@example.com","ada","","new","2026-10-25T12:00:00.000Z",""\n');
   });
 });
 

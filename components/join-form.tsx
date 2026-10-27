@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { INTEREST_ROLES } from "@/lib/interest-roles";
 
-type Field = "name" | "email" | "github";
+type Field = "name" | "email" | "github" | "role";
 type State = { kind: "idle" } | { kind: "sending" } | { kind: "done"; name: string; email: string } | { kind: "error"; message: string; field?: Field };
 
 const FIELDS: Array<{ id: Field; label: string; type: string; autoComplete: string; placeholder: string; hint?: string }> = [
@@ -58,6 +59,14 @@ export function JoinForm() {
           </div>
         );
       })}
+      <div>
+        <label htmlFor="join-role" className="field-label">Role</label>
+        <select id="join-role" name="role" required defaultValue="" disabled={sending} className="field"
+          aria-invalid={(state.kind === "error" && state.field === "role") || undefined} aria-describedby={state.kind === "error" && state.field === "role" ? "join-error" : undefined}>
+          <option value="" disabled>Choose one</option>
+          {INTEREST_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+        </select>
+      </div>
       {/* Hidden from people (and from assistive tech); bots fill it in. */}
       <div aria-hidden className="absolute -left-[9999px] h-px w-px overflow-hidden">
         <label htmlFor="join-website">Website</label>

@@ -5,6 +5,7 @@
 // redeploy. The list operations are pure, so they are tested without storage.
 
 import { readJson, updateJson } from "./blob-store";
+import { INTEREST_ROLES, type InterestRole } from "./interest-roles";
 
 export const INTEREST_PATH = "access/interest.json";
 /** More requests than this and the form says sign-ups are full (keeps the blob small). */
@@ -12,6 +13,7 @@ export const MAX_REQUESTS = 5000;
 
 export type InterestStatus = "new" | "approved" | "declined";
 export const INTEREST_STATUSES: readonly InterestStatus[] = ["new", "approved", "declined"];
+export { INTEREST_ROLES, type InterestRole } from "./interest-roles";
 
 export type InterestRequest = {
   id: string;
@@ -22,13 +24,15 @@ export type InterestRequest = {
   /** Numeric GitHub account id, or null when GitHub couldn't be asked at sign-up. */
   githubId: number | null;
   status: InterestStatus;
+  /** Absent on requests made before the form asked. */
+  role?: InterestRole;
   createdAt: string;
   updatedAt: string;
 };
 
 /** A field the visitor got wrong, with a message to show beside it. */
 export class InterestInputError extends Error {
-  constructor(readonly field: "name" | "email" | "github", message: string) {
+  constructor(readonly field: "name" | "email" | "github" | "role", message: string) {
     super(message);
     this.name = "InterestInputError";
   }
@@ -49,8 +53,9 @@ export class InterestFullError extends Error {
 const GITHUB_LOGIN = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** The form's three fields, cleaned and checked. Accepts "@login" and GitHub profile URLs. */
-export function normalizeInterest(input: { name?: unknown; email?: unknown; github?: unknown }): { name: string; email: string; github: string } {
+/** The form's fields, cleaned and checked. Accepts "@login" and GitHub profile URLs. The role
+ *  is optional here (older clients don't send it), but must be one of INTEREST_ROLES when sent. */
+export function normalizeInterest(input: { name?: unknown; email?: unknown; github?: unknown; role?: unknown }): { name: string; email: string; github: string; role?: InterestRole } {
   const name = typeof input.name === "string" ? input.name.replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim() : "";
   if (!name) throw new InterestInputError("name", "Please enter your name.");
   if (name.length > 100) throw new InterestInputError("name", "That name is too long (100 characters at most).");
@@ -61,14 +66,17 @@ export function normalizeInterest(input: { name?: unknown; email?: unknown; gith
   const raw = typeof input.github === "string" ? input.github.trim() : "";
   const github = raw.replace(/^(?:https?:\/\/)?(?:www\.)?github\.com\//i, "").replace(/^@/, "").replace(/\/+$/, "");
   if (!GITHUB_LOGIN.test(github)) throw new InterestInputError("github", "Please enter your GitHub username, like octocat.");
-  return { name, email, github };
+  if (input.role === undefined) return { name, email, github };
+  const role = INTEREST_ROLES.find((r) => r === input.role);
+  if (!role) throw new InterestInputError("role", "Please choose your role.");
+  return { name, email, github, role };
 }
 
 /** Adds a request, or updates the one with the same email or GitHub login (someone
  *  signing up twice shouldn't appear twice). A re-submission keeps the existing status. */
 export function upsertRequest(
   list: InterestRequest[],
-  fields: { name: string; email: string; github: string; githubId: number | null },
+  fields: { name: string; email: string; github: string; githubId: number | null; role?: InterestRole },
   now: string,
   newId: string,
 ): InterestRequest[] {
@@ -104,8 +112,8 @@ export function requestsCsv(list: InterestRequest[]): string {
     const safe = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
     return `"${safe.replace(/"/g, '""')}"`;
   };
-  const rows = list.map((r) => [r.name, r.email, r.github, r.githubId === null ? "" : String(r.githubId), r.status, r.createdAt].map(cell).join(","));
-  return ["name,email,github,github_id,status,requested_at", ...rows].join("\n") + "\n";
+  const rows = list.map((r) => [r.name, r.email, r.github, r.githubId === null ? "" : String(r.githubId), r.status, r.createdAt, r.role ?? ""].map(cell).join(","));
+  return ["name,email,github,github_id,status,requested_at,role", ...rows].join("\n") + "\n";
 }
 
 // ── Storage ────────────────────────────────────────────────────────────────

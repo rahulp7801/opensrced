@@ -81,7 +81,7 @@ export function AdminAccess() {
           <li key={r.id} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
             <div className="min-w-0">
               <p className="text-[16px] font-medium text-paper">
-                {r.name} <span className={cn("chip ml-2 align-middle", TONE[r.status])}>{r.status}</span>
+                {r.name} <span className={cn("chip ml-2 align-middle", TONE[r.status])}>{r.status}</span>{r.role && <span className="chip ml-2 align-middle">{r.role}</span>}
               </p>
               <p className="mt-0.5 flex flex-wrap gap-x-4 text-[14px] text-paper-dim">
                 <a href={`mailto:${r.email}`} className="text-link break-all">{r.email}</a>

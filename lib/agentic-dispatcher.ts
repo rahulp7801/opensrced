@@ -36,7 +36,7 @@ import { ALLOWED_TOOLS, EXEC_TOOLS } from "./claude-tools";
 import { buildAgentInvocation, PROVIDER_LABELS, type AgentProvider } from "./agent-invocation";
 import { pipeCodexJson, planUnavailable } from "./codex-events";
 import { finalizeExec, prepareRepo, profileLogLine, setupExec, setupPromptNotes, type EvalHook, type ExecOutcome, type ExecSession } from "./exec-run";
-import { aiBanReason, competingPrReason, discussFirstReason, issueTimeline, maintainerAiObjection, maintainerObjectionReason, openPrsFromTimeline } from "./contrib-guard";
+import { aiBanReason, competingPrReason, discussFirstReason, issueTimeline, maintainerAiObjection, maintainerObjectionReason, openPrsFromTimeline, orgAiBanReason } from "./contrib-guard";
 import { finishRun } from "./run-finish";
 import { triageIssue } from "./triage";
 import { CLAUDE_FAST_MODEL } from "./models";
@@ -674,7 +674,8 @@ async function spawnDispatch(
       out.write(`[exec] checkout ${repo.sha}\n${profileLogLine(profile)}`);
       // Guards before any model spend. Previews (dry runs) still run so the
       // user can look, and are labeled; publishing re-checks all of these.
-      const ban = aiBanReason(profile);
+      // No AI policy of its own: the organization's default guide applies (Pallets for Flask).
+      const ban = aiBanReason(profile) ?? (profile.aiPolicy.stance === "unknown" ? await orgAiBanReason(repoFull, token ?? undefined) : null);
       if (ban && !opts.dryRun) throw new RunTargetError(`Refused: ${ban}. A preview (dry run) is still possible.`);
       if (ban) out.write(`[guard] preview only: ${ban}\n`);
       // A follow-up updates the user's own PR, which of course targets the issue.

@@ -277,7 +277,7 @@ export function RepoMap({ buildAt, focusAt }: { buildAt: number; focusAt: number
                 <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-4 rounded" style={{ background: ACCENT }} />Path</span>
                 <span className="inline-flex items-center gap-1.5">
                   <span className="inline-flex gap-0.5">{[1, 2, 3].map((k) => <span key={k} className="size-1.5 rounded-full" style={{ background: rgba(HOP[k], 1) }} />)}</span>
-                  Depends on it (1–3 hops)
+                  Depends on it (1–{Math.max(1, ...prep.snap.focus.hops.map(([, h]) => h))} hops)
                 </span>
               </div>
             </>

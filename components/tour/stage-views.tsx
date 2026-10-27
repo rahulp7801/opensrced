@@ -14,7 +14,7 @@
 import { ArrowUp } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { StatusChip } from "@/components/status-dot";
-import { AppWindow, Press, Reveal, SCOPE_LABEL, TimeContext, Typed, progress, useFollow, useT, type Caption, type Chapter } from "./kit";
+import { AppWindow, Press, Reveal, SCOPE_LABEL, Typed, progress, useFollow, useT, type Caption, type Chapter } from "./kit";
 import { MAP_FOCUS_LENGTH, RepoMap } from "./repo-map";
 import { PrDataContext, PrRailContext } from "./chapters-fix";
 import { useEffect, useState, type ReactNode } from "react";
@@ -61,7 +61,8 @@ const SHOW_ALL_AT = 2400; // the presenter switches the filter to All…
 // …each skipped issue then arrives slowly enough to talk over (the list scrolls to it)…
 const SKIPPED = SCAN.filter((r) => r.reason);
 const SKIP_STEP = 1100;
-const skipAt = (i: number) => SHOW_ALL_AT + 600 + i * SKIP_STEP;
+// The first two (assigned, PR already open) stay in view for a moment before the list scrolls on.
+const skipAt = (i: number) => SHOW_ALL_AT + 600 + i * SKIP_STEP + (i >= 2 ? 2600 : 0);
 const SHOW_READY_AT = skipAt(SKIPPED.length) + 2500; // …and back to Ready once every verdict has been seen
 
 function ScanView() {
@@ -70,10 +71,10 @@ function ScanView() {
   const rows = all ? SCAN : READY;
   let skipped = 0;
   // All nine rows don't fit: the page scrolls gently to each skipped issue as it arrives.
-  const followRef = useFollow(Math.floor(t / 250));
+  const followRef = useFollow(t >= skipAt(2) ? Math.floor(t / 250) : -1);
   return (
     <AppWindow path={`/issues?repo=${SCAN_REPO}`} section="Find" tab="Issues">
-      <div ref={followRef} className="h-full overflow-hidden scroll-smooth px-4 py-3 sm:px-6">
+      <div ref={followRef} data-spot="scan-list" className="h-full overflow-hidden scroll-smooth px-4 py-3 sm:px-6">
         <div className="rounded-xl border border-border-soft bg-surface">
           <div className="flex items-end justify-between gap-4 border-b border-border-soft px-4 py-3">
             <div>
@@ -89,7 +90,7 @@ function ScanView() {
               </div>
             </div>
           </div>
-          <div data-spot="scan-list" className="divide-y divide-border-soft">
+          <div className="divide-y divide-border-soft">
             {rows.map((r) => {
               // Skipped issues arrive one by one after the switch to All, each with its reason.
               const at = r.reason ? skipAt(skipped++) : 0;
@@ -237,7 +238,7 @@ function AskPanel({ turns, text = GRAPH_PANEL }: { turns: TimedTurn[]; text?: Pa
                 {turn.lesson ? <LessonTyped lesson={turn.lesson} at={turn.answerAt} cps={ANSWER_CPS} /> : <Typed text={turn.answer} at={turn.answerAt} cps={ANSWER_CPS} />}
                 <Reveal at={turn.doneAt} className="mt-2 flex flex-wrap items-center gap-1.5">
                   {turn.cites.map((c) => <span key={c} className="rounded-md bg-signal/10 px-1.5 py-0.5 font-mono text-[13px] text-signal">{c}</span>)}
-                  {turn.cost && <span className="ml-auto font-mono text-[13px] text-paper-muted">{turn.cost}</span>}
+                  {turn.cost && <span className="ml-auto font-mono text-[13px] text-paper-muted">AI answer · {turn.cost}</span>}
                 </Reveal>
               </div>
             )}
@@ -294,7 +295,7 @@ function StageExploreView() {
         <div className="flex items-center gap-2">
           <span className="min-w-0 flex-1 rounded-md border border-border bg-surface px-2.5 py-1 font-mono text-[13px] text-paper">{MAP_REPO}</span>
           <Press at={650} className="rounded-[10px] bg-paper px-3 py-1 text-[13px] font-medium text-surface">{t >= 700 && !built ? "building..." : built ? "Rebuild graph" : "Build graph"}</Press>
-          {built && <span className="text-[13px] text-ok">● ready · parsed, no AI</span>}
+          {built && <span className="text-[13px] text-ok">● map ready · parsed, no AI</span>}
         </div>
         {!built && t >= 700 && (
           <div className="mt-3 rounded-xl border border-border-soft bg-surface p-3">
@@ -355,7 +356,7 @@ export function stageNotes(base: { pr: Chapter }) {
   // Each note comes due as the slow scroll (PR_SCROLL) brings its part of the page into view.
   const at = (p: number) => Math.round(PR_SCROLL[0] + p * (PR_SCROLL[1] - PR_SCROLL[0]));
   return {
-    pr: { ...withProvenance(staged(base.pr, [{ at: 0, text: "The maintainer always knows AI helped." }], [
+    pr: { ...withProvenance(staged(base.pr, [{ at: 0, text: "Every GitHub step, done right." }, { at: at(0.55), text: "The maintainer always knows AI helped." }], [
       { at: 0, spot: "pr-facts", text: "Every GitHub step done right: its own branch, your private noreply email, the right base branch, and a description that closes the issue." },
       { at: at(0.32), spot: "pr-verified", text: "The description shows the tests it ran and the result: verified." },
       { at: at(0.55), spot: "pr-ai", text: "And it discloses itself: who asked, which model, what was and wasn't tested, plus an Assisted-by trailer and a sign-off where the project asks." },
@@ -374,7 +375,7 @@ const PR_FACTS: Array<[string, string]> = [
   ["Commit author", "…@users.noreply.github.com"],
   ["Status", "Draft, opened by rahulp7801"],
   ["Commit", "1, with “Assisted-by: claude-sonnet-5 via opensrcer”"],
-  ["Closes", `${ISSUE_TAG} (“fixes ${ISSUE_TAG}” in the description)`],
+  ["Closes", `${ISSUE_TAG} (“fix ${ISSUE_TAG}” in the description)`],
 ];
 
 const FACTS_AT = 2200;
@@ -411,17 +412,13 @@ const BAN_REPO = "pallets/flask";
 const BAN_REFUSAL = 'Refused: this project does not accept AI-generated contributions (pallets/.github CONTRIBUTING.md: "AI-generated PRs and issues are closed on sight, without review or discussion.").';
 const BAN_PRESS_AT = 1600;
 const BAN_REFUSED_AT = 2300;
+// lib/agentic-dispatcher.ts refuses before any model spend with these words, then the hint below.
+const BAN_HINT = "A preview (dry run) is still possible.";
 
 // The guard's own words (lib/contrib-guard.ts maintainerObjectionReason), with the name and
-// the quote replaced. A REAL issue in a major open-source project; who and where stay hidden.
-const NAME_HIDDEN = "name hidden";
-const QUOTE_HIDDEN = "quote hidden";
+// the quote withheld. A REAL issue in a major open-source project; who and where stay hidden.
 const MAINT_AT = 5500;
 
-/** A visibly redacted span: what was there is hidden on purpose. */
-function Redacted({ children }: { children: string }) {
-  return <span className="rounded bg-paper/80 px-1.5 text-[0.9em] font-medium text-surface">[{children}]</span>;
-}
 
 function MaintainerView() {
   return (
@@ -431,7 +428,7 @@ function MaintainerView() {
         <Reveal at={MAINT_AT + 600} spot="maint" className="rounded-2xl border border-border bg-surface px-6 py-5">
           <p className="text-[19px] font-medium text-paper">Review before publishing</p>
           <p role="alert" className="mt-3 rounded-lg border border-alert/30 bg-alert/5 px-4 py-3 text-[19px] leading-relaxed text-alert">
-            Blocked: a maintainer asked for human-written work on this issue (@<Redacted>{NAME_HIDDEN}</Redacted>: &quot;<Redacted>{QUOTE_HIDDEN}</Redacted>&quot;). opensrcer won&apos;t open an AI-assisted pull request here; you can still use this preview to write the fix yourself
+            Blocked: a maintainer asked for human-written work on this issue <span className="text-paper-muted">(their name and words are withheld for this talk)</span>. opensrcer won&apos;t open an AI-assisted pull request here; you can still use this preview to write the fix yourself
           </p>
         </Reveal>
         </div>
@@ -449,20 +446,14 @@ function RefusedView() {
         <div data-spot="refusal" className="mx-auto max-w-[860px] overflow-hidden rounded-2xl border border-border-soft bg-surface">
           <div className="border-b border-border px-5 py-3">
             <p className="text-[13px] text-paper-muted">{BAN_REPO}</p>
-            <p className="mt-0.5 text-[17px] font-medium text-paper">A fix, ready to publish</p>
+            <p className="mt-0.5 text-[17px] font-medium text-paper">Start a run on an open issue</p>
           </div>
           <Reveal at={400} className="px-5 py-4 text-[15px]">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <p className="text-[16px] font-medium text-paper">Review before publishing</p>
-              <span className="text-ok">Verification: verified</span>
+            <div className="flex items-center gap-3">
+              <span className={cn("rounded-[10px] border border-border px-3 py-1 font-medium text-paper transition-transform", t >= BAN_PRESS_AT && t < BAN_PRESS_AT + 250 && "scale-[0.96]", t >= BAN_REFUSED_AT && "opacity-40")}>Fix it (you review first)</span>
+              {t >= BAN_PRESS_AT && t < BAN_REFUSED_AT && <span className="text-paper-muted">Reading the project&apos;s rules…</span>}
             </div>
-            <p className="mt-1.5 text-paper-muted">Nothing has been posted. Publishing opens a draft PR from your account with exactly this patch and text.</p>
-            <div className="mt-3 flex items-center gap-3">
-              <span className={cn("rounded-[10px] px-3 py-1 font-medium transition-transform", t >= BAN_PRESS_AT && t < BAN_PRESS_AT + 250 ? "scale-[0.96] bg-paper text-ink" : "bg-paper text-ink", t >= BAN_REFUSED_AT && "opacity-40")}>Publish draft PR</span>
-              {t >= BAN_PRESS_AT && t < BAN_REFUSED_AT && <span className="text-paper-muted">Checking the project&apos;s rules again…</span>}
-            </div>
-            {t >= BAN_REFUSED_AT && <p role="alert" className="stage-settle mt-3 rounded-lg border border-alert/30 bg-alert/5 px-3 py-2.5 text-alert">{BAN_REFUSAL}</p>}
-            {t >= BAN_REFUSED_AT && <p className="stage-settle mt-2 text-paper-muted">Nothing was posted.</p>}
+            {t >= BAN_REFUSED_AT && <p role="alert" className="stage-settle mt-3 rounded-lg border border-alert/30 bg-alert/5 px-3 py-2.5 text-alert">{BAN_REFUSAL} {BAN_HINT}</p>}
           </Reveal>
         </div>
       </div>
@@ -477,11 +468,11 @@ export const stageRefused: Chapter = {
   title: "When it says no",
   duration: MAINT_AT + 7500,
   holds: [MAINT_AT],
-  source: "Flask's real policy (its organization's guide) refused at publish; then a real issue, names hidden",
-  headlines: [{ at: 0, text: "And when a project says no, it stops." }, { at: MAINT_AT, text: "It listens to maintainers, even in the comments." }],
+  source: "Flask's real policy (its organization's guide) refused before the run starts; then a real issue, names hidden",
+  headlines: [{ at: 0, text: "And when a project says no, it stops before writing any code." }, { at: MAINT_AT, text: "It listens to maintainers, even in the comments." }],
   provenance: [{ at: 0, text: "Flask's real policy" }, { at: MAINT_AT, text: "Real issue · names hidden" }],
   captions: [
-    { at: 0, spot: "refusal", text: "Not every project wants AI help, and it respects that. Flask's organization closes AI-generated pull requests on sight. So when you try to publish a fix to Flask, it refuses, quoting their guide, and nothing is posted. Same when someone else already has a pull request open." },
+    { at: 0, spot: "refusal", text: "Not every project wants AI help, and it respects that. Flask's organization closes AI-generated pull requests on sight. So when you start a run on Flask, it refuses before writing any code, quoting their guide. Nothing is spent and nothing is posted. Same when someone else already has a pull request open." },
     { at: MAINT_AT, spot: "maint", text: "And it listens to maintainers in the issue itself. On a real project, a maintainer asked for a human-written pull request, so opensrcer refused to publish. Name and quote hidden; the preview still helps you write the fix yourself." },
   ],
   View: RefusedView,
@@ -539,8 +530,12 @@ function CloseView() {
         <span className="block text-paper">{ink(CLOSE_LINES[1])}</span>
       </p>
       <p className="stage-rise mt-5 text-[20px] text-paper-muted" style={{ animationDelay: "1500ms" }}>{CLOSE_REST}</p>
+      <figure className="stage-rise absolute right-0 top-6 flex items-center gap-4" style={{ animationDelay: "1800ms" }}>
+        <figcaption className="text-right"><span className="block text-[16px] text-paper-muted">Try it</span><span className="block font-mono text-[17px] text-paper">opensrced.vercel.app/join</span></figcaption>
+        <svg viewBox="0 0 29 29" className="size-[120px] rounded-md bg-surface p-2" role="img" aria-label="QR code for opensrced.vercel.app/join"><path d="M0,0H1V1H0zM1,0H2V1H1zM2,0H3V1H2zM3,0H4V1H3zM4,0H5V1H4zM5,0H6V1H5zM6,0H7V1H6zM9,0H10V1H9zM10,0H11V1H10zM12,0H13V1H12zM14,0H15V1H14zM18,0H19V1H18zM19,0H20V1H19zM22,0H23V1H22zM23,0H24V1H23zM24,0H25V1H24zM25,0H26V1H25zM26,0H27V1H26zM27,0H28V1H27zM28,0H29V1H28zM0,1H1V2H0zM6,1H7V2H6zM8,1H9V2H8zM11,1H12V2H11zM12,1H13V2H12zM13,1H14V2H13zM17,1H18V2H17zM18,1H19V2H18zM19,1H20V2H19zM20,1H21V2H20zM22,1H23V2H22zM28,1H29V2H28zM0,2H1V3H0zM2,2H3V3H2zM3,2H4V3H3zM4,2H5V3H4zM6,2H7V3H6zM9,2H10V3H9zM15,2H16V3H15zM19,2H20V3H19zM20,2H21V3H20zM22,2H23V3H22zM24,2H25V3H24zM25,2H26V3H25zM26,2H27V3H26zM28,2H29V3H28zM0,3H1V4H0zM2,3H3V4H2zM3,3H4V4H3zM4,3H5V4H4zM6,3H7V4H6zM10,3H11V4H10zM11,3H12V4H11zM12,3H13V4H12zM13,3H14V4H13zM16,3H17V4H16zM18,3H19V4H18zM19,3H20V4H19zM22,3H23V4H22zM24,3H25V4H24zM25,3H26V4H25zM26,3H27V4H26zM28,3H29V4H28zM0,4H1V5H0zM2,4H3V5H2zM3,4H4V5H3zM4,4H5V5H4zM6,4H7V5H6zM8,4H9V5H8zM11,4H12V5H11zM13,4H14V5H13zM16,4H17V5H16zM17,4H18V5H17zM18,4H19V5H18zM19,4H20V5H19zM22,4H23V5H22zM24,4H25V5H24zM25,4H26V5H25zM26,4H27V5H26zM28,4H29V5H28zM0,5H1V6H0zM6,5H7V6H6zM9,5H10V6H9zM12,5H13V6H12zM14,5H15V6H14zM15,5H16V6H15zM16,5H17V6H16zM17,5H18V6H17zM18,5H19V6H18zM19,5H20V6H19zM22,5H23V6H22zM28,5H29V6H28zM0,6H1V7H0zM1,6H2V7H1zM2,6H3V7H2zM3,6H4V7H3zM4,6H5V7H4zM5,6H6V7H5zM6,6H7V7H6zM8,6H9V7H8zM10,6H11V7H10zM12,6H13V7H12zM14,6H15V7H14zM16,6H17V7H16zM18,6H19V7H18zM20,6H21V7H20zM22,6H23V7H22zM23,6H24V7H23zM24,6H25V7H24zM25,6H26V7H25zM26,6H27V7H26zM27,6H28V7H27zM28,6H29V7H28zM9,7H10V8H9zM10,7H11V8H10zM12,7H13V8H12zM15,7H16V8H15zM17,7H18V8H17zM0,8H1V9H0zM2,8H3V9H2zM4,8H5V9H4zM6,8H7V9H6zM10,8H11V9H10zM11,8H12V9H11zM12,8H13V9H12zM16,8H17V9H16zM17,8H18V9H17zM18,8H19V9H18zM24,8H25V9H24zM27,8H28V9H27zM1,9H2V10H1zM3,9H4V10H3zM4,9H5V10H4zM5,9H6V10H5zM7,9H8V10H7zM8,9H9V10H8zM9,9H10V10H9zM12,9H13V10H12zM13,9H14V10H13zM15,9H16V10H15zM16,9H17V10H16zM20,9H21V10H20zM22,9H23V10H22zM25,9H26V10H25zM28,9H29V10H28zM0,10H1V11H0zM2,10H3V11H2zM5,10H6V11H5zM6,10H7V11H6zM8,10H9V11H8zM10,10H11V11H10zM14,10H15V11H14zM15,10H16V11H15zM16,10H17V11H16zM17,10H18V11H17zM22,10H23V11H22zM26,10H27V11H26zM27,10H28V11H27zM28,10H29V11H28zM7,11H8V12H7zM12,11H13V12H12zM13,11H14V12H13zM14,11H15V12H14zM16,11H17V12H16zM17,11H18V12H17zM19,11H20V12H19zM20,11H21V12H20zM22,11H23V12H22zM24,11H25V12H24zM27,11H28V12H27zM1,12H2V13H1zM2,12H3V13H2zM6,12H7V13H6zM7,12H8V13H7zM8,12H9V13H8zM11,12H12V13H11zM12,12H13V13H12zM14,12H15V13H14zM15,12H16V13H15zM16,12H17V13H16zM17,12H18V13H17zM20,12H21V13H20zM21,12H22V13H21zM22,12H23V13H22zM25,12H26V13H25zM27,12H28V13H27zM28,12H29V13H28zM1,13H2V14H1zM2,13H3V14H2zM4,13H5V14H4zM8,13H9V14H8zM10,13H11V14H10zM11,13H12V14H11zM14,13H15V14H14zM15,13H16V14H15zM17,13H18V14H17zM20,13H21V14H20zM22,13H23V14H22zM25,13H26V14H25zM28,13H29V14H28zM0,14H1V15H0zM4,14H5V15H4zM5,14H6V15H5zM6,14H7V15H6zM7,14H8V15H7zM8,14H9V15H8zM13,14H14V15H13zM16,14H17V15H16zM18,14H19V15H18zM20,14H21V15H20zM22,14H23V15H22zM23,14H24V15H23zM24,14H25V15H24zM25,14H26V15H25zM27,14H28V15H27zM28,14H29V15H28zM0,15H1V16H0zM1,15H2V16H1zM4,15H5V16H4zM8,15H9V16H8zM9,15H10V16H9zM10,15H11V16H10zM11,15H12V16H11zM16,15H17V16H16zM17,15H18V16H17zM18,15H19V16H18zM20,15H21V16H20zM21,15H22V16H21zM22,15H23V16H22zM25,15H26V16H25zM27,15H28V16H27zM0,16H1V17H0zM4,16H5V17H4zM5,16H6V17H5zM6,16H7V17H6zM9,16H10V17H9zM10,16H11V17H10zM11,16H12V17H11zM15,16H16V17H15zM16,16H17V17H16zM17,16H18V17H17zM21,16H22V17H21zM22,16H23V17H22zM25,16H26V17H25zM27,16H28V17H27zM28,16H29V17H28zM1,17H2V18H1zM2,17H3V18H2zM5,17H6V18H5zM8,17H9V18H8zM9,17H10V18H9zM10,17H11V18H10zM11,17H12V18H11zM12,17H13V18H12zM13,17H14V18H13zM16,17H17V18H16zM17,17H18V18H17zM18,17H19V18H18zM20,17H21V18H20zM21,17H22V18H21zM22,17H23V18H22zM25,17H26V18H25zM26,17H27V18H26zM28,17H29V18H28zM0,18H1V19H0zM4,18H5V19H4zM6,18H7V19H6zM9,18H10V19H9zM12,18H13V19H12zM14,18H15V19H14zM18,18H19V19H18zM20,18H21V19H20zM22,18H23V19H22zM24,18H25V19H24zM27,18H28V19H27zM28,18H29V19H28zM1,19H2V20H1zM3,19H4V20H3zM4,19H5V20H4zM5,19H6V20H5zM7,19H8V20H7zM8,19H9V20H8zM10,19H11V20H10zM13,19H14V20H13zM14,19H15V20H14zM15,19H16V20H15zM17,19H18V20H17zM20,19H21V20H20zM22,19H23V20H22zM23,19H24V20H23zM25,19H26V20H25zM27,19H28V20H27zM0,20H1V21H0zM4,20H5V21H4zM5,20H6V21H5zM6,20H7V21H6zM7,20H8V21H7zM9,20H10V21H9zM10,20H11V21H10zM11,20H12V21H11zM14,20H15V21H14zM15,20H16V21H15zM16,20H17V21H16zM17,20H18V21H17zM19,20H20V21H19zM20,20H21V21H20zM21,20H22V21H21zM22,20H23V21H22zM23,20H24V21H23zM24,20H25V21H24zM8,21H9V22H8zM9,21H10V22H9zM11,21H12V22H11zM12,21H13V22H12zM14,21H15V22H14zM16,21H17V22H16zM17,21H18V22H17zM18,21H19V22H18zM19,21H20V22H19zM20,21H21V22H20zM24,21H25V22H24zM26,21H27V22H26zM27,21H28V22H27zM28,21H29V22H28zM0,22H1V23H0zM1,22H2V23H1zM2,22H3V23H2zM3,22H4V23H3zM4,22H5V23H4zM5,22H6V23H5zM6,22H7V23H6zM9,22H10V23H9zM10,22H11V23H10zM11,22H12V23H11zM13,22H14V23H13zM18,22H19V23H18zM19,22H20V23H19zM20,22H21V23H20zM22,22H23V23H22zM24,22H25V23H24zM25,22H26V23H25zM27,22H28V23H27zM28,22H29V23H28zM0,23H1V24H0zM6,23H7V24H6zM9,23H10V24H9zM11,23H12V24H11zM12,23H13V24H12zM16,23H17V24H16zM17,23H18V24H17zM19,23H20V24H19zM20,23H21V24H20zM24,23H25V24H24zM25,23H26V24H25zM0,24H1V25H0zM2,24H3V25H2zM3,24H4V25H3zM4,24H5V25H4zM6,24H7V25H6zM8,24H9V25H8zM10,24H11V25H10zM15,24H16V25H15zM16,24H17V25H16zM17,24H18V25H17zM18,24H19V25H18zM20,24H21V25H20zM21,24H22V25H21zM22,24H23V25H22zM23,24H24V25H23zM24,24H25V25H24zM28,24H29V25H28zM0,25H1V26H0zM2,25H3V26H2zM3,25H4V26H3zM4,25H5V26H4zM6,25H7V26H6zM9,25H10V26H9zM11,25H12V26H11zM16,25H17V26H16zM19,25H20V26H19zM24,25H25V26H24zM26,25H27V26H26zM27,25H28V26H27zM28,25H29V26H28zM0,26H1V27H0zM2,26H3V27H2zM3,26H4V27H3zM4,26H5V27H4zM6,26H7V27H6zM8,26H9V27H8zM9,26H10V27H9zM10,26H11V27H10zM12,26H13V27H12zM13,26H14V27H13zM14,26H15V27H14zM16,26H17V27H16zM17,26H18V27H17zM19,26H20V27H19zM20,26H21V27H20zM23,26H24V27H23zM24,26H25V27H24zM25,26H26V27H25zM28,26H29V27H28zM0,27H1V28H0zM6,27H7V28H6zM10,27H11V28H10zM17,27H18V28H17zM18,27H19V28H18zM19,27H20V28H19zM20,27H21V28H20zM24,27H25V28H24zM27,27H28V28H27zM0,28H1V29H0zM1,28H2V29H1zM2,28H3V29H2zM3,28H4V29H3zM4,28H5V29H4zM5,28H6V29H5zM6,28H7V29H6zM8,28H9V29H8zM9,28H10V29H9zM10,28H11V29H10zM12,28H13V29H12zM14,28H15V29H14zM15,28H16V29H15zM16,28H17V29H16zM17,28H18V29H17zM19,28H20V29H19zM20,28H21V29H20zM21,28H22V29H21zM22,28H23V29H22zM23,28H24V29H23zM27,28H28V29H27zM28,28H29V29H28z" fill="currentColor" className="text-paper" /></svg>
+      </figure>
       <div className="mt-8 flex items-baseline gap-8 border-t border-border pt-4 font-mono text-[15px] text-paper-dim">
-        <span>opensrced.vercel.app</span>
+        <span>opensrced.vercel.app/join</span>
         <span className="ml-auto font-sans text-[18px] text-paper">Rahul Puritipati <span className="font-mono text-[15px] text-paper-muted">· @rahulp7801</span></span>
       </div>
     </div>
@@ -785,80 +780,24 @@ export const stageRules: Chapter = {
   source: "The run, in plain words",
   headlines: [{ at: 0, text: "It reads the project's rules first." }],
   captions: [
-    { at: 0, text: "Now fix it. One click starts the run on the to_pascal issue, on the Claude plan you already pay for, in a throwaway machine with a spend cap." },
+    { at: 0, text: "Now fix it. One click starts the run on the to_pascal issue, on your own Anthropic API key (about ten cents for a fix like this), in a throwaway machine with a spend cap." },
     { at: 2200, spot: "rules", text: "It reads the project's rules first: contribution guide, PR template, AI policy, sign-off. Pydantic welcomes AI help if you fully understand the code, and asks for tests and its PR checklist, so that's what it does." },
     { at: 6600, text: "Then it reads the code around the bug and writes down the cause before the fix. If it can't find the root cause, it says so rather than guess." },
   ],
   View: RulesView,
 };
-
-// ── Starting the run: Sign in with Claude ───────────────────────────────────
-
-// components/trigger-form.tsx and components/dispatch-list.tsx, verbatim. The click on
-// the start button is made by the stage itself (stage.tsx SKIP), so no new stop.
-const SIGN_IN_PRESS_AT = 900;
-const SIGN_IN_PANEL_AT = 1800;
-const SIGN_IN_SENT_AT = 3600;
-const SIGN_IN_LENGTH = 6000;
-
-function SignInView() {
-  const t = useT();
-  return (
-    <AppWindow path={`/dispatches?dispatch=${RUN.id}`} section="Fix" tab="Runs">
-      <div className="flex h-full flex-col gap-4 p-5">
-        <div className="flex items-center justify-between gap-4 rounded-2xl border border-border-soft bg-surface px-5 py-4">
-          <div className="min-w-0">
-            <p className="truncate text-[13px] text-paper-muted">{DEMO_REPO} <span className="rounded-full border border-info/40 px-1.5 text-[13px] text-info">{ISSUE_TAG}</span></p>
-            <p className="mt-0.5 truncate text-[18px] font-medium text-paper">{STORY_ISSUE.title}</p>
-          </div>
-          <Press at={SIGN_IN_PRESS_AT} className="shrink-0 rounded-[10px] bg-paper px-4 py-1.5 text-[14px] font-medium text-ink">Sign in with Claude &amp; start</Press>
-        </div>
-        {t >= SIGN_IN_PRESS_AT && t < SIGN_IN_PANEL_AT && <p className="text-[15px] text-paper-muted">Starting your run… Claude&apos;s sign-in page opens here in a moment.</p>}
-        <Reveal at={SIGN_IN_PANEL_AT} spot="sign-in" className="rounded-2xl border border-signal/30 bg-surface p-5">
-          <p className="text-[18px] font-medium text-signal">Sign in to Claude to start this run</p>
-          <p className="mt-1.5 text-[16px] leading-snug text-paper-dim">This run uses your own Claude subscription. Sign in on Claude&apos;s page, then paste the code it shows you here.</p>
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-[14px]">
-            <span className="rounded-full border border-signal/40 px-3.5 py-1.5 text-signal">Open Claude sign-in ↗</span>
-            <span className="min-w-[220px] flex-1 rounded-md border border-border bg-surface px-3 py-1.5 font-mono text-paper-faint">{t >= SIGN_IN_SENT_AT ? "••••••••" : "Paste code"}</span>
-            <span className="rounded-[10px] bg-paper px-3.5 py-1.5 font-medium text-ink">Send code</span>
-          </div>
-          {t >= SIGN_IN_SENT_AT && <p className="mt-3 text-[15px] text-ok">Code sent. The run starts once Claude confirms the sign-in.</p>}
-        </Reveal>
-      </div>
-    </AppWindow>
-  );
-}
-
-/** The rules stop, opened by the run's start: Sign in with Claude, then the run itself. */
-export function withSignInStart(chapter: Chapter): Chapter {
-  const Inner = chapter.View;
-  function View() {
-    const t = useT();
-    return t < SIGN_IN_LENGTH ? <SignInView /> : <TimeContext.Provider value={t - SIGN_IN_LENGTH}><Inner /></TimeContext.Provider>;
-  }
-  const later = (c: Caption): Caption => ({ ...c, at: c.at + SIGN_IN_LENGTH });
-  return {
-    ...chapter,
-    duration: chapter.duration + SIGN_IN_LENGTH,
-    holds: [SIGN_IN_LENGTH, ...(chapter.holds ?? []).map((at) => at + SIGN_IN_LENGTH)],
-    headlines: [{ at: 0, text: "No API bill: it runs on the Claude plan you already pay for." }, ...(chapter.headlines ?? []).map(later)],
-    // The sign-in note ends with the sign-in step, even when the run itself carries none.
-    provenance: [{ at: 0, text: "The sign-in step, as the site shows it" }, ...(chapter.provenance ?? [{ at: 0, text: "" }]).map(later)],
-    captions: [
-      { at: 0, text: "Now fix it. One click starts the run on the to_pascal issue. It runs on the Claude plan you already pay for, so there's no API bill." },
-      { at: SIGN_IN_PANEL_AT, spot: "sign-in", text: "You sign in on Claude's own page, inside the run's machine; opensrcer never sees your login. Hit your plan's limit? The run stops. It switches to an API key only if you've turned that on." },
-      ...chapter.captions.map(later),
-    ],
-    View,
-  };
-}
-
 // ── Review: the change explained, the rules, the chat, your own words ───────
 
 // What the review screen's AI calls return for this change, in the product's shapes:
 // the change chat teaches and ends with a "Check yourself" question.
 const CHAT_QUESTION = "Explain this fix like I'm new to the project";
-const CHAT_ANSWER = "This fix makes to_pascal clean up double underscores. … It title-cases the name, then removes an underscore only when a letter or digit sits on both sides. In my__field each underscore has another underscore beside it, so both survived: My__Field. … Now it first squeezes repeated underscores between letters into one, so you get MyField, while __private keeps its leading underscores. … Check yourself: why does the pattern need a letter or digit on both sides?";
+const CHAT_ANSWER = `This fix makes to_pascal clean up double underscores.
+
+It title-cases the name, then removes an underscore only when a letter or digit sits on both sides. In my__field each underscore has another underscore beside it, so both survived: My__Field.
+
+Now it first squeezes repeated underscores between letters into one, so you get MyField, while __private keeps its leading underscores.
+
+Check yourself: why does the pattern need a letter or digit on both sides?`;
 
 // The own-words check and the practice review, as the product's real checker answered them
 // (lib/understanding.ts handleUnderstand on this diff and its test results, 2026-10-26): a first
@@ -868,7 +807,7 @@ const ATTEMPTS = [
     text: "The fix strips every underscore out of the name before title-casing it, so my__field now becomes MyField instead of My__Field.",
     rootCause: true, change: false, evidence: false, passed: false,
     mistake: "The fix does not strip every underscore out; it only collapses repeated underscores between alphanumeric characters into a single underscore.",
-    tip: "The explanation should say that repeated underscores between letters/digits are collapsed to a single underscore (not removed entirely) …",
+    tip: "The explanation should say that repeated underscores between letters/digits are collapsed to a single underscore (not removed entirely), and that leading/trailing underscores are preserved.",
   },
   {
     text: "to_pascal left double underscores in names, so my__field became My__Field. Now it collapses repeated underscores between letters before title-casing, and leading ones like __private stay. The new test fails without the fix and passes with it.",
@@ -879,7 +818,7 @@ const ATTEMPTS = [
 const PRACTICE = {
   q: "Does this change what to_camel returns?",
   answers: [
-    { a: "No, the change is only in to_pascal.", feedback: "The answer is incomplete. … since `to_camel` typically calls `to_pascal` internally, it would also return different values.", followUp: "Does `to_camel` call `to_pascal` internally, or is it implemented separately?" },
+    { a: "No, the change is only in to_pascal.", feedback: "The answer is incorrect. The change to `to_pascal` will also affect `to_camel`, since `to_camel` calls `to_pascal` internally …", followUp: "… would test cases like `to_camel('my__field')` now return `'myField'` instead of `'my__Field'`?" },
     { a: "Yes. to_camel calls to_pascal, so my__field now gives myField. Same fix.", feedback: "The answer correctly identifies that to_camel will be affected since it calls to_pascal. …", followUp: null },
   ],
 };
@@ -907,7 +846,7 @@ function Section({ title, children, spot }: { title: string; children: ReactNode
 function CheckResult({ a, at }: { a: (typeof ATTEMPTS)[number]; at: number }) {
   const line = (ok: boolean, what: string, optional = false) => <p className={ok ? "text-ok" : optional ? "text-paper-muted" : "text-alert"}>{what}: {ok ? "covered" : optional ? "not mentioned (optional)" : "missing"}</p>;
   return (
-    <div className="mt-2 space-y-0.5 text-[14px]">
+    <div className="mt-2 space-y-0 text-[13px] leading-[1.45]">
       <Reveal at={at}>{line(a.rootCause, "What was wrong")}</Reveal>
       <Reveal at={at + 250}>{line(a.change, "What the change did")}</Reveal>
       <Reveal at={at + 500}>{line(a.evidence, "How you know it works", true)}</Reveal>
@@ -963,7 +902,7 @@ function StageReviewView() {
                 {t >= R.answerAt && (
                   <div data-spot="chat-answer" className="mt-1.5 rounded-lg border border-border-soft bg-surface px-3 py-2">
                     <p className="text-[13px] text-info">AI answer (not verified)</p>
-                    <p className="mt-1 text-[14px] leading-6 text-paper"><Typed text={CHAT_ANSWER} at={R.answerAt} cps={80} /></p>
+                    <p className="mt-1 whitespace-pre-line text-[14px] leading-6 text-paper"><Typed text={CHAT_ANSWER} at={R.answerAt} cps={80} /></p>
                   </div>
                 )}
               </Section>
@@ -991,8 +930,8 @@ function StageReviewView() {
                 </div>
                 {t >= pt.fb && (
                   <Reveal key={answer} at={pt.fb} spot="practice-feedback">
-                    <p className="mt-1.5 text-paper-dim"><span className="font-medium text-paper">Feedback:</span> {PRACTICE.answers[answer].feedback}</p>
-                    {PRACTICE.answers[answer].followUp && <p className="mt-0.5 text-paper-muted">A reviewer might follow up: {PRACTICE.answers[answer].followUp}</p>}
+                    <p className="mt-1.5 text-paper-dim"><span className="font-medium text-paper">Feedback:</span> <Inline text={PRACTICE.answers[answer].feedback} /></p>
+                    {PRACTICE.answers[answer].followUp && <p className="mt-0.5 text-paper-muted">A reviewer might follow up: <Inline text={PRACTICE.answers[answer].followUp} /></p>}
                   </Reveal>
                 )}
               </Section>
@@ -1006,7 +945,7 @@ function StageReviewView() {
               </Press>
               <span className="relative ml-auto">
                 <Press at={R.publishAt} label="Publish draft PR" className={cn("rounded-[10px] px-3 py-1 font-medium", t >= R.confirm ? "bg-paper text-ink" : "bg-paper/35 text-ink")}>
-                  {t >= R.publishAt ? `Draft PR #${RUN.pr} opened ↗` : "Publish draft PR"}
+                  {t >= R.publishAt ? `Draft PR #${RUN.pr} opened` : "Publish draft PR"}
                 </Press>
               </span>
             </div>
@@ -1029,8 +968,9 @@ export const stageReview: Chapter = {
     { at: 0, text: "It explains every change in plain English." },
     { at: R.chat, text: "It teaches you the change…" },
     { at: R.own, text: "Then it checks you learned it, in your own words." },
-    { at: R.results[0], text: "It catches what you got wrong.", mark: "got wrong" },
-    { at: R.results[1], text: "You can't publish what you can't explain." },
+    { at: R.results[0], text: "You can't publish what you can't explain.", mark: "can't explain" },
+    { at: R.type[1], text: "So you rewrite it, properly." },
+    { at: R.results[1], text: "Now it passes, in your own words." },
     { at: R.practice, text: "Then a practice review, before the real one." },
     { at: R.publishAt, text: "A human publishes. Nothing is hidden." },
   ],

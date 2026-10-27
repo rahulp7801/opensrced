@@ -471,6 +471,18 @@ const IF_ASKED: Array<[string, string]> = [
   ["Does the agent use the map?", "The map is for you to understand the code. The agent works from the code itself, with tools to find a function's definition, its callers and its tests."],
   ["Can I try it?", "It's invite-only right now: sign up at opensrced.vercel.app/join and I'll let you in."],
   ["How is opensrcer itself tested?", "Unit tests, 7 browser smoke tests, a secret scan (gitleaks) and CodeQL on every change to main."],
+  ["How long does a run take?", "About a minute for a small fix; bigger projects take longer, and you watch it work the whole time."],
+  ["What does it need from my GitHub account?", "Public repositories, to fork and open draft PRs, and your profile, to put your name on commits. Private repositories need a separate GitHub App that an organization installs."],
+  ["Where's my API key stored?", "Encrypted, in a cookie in your browser. It's not sitting in my database."],
+  ["Does it only work on Python?", "No. It uses each project's own tests. The replays were React, Flask, Pydantic and vLLM. With no test it can run, it says the fix is unverified, right in the PR."],
+  ["Can I tell a PR came from opensrcer?", "Always. The description says AI helped and names the model, and the commit carries an Assisted-by line."],
+  ["What if two people grab the same issue?", "The second one gets skipped: it checks for open PRs on the issue, and again right before publishing."],
+  ["What if the AI misreads the issue?", "A quick check runs first. If the issue is vague or isn't really a bug, it stops before the expensive run and says why."],
+  ["Does it handle DCO or CLA?", "Some projects require a legal sign-off on every commit (DCO: a 'Signed-off-by' line) or a signed agreement (CLA). opensrcer reads which one a project needs and adds the sign-off where it's asked for. Pydantic needs neither."],
+  ["How is this different from Devin, Sweep or Copilot Workspace?", "Those are built to do the work for you. This is built so you learn to do it, and the maintainer on the other end is protected. (Don't make claims about their features.)"],
+  ["What was the hardest part to build?", "(Your story, 20 seconds.) For example: proving the fix by undoing it and rerunning the tests, or finding that Flask's ban lives in its organization's guide, not in Flask's own repository."],
+  ["What's next?", "Trying it on real issues with maintainers watching. That's the only way to earn a merge honestly."],
+  ["Is it open source? Will it cost money?", "(Your call: decide before the talk.) \"I haven't decided yet\" is a fine answer. Runs use your own API key today."],
   ["(If you don't know)", "\"Good question, and I don't want to guess. Find me after and we'll look at it together.\""],
 ];
 

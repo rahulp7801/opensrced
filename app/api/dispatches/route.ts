@@ -9,6 +9,7 @@ import { listDispatches } from "@/lib/dispatcher";
 import { sessionUserId } from "@/lib/require-session";
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { listCloudRunSummaries } from "@/lib/cloud-runs";
+import { visibleRuns } from "@/lib/hidden-runs";
 
 export const maxDuration = 60;
 
@@ -19,11 +20,12 @@ export async function GET() {
   }
   if (cloudExecution()) {
     try {
-      const dispatches = await listCloudRunSummaries(viewerId, 20);
+      // A lesson's hidden fix keeps its row but loses its PR title and has_diff.
+      const dispatches = await visibleRuns(viewerId, await listCloudRunSummaries(viewerId, 20));
       return NextResponse.json({ dispatches });
     } catch {
       return NextResponse.json({ error: "Run history is temporarily unavailable. Please retry." }, { status: 503 });
     }
   }
-  return NextResponse.json({ dispatches: listDispatches(viewerId, 20) });
+  return NextResponse.json({ dispatches: await visibleRuns(viewerId, listDispatches(viewerId, 20)) });
 }

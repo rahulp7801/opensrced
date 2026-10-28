@@ -16,8 +16,8 @@ async function responseError(response: Response): Promise<string> {
 export type PollResult<T> = { data: T; error: null; status: number } | { data: null; error: string; status: number | null };
 
 /** Poll `url` every `intervalMs` (once when 0). `receive` returning `false`
- *  stops polling, e.g. once a run has finished. Polling also stops on 401 and
- *  404: retrying cannot fix either. */
+ *  stops polling, e.g. once a run has finished. Polling also stops on 401, 403
+ *  (a lesson's hidden run) and 404: retrying cannot fix any of them. */
 export function pollJson<T>(
   url: string | (() => string),
   receive: (result: PollResult<T>) => void | boolean,
@@ -44,7 +44,7 @@ export function pollJson<T>(
         const message = controller.signal.aborted ? "Request timed out. Please try again."
           : status === null && error instanceof TypeError ? "Network connection lost. Check your connection."
           : error instanceof Error ? error.message : String(error);
-        keepGoing = receive({ data: null, error: message, status }) !== false && status !== 401 && status !== 404;
+        keepGoing = receive({ data: null, error: message, status }) !== false && status !== 401 && status !== 403 && status !== 404;
       }
     } finally {
       clearTimeout(deadline);

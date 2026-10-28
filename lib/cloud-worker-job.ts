@@ -31,6 +31,7 @@ export function cloudWorkerJobJson(
       // PR follow-ups: the PR head to start from and the PR being updated.
       repoRef: opts.repoRef,
       followupPr: opts.followupPr,
+      hidden: opts.hidden,
     },
   });
 }

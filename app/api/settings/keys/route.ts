@@ -32,6 +32,7 @@ async function status(keys: StoredKeys, recheck = false) {
   return {
     anthropic: Boolean(keys.anthropic),
     gemini: Boolean(keys.gemini),
+    openrouter: Boolean(keys.openrouter),
     maxSpendUsd: keys.maxSpendUsd ?? 2,
     providerOrder: order,
     keyFallback,
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
   const body = await readJsonBody<{
     anthropic?: string;
     gemini?: string;
+    openrouter?: string;
     maxSpendUsd?: number;
     providerOrder?: string[];
     keyFallback?: boolean;
@@ -76,6 +78,9 @@ export async function POST(req: NextRequest) {
   }
   if (body.gemini !== undefined) {
     updated.gemini = body.gemini || undefined;
+  }
+  if (body.openrouter !== undefined) {
+    updated.openrouter = body.openrouter || undefined;
   }
   if (typeof body.maxSpendUsd === "number" && body.maxSpendUsd > 0) {
     updated.maxSpendUsd = body.maxSpendUsd;

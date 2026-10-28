@@ -17,6 +17,9 @@ import { parseGitHubPullUrl } from "./github-pull-url";
 import { fetchSnapshot } from "./pr-lifecycle";
 import { pushPrPatch } from "./pr-push";
 import { testOutcome } from "./verify";
+import { HIDDEN_RUN_MESSAGE, hiddenRunLocked } from "./hidden-runs";
+import { looksCopied, OWN_WORDS } from "./understanding";
+import { explanationSha, normalizeExplanation, readUnderstanding, type UnderstandingRecord } from "./understanding-record";
 
 /** What a successful publish returns: the PR (new, or updated by a follow-up). */
 export type Published = { ok: true; url: string; tests: "passed" | "failed" | "skipped" | "not_run" };
@@ -33,9 +36,9 @@ export class PublishError extends Error {
 
 // ── In the author's words ────────────────────────────────────────────────
 // The contributor's own explanation from the review screen, shown to
-// maintainers above the AI-assistance note. `checked` and `practiced` are
-// what the page reports: its gate is a comprehension aid, not a security
-// control, so the PR line states only what the author went through.
+// maintainers above the AI-assistance note. The page sends `checked` and
+// `practiced`, but publishing replaces them with what the server recorded
+// (assertUnderstood), so the PR line states only what really happened.
 
 export const AUTHOR_WORDS_MAX = 2000;
 export type AuthorWords = { text: string; checked: boolean; practiced: boolean };
@@ -55,7 +58,7 @@ export function parseAuthorWords(body: Record<string, unknown>): AuthorWords | n
   for (const flag of ["explanationChecked", "practiceAnswered"] as const) {
     if (body[flag] != null && typeof body[flag] !== "boolean") throw new PublishError(400, `${flag} must be true or false.`);
   }
-  const text = raw.replace(/\r\n?/g, "\n").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").replace(/\n{3,}/g, "\n\n").trim();
+  const text = normalizeExplanation(raw);
   if (!text) return null;
   if (text.length > AUTHOR_WORDS_MAX) throw new PublishError(400, `Keep your explanation under ${AUTHOR_WORDS_MAX} characters.`);
   const checked = body.explanationChecked === true;
@@ -107,7 +110,31 @@ export function assertPublishable(run: PublishTarget, confirmed: unknown, stored
   if (confirmed !== true) throw new PublishError(400, `Confirm first: "${CONFIRMATION}"`);
   if (!stored) throw new PublishError(409, "The stored preview is missing; rerun the issue.");
   if (stored.preview.blockers.length) throw new PublishError(409, `Publishing is blocked: ${stored.preview.blockers.join("; ")}`);
-  return authorWords ? { ...stored, preview: { ...stored.preview, body: withAuthorWords(stored.preview.body, authorWords) } } : stored;
+  return withWords(stored, authorWords);
+}
+
+/** The stored preview with the author's words in its body. */
+export function withWords(stored: StoredPreview, words: AuthorWords | null): StoredPreview {
+  return words ? { ...stored, preview: { ...stored.preview, body: withAuthorWords(stored.preview.body, words) } } : stored;
+}
+
+export const UNDERSTOOD_MESSAGE = "Explain the change in your own words and pass the check before publishing. The explanation you publish must be the one that passed.";
+
+/** The server-enforced understanding gate (PLAN §7.7). Publishing needs the
+ *  explanation that passed /api/understand for this run, or, when the check
+ *  could not run (no key, provider outage), an explanation that is long
+ *  enough and not copied from the AI's own text: the same fallback the page
+ *  has always allowed, now decided here. Returns the words with `checked`
+ *  and `practiced` taken from the record, not from the page. */
+export function assertUnderstood(record: UnderstandingRecord | null, words: AuthorWords | null, preview: Pick<PrPreview, "body" | "diagnosis">): AuthorWords {
+  if (!words) throw new PublishError(409, UNDERSTOOD_MESSAGE);
+  if (record?.passed_sha && record.passed_sha === explanationSha(words.text)) {
+    return { text: words.text, checked: true, practiced: record.practiced >= 2 };
+  }
+  if (record?.unavailable_at && words.text.length >= OWN_WORDS.min && !looksCopied(words.text, [preview.diagnosis ?? "", preview.body])) {
+    return { text: words.text, checked: false, practiced: false };
+  }
+  throw new PublishError(409, UNDERSTOOD_MESSAGE);
 }
 
 /** Guards re-checked against GitHub at publish time: the world may have
@@ -169,8 +196,12 @@ export async function checkPublishable(input: Pick<PublishInput, "id" | "viewerI
   if (!/^d_[\w-]{1,80}$/.test(input.id)) throw new PublishError(404, "not found");
   const record = read(input.id);
   if (!record || record.auth0_user_id !== input.viewerId) throw new PublishError(404, "not found");
-  const stored = assertPublishable(record, input.confirmed, await readPreview(join(DISPATCH_DIR(), input.id)), input.authorWords ?? null);
-  return { record, stored };
+  if (await hiddenRunLocked(input.viewerId, record)) throw new PublishError(403, HIDDEN_RUN_MESSAGE);
+  const checked = assertPublishable(record, input.confirmed, await readPreview(join(DISPATCH_DIR(), input.id)));
+  // A follow-up adds one commit with no PR text, so the page asks for no explanation.
+  const words = record.followup_pr ? input.authorWords ?? null
+    : assertUnderstood(await readUnderstanding(input.viewerId, input.id), input.authorWords ?? null, checked.preview);
+  return { record, stored: withWords(checked, words) };
 }
 
 /** `push` is replaceable in tests (follow-up runs only). */

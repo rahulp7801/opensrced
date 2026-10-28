@@ -5,6 +5,8 @@ import { createRequire } from "node:module";
 // In-memory Blob/Sandbox stand-ins, installed before the cloud code loads
 // (same approach as cloud-capacity.test.ts). The push VM is replaced by an
 // injected job function; GitHub reads go through a stubbed fetch.
+// Hosted mode, so the gate records (reveal marker, own-words result) live in the Blob stand-in.
+process.env.OPENSRCER_EXECUTION = "sandbox";
 const store = new Map<string, { body: string; etag: string }>();
 let etags = 0;
 class BlobPreconditionFailedError extends Error {}
@@ -51,7 +53,7 @@ const OWNER = "auth0|alice";
 const author = { login: "alice", id: 42 };
 const signal = new AbortController().signal;
 
-async function seed(overrides: Record<string, unknown> = {}, blockers: string[] = []) {
+async function seed(overrides: Record<string, unknown> = {}, blockers: string[] = [], understood = true) {
   const { newCloudRunId, runPath, runPreviewPath } = await import("../cloud-run-state");
   const id = newCloudRunId();
   store.set(runPath(OWNER, id), { etag: String(++etags), body: JSON.stringify({
@@ -64,8 +66,15 @@ async function seed(overrides: Record<string, unknown> = {}, blockers: string[] 
     version: 1, created_at: "t", title: "fix: x", body: "Fixes #7", commit_message: "fix: x", signoff: false, files: ["a.py"],
     executed: false, verification: null, profile: null, blockers, warnings: [], diff: "--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-1\n+2\n",
   }) });
+  // The own-words check passed for WORDS (lib/understanding-record.ts), unless a test says otherwise.
+  if (understood) {
+    const { recordUnderstanding } = await import("../understanding-record");
+    await recordUnderstanding(OWNER, id, { kind: "passed", text: WORDS.text });
+  }
   return id;
 }
+
+const WORDS = { text: "The value was off by one, so 1 was written where 2 belongs. The change writes 2, and the run's check confirms it.", checked: true, practiced: true };
 
 test("hosted publish: the shared gate refuses before any VM starts", async () => {
   const { publishCloudRun } = await import("../cloud-publish");
@@ -73,16 +82,32 @@ test("hosted publish: the shared gate refuses before any VM starts", async () =>
   const job = async () => { jobs++; return { ok: true as const, url: "https://github.com/acme/app/pull/1", tests: "not_run" }; };
   const id = await seed();
   await assert.rejects(publishCloudRun({ id, viewerId: OWNER, confirmed: false, token: "t", author, signal }, job), /Confirm first/);
-  await assert.rejects(publishCloudRun({ id, viewerId: "auth0|mallory", confirmed: true, token: "t", author, signal }, job), /not found/);
-  await assert.rejects(publishCloudRun({ id, viewerId: OWNER, confirmed: true, token: null, author: null, signal }, job), /Sign in with GitHub/);
+  await assert.rejects(publishCloudRun({ id, viewerId: "auth0|mallory", confirmed: true, authorWords: WORDS, token: "t", author, signal }, job), /not found/);
+  await assert.rejects(publishCloudRun({ id, viewerId: OWNER, confirmed: true, authorWords: WORDS, token: null, author: null, signal }, job), /Sign in with GitHub/);
   const dry = await seed({ dry_run: true });
-  await assert.rejects(publishCloudRun({ id: dry, viewerId: OWNER, confirmed: true, token: "t", author, signal }, job), /preview-only/);
+  await assert.rejects(publishCloudRun({ id: dry, viewerId: OWNER, confirmed: true, authorWords: WORDS, token: "t", author, signal }, job), /preview-only/);
   const blocked = await seed({}, ["this project does not accept AI-generated contributions"]);
-  await assert.rejects(publishCloudRun({ id: blocked, viewerId: OWNER, confirmed: true, token: "t", author, signal }, job), /blocked/);
+  await assert.rejects(publishCloudRun({ id: blocked, viewerId: OWNER, confirmed: true, authorWords: WORDS, token: "t", author, signal }, job), /blocked/);
   timeline = [{ event: "cross-referenced", source: { issue: { number: 9, state: "open", pull_request: {}, html_url: "https://github.com/acme/app/pull/9" } } }];
-  await assert.rejects(publishCloudRun({ id, viewerId: OWNER, confirmed: true, token: "t", author, signal }, job), /already targets this issue/);
+  await assert.rejects(publishCloudRun({ id, viewerId: OWNER, confirmed: true, authorWords: WORDS, token: "t", author, signal }, job), /already targets this issue/);
   timeline = [];
   assert.equal(jobs, 0);
+});
+
+test("hosted publish: refuses without a recorded own-words pass, and a hidden run until the reveal", async () => {
+  const { publishCloudRun } = await import("../cloud-publish");
+  const { revealHiddenRun } = await import("../hidden-runs");
+  let jobs = 0;
+  const job = async () => { jobs++; return { ok: true as const, url: "https://github.com/acme/app/pull/2", tests: "not_run" }; };
+  const unchecked = await seed({}, [], false);
+  await assert.rejects(publishCloudRun({ id: unchecked, viewerId: OWNER, confirmed: true, authorWords: WORDS, token: "t", author, signal }, job), /pass the check before publishing/);
+  const checked = await seed();
+  await assert.rejects(publishCloudRun({ id: checked, viewerId: OWNER, confirmed: true, authorWords: { ...WORDS, text: "Something else I wrote after the check passed, long enough to count." }, token: "t", author, signal }, job), /must be the one that passed/);
+  const hidden = await seed({ hidden: true });
+  await assert.rejects(publishCloudRun({ id: hidden, viewerId: OWNER, confirmed: true, authorWords: WORDS, token: "t", author, signal }, job), /hidden until the lesson reveals it/);
+  assert.equal(jobs, 0);
+  await revealHiddenRun(OWNER, hidden);
+  assert.equal((await publishCloudRun({ id: hidden, viewerId: OWNER, confirmed: true, authorWords: WORDS, token: "t", author, signal }, job)).url, "https://github.com/acme/app/pull/2");
 });
 
 test("hosted publish: opens once from the stored preview and records the PR", async () => {
@@ -91,7 +116,7 @@ test("hosted publish: opens once from the stored preview and records the PR", as
   const seen: unknown[] = [];
   const job = async (j: unknown) => { seen.push(j); return { ok: true as const, url: "https://github.com/acme/app/pull/12", tests: "not_run" }; };
   const id = await seed();
-  const result = await publishCloudRun({ id, viewerId: OWNER, confirmed: true, token: "t", author, signal }, job);
+  const result = await publishCloudRun({ id, viewerId: OWNER, confirmed: true, authorWords: WORDS, token: "t", author, signal }, job);
   assert.equal(result.url, "https://github.com/acme/app/pull/12");
   const sent = seen[0] as { repo: string; issueNumber: number; stored: { diff: string; preview: { title: string } } };
   assert.equal(sent.repo, "acme/app");
@@ -102,16 +127,16 @@ test("hosted publish: opens once from the stored preview and records the PR", as
   assert.equal(run?.pr_status, "opened");
   assert.equal(run?.pr_url, "https://github.com/acme/app/pull/12");
   assert.ok(run?.published_at);
-  await assert.rejects(publishCloudRun({ id, viewerId: OWNER, confirmed: true, token: "t", author, signal }, job), /already published/);
+  await assert.rejects(publishCloudRun({ id, viewerId: OWNER, confirmed: true, authorWords: WORDS, token: "t", author, signal }, job), /already published/);
 });
 
 test("hosted publish: a failed job is recorded and can be retried", async () => {
   const { publishCloudRun } = await import("../cloud-publish");
   const { getCloudRun } = await import("../cloud-runs");
   const id = await seed();
-  await assert.rejects(publishCloudRun({ id, viewerId: OWNER, confirmed: true, token: "t", author, signal }, async () => ({ ok: false as const, reason: "push rejected" })), /push rejected/);
+  await assert.rejects(publishCloudRun({ id, viewerId: OWNER, confirmed: true, authorWords: WORDS, token: "t", author, signal }, async () => ({ ok: false as const, reason: "push rejected" })), /push rejected/);
   assert.equal((await getCloudRun(OWNER, id))?.pr_status, "failed");
-  const ok = await publishCloudRun({ id, viewerId: OWNER, confirmed: true, token: "t", author, signal }, async () => ({ ok: true as const, url: "https://github.com/acme/app/pull/13", tests: "not_run" }));
+  const ok = await publishCloudRun({ id, viewerId: OWNER, confirmed: true, authorWords: WORDS, token: "t", author, signal }, async () => ({ ok: true as const, url: "https://github.com/acme/app/pull/13", tests: "not_run" }));
   assert.equal(ok.url, "https://github.com/acme/app/pull/13");
 });
 
@@ -124,7 +149,7 @@ test("hosted publish of an executed run hands the verified final patch and its e
   const stored = JSON.parse(store.get(runPreviewPath(OWNER, id))!.body);
   store.set(runPreviewPath(OWNER, id), { etag: String(++etags), body: JSON.stringify({ ...stored, executed: true, verification, body: "Fixes #7\n\n### Tests run\n\n- `pytest t.py` — passed" }) });
   const seen: Array<{ stored: { diff: string; preview: { executed: boolean; verification: unknown; body: string } } }> = [];
-  await publishCloudRun({ id, viewerId: OWNER, confirmed: true, token: "t", author, signal }, async (j) => { seen.push(j as never); return { ok: true as const, url: "https://github.com/acme/app/pull/14", tests: "passed" }; });
+  await publishCloudRun({ id, viewerId: OWNER, confirmed: true, authorWords: WORDS, token: "t", author, signal }, async (j) => { seen.push(j as never); return { ok: true as const, url: "https://github.com/acme/app/pull/14", tests: "passed" }; });
   assert.equal(seen[0].stored.diff, stored.diff);
   assert.equal(seen[0].stored.preview.executed, true);
   assert.deepEqual(seen[0].stored.preview.verification, verification);
@@ -141,7 +166,7 @@ test("hosted follow-up publish pushes one commit to the user's own open PR branc
   const pushes: Array<{ repo: string; branch: string; diff: string }> = [];
   const neverJob = async () => { throw new Error("a follow-up never opens a PR"); };
   try {
-    const result = await publishCloudRun({ id, viewerId: OWNER, confirmed: true, token: "t", author, signal }, neverJob,
+    const result = await publishCloudRun({ id, viewerId: OWNER, confirmed: true, authorWords: WORDS, token: "t", author, signal }, neverJob,
       async (input) => { pushes.push(input); return { ok: true, commit: "abc12345", message: "Pushed commit abc12345" }; });
     assert.deepEqual(result, { url: PR, tests: "not_run" });
     assert.deepEqual(pushes.map((p) => [p.repo, p.branch]), [["alice/app", "opensrcer/issue-7-x"]]);
@@ -158,7 +183,7 @@ test("hosted follow-up publish refuses a PR that is not the user's, without push
   const id = await seed({ followup_pr: "https://github.com/acme/app/pull/12" });
   followupPr.author = "mallory";
   try {
-    await assert.rejects(publishCloudRun({ id, viewerId: OWNER, confirmed: true, token: "t", author, signal }, async () => { throw new Error("no"); },
+    await assert.rejects(publishCloudRun({ id, viewerId: OWNER, confirmed: true, authorWords: WORDS, token: "t", author, signal }, async () => { throw new Error("no"); },
       async () => { throw new Error("must not push"); }), /only to your own pull requests/);
   } finally { followupPr.author = "alice"; }
 });

@@ -5,8 +5,13 @@ import path from "node:path";
 import { persist, read } from "../dispatch-store";
 import type { DispatchRecord } from "../dispatch-store";
 import { buildPreview, readPreview, writePreview } from "../pr-preview";
-import { AUTHOR_WORDS_MAX, assertPublishable, checkPublishable, CONFIRMATION, parseAuthorWords, PublishError, publishDispatch, withAuthorWords } from "../publish";
+import { AUTHOR_WORDS_MAX, assertPublishable, assertUnderstood, checkPublishable, CONFIRMATION, parseAuthorWords, PublishError, publishDispatch, UNDERSTOOD_MESSAGE, withAuthorWords } from "../publish";
+import { applyUnderstandingEvent, recordUnderstanding } from "../understanding-record";
+import { revealHiddenRun } from "../hidden-runs";
 import type { Verification } from "../verify";
+
+const EXPLANATION = "The parser dropped the exponent when a number had one, so 1e5 became 1.\nNow the exponent is kept, and a new test parses 1e5.";
+const AUTHOR_LINE_CHECKED = "Before publishing, the author explained this change in their own words (checked against the diff).";
 
 const DIR = path.join(process.cwd(), ".dispatches");
 const DIFF = "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n";
@@ -64,12 +69,48 @@ test("publish gate: confirmation, ownership, dry runs, state and blockers", asyn
     await assert.rejects(checkPublishable({ id: "../../etc", viewerId: "owner", confirmed: true }), (e: PublishError) => e.status === 404);
     await assert.rejects(checkPublishable({ id: dry, viewerId: "owner", confirmed: true }), /preview-only/);
     await assert.rejects(checkPublishable({ id: blocked, viewerId: "owner", confirmed: true }), /blocked: this project does not accept/);
-    const ok = await checkPublishable({ id, viewerId: "owner", confirmed: true });
+    // The understanding gate is the server's now (§7.7): no recorded pass, no publish.
+    await assert.rejects(checkPublishable({ id, viewerId: "owner", confirmed: true }), (e: PublishError) => e.status === 409 && e.message === UNDERSTOOD_MESSAGE);
+    await recordUnderstanding("owner", id, { kind: "passed", text: EXPLANATION });
+    const words = { text: EXPLANATION, checked: false, practiced: true };
+    const ok = await checkPublishable({ id, viewerId: "owner", confirmed: true, authorWords: words });
     assert.equal(ok.stored.diff, DIFF);
+    assert.ok(ok.stored.preview.body.endsWith(AUTHOR_LINE_CHECKED), "the PR line states what the server recorded, not what the page claimed");
     // No GitHub identity: refused before any network call or state change.
-    await assert.rejects(publishDispatch({ id, viewerId: "owner", confirmed: true, token: null, author: null }), (e: PublishError) => e.status === 401);
+    await assert.rejects(publishDispatch({ id, viewerId: "owner", confirmed: true, authorWords: words, token: null, author: null }), (e: PublishError) => e.status === 401);
     assert.equal(read(id)?.pr_status, "awaiting_review");
   } finally { cleanup(); cleanupDry(); cleanupBlocked(); }
+});
+
+test("understanding gate: only the explanation that passed, or an honest fallback when the check could not run", () => {
+  const preview = { body: "Fixes #7. The parser dropped the exponent; this keeps it.", diagnosis: "parse_float() strips the exponent before rounding." };
+  const words = (text: string) => ({ text, checked: true, practiced: true });
+  const passed = applyUnderstandingEvent(null, { kind: "passed", text: EXPLANATION });
+  const practicedTwice = applyUnderstandingEvent(applyUnderstandingEvent(passed, { kind: "practiced" }), { kind: "practiced" });
+  const unavailable = applyUnderstandingEvent(null, { kind: "unavailable" });
+  // Refused: nothing recorded, no explanation, a different text than the one that passed.
+  for (const [record, sent] of [
+    [null, words(EXPLANATION)], [passed, null], [passed, words(`${EXPLANATION} Edited after the check.`)],
+    [unavailable, words("Too short.")], [unavailable, words(preview.diagnosis + " " + preview.diagnosis)],
+  ] as const) assert.throws(() => assertUnderstood(record, sent, preview), (e: PublishError) => e.status === 409);
+  // Accepted, with the flags the server knows rather than the page's.
+  assert.deepEqual(assertUnderstood(passed, words(EXPLANATION), preview), { text: EXPLANATION, checked: true, practiced: false });
+  assert.deepEqual(assertUnderstood(practicedTwice, { text: EXPLANATION, checked: false, practiced: false }, preview), { text: EXPLANATION, checked: true, practiced: true });
+  assert.deepEqual(assertUnderstood(unavailable, words(EXPLANATION), preview), { text: EXPLANATION, checked: false, practiced: false });
+  // Whitespace differences from the page's normalization still match the passed text.
+  assert.equal(assertUnderstood(passed, words(`  ${EXPLANATION.replace(/\n/g, "\r\n")}  `.trim()), preview).checked, true);
+});
+
+test("publish refuses a lesson's hidden run until the reveal", async () => {
+  const id = `d_test_hidden_${process.pid}`;
+  const cleanup = await fixture(id, { hidden: true });
+  try {
+    await recordUnderstanding("owner", id, { kind: "passed", text: EXPLANATION });
+    const input = { id, viewerId: "owner", confirmed: true, authorWords: { text: EXPLANATION, checked: true, practiced: false } };
+    await assert.rejects(checkPublishable(input), (e: PublishError) => e.status === 403);
+    await revealHiddenRun("owner", id);
+    assert.equal((await checkPublishable(input)).stored.diff, DIFF);
+  } finally { cleanup(); }
 });
 
 test("publish gate: an already published or running run cannot be published again", async () => {

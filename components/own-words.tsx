@@ -5,11 +5,12 @@
 // diff, after a local copy check), then answers two maintainer-style
 // questions. Publish waits for both, plus the confirmation checkbox.
 //
-// This gate runs in the browser and is a comprehension aid, not security:
-// the publish API does not depend on it beyond the optional explanation it
-// puts in the PR. When the automatic check cannot run (no key, provider
-// error, unusable reply), the written explanation is still required and the
-// practice review is skipped, so an outage never blocks publishing.
+// With `runId` the server checks the run's own stored change and records the
+// result; the publish API then refuses unless the explanation it receives is
+// the one that passed (PLAN §7.7). When the automatic check cannot run (no
+// key, provider error, unusable reply), the server records that instead, the
+// written explanation is still required and the practice review is skipped,
+// so an outage never blocks publishing.
 
 import { useEffect, useId, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -51,9 +52,11 @@ async function post(body: object): Promise<{ ok: boolean; status: number; data: 
   return { ok: res.ok, status: res.status, data: (await res.json().catch(() => ({}))) as Record<string, unknown> };
 }
 
-export function OwnWords({ storageKey, repo, title, context, copySources, practice = false, onResult, number }: {
+export function OwnWords({ storageKey, runId, repo, title, context, copySources, practice = false, onResult, number }: {
   /** One per run, e.g. "run:<id>". */
   storageKey: string;
+  /** The run being explained: the server loads its change and records the result for publishing. */
+  runId?: string;
   repo?: string;
   title: string;
   context: ExplainContext;
@@ -88,7 +91,7 @@ export function OwnWords({ storageKey, repo, title, context, copySources, practi
   const ready = aOk && (s.checkFailed || s.practiceFailed || practiced);
   useEffect(() => onResult({ ready, text, checked, practiced: checked && practiced }), [ready, text, checked, practiced, onResult]);
 
-  const change = changeRequest(repo, title, context);
+  const change = { ...changeRequest(repo, title, context), ...(runId ? { runId } : {}) };
 
   async function loadQuestions() {
     setBusy("questions");

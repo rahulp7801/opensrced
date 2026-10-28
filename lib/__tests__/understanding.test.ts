@@ -2,9 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   COPY_MESSAGE, COPY_THRESHOLD, ReplyFormatError, copyOverlap, explanationPasses, handleUnderstand, looksCopied,
-  mentionsEvidence, parseExplanationCheck, parsePracticeFeedback, parsePracticeQuestions,
+  mentionsEvidence, parseExplanationCheck, parsePracticeFeedback, parsePracticeQuestions, type UnderstandDeps,
 } from "../understanding";
-import type { ExplainDeps } from "../explain";
+import type { UnderstandingEvent } from "../understanding-record";
 
 const AI = "The parser reads items[0] without checking whether the list is empty, so an empty input array throws a TypeError in parse(). The fix returns null when the list has no items and adds a regression test for empty input.";
 const EXPLANATIONS = {
@@ -71,10 +71,14 @@ const post = (body: unknown) => new Request("http://local/api/understand", { met
 const change = { repo: "acme/app", title: "fix parser", context: { description: AI, diff: "-return items[0];\n+return items[0] ?? null;" } };
 const sse = (events: object[]) => new Response(events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join(""));
 
-function deps(replies: Array<object[] | Error>, over: Partial<ExplainDeps> = {}) {
+/** The run the server loads in run mode: its own diff, never the page's. */
+const SERVER_CHANGE = { repo: "acme/app", title: "fix parser", context: { description: AI, diff: "-return items[0];\n+return items[0] ?? null; // server copy", verification: "", rules: "" } };
+
+function deps(replies: Array<object[] | Error>, over: Partial<UnderstandDeps> = {}) {
   const calls: Array<{ system: string; user: string }> = [];
   const logs: string[] = [];
-  const d: ExplainDeps = {
+  const recorded: Array<{ runId: string; event: UnderstandingEvent }> = [];
+  const d: UnderstandDeps = {
     requireSession: async () => null,
     resolveKey: async () => "k",
     stream: (_k, system, user) => {
@@ -83,10 +87,63 @@ function deps(replies: Array<object[] | Error>, over: Partial<ExplainDeps> = {})
       if (next instanceof Error) return sse([{ error: next.message }]);
       return sse(next ?? []);
     },
+    loadChange: async (ref) => ("runId" in ref && ref.runId === "c_1700000000000_aaaaaaaaaaaa" ? { runId: ref.runId, change: SERVER_CHANGE }
+      : "runId" in ref && ref.runId === "c_1700000000000_bbbbbbbbbbbb" ? Response.json({ error: "hidden" }, { status: 403 })
+      : Response.json({ error: "not found" }, { status: 404 })),
+    record: async (runId, event) => { recorded.push({ runId, event }); },
     ...over,
   };
-  return { d, calls, logs, log: (l: string) => logs.push(l) };
+  return { d, calls, logs, recorded, log: (l: string) => logs.push(l) };
 }
+
+const RUN = "c_1700000000000_aaaaaaaaaaaa";
+
+test("run mode: the server's change is checked, the page's is ignored, and a pass is recorded for publishing", async () => {
+  const { d, calls, recorded, log } = deps([[{ text: check({}) }, { cost: 0.001, done: true }]]);
+  const res = await handleUnderstand(post({ ...change, context: { diff: "+the page's own diff" }, runId: RUN, step: "check", explanation: EXPLANATIONS.paraphrase }), d, log);
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).passed, true);
+  assert.match(calls[0].user, /server copy/);
+  assert.doesNotMatch(calls[0].user, /the page's own diff/);
+  assert.deepEqual(recorded, [{ runId: RUN, event: { kind: "passed", text: EXPLANATIONS.paraphrase } }]);
+});
+
+test("run mode: a failed check records nothing; feedback records practice; outages record that the check could not run", async () => {
+  const failing = deps([[{ text: check({ change: false }) }, { done: true }]]);
+  assert.equal((await (await handleUnderstand(post({ runId: RUN, step: "check", explanation: EXPLANATIONS.paraphrase }), failing.d, failing.log)).json()).passed, false);
+  assert.deepEqual(failing.recorded, []);
+
+  const practice = deps([[{ text: '{"feedback":"Right.","followUp":null}' }, { done: true }]]);
+  assert.equal((await handleUnderstand(post({ runId: RUN, step: "feedback", question: "Why null?", answer: "Because callers already handle null." }), practice.d, practice.log)).status, 200);
+  assert.deepEqual(practice.recorded.map((r) => r.event.kind), ["practiced"]);
+
+  for (const over of [{ resolveKey: async () => null }, {}] as const) {
+    const outage = deps([new Error("Anthropic is overloaded")], over);
+    const res = await handleUnderstand(post({ runId: RUN, step: "check", explanation: EXPLANATIONS.paraphrase }), outage.d, outage.log);
+    assert.ok(res.status === 400 || res.status === 502);
+    assert.deepEqual(outage.recorded.map((r) => r.event.kind), ["unavailable"]);
+  }
+  // Questions failing is advice only: nothing recorded.
+  const q = deps([new Error("down")]);
+  await handleUnderstand(post({ runId: RUN, step: "questions" }), q.d, q.log);
+  assert.deepEqual(q.recorded, []);
+});
+
+test("run mode: someone else's or a hidden run is refused before any model call; a lost record is a failure", async () => {
+  for (const [runId, status] of [["c_1700000000000_bbbbbbbbbbbb", 403], ["c_1700000000000_cccccccccccc", 404]] as const) {
+    const { d, calls, log } = deps([]);
+    assert.equal((await handleUnderstand(post({ runId, step: "questions" }), d, log)).status, status);
+    assert.equal(calls.length, 0);
+  }
+  for (const body of [{ runId: "../x", step: "questions" }, { runId: RUN, lessonId: "l_1", step: "questions" }]) {
+    const { d, calls, log } = deps([]);
+    assert.equal((await handleUnderstand(post(body), d, log)).status, 400);
+    assert.equal(calls.length, 0);
+  }
+  const lost = deps([[{ text: check({}) }, { done: true }]], { record: async () => { throw new Error("blob down"); } });
+  const res = await handleUnderstand(post({ runId: RUN, step: "check", explanation: EXPLANATIONS.paraphrase }), lost.d, lost.log);
+  assert.equal(res.status, 503, "a pass the server could not save is not shown as a pass");
+});
 
 test("the route needs a session, valid input and no copy before any model call", async () => {
   const anon = deps([], { requireSession: async () => Response.json({ error: "Not authenticated" }, { status: 401 }) });

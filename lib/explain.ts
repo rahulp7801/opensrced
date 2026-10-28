@@ -1,7 +1,12 @@
 // "Ask about this change": one plain model call (no tools, no repository
-// access) that answers a question from the context the page sends: the
-// change's description, diff, test results and the project's rules. The
-// answer is an explanation to check, never a verified fact.
+// access) that answers a question from the change's description, diff, test
+// results and the project's rules. The answer is an explanation to check,
+// never a verified fact.
+//
+// Two ways to get the change: the page sends it (browser mode), or the page
+// names a run or lesson (`runId` / `lessonId`) and the server loads it from
+// the stored preview, owner-checked (lib/run-change.ts). The second never
+// trusts a browser-sent diff, and is the only way for a lesson's hidden run.
 //
 // Everything in the context is untrusted (repository files, the issue, the
 // agent's own words, earlier answers): it is fenced as data in the prompt,
@@ -9,6 +14,7 @@
 
 import { readJsonBody } from "./request-body";
 import { sanitizeForPrompt, sanitizeRepoId } from "./sanitize";
+import { projectRules, rulesText, type RulesPreview } from "./project-rules";
 
 /** Per-field caps, in characters. The client truncates first; these hold. */
 export const EXPLAIN_LIMITS = {
@@ -71,6 +77,35 @@ export function parseChangeInput(raw: unknown): ChangeInput & { body: Record<str
   };
 }
 
+/** The context for a frozen preview: the agent's diagnosis and PR text, the
+ *  patch, the verification verdict and the project's rules. The review page
+ *  and the server's run mode build it the same way. */
+export function previewChangeContext(p: RulesPreview & { diagnosis?: string }, diff: string | undefined): ExplainContext {
+  const v = p.verification;
+  const verdict = !p.executed ? "not verified (no code was run)" : !v ? "not verified" : `${v.status} — ${v.reason}`;
+  return {
+    description: `${p.diagnosis ? `The agent's diagnosis:\n${p.diagnosis}\n\n` : ""}PR text:\n${p.body}`,
+    diff,
+    verification: `Verification: ${verdict}${v?.regression ? `; regression check: ${v.regression.replace(/_/g, " ")}` : ""}`,
+    rules: rulesText(projectRules(p)),
+  };
+}
+
+/** A run whose change the server loads itself. */
+export type RunRef = { runId: string } | { lessonId: string };
+/** What the server loaded: the run it came from, and the change, capped and fenced like a browser one. */
+export type ServerChange = { runId: string; change: ChangeInput };
+
+/** `runId` or `lessonId` from a body, or null for browser mode. Throws ExplainInputError. */
+export function parseRunRef(body: Record<string, unknown>): RunRef | null {
+  const runId = str(body.runId, "runId");
+  const lessonId = str(body.lessonId, "lessonId");
+  if (runId && lessonId) throw new ExplainInputError("Send runId or lessonId, not both.");
+  if (runId && !/^[cd]_[\w-]{1,80}$/.test(runId)) throw new ExplainInputError("runId is not a run id.");
+  if (lessonId && !/^l_[\w-]{1,80}$/.test(lessonId)) throw new ExplainInputError("lessonId is not a lesson id.");
+  return runId ? { runId } : lessonId ? { lessonId } : null;
+}
+
 /** Validate and cap a request body. Throws ExplainInputError. */
 export function parseExplainRequest(raw: unknown): ExplainInput {
   const { body, ...change } = parseChangeInput(raw);
@@ -127,7 +162,19 @@ export type ExplainDeps = {
   requireSession: () => Promise<Response | null>;
   resolveKey: () => Promise<string | null>;
   stream: (apiKey: string, system: string, user: string, maxTokens: number, signal: AbortSignal) => Response;
+  /** Run mode: the change from the caller's own stored run, or the response
+   *  to return (404 not yours / missing, 403 hidden until the reveal). */
+  loadChange: (ref: RunRef) => Promise<ServerChange | Response>;
 };
+
+/** The change a request is about: the server's copy in run mode, else the
+ *  browser's. A Response is a refusal to return as-is. */
+export async function resolveChange(body: Record<string, unknown>, browser: ChangeInput, deps: Pick<ExplainDeps, "loadChange">): Promise<{ change: ChangeInput; runId: string | null } | Response> {
+  const ref = parseRunRef(body);
+  if (!ref) return { change: browser, runId: null };
+  const loaded = await deps.loadChange(ref);
+  return loaded instanceof Response ? loaded : { change: loaded.change, runId: loaded.runId };
+}
 
 /** POST /api/explain, with its collaborators passed in for tests. */
 export async function handleExplain(req: Request, deps: ExplainDeps): Promise<Response> {
@@ -138,6 +185,9 @@ export async function handleExplain(req: Request, deps: ExplainDeps): Promise<Re
   let input: ExplainInput;
   try {
     input = parseExplainRequest(raw);
+    const resolved = await resolveChange(raw as Record<string, unknown>, input, deps);
+    if (resolved instanceof Response) return resolved;
+    input = { ...input, ...resolved.change };
   } catch (error) {
     if (error instanceof ExplainInputError) return Response.json({ error: error.message }, { status: 400 });
     throw error;

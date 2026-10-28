@@ -2,6 +2,7 @@
 //
 //   npm run build:worker
 //   node scripts/eval-merged.cjs <owner/repo> <merged PR #> [--issue N] [--provider claude-subscription|anthropic-key] [--budget USD]
+//   node --env-file=.env.local scripts/eval-merged.cjs <owner/repo> <PR #> --gateway openrouter --model <id>
 //
 // Pins the checkout to the commit before the human fix (OPENSRCER_REPO_REF),
 // runs the agent as a DRY RUN on the linked issue, then inside the agent's
@@ -52,9 +53,25 @@ async function main() {
   if (!repo || !/^\d+$/.test(prArg ?? '')) throw new Error('usage: eval-merged.cjs <owner/repo> <merged PR #> [--issue N] [--budget USD]');
   // --provider claude-subscription (default): the local claude CLI login, no key.
   // --provider anthropic-key: ANTHROPIC_KEY / ANTHROPIC_API_KEY from the env.
-  const provider = arg('--provider') ?? 'claude-subscription';
-  const anthropicKey = provider === 'anthropic-key' ? (process.env.ANTHROPIC_KEY || process.env.ANTHROPIC_API_KEY) : undefined;
-  if (provider === 'anthropic-key' && !anthropicKey) throw new Error('set ANTHROPIC_KEY (node --env-file=.env.local)');
+  // --gateway openrouter --model <id>: an API-key run through OpenRouter on
+  // OPENROUTER_API_KEY. Cost is read from OpenRouter (key usage before/after),
+  // since the CLI prices tokens at Anthropic's rates.
+  const gateway = arg('--gateway');
+  if (gateway && gateway !== 'openrouter') throw new Error('--gateway supports only openrouter');
+  const agentModel = arg('--model');
+  if (gateway && !agentModel) throw new Error('--gateway needs --model <openrouter model id>');
+  const provider = gateway ? 'anthropic-key' : (arg('--provider') ?? 'claude-subscription');
+  const anthropicKey = gateway ? process.env.OPENROUTER_API_KEY
+    : provider === 'anthropic-key' ? (process.env.ANTHROPIC_KEY || process.env.ANTHROPIC_API_KEY) : undefined;
+  if (provider === 'anthropic-key' && !anthropicKey) throw new Error(`set ${gateway ? 'OPENROUTER_API_KEY' : 'ANTHROPIC_KEY'} (node --env-file=.env.local)`);
+  // Triage calls Anthropic directly, which a gateway key can't do.
+  if (gateway) process.env.OPENSRCER_TRIAGE = '0';
+  const gatewayUsage = async () => {
+    const r = await fetch('https://openrouter.ai/api/v1/key', { headers: { Authorization: `Bearer ${anthropicKey}` } });
+    if (!r.ok) throw new Error(`OpenRouter key check failed: HTTP ${r.status}`);
+    return (await r.json()).data.usage;
+  };
+  const usageBefore = gateway ? await gatewayUsage() : null;
   // Caps for plan-billed runs: turns and wall clock (overridable by env).
   process.env.OPENSRCER_AGENTIC_EXEC_MAX_TURNS ??= '60';
   process.env.OPENSRCER_AGENTIC_TIMEOUT_MS ??= String(20 * 60_000);
@@ -126,6 +143,7 @@ async function main() {
   const started = Date.now();
   const d = await startAgenticDispatch(`https://github.com/${repo}`, issue, {
     dryRun: true, repoRef: baseSha, allowClosedIssue: true, provider, anthropicKey, token, evalHook,
+    anthropicBaseUrl: gateway ? 'https://openrouter.ai/api' : undefined, agentModel,
     auth0UserId: 'local-eval', maxSpendUsd: arg('--budget') ? Number(arg('--budget')) : undefined,
   });
   console.log(`[eval] dispatch ${d.id}, log ${d.log_path}`);
@@ -141,7 +159,10 @@ async function main() {
     if (rec && rec.status !== 'running') break;
   }
   const log = readFileSync(d.log_path, 'utf8');
-  const cost = Number(/total_cost_usd=([\d.]+)/.exec(log)?.[1] ?? NaN);
+  // OpenRouter's usage counter can lag a few seconds behind the last request.
+  if (gateway) await new Promise((r) => setTimeout(r, 15000));
+  const cost = gateway ? Number(((await gatewayUsage()) - usageBefore).toFixed(4)) : Number(/total_cost_usd=([\d.]+)/.exec(log)?.[1] ?? NaN);
+  evalResult.model = gateway ? `openrouter:${agentModel}` : (agentModel ?? provider);
   const verification = existsSync(path.join('.dispatches', d.id, 'verification.json')) ? JSON.parse(readFileSync(path.join('.dispatches', d.id, 'verification.json'), 'utf8')) : null;
   Object.assign(evalResult, {
     dispatch: d.id, status: store.read(d.id)?.status, cost_usd: cost, duration_s: Math.round((Date.now() - started) / 1000),

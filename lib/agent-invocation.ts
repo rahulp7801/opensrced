@@ -58,6 +58,9 @@ export type AgentInvocationInput = {
   inject?: Record<string, string | undefined>;
   /** The user's API key for an anthropic-key run (or inject.ANTHROPIC_API_KEY). */
   anthropicKey?: string;
+  /** anthropic-key runs only: an Anthropic-compatible gateway (e.g. https://openrouter.ai/api).
+   *  The key is then sent as a bearer token and `model` names the gateway's model. */
+  baseUrl?: string;
   /** Claude config directory holding this run's login (hosted VM sign-in).
    *  Local subscription runs leave it unset so the CLI uses its own login. */
   claudeConfigDir?: string;
@@ -149,6 +152,12 @@ export function buildAgentInvocation(input: AgentInvocationInput): AgentInvocati
   if (provider === "anthropic-key" && !anthropicKey) throw new AgentInvocationError("An API-key run needs the user's key (anthropicKey or ANTHROPIC_API_KEY).");
   if (input.budgetUsd !== undefined && (!Number.isFinite(input.budgetUsd) || input.budgetUsd <= 0)) throw new RangeError("budgetUsd must be a positive number");
   if (input.maxTurns !== undefined && (!Number.isSafeInteger(input.maxTurns) || input.maxTurns < 1)) throw new RangeError("maxTurns must be a positive integer");
+  if (input.baseUrl !== undefined) {
+    if (provider !== "anthropic-key") throw new AgentInvocationError("A gateway base URL applies to API-key runs only.");
+    if (!/^https:\/\/[^\s/]+(\/\S*)?$/.test(input.baseUrl)) throw new AgentInvocationError("The gateway base URL must be an https URL.");
+    if (!input.model) throw new AgentInvocationError("A gateway run must name its model.");
+    if (input.maxTurns === undefined) throw new AgentInvocationError("A gateway run needs a turn cap (maxTurns).");
+  }
   if (provider === "claude-subscription" && input.maxTurns === undefined) throw new AgentInvocationError("A subscription run needs a turn cap (maxTurns).");
   const standIn = provider !== "codex-subscription" && Boolean(process.env.OPENSRCER_AGENT_BIN);
   if (standIn && (process.env.NODE_ENV === "production" || cloudExecution())) {
@@ -186,6 +195,14 @@ export function buildAgentInvocation(input: AgentInvocationInput): AgentInvocati
       MCP_CONNECT_TIMEOUT_MS: String(mcpConnectTimeoutMs()),
     });
     for (const key of CLAUDE_CREDENTIAL_VARS) if (!(key === "ANTHROPIC_API_KEY" && !subscription)) delete env[key];
+    // Gateway run: the CLI sends ANTHROPIC_AUTH_TOKEN as `Authorization: Bearer`
+    // (checked against a capture of its requests), which is what OpenRouter expects.
+    const gateway = input.baseUrl !== undefined && anthropicKey !== undefined;
+    if (gateway) {
+      delete env.ANTHROPIC_API_KEY;
+      env.ANTHROPIC_BASE_URL = input.baseUrl;
+      env.ANTHROPIC_AUTH_TOKEN = anthropicKey;
+    }
 
     // --bare skips OAuth/keychain auth, so only API-key runs use it. The
     // isolation flags hold either way.
@@ -193,7 +210,9 @@ export function buildAgentInvocation(input: AgentInvocationInput): AgentInvocati
     // A plan run has no per-token cost, so only turns (and the caller's wall
     // clock) cap it; a key run keeps its dollar cap and gets the turn twin.
     const caps: Array<[string, string]> = [
-      ...(!subscription && input.budgetUsd !== undefined ? [["--max-budget-usd", String(input.budgetUsd)] as [string, string]] : []),
+      // The CLI prices tokens at Anthropic's rates, which are wrong for a gateway
+      // model, so a gateway run is capped by turns and by the key's own spend limit.
+      ...(!subscription && !gateway && input.budgetUsd !== undefined ? [["--max-budget-usd", String(input.budgetUsd)] as [string, string]] : []),
       ...(input.maxTurns !== undefined ? [["--max-turns", String(input.maxTurns)] as [string, string]] : []),
     ];
     const args = [

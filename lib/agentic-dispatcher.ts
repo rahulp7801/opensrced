@@ -523,6 +523,10 @@ export type StartAgenticOpts = {
   claudeConfigDir?: string;
   // User-provided API keys (from encrypted cookie).
   anthropicKey?: string;
+  // Anthropic-compatible gateway for an API-key run (anthropicKey is then the
+  // gateway's key) and the gateway model to run. Eval-only for now.
+  anthropicBaseUrl?: string;
+  agentModel?: string;
   geminiKey?: string;
   // Hard cap on Anthropic API spend for this dispatch.
   maxSpendUsd?: number;
@@ -771,6 +775,8 @@ async function spawnDispatch(
       budgetUsd,
       maxTurns: limits.maxTurns,
       anthropicKey: opts.anthropicKey,
+      baseUrl: opts.anthropicBaseUrl,
+      model: opts.agentModel,
       claudeConfigDir: opts.claudeConfigDir,
       inject: {
         ...agenticInject(repoFull, opts),

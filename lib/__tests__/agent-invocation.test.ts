@@ -280,3 +280,34 @@ test("the child env is an allowlist plus explicit injections", () => {
     if (saved === undefined) delete process.env.AUTH0_SECRET; else process.env.AUTH0_SECRET = saved;
   }
 });
+
+test("a gateway run sends the key as a bearer token to the gateway, names its model and drops the dollar cap", () => {
+  withConfig((config) => {
+    const run = buildAgentInvocation(input(config, {
+      provider: "anthropic-key", anthropicKey: "sk-or-user", baseUrl: "https://openrouter.ai/api", model: "z-ai/glm-5.3",
+    }));
+    try {
+      assert.equal(run.env.ANTHROPIC_BASE_URL, "https://openrouter.ai/api");
+      assert.equal(run.env.ANTHROPIC_AUTH_TOKEN, "sk-or-user");
+      assert.equal(run.env.ANTHROPIC_API_KEY, undefined);
+      assert.equal(value(run.args, "--model"), "z-ai/glm-5.3");
+      assert.ok(!run.args.includes("--max-budget-usd"));
+      assert.equal(value(run.args, "--max-turns"), "40");
+      assert.ok(run.args.includes("--bare"));
+    } finally {
+      run.cleanup();
+    }
+  });
+});
+
+test("a gateway run is refused without https, a model, a turn cap or an API key provider", () => {
+  withConfig((config) => {
+    const gw = { provider: "anthropic-key" as const, anthropicKey: "k", baseUrl: "https://openrouter.ai/api", model: "m" };
+    for (const bad of [
+      { ...gw, baseUrl: "http://openrouter.ai/api" },
+      { ...gw, model: undefined },
+      { ...gw, maxTurns: undefined },
+      { ...gw, provider: "claude-subscription" as const },
+    ]) assert.throws(() => buildAgentInvocation(input(config, bad)), AgentInvocationError);
+  });
+});

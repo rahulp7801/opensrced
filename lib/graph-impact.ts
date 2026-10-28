@@ -11,7 +11,9 @@ const CALL_RELATIONS = new Set([
   "calls", "imports", "imports_from", "instantiates", "references", "uses_component",
 ]);
 
-export function analyzeImpactFromDiff(graph: GraphData, diff: string): ImpactResult {
+/** The graph nodes a diff touches: nodes in a changed file, or whose label is
+ *  a symbol the diff defines or changes. */
+export function touchedNodeIds(graph: GraphData, diff: string): Set<string> {
   const changedFiles = [...diff.matchAll(/^\+\+\+ (?:b\/)?(\S+)/gm)]
     .map((match) => match[1].toLowerCase().replace(/\\/g, "/"));
   const changedSymbols = new Set<string>();
@@ -21,7 +23,6 @@ export function analyzeImpactFromDiff(graph: GraphData, diff: string): ImpactRes
     if (match) changedSymbols.add(match[1].toLowerCase());
   }
 
-  const nodesById = new Map(graph.nodes.map((node) => [node.id, node]));
   const matchedNodeIds = new Set<string>();
   for (const node of graph.nodes) {
     const sourceFile = (node.source_file || "").toLowerCase().replace(/\\/g, "/");
@@ -30,6 +31,12 @@ export function analyzeImpactFromDiff(graph: GraphData, diff: string): ImpactRes
       matchedNodeIds.add(node.id);
     }
   }
+  return matchedNodeIds;
+}
+
+export function analyzeImpactFromDiff(graph: GraphData, diff: string): ImpactResult {
+  const nodesById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const matchedNodeIds = touchedNodeIds(graph, diff);
   if (matchedNodeIds.size === 0) {
     return { totalAffected: 0, affectedModules: 0, affectedLabels: [], topNode: "" };
   }

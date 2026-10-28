@@ -1,6 +1,23 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { dependentsByHop, impactContext, questionSubject, type GraphData } from "../graph";
+import { dependentsByHop, findNode, hopDistances, impactContext, questionSubject, type GraphData } from "../graph";
+
+test("hopDistances walks edges both ways from several starts, up to the limit", () => {
+  const g = {
+    nodes: ["a", "b", "c", "d", "e", "x"].map((id) => ({ id, label: id, community: 0, file_type: "code", source_file: `${id}.py` })),
+    links: [
+      { source: "b", target: "a", relation: "calls" }, { source: "b", target: "c", relation: "calls" },
+      { source: "d", target: "c", relation: "imports" }, { source: "e", target: "d", relation: "calls" },
+    ],
+  } as unknown as GraphData;
+  const d = hopDistances(g, ["a"], 2);
+  assert.deepEqual([...d.entries()].sort(), [["a", 0], ["b", 1], ["c", 2]]);
+  assert.equal(hopDistances(g, ["a", "e"], 1).get("d"), 1, "the nearest start wins");
+  assert.equal(hopDistances(g, ["a"], 0).size, 1);
+  assert.equal(hopDistances(g, [], 3).size, 0);
+  assert.equal(findNode(g, "c")?.id, "c");
+  assert.equal(findNode(g, "zzz"), null);
+});
 
 // app.py re-exports render; views calls render; tests/test_views imports views;
 // a note node mentions render but is never the subject.

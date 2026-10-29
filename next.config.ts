@@ -14,6 +14,9 @@ const config: NextConfig = {
   // The app never uses next/image, so the optimizer endpoint (/_next/image) is
   // pure attack surface (GHSA-2464-fhr4-w9xw): unoptimized turns it off (404).
   images: { unoptimized: true },
+  // PGlite (lib/db/client.ts, local dev only) loads its WASM and extension
+  // bundles from its own package directory; bundling it breaks those paths.
+  serverExternalPackages: ["@electric-sql/pglite", "@electric-sql/pglite-pgvector"],
   async headers() {
     return [{
       // Config headers replace a route's own header of the same name, so the

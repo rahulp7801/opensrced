@@ -54,6 +54,7 @@ llm_cache.db
 llm_cache.db-shm
 llm_cache.db-wal
 memory.db
+.pglite/
 
 # Python
 __pycache__/

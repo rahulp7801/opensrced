@@ -43,6 +43,7 @@ import { CLAUDE_FAST_MODEL } from "./models";
 import { agentLimits, execLimits } from "./limits";
 import { cloneEnv, detectProfile, profilePromptNotes, refuseIssue, type ContribProfile } from "./contrib-profile";
 import { testOutcome } from "./verify";
+import type { EnvRecipe } from "./env/recipe";
 
 // Parse stream-json output from Claude, write readable text to the log,
 // and return the total cost when the result event arrives.
@@ -385,9 +386,35 @@ function buildLeafPrompt(
   ].join("\n");
 }
 
+const clip = (s: string, n = 300) => (s.length > n ? `${s.slice(0, n)}…` : s);
+
+/** What the box has, for the run_command line: the recipe's runtimes when
+ *  one was detected, else the image's defaults. */
+function boxRuntimes(recipe?: EnvRecipe | null): string {
+  if (!recipe) return "node 24 with npm/yarn, python3.11 with venv/pip/uv, pre-commit";
+  const pinned = Object.entries(recipe.runtimes).map(([tool, v]) => `${tool} ${v}`).join(", ");
+  return pinned ? `the runtimes the host set up for this repository (${pinned}), uv, pre-commit` : "the image's node and python3 with venv/pip/uv, pre-commit";
+}
+
+/** The detected environment recipe (lib/env), for the exec prompt: what
+ *  already ran, and the repository's own test commands. */
+export function recipePromptSection(recipe: EnvRecipe): string {
+  const parts = [`## The repository's environment`, ``, `The host prepared this box from the repository's own ${recipe.source === "ci" ? "CI workflow" : `${recipe.source} files`} before you started.`];
+  if (recipe.setup.length) parts.push(``, `Already run (do not repeat unless it failed):`, ...recipe.setup.slice(0, 12).map((c) => `- \`${clip(c)}\``));
+  if (recipe.services.length) parts.push(``, `Services started: ${recipe.services.map((s) => `${s.name} (${s.image}${s.ports?.length ? `, port ${s.ports.join("/")}` : ""})`).join(", ")}.`);
+  const env = Object.entries(recipe.env);
+  if (env.length) parts.push(``, `The CI job sets these variables; each command is a fresh shell, so export them when a test needs them: ${env.slice(0, 15).map(([k, v]) => `\`${k}=${clip(v, 80)}\``).join(", ")}.`);
+  if (recipe.test.length) parts.push(``, `The full test suite (slow; the host runs it to prove the fix):`, ...recipe.test.slice(0, 6).map((c) => `- \`${clip(c)}\``));
+  if (recipe.testRelated) parts.push(``, `Related tests only (fast; use this while you work): \`${recipe.testRelated.template}\`, with \`{targets}\` replaced by the ${recipe.testRelated.kind === "go-pkg" ? "packages (./dir)" : recipe.testRelated.kind === "cargo-pkg" ? "crates (-p name)" : "test files"} you touch.`);
+  if (recipe.lint.length) parts.push(``, `The project's lint/format checks:`, ...recipe.lint.slice(0, 6).map((c) => `- \`${clip(c)}\``));
+  return parts.join("\n");
+}
+
 /** Prompt for runs with an exec box: the agent edits files and runs the
- *  repository's own tests, and the patch is the box's `git diff`. */
-export function buildExecPrompt(repoFull: string, issueNumber: number, issueBody: string, profileNotes = "", minutes?: number): string {
+ *  repository's own tests, and the patch is the box's `git diff`. With a
+ *  detected recipe (OPENSRCER_ENV_RECIPES=1) the box description and test
+ *  commands come from it instead of the image defaults. */
+export function buildExecPrompt(repoFull: string, issueNumber: number, issueBody: string, profileNotes = "", minutes?: number, recipe?: EnvRecipe | null): string {
   return [
     `You are fixing issue #${issueNumber} in the GitHub repository \`${repoFull}\`. Work like a careful human contributor: reproduce the bug, fix it, verify the fix.`,
     ``,
@@ -401,7 +428,7 @@ export function buildExecPrompt(repoFull: string, issueNumber: number, issueBody
     ``,
     `- \`read_file\` — read a file in your workspace, including your own edits.`,
     `- \`edit_file\` — replace an exact string in a file (copy old_string from read_file, without the line-number prefix). \`write_file\` creates a file.`,
-    `- \`run_command\` — bash at the repository root in a Linux box: git, node 24 with npm/yarn, python3.11 with venv/pip/uv, pre-commit. No credentials; network for package registries. Commands share a total time budget, so install only what the targeted tests need.`,
+    `- \`run_command\` — bash at the repository root in a Linux box: git, ${boxRuntimes(recipe)}. No credentials; network for package registries. Commands share a total time budget, so install only what the targeted tests need.`,
     `- \`grep\`, \`list_files\`, \`find_definition\`, \`find_references\`, \`repo_info\` — fast search over the ORIGINAL checkout. They do not see your edits; use \`run_command\` with \`git grep\` or \`git diff\` for that.`,
     ``,
     `Keep virtualenvs and caches OUTSIDE the repository (e.g. \`python3 -m venv ~/venv\`, then call \`~/venv/bin/python\` by full path: each command is a fresh shell).`,
@@ -419,6 +446,7 @@ export function buildExecPrompt(repoFull: string, issueNumber: number, issueBody
     ...(minutes ? [``, `You have about ${minutes} minutes of wall-clock time in total, then the run is stopped and unfinished work is lost. Get the test and the fix written before any long install. Installing a large project (torch, a full monorepo) can take most of that time: install only what the targeted test imports, prefer prebuilt wheels and caches, and if setup cannot finish, stop and say so; the patch is still reviewed, marked unverified.`] : []),
     ``,
     `Stop without editing, and say why, if the fix needs C++/CUDA/GPU-only code paths, would touch more than 5 files, or you cannot find the root cause with confidence. If you cannot get the tests to run, say plainly what blocked you; the run is then reported as unverified.`,
+    recipe ? `\n${recipePromptSection(recipe)}\n` : ``,
     profileNotes ? `\n## Notes for this repository\n\n${profileNotes}\n` : ``,
     `## Final answer`,
     ``,
@@ -717,7 +745,7 @@ async function spawnDispatch(
   if (fastPath && !useFastPath) out.write("[triage] fast path off: this repository has contribution rules the PR must follow\n");
   const issueNo = target.kind === "issue" ? target.issueNumber : 0;
   const basePrompt = exec && prepared.issueFormatted
-    ? buildExecPrompt(repoFull, issueNo, prepared.issueFormatted, `${setupPromptNotes(exec.setup)}\n${profilePromptNotes(exec.profile)}`, Math.floor(agentLimits("exec").timeoutMs / 60_000))
+    ? buildExecPrompt(repoFull, issueNo, prepared.issueFormatted, `${setupPromptNotes(exec.setup)}\n${profilePromptNotes(exec.profile)}`, Math.floor(agentLimits("exec").timeoutMs / 60_000), exec.recipe?.recipe)
     : !useFastPath && fastPath && prepared.issueFormatted && profile
       ? `${buildPrompt(repoFull, issueNo, prepared.issueFormatted)}\n\n## Notes for this repository\n\n${profilePromptNotes(profile)}`
       : prepared.prompt;

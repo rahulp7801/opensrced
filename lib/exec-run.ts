@@ -19,13 +19,49 @@ export function profileLogLine(p: ContribProfile): string {
     `agent-rules=${p.agentInstructions ? "yes" : "no"} ai-policy=${p.aiPolicy.stance}${p.aiPolicy.source ? ` (${p.aiPolicy.source})` : ""} ` +
     `ai-trailer=${p.aiTrailer ?? "none"} sources=${p.sources.join(",") || "none"}\n`;
 }
-import { parseVerificationPlan, runVerification, verificationLogBlock, type Verification } from "./verify";
+import { parseVerificationPlan, runVerification, verificationLogBlock, type Baseline, type Verification } from "./verify";
+import { detectRecipe, readRecipeFiles, type Detection } from "./env/detect";
+import { setupScript } from "./env/recipe";
+
+/** OPENSRCER_ENV_RECIPES=1: set up from the detected recipe (lib/env) and
+ *  give it to the agent. Off: the setupPlan path, unchanged. */
+export function envRecipesOn(): boolean {
+  return process.env.OPENSRCER_ENV_RECIPES === "1";
+}
 
 const execFileAsync = promisify(execFile);
 
 export type PreparedRepo = { dir: string; sha: string };
 export type SetupResult = { status: "ok" | "cached" | "failed" | "none"; hint: string | null; durationMs: number; tail: string };
-export type ExecSession = { box: ExecBox; repo: PreparedRepo; workDir: string; profile: ContribProfile; setup: SetupResult };
+export type ExecSession = { box: ExecBox; repo: PreparedRepo; workDir: string; profile: ContribProfile; setup: SetupResult; recipe?: Detection | null };
+
+/** The setup plan for a detected recipe: runtimes, services and its setup
+ *  lines, run by runSetup like any other plan. Null for a builtin recipe
+ *  (setupPlan keeps owning those, persistent venv included) and for a
+ *  recipe with nothing to install. Exported for tests. */
+export function recipePlan(d: Detection): SetupPlan | null {
+  if (d.recipe.source === "builtin") return null;
+  const commands = setupScript(d.recipe);
+  if (!commands.length) return null;
+  const tests = d.recipe.test.length ? ` Its full test suite: ${d.recipe.test.map((t) => `\`${t.slice(0, 200)}\``).join("; ")}.` : "";
+  return { commands, hashFiles: [], persistent: false, hint: `The host set up the environment from the repository's ${d.recipe.source} recipe.${tests}` };
+}
+
+/** Detect the recipe for a checkout, logging what was found. A failure is
+ *  logged and returns null (the setupPlan path then runs). */
+export async function detectEnv(dir: string, repoFull: string, log: (line: string) => void): Promise<Detection | null> {
+  try {
+    const d = await detectRecipe(repoFull, readRecipeFiles(dir));
+    log(`[env] recipe source=${d.recipe.source} hash=${d.hash} partial=${d.partial}${d.unreachable ? ` unreachable=${d.unreachable}` : ""} ` +
+      `setup=${d.recipe.setup.length} test=${d.recipe.test.length} runtimes=${Object.entries(d.recipe.runtimes).map(([k, v]) => `${k}@${v}`).join(",") || "none"}\n`);
+    for (const note of d.notes.slice(0, 20)) log(`[env]   ${note.slice(0, 300)}\n`);
+    for (const a of d.unknownActions.slice(0, 10)) log(`[env]   unknown action ${a.uses} (${a.step.slice(0, 80)})\n`);
+    return d;
+  } catch (error) {
+    log(`[env] recipe detection failed (${(error instanceof Error ? error.message : String(error)).slice(0, 300)}); using the setupPlan heuristics\n`);
+    return null;
+  }
+}
 
 /** Run the environment recipe in the box before the agent starts, on its own
  *  clock (OPENSRCER_EXEC_SETUP_MS). A persistent plan skips work when the env
@@ -113,7 +149,8 @@ export async function setupExec(
   let box: ExecBox | undefined;
   try {
     await mkdir(workDir, { recursive: true });
-    const plan = setupPlan(repo.dir, repoFull);
+    const recipe = envRecipesOn() ? await detectEnv(repo.dir, repoFull, log) : null;
+    const plan = (recipe && recipePlan(recipe)) ?? setupPlan(repo.dir, repoFull);
     const key = plan ? setupKey(repo.dir, plan) : null;
     box = await startExecBox(mode, dispatchId, workDir, repoFull, plan?.persistent ? key ?? undefined : undefined);
     const sparse = sparseDirsFor(repoFull);
@@ -121,7 +158,7 @@ export async function setupExec(
     log(`[exec] box ${box.mode} up, ${repo.sha.slice(0, 12)} loaded${sparse ? ` (sparse: ${sparse.join(" ")})` : ""} as baseline ${baseline.slice(0, 12)} in ${Math.round((Date.now() - started) / 1000)}s\n`);
     // Installs happen here, before the agent's turns and wall clock start.
     const setup = await runSetup(box, plan, key, log);
-    return { box, repo, workDir, profile, setup };
+    return { box, repo, workDir, profile, setup, recipe };
   } catch (error) {
     await box?.stop();
     const message = error instanceof Error ? error.message : String(error);
@@ -141,7 +178,7 @@ export type ExecOutcome = { patchPath: string | null; verification: Verification
 export async function finalizeExec(
   session: ExecSession,
   logPath: string,
-  opts: { verify: boolean; extraLint?: string[]; evalHook?: EvalHook },
+  opts: { verify: boolean; extraLint?: string[]; evalHook?: EvalHook; baseline?: Baseline },
 ): Promise<ExecOutcome> {
   const log = (s: string) => appendFile(logPath, s).catch(() => {});
   try {
@@ -161,7 +198,7 @@ export async function finalizeExec(
     const health = await boxRequest<{ used_ms: number }>(session.box, "GET", "/health", undefined, 15_000).catch(() => null);
     await log(`\n[verify] agent command time (installs, reproduction, test runs): ${health ? `${Math.round(health.used_ms / 1000)}s` : "unknown"}\n` +
       `[verify] re-running ${plan.test.length} test and ${plan.lint.length + (opts.extraLint?.length ?? 0)} lint command(s) on the final patch\n`);
-    const verification = await runVerification(session.box, plan, patch, opts.extraLint);
+    const verification = await runVerification(session.box, plan, patch, opts.extraLint, opts.baseline);
     await writeFile(path.join(session.workDir, "verification.json"), JSON.stringify(verification), { mode: 0o600 });
     await log(verificationLogBlock(verification));
     // Eval mode only (scripts/eval-merged.cjs): inspect the box before it stops.

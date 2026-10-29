@@ -1,0 +1,70 @@
+{
+  "workflow": ".github/workflows/tests.yml",
+  "job": "linux_tests",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "laravel/framework",
+    "source": "ci",
+    "runtimes": {
+      "php": "8.5"
+    },
+    "services": [
+      {
+        "name": "memcached",
+        "image": "memcached:1.6-alpine",
+        "ports": [
+          11211
+        ]
+      },
+      {
+        "name": "mysql",
+        "image": "mysql:9.7",
+        "env": {
+          "MYSQL_ALLOW_EMPTY_PASSWORD": "yes",
+          "MYSQL_DATABASE": "forge"
+        },
+        "ports": [
+          3306
+        ]
+      },
+      {
+        "name": "redis",
+        "image": "redis:7.0",
+        "ports": [
+          6379
+        ]
+      },
+      {
+        "name": "dynamodb",
+        "image": "amazon/dynamodb-local:2.0.0",
+        "ports": [
+          8888
+        ]
+      }
+    ],
+    "env": {
+      "PHP_SHARED_EXTENSIONS": "dom, curl, libxml, mbstring, zip, pdo,  sqlite, pdo_sqlite, gd, imagick, redis, memcached, gmp, igbinary, msgpack, :php-psr",
+      "PHP_LINUX_EXTENSIONS": "pcntl",
+      "PHP_WINDOWS_EXTENSIONS": "pdo_mysql, fileinfo, ftp, intl"
+    },
+    "setup": [
+      "composer config version \"13.x-dev\"",
+      "composer update --prefer-lowest --prefer-dist --no-interaction --no-progress --with=\"phpunit/phpunit:~13.0.3\""
+    ],
+    "test": [
+      "DB_PORT='3306' DB_USERNAME='root' DYNAMODB_CACHE_TABLE='laravel_dynamodb_test' DYNAMODB_ENDPOINT='http://localhost:8888' AWS_ACCESS_KEY_ID='randomKey' AWS_SECRET_ACCESS_KEY='randomSecret' bash -e -c 'vendor/bin/phpunit --display-deprecation  --no-coverage'"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 600000
+    }
+  },
+  "notes": [
+    ".github/workflows/dependabot-auto-merge.yml job dependabot: reusable workflow laravel/.github/.github/workflows/dependabot-auto-merge.yml@c265c45c41ccb723befb7a2b807dffff4595bd39 not inlined",
+    "ci: candidates tests.yml#linux_tests=9, tests.yml#windows_tests=9(non_linux), redis.yml#redis-unit=9, redis.yml#redis=5",
+    "ci: .github/workflows/tests.yml job linux_tests (matrix: php=8.5, phpunit=13.0.3, stability=prefer-lowest)"
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "workflow": ".github/workflows/build-release.yml",
+  "job": "tests",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "marshmallow-code/marshmallow",
+    "source": "ci",
+    "runtimes": {
+      "uv": "latest"
+    },
+    "services": [],
+    "env": {},
+    "setup": [],
+    "test": [
+      "uv run tox -e py314"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 900000
+    }
+  },
+  "notes": [
+    "job lint-pre-release skipped: its if: is false here",
+    "job publish-to-pypi skipped: its if: is false here",
+    "ci: candidates build-release.yml#tests=6, build-release.yml#build=-2",
+    "ci: .github/workflows/build-release.yml job tests (matrix: name=3.14, tox=py314)"
+  ]
+}

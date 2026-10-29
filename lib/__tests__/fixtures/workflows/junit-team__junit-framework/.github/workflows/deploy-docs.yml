@@ -1,0 +1,22 @@
+name: Deploy Documentation
+
+on: [ workflow_call, workflow_dispatch ]
+
+permissions: {}
+
+jobs:
+  deploy_documentation:
+    name: Deploy Documentation
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Trigger documentation site deployment
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          max_attempts: 10
+          retry_wait_seconds: 5
+          timeout_seconds: 20
+          command: gh workflow run deploy-docs.yml --repo junit-team/junit-framework --ref docs-site

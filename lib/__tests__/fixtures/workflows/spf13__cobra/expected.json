@@ -1,0 +1,34 @@
+{
+  "workflow": ".github/workflows/test.yml",
+  "job": "test-unix",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "spf13/cobra",
+    "source": "ci",
+    "runtimes": {
+      "go": "1.24"
+    },
+    "services": [],
+    "env": {
+      "GO111MODULE": "on",
+      "GO_TEST_FLAGS": ""
+    },
+    "setup": [
+      "bash -e -c 'export GOBIN=$HOME/go/bin\ngo install github.com/kyoh86/richgo@latest\ngo install github.com/mitchellh/gox@latest'"
+    ],
+    "test": [
+      "RICHGO_FORCE_COLOR=1 PATH=$HOME/go/bin/:$PATH make richtest"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 900000
+    }
+  },
+  "notes": [
+    "ci: candidates test.yml#test-unix=9, test.yml#test-win=9(non_linux), test.yml#lic-headers=1, test.yml#golangci-lint=-3",
+    "ci: .github/workflows/test.yml job test-unix (matrix: platform=ubuntu, go=24)"
+  ]
+}

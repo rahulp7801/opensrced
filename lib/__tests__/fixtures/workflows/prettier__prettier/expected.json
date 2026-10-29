@@ -1,0 +1,38 @@
+{
+  "workflow": ".github/workflows/dev-test.yml",
+  "job": "test",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "prettier/prettier",
+    "source": "ci",
+    "runtimes": {
+      "node": "26"
+    },
+    "services": [],
+    "env": {
+      "ENABLE_CODE_COVERAGE": "true",
+      "FULL_TEST": "true"
+    },
+    "setup": [
+      "yarn --immutable"
+    ],
+    "test": [
+      "yarn c8 yarn test"
+    ],
+    "lint": [
+      "node bin/prettier.cjs --debug-benchmark package.json 2>&1 >/dev/null | grep \"Latency avg\" || exit 1"
+    ],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 900000
+    }
+  },
+  "notes": [
+    ".github/workflows/autofix.yml job fix: reusable workflow prettier/shared-workflows/.github/workflows/automated-fix.yml@c3ac99dd39893c2592fc5e6029420a1b90ad647b not inlined",
+    "ci: candidates dev-test.yml#test=9, dev-package-test.yml#test=9, prod-test.yml#test=7, prod-test.yml#browser=7",
+    "ci: .github/workflows/dev-test.yml job test (matrix: os=ubuntu-latest, node=26, ENABLE_CODE_COVERAGE=true, FULL_TEST=true)",
+    "skipped \"Run Tests\": its if: is false here"
+  ]
+}

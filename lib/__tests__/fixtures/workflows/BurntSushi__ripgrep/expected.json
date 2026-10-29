@@ -1,0 +1,47 @@
+{
+  "workflow": ".github/workflows/ci.yml",
+  "job": "test",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "BurntSushi/ripgrep",
+    "source": "ci",
+    "runtimes": {
+      "rust": "stable"
+    },
+    "services": [],
+    "env": {
+      "CARGO": "cargo",
+      "TARGET_FLAGS": "",
+      "TARGET_DIR": "./target",
+      "CROSS_VERSION": "v0.2.5",
+      "RUST_BACKTRACE": "1"
+    },
+    "setup": [
+      "ci/ubuntu-install-packages",
+      "cargo build --verbose --workspace",
+      "cargo build --verbose --workspace --features pcre2",
+      "bash --noprofile --norc -eo pipefail -c 'set +x\nstderr=\"$(find \"./target/debug\" -name stderr -print0 | xargs -0 ls -t | head -n1)\"\nif [ -s \"$stderr\" ]; then\n  echo \"===== $stderr ===== \"\n  cat \"$stderr\"\n  echo \"=====\"\nfi\nset -x'"
+    ],
+    "test": [
+      "cargo test --verbose --workspace --features pcre2",
+      "ci/test-complete",
+      "cargo test --manifest-path crates/cli/Cargo.toml  --lib print_hostname -- --nocapture",
+      "cargo test --bin rg  flags::defs::tests::available_shorts -- --nocapture"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 900000
+    }
+  },
+  "notes": [
+    "ci: candidates ci.yml#test=9, ci.yml#benches=5, ci.yml#rustfmt=1, ci.yml#fuzz_testing=0",
+    "ci: .github/workflows/ci.yml job test (matrix: build=stable, os=ubuntu-latest, rust=stable)",
+    "skipped \"Update Docker (32-bit Linux)\": its if: is false here",
+    "skipped \"Use Cross\": its if: is false here",
+    "dropped \"Show command used for Cargo\": only prints",
+    "skipped \"Run tests without PCRE2 (with cross)\": its if: is false here"
+  ]
+}

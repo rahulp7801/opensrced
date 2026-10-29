@@ -1,0 +1,40 @@
+{
+  "workflow": ".github/workflows/ci.yml",
+  "job": "test",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "clap-rs/clap",
+    "source": "ci",
+    "runtimes": {},
+    "services": [],
+    "env": {
+      "RUST_BACKTRACE": "1",
+      "CARGO_TERM_COLOR": "always",
+      "CLICOLOR": "1",
+      "CARGO_INCREMENTAL": "0",
+      "RUST_TOOLCHAIN_STABLE": "1.99",
+      "CARGO_PROFILE_DEV_DEBUG": "line-tables-only"
+    },
+    "setup": [
+      "rustup update --no-self-update stable && rustup default stable",
+      "make build-full"
+    ],
+    "test": [
+      "make test-full",
+      "make test-full ARGS='--workspace --benches'",
+      "cargo test -p clap_complete -F unstable-dynamic"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 900000
+    }
+  },
+  "notes": [
+    "ci: candidates ci.yml#test=9, ci.yml#ui=9, ci.yml#check=6, ci.yml#shell-integration=6",
+    "ci: .github/workflows/ci.yml job test (matrix: build=linux, os=ubuntu-latest, rust=stable, features=full)",
+    "skipped \"Test (ultra-minimal)\": its if: is false here"
+  ]
+}

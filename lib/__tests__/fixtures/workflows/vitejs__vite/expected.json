@@ -1,0 +1,45 @@
+{
+  "workflow": ".github/workflows/ci.yml",
+  "job": "test",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "vitejs/vite",
+    "source": "ci",
+    "runtimes": {
+      "pnpm": "12.15.0"
+    },
+    "services": [],
+    "env": {
+      "NODE_OPTIONS": "--max-old-space-size=6144",
+      "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD": "1",
+      "VITEST_SEGFAULT_RETRY": "3"
+    },
+    "setup": [
+      "bash -e -c 'echo \"PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/playwright-bin\" >> $GITHUB_ENV\nPLAYWRIGHT_VERSION=\"$(pnpm ls --depth 0 --json -w playwright-chromium | jq --raw-output '\\''.[0].devDependencies[\"playwright-chromium\"].version'\\'')\"\necho \"PLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION\" >> $GITHUB_ENV'",
+      "pnpm playwright install chromium",
+      "pnpm run build"
+    ],
+    "test": [
+      "pnpm run test-unit",
+      "pnpm run test-serve",
+      "pnpm run test-serve-bundled",
+      "pnpm run test-build"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 1200000
+    }
+  },
+  "notes": [
+    "job test-failed skipped: its if: is false here",
+    "job preview skipped: its if: is false here",
+    "ci: candidates ci.yml#test=9, ci.yml#lint=5, ci.yml#test-passed=4, ci.yml#changed=1",
+    "ci: .github/workflows/ci.yml job test (matrix: os=ubuntu-latest, node_version=26)",
+    "skipped \"Install pnpm and node 24 for builds\": its if: is false here",
+    "skipped \"(windows) Set Playwright path and Get playwright version\": its if: is false here",
+    "skipped \"test step 9\": its if: is false here"
+  ]
+}

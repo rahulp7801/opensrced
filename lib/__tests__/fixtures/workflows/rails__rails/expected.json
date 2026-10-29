@@ -1,0 +1,31 @@
+{
+  "workflow": ".github/workflows/rail_inspector.yml",
+  "job": "rail_inspector",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "rails/rails",
+    "source": "ci",
+    "runtimes": {
+      "ruby": "latest"
+    },
+    "services": [],
+    "env": {},
+    "setup": [
+      "rm -f Gemfile.lock"
+    ],
+    "test": [
+      "(cd tools/rail_inspector && bundle exec rake)"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 900000
+    }
+  },
+  "notes": [
+    "ci: candidates rail_inspector.yml#rail_inspector=8, rails_releaser_tests.yml#releaser_tests=3, devcontainer-shellcheck.yml#devcontainer_shellcheck=0, rails-new-docker.yml#rails-new-docker=-1",
+    "ci: .github/workflows/rail_inspector.yml job rail_inspector"
+  ]
+}

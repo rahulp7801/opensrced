@@ -1,0 +1,922 @@
+# This workflow runs on pull requests labeled with `third-party-tests`, inspired by:
+# https://github.com/python/typing_extensions/blob/main/.github/workflows/third_party.yml.
+# Running the tests of various third-party libraries that use Pydantic. This helps us spot regressions early, and helps
+# flag when third-party libraries are making incorrect assumptions that might cause them to break when we cut a new release.
+# Instructions:
+# - The CI should be as close as possible to the original project's workflows.
+# - Use the checkout action to clone Pydantic with a custom path (e.g. `path: pydantic-latest`).
+# - Make sure Pydantic is installed in editable mode (e.g. `uv pip install --no-config -e ./pydantic-latest`)
+#   so that the path appears in the `pip list` output (and so we can be assured Pydantic was properly
+#   installed from the provided path).
+# - If using `uv run`, make use to use the `--no-sync`, because uv has the nasty habit of syncing the venv
+#   on each `uv run` invocation, which will reinstall the locked `pydantic`/`pydantic-core` version.
+name: Third party tests
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  # https://github.com/pytest-dev/pytest/issues/7443#issuecomment-656642591:
+  FORCE_COLOR: 1
+  # https://pip.pypa.io/en/stable/cli/pip_install/#cmdoption-progress-bar
+  PIP_PROGRESS_BAR: off
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  test-fastapi:
+    name: Test FastAPI (main branch) on Python ${{ matrix.python-version }}
+    if: contains(github.event.pull_request.labels.*.name, 'third-party-tests')
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
+    steps:
+      - name: Checkout FastAPI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fastapi/fastapi
+          persist-credentials: false
+
+      - name: Checkout Pydantic
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pydantic-latest
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install FastAPI dependencies
+        run: |
+          uv sync --locked --no-dev --group tests --extra all
+          uv pip uninstall pydantic pydantic-core
+          uv pip install --no-config -e ./pydantic-latest -e ./pydantic-latest/pydantic-core
+
+      - name: List installed dependencies
+        run: uv pip list
+
+      - name: Run FastAPI tests
+        run: PYTHONPATH=./docs_src uv run --no-project --no-sync pytest tests
+
+  test-sqlmodel:
+    name: Test SQLModel (main branch) on Python ${{ matrix.python-version }}
+    if: contains(github.event.pull_request.labels.*.name, 'third-party-tests')
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
+    steps:
+      - name: Checkout SQLModel
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fastapi/sqlmodel
+          persist-credentials: false
+
+      - name: Checkout Pydantic
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pydantic-latest
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install SQLModel dependencies
+        run: |
+          uv sync --locked --no-dev --group tests
+          uv pip uninstall pydantic pydantic-core
+          uv pip install --no-config -e ./pydantic-latest -e ./pydantic-latest/pydantic-core
+
+      - name: List installed dependencies
+        run: uv pip list
+
+      - run: mkdir coverage
+
+      - name: Run SQLModel tests
+        run: uv run --no-sync pytest tests
+
+  test-beanie:
+    name: Test Beanie (main branch) on Python ${{ matrix.python-version }}
+    if: contains(github.event.pull_request.labels.*.name, 'third-party-tests')
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Testing on a single version to avoid reaching Docker API limits:
+        python-version: ['3.13']
+    steps:
+      - name: Checkout Beanie
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: BeanieODM/beanie
+          persist-credentials: false
+
+      - name: Checkout Pydantic
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pydantic-latest
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Start MongoDB
+        uses: supercharge/mongodb-github-action@315db7fe45ac2880b7758f1933e6e5d59afd5e94 # 1.12.1
+        with:
+          mongodb-version: '8.0'
+          mongodb-replica-set: test-rs
+
+      - name: Install Beanie dependencies
+        run: |
+          pip install .[test,ci]
+          pip uninstall --yes pydantic pydantic-core
+          pip install -e ./pydantic-latest -e ./pydantic-latest/pydantic-core
+
+      - name: List installed dependencies
+        run: pip list
+
+      - name: Run Beanie tests
+        run: pytest -v tests/
+
+  test-openapi-python-client:
+    name: Test openapi-python-client (main branch) on Python ${{ matrix.python-version }}
+    if: contains(github.event.pull_request.labels.*.name, 'third-party-tests')
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13']
+    steps:
+      - name: Checkout openapi-python-client
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: openapi-generators/openapi-python-client
+          persist-credentials: false
+
+      - name: Checkout Pydantic
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pydantic-latest
+          persist-credentials: false
+
+      - name: Set up PDM
+        uses: pdm-project/setup-pdm@544d7237314ee09c256785bd360f6b30add38b37 # v4.6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install openapi-python-client dependencies
+        run: |
+          pdm install --quiet
+          pdm run python -m ensurepip
+          pdm run python -m pip uninstall --yes pydantic pydantic-core
+          pdm run python -m pip install -e ./pydantic-latest -e ./pydantic-latest/pydantic-core
+
+      - name: List installed dependencies
+        run: pdm list
+
+      - name: Run openapi-python-client tests
+        run: pdm test
+        env:
+          TASKIPY: true
+
+  test-pandera:
+    name: Test Pandera (main branch) on Python ${{ matrix.python-version }}
+    if: contains(github.event.pull_request.labels.*.name, 'third-party-tests')
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+    steps:
+      - name: Checkout Pandera
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: unionai-oss/pandera
+          persist-credentials: false
+
+      - name: Checkout Pydantic
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pydantic-latest
+          persist-credentials: false
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Pandera dependencies
+        run: |
+          pip install uv
+          uv sync --no-progress --extra pandas --extra fastapi --group dev --group testing --group docs
+          uv pip uninstall --system pydantic pydantic-core
+          uv pip install --no-config --system -e ./pydantic-latest
+
+      - name: List installed dependencies
+        run: uv pip list
+
+      - name: Run Pandera tests
+        # Pandera's CI uses nox sessions which encapsulate the logic to install a specific Pydantic version.
+        # Instead, manually run pytest (we run core, pandas and FastAPI tests). Each test directory is run
+        # in a separate process, as is done upstream (some tests depend on the pandas backends *not* being
+        # registered, which happens when collecting the pandas tests):
+        run: |
+          uv run --no-sync pytest tests/base
+          uv run --no-sync pytest tests/pandas
+          uv run --no-sync pytest tests/fastapi
+
+  test-odmantic:
+    name: Test ODMantic (main branch) on Python ${{ matrix.python-version }}
+    if: contains(github.event.pull_request.labels.*.name, 'third-party-tests')
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11']
+
+    steps:
+      - name: Checkout ODMantic
+        # Not using actions/checkout, as the ODMantic repository has a stale gitlink entry
+        # ('.mongodb-cluster-action', with no matching '.gitmodules' entry) that makes the
+        # action's 'git submodule foreach' auth cleanup fail with exit code 128.
+        run: git clone --depth=1 https://github.com/art049/odmantic.git .
+
+      - name: Checkout Pydantic
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pydantic-latest
+          persist-credentials: false
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+
+      - name: Mongo service
+        run: bash mongodb-cluster/run.sh
+        env:
+          MODE: standalone
+          VERSION: '6'
+
+      - name: Install ODMantic dependencies
+        run: |
+          uv sync --locked --no-dev --extra test
+          uv pip uninstall pydantic pydantic-core
+          uv pip install --no-config -e ./pydantic-latest -e ./pydantic-latest/pydantic-core
+
+      - name: List installed dependencies
+        run: uv pip list
+
+      - name: Run ODMantic tests
+        # Disabled tests, as per https://github.com/art049/odmantic/issues/512:
+        run: uv run --no-sync pytest tests -k 'not test_custom_bson_serializable and not test_sync_custom_bson_serializable and not test_with_bson_serializer_override_builtin_bson' tests/
+        env:
+          TEST_MONGO_URI: mongodb://localhost:27017/
+          TEST_MONGO_MODE: standalone
+
+  test-polar:
+    name: Test Polar (main branch) on Python ${{ matrix.python-version }}
+    if: contains(github.event.pull_request.labels.*.name, 'third-party-tests')
+    env:
+      POLAR_ENV: testing
+      POLAR_EMAIL_RENDERER_BINARY_PATH: ${{ github.workspace }}/server/emails/bin/react-email-pkg
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.14']
+    services:
+      postgres:
+        image: postgres:15.1-bullseye
+        env:
+          POSTGRES_USER: polar
+          POSTGRES_PASSWORD: polar
+          POSTGRES_DB: polar_test
+          POSTGRES_PORT: 5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7.4-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+      minio:
+        image: bitnamilegacy/minio:2024.5.28
+        ports:
+          - 9000:9000
+          - 9001:9001
+        env:
+          MINIO_ROOT_USER: polar
+          MINIO_ROOT_PASSWORD: polarpolar
+        options: >-
+          --health-cmd "curl -I http://127.0.0.1:9000/minio/health/live"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout polar
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: polarsource/polar
+          persist-credentials: false
+
+      - name: 💿 MinIO Setup
+        working-directory: ./server/.minio
+        env:
+          MINIO_HOST: 127.0.0.1
+          MINIO_ROOT_USER: polar
+          MINIO_ROOT_PASSWORD: polarpolar
+          ACCESS_KEY: polar-development
+          SECRET_ACCESS_KEY: polar123456789
+          BUCKET_NAME: polar-s3
+          BUCKET_TESTING_NAME: testing-polar-s3
+          POLICY_FILE: policy.json
+        run: bash github.sh
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: server/emails/package.json
+
+      - name: 📬 Setup Node.js environment for server/emails
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: 'pnpm'
+          cache-dependency-path: 'server/emails/pnpm-lock.yaml'
+
+      - name: 📬 Build server/emails
+        working-directory: server/emails
+        run: pnpm install --frozen-lockfile && pnpm build
+
+      - name: Checkout Pydantic
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pydantic-latest
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: 🔧 uv install
+        working-directory: ./server
+        run: |
+          uv sync --no-progress --dev
+          uv pip uninstall pydantic
+          uv pip install --no-config -e ./../pydantic-latest
+
+      - name: List installed dependencies
+        working-directory: ./server
+        run: uv pip list
+
+      - name: ⚗️ alembic migrate
+        working-directory: ./server
+        run: uv run --no-sync task db_migrate
+
+      - name: ⚗️ alembic check
+        working-directory: ./server
+        run: uv run --no-sync alembic check
+
+      - name: 🐍 Run polar tests (pytest)
+        working-directory: ./server
+        run: uv run --no-sync pytest -n auto --no-cov tests/
+
+  test-bentoml:
+    name: Test BentoML (main branch) on Python ${{ matrix.python-version }}
+    if: contains(github.event.pull_request.labels.*.name, 'third-party-tests')
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
+
+    steps:
+      - name: Checkout BentoML
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: bentoml/BentoML
+          persist-credentials: false
+
+      - name: Checkout Pydantic
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pydantic-latest
+          persist-credentials: false
+
+      # Note: BentoML workflow uses nox sessions which don't allow installing
+      # the custom Pydantic version. Instead, we manually set up the env.
+      - name: Set up PDM
+        uses: pdm-project/setup-pdm@544d7237314ee09c256785bd360f6b30add38b37 # v4.6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install BentoML dependencies
+        run: |
+          pdm sync -G grpc,io,testing --quiet
+          pdm run python -m ensurepip
+          pdm run python -m pip uninstall --yes pydantic pydantic-core
+          pdm run python -m pip install -e ./pydantic-latest -e ./pydantic-latest/pydantic-core
+
+      - name: List installed dependencies
+        run: pdm list
+
+      - name: Run BentoML tests
+        run: pdm run pytest -n auto tests/unit
+        env:
+          BENTOML_DO_NOT_TRACK: True
+          PYTEST_PLUGINS: bentoml.testing.pytest.plugin
+
+  test-semantic-kernel:
+    name: Test Semantic Kernel (main branch) on Python ${{ matrix.python-version }}
+    if: contains(github.event.pull_request.labels.*.name, 'third-party-tests')
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+
+    steps:
+      - name: Checkout Semantic Kernel
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: microsoft/semantic-kernel
+          persist-credentials: false
+
+      - name: Checkout Pydantic
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pydantic-latest
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          working-directory: python
+
+      - name: Install Semantic Kernel dependencies
+        working-directory: ./python
+        run: |
+          uv sync --no-progress --all-extras --dev --prerelease=if-necessary-or-explicit
+          uv pip uninstall pydantic
+          uv pip install --no-config -e ../pydantic-latest
+
+      - name: List installed dependencies
+        working-directory: ./python
+        run: uv pip list
+
+      - name: Run Semantic Kernel tests
+        working-directory: ./python
+        run: uv run --frozen --no-sync pytest ./tests/unit --ignore=tests/unit/processes/dapr_runtime
+
+  test-langchain:
+    name: Test LangChain (main branch) on Python ${{ matrix.python-version }}
+    if: contains(github.event.pull_request.labels.*.name, 'third-party-tests')
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13']
+
+    steps:
+      - name: Checkout Langchain
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: langchain-ai/langchain
+          persist-credentials: false
+
+      - name: Checkout Pydantic
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pydantic-latest
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install LangChain dependencies
+        run: |
+          uv sync --no-progress --directory ./libs/core --group test
+          uv pip uninstall --directory ./libs/core pydantic
+          uv pip install --directory ./libs/core -e ../../pydantic-latest
+          uv sync --no-progress --directory ./libs/langchain --group test
+          uv pip uninstall --directory ./libs/langchain pydantic
+          uv pip install --directory ./libs/langchain -e ../../pydantic-latest
+          uv sync --no-progress --directory ./libs/langchain_v1 --group test
+          uv pip uninstall --directory ./libs/langchain_v1 pydantic
+          uv pip install --directory ./libs/langchain_v1 -e ../../pydantic-latest
+
+      - name: List installed core dependencies
+        run: uv pip list --directory ./libs/core
+
+      - name: List installed LangChain v0.x dependencies
+        run: uv pip list --directory ./libs/langchain
+
+      - name: List installed LangChain v1.x dependencies
+        run: uv pip list --directory ./libs/langchain_v1
+
+      - name: Run LangChain core tests
+        working-directory: ./libs/core
+        run: UV_NO_SYNC=1 make test
+
+      - name: Run LangChain v0.x main tests
+        working-directory: ./libs/langchain
+        run: UV_NO_SYNC=1 make test
+
+      - name: Run LangChain v1.x main tests
+        working-directory: ./libs/langchain_v1
+        run: UV_NO_SYNC=1 make test
+
+  test-dify:
+    name: Test Dify (main branch) on Python ${{ matrix.python-version }}
+    if: contains(github.event.pull_request.labels.*.name, 'third-party-tests')
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.12']
+
+    steps:
+      - name: Checkout Dify
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: langgenius/dify
+          persist-credentials: false
+
+      - name: Checkout Pydantic
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pydantic-latest
+          persist-credentials: false
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+
+      - name: Install Dify dependencies
+        run: |
+          uv sync --no-progress --directory api --dev
+          uv pip --directory api uninstall pydantic pydantic-core
+          uv pip --directory api install -e ../pydantic-latest -e ../pydantic-latest/pydantic-core
+
+      - name: List installed dependencies
+        run: uv pip --directory api list
+
+      - name: Run Dify unit tests
+        run: uv run --no-sync --directory api pytest tests/unit_tests/
+
+  test-cadwyn:
+    name: Test Cadwyn (main branch) on Python ${{ matrix.python-version }}
+    if: contains(github.event.pull_request.labels.*.name, 'third-party-tests')
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
+    steps:
+      - name: Checkout Cadwyn
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: zmievsa/cadwyn
+          persist-credentials: false
+
+      - name: Checkout Pydantic
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pydantic-latest
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          activate-environment: true
+
+      - name: Install Cadwyn dependencies
+        run: |
+          uv sync --no-progress --dev --all-extras
+          uv pip install --no-config -e ./pydantic-latest
+
+      - name: List installed dependencies
+        run: uv pip list
+
+      - name: Run Cadwyn tests
+        run: uv run --no-sync pytest tests docs_src
+
+  test-pydantic-xml:
+    name: Test pydantic-xml (main branch) on Python ${{ matrix.python-version }}
+    if: contains(github.event.pull_request.labels.*.name, 'third-party-tests')
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13']
+    steps:
+      - name: Checkout pydantic-xml
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: dapper91/pydantic-xml
+          persist-credentials: false
+
+      - name: Checkout Pydantic
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pydantic-latest
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install pydantic-xml dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry
+          poetry install --no-root -E lxml
+          pip uninstall pydantic
+          pip install -e ./pydantic-latest/pydantic-core -e ./pydantic-latest
+
+      - name: List installed dependencies
+        run: pip list
+
+      - name: Run pydantic-xml tests
+        run: PYTHONPATH="$(pwd):$PYTHONPATH" poetry run pytest tests
+
+  test-redis-om:
+    name: Test Redis OM Python (main branch) on Python ${{ matrix.python-version }}
+    if: contains(github.event.pull_request.labels.*.name, 'third-party-tests')
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13']
+    services:
+      redis:
+        image: redis/redis-stack:latest # zizmor: ignore[unpinned-images] -- intentionally using latest for third-party compatibility testing
+        ports:
+          # Maps port 6379 on service container to the host
+          - 6379:6379
+        # Set health checks to wait until redis has started
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      INSTALL_DIR: ${{ github.workspace }}/redis
+    steps:
+      - name: Checkout Redis OM Python
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: redis/redis-om-python
+          persist-credentials: false
+
+      - name: Checkout Pydantic
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pydantic-latest
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          uv sync
+          uv pip uninstall pydantic pydantic-core
+          uv pip install --no-config -e ./pydantic-latest -e ./pydantic-latest/pydantic-core
+
+      - name: Make sync version of library (redis_om)
+        run: make sync
+
+      - name: List installed dependencies
+        run: uv pip list
+
+      - name: Run Redis OM Python tests
+        env:
+          REDIS_OM_URL: 'redis://localhost:6379?decode_responses=True'
+        run: |
+          make test
+
+  test-django-ninja:
+    name: Test Django Ninja (main branch) on Python ${{ matrix.python-version }}
+    if: contains(github.event.pull_request.labels.*.name, 'third-party-tests')
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13']
+    steps:
+      - name: Checkout Django Ninja
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: vitalik/django-ninja
+          persist-credentials: false
+
+      - name: Checkout Pydantic
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pydantic-latest
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Django Ninja dependencies
+        run: pip install pytest pytest-asyncio pytest-django psycopg2-binary 'django~=5.2.7' ./pydantic-latest ./pydantic-latest/pydantic-core
+
+      # For some reason, tests can't run properly if the pydantic sources are around:
+      - run: rm -rd ./pydantic-latest
+
+      - name: List installed dependencies
+        run: pip list
+
+      - name: Run Django Ninja tests
+        # `test_all_fields` expects the `Decimal` JSON Schema `pattern`, which is no longer emitted by default since 2.14:
+        run: pytest tests/ -k 'not test_all_fields'
+
+  test-fastdepends:
+    name: Test FastDepends (main branch) on Python ${{ matrix.python-version }}
+    if: contains(github.event.pull_request.labels.*.name, 'third-party-tests')
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13']
+    steps:
+      - name: Checkout FastDepends
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Lancetnik/FastDepends
+          persist-credentials: false
+
+      - name: Checkout Pydantic
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pydantic-latest
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install FastDepends dependencies
+        run: |
+          uv venv --python ${{ matrix.python-version }}
+          uv sync --group test
+          uv pip uninstall pydantic
+          uv pip install --no-config -e ./pydantic-latest
+
+      - name: List installed dependencies
+        run: uv pip list
+
+      - name: Run FastDepends tests
+        run: uv run --no-sync pytest tests/
+
+  test-mcp-python-sdk:
+    name: Test MCP Python SDK (main branch) on Python ${{ matrix.python-version }}
+    if: contains(github.event.pull_request.labels.*.name, 'third-party-tests')
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
+    steps:
+      - name: Checkout MCP Python SDK
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: modelcontextprotocol/python-sdk
+          persist-credentials: false
+
+      - name: Checkout Pydantic
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pydantic-latest
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install MCP Python SDK dependencies
+        run: |
+          uv venv --python ${{ matrix.python-version }}
+          uv sync --all-extras --python ${{ matrix.python-version }}
+          uv pip uninstall pydantic
+          uv pip install --no-config -e ./pydantic-latest
+
+      - name: List installed dependencies
+        run: uv pip list
+
+      - name: Run MCP Python SDK tests
+        shell: bash
+        env:
+          # tests/examples/test_stories_smoke.py is gated on this var; it spawns real
+          # stdio + uvicorn subprocesses, so we don't run it for third-party tests.
+          # test_modern_post_with_deeply_nested_body_is_parse_error_not_a_crash is somehow failing in third party tests:
+          MCP_EXAMPLES_SMOKE: '0'
+        run: uv run --frozen --no-sync pytest -n auto tests/ -k 'not test_modern_post_with_deeply_nested_body_is_parse_error_not_a_crash'
+
+  test-fastmcp:
+    name: Test FastMCP (main branch) on Python ${{ matrix.python-version }}
+    if: contains(github.event.pull_request.labels.*.name, 'third-party-tests')
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.13']
+    steps:
+      - name: Checkout FastMCP
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: PrefectHQ/fastmcp
+          persist-credentials: false
+
+      - name: Checkout Pydantic
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pydantic-latest
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install FastMCP dependencies
+        run: |
+          uv sync --no-progress
+          uv pip uninstall pydantic
+          uv pip install --no-config -e ./pydantic-latest
+
+      - name: List installed dependencies
+        run: uv pip list
+
+      # unit tests only (see https://github.com/PrefectHQ/fastmcp/blob/main/.github/actions/run-pytest/action.yml):
+      - name: Run FastMCP tests
+        # The workflow-level FORCE_COLOR makes Rich emit ANSI codes in captured output,
+        # breaking FastMCP's CLI tests (which assert on plain text/JSON output):
+        run: |
+          unset FORCE_COLOR
+          uv run --frozen --no-sync pytest \
+            --inline-snapshot=disable \
+            --timeout=5 \
+            --durations=50 \
+            -m "not integration and not client_process and not subprocess_heavy and not conformance" \
+            tests/

@@ -1,0 +1,35 @@
+{
+  "workflow": ".github/workflows/test-suite.yml",
+  "job": "tests",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "encode/httpx",
+    "source": "ci",
+    "runtimes": {
+      "python": "3.13"
+    },
+    "services": [],
+    "env": {},
+    "setup": [
+      "scripts/install",
+      "scripts/build"
+    ],
+    "test": [
+      "scripts/test"
+    ],
+    "lint": [
+      "scripts/check"
+    ],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 900000
+    }
+  },
+  "notes": [
+    "ci: candidates test-suite.yml#tests=9, publish.yml#publish=-6",
+    "ci: .github/workflows/test-suite.yml job tests (matrix: python-version=3.13)",
+    "dropped \"Enforce coverage\": runs after the tests"
+  ]
+}

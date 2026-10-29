@@ -1,0 +1,33 @@
+{
+  "workflow": ".github/workflows/ci.yml",
+  "job": "test",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "expressjs/express",
+    "source": "ci",
+    "runtimes": {
+      "node": "26"
+    },
+    "services": [],
+    "env": {},
+    "setup": [
+      "npm config set loglevel error",
+      "npm install"
+    ],
+    "test": [
+      "npm run test-ci"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 900000
+    }
+  },
+  "notes": [
+    "ci: candidates ci.yml#test=9, legacy.yml#test=8, codeql.yml#analyze=-2, ci.yml#lint=-3",
+    "ci: .github/workflows/ci.yml job test (matrix: os=ubuntu-latest, node-version=26)",
+    "dropped \"Output Node and NPM versions\": only prints"
+  ]
+}

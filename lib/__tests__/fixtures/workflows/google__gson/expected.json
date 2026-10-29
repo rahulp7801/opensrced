@@ -1,0 +1,31 @@
+{
+  "workflow": ".github/workflows/build.yml",
+  "job": "build",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "google/gson",
+    "source": "ci",
+    "runtimes": {
+      "java": "temurin-25"
+    },
+    "services": [],
+    "env": {
+      "MAVEN_ARGS": "--show-version --batch-mode --no-transfer-progress"
+    },
+    "setup": [],
+    "test": [
+      "mvn verify javadoc:jar"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 900000
+    }
+  },
+  "notes": [
+    "ci: candidates build.yml#build=5, build.yml#build-gson-subset=5, build.yml#verify-reproducible-build=5, build.yml#native-image-test=4",
+    "ci: .github/workflows/build.yml job build (matrix: java=25, java-package=jdk)"
+  ]
+}

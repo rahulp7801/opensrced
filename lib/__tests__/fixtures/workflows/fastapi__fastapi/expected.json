@@ -1,0 +1,46 @@
+{
+  "workflow": ".github/workflows/test.yml",
+  "job": "test",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "fastapi/fastapi",
+    "source": "ci",
+    "runtimes": {
+      "python": "3.14",
+      "uv": "latest-known"
+    },
+    "services": [],
+    "env": {
+      "UV_NO_SYNC": "true",
+      "INLINE_SNAPSHOT_DEFAULT_FLAGS": "review",
+      "UV_PYTHON": "3.14",
+      "UV_RESOLUTION": "highest",
+      "STARLETTE_SRC": "starlette-git"
+    },
+    "setup": [
+      "uv sync --no-dev --group tests --extra all",
+      "uv pip install \"git+https://github.com/Kludex/starlette@main\"",
+      "uv pip install orjson ujson",
+      "mkdir coverage"
+    ],
+    "test": [
+      "COVERAGE_FILE='coverage/.coverage.Linux-py3.14-test-deprecation' CONTEXT='Linux-py3.14-test-deprecation' PYTEST_OPTIONS='' bash -e -c 'uv run --no-sync bash scripts/test-cov.sh $PYTEST_OPTIONS'"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 600000
+    }
+  },
+  "notes": [
+    "job create-draft-release skipped: its if: is false here",
+    "ci: candidates test.yml#test=9, test-redistribute.yml#test-redistribute=9, test.yml#regression-test=9, test-redistribute.yml#test-redistribute-alls-green=4",
+    "ci: .github/workflows/test.yml job test (matrix: os=ubuntu-latest, python-version=3.14, coverage=coverage, uv-resolution=highest, starlette-src=starlette-git, deprecated-tests=test-deprecation)",
+    "dropped \"Dump GitHub context\": only prints",
+    "skipped \"Ensure that we have the lowest supported Pydantic version\": its if: is false here",
+    "skipped \"Uninstall httpx2 to run tests with httpx\": its if: is false here",
+    "skipped \"Reinstall SQLAlchemy without Cython extensions\": its if: is false here"
+  ]
+}

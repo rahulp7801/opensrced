@@ -1,0 +1,44 @@
+{
+  "workflow": ".github/workflows/ci.yml",
+  "job": "tests",
+  "unreachable": null,
+  "partial": true,
+  "unknownActions": [
+    "hynek/setup-cached-uv@34e35d30f1ebc7421a5cc733bca38dcc62603960"
+  ],
+  "recipe": {
+    "repo": "python-attrs/attrs",
+    "source": "ci",
+    "runtimes": {
+      "python": "latest"
+    },
+    "services": [],
+    "env": {
+      "FORCE_COLOR": "1",
+      "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+      "PIP_NO_PYTHON_VERSION_WARNING": "1",
+      "PYTHON": ""
+    },
+    "setup": [
+      "tar xf dist/*.tar.gz --strip-components=1"
+    ],
+    "test": [
+      "uv run --only-group tox tox run -e $PYTHON-mypy",
+      "uv run --only-group tox tox run --installpkg dist/*.whl -e $PYTHON-tests"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 900000
+    }
+  },
+  "notes": [
+    "job release-test-pypi skipped: its if: is false here",
+    "job release-pypi skipped: its if: is false here",
+    "ci: candidates ci.yml#tests=3, ci.yml#tests-pypy=3, ci.yml#docs=3, ci.yml#lint=2",
+    "ci: .github/workflows/ci.yml job tests",
+    "dropped \"Remove src to ensure tests run against wheel\": runs after the tests",
+    "partial: unknown action hynek/setup-cached-uv@34e35d30f1ebc7421a5cc733bca38dcc62603960 runs before the tests",
+    "partial: the job's matrix is computed at run time"
+  ]
+}

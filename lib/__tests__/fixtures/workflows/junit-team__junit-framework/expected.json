@@ -1,0 +1,45 @@
+{
+  "workflow": ".github/workflows/_build.yml",
+  "job": "Linux",
+  "unreachable": null,
+  "partial": true,
+  "unknownActions": [
+    "graalvm/setup-graalvm@f70bc8032f90a104502824a54bcb94b6f01715bc",
+    "graalvm/setup-graalvm@f70bc8032f90a104502824a54bcb94b6f01715bc",
+    "testlens-app/setup-testlens@89edf53f781ac41833b4bc74d0e19a5315c79c67"
+  ],
+  "recipe": {
+    "repo": "junit-team/junit-framework",
+    "source": "ci",
+    "runtimes": {
+      "java": "temurin-25",
+      "gradle": "latest"
+    },
+    "services": [],
+    "env": {},
+    "setup": [
+      "JAVA_VERSION='21' bash --noprofile --norc -eo pipefail -c 'echo \"GRAALVM_${JAVA_VERSION}_HOME=$GRAALVM_HOME\" >> \"$GITHUB_ENV\"'",
+      "JAVA_VERSION='25' bash --noprofile --norc -eo pipefail -c 'echo \"GRAALVM_${JAVA_VERSION}_HOME=$GRAALVM_HOME\" >> \"$GITHUB_ENV\"'",
+      "echo \"JDK17=$JAVA_HOME\" >> $GITHUB_ENV"
+    ],
+    "test": [
+      "bash --noprofile --norc -eo pipefail -c './gradlew \\\n-Dorg.gradle.java.installations.auto-download=false \\\n-Pjunit.develocity.buildCache.pushEnabled=true \\\n-Pjunit.develocity.predictiveTestSelection.enabled=true \\\n-Pjunit.develocity.predictiveTestSelection.selectRemainingTests=false \\\n\"-Dscan.value.GitHub job=Linux\" \\\njavaToolchains \\\n:platform-tooling-support-tests:graalVmTest :platform-tooling-support-tests:test build jacocoRootReport || error_code=$?\n\n\nif [ -n \"\" ]; then\n  if [ -n \"$error_code\" ]; then\n    # we expected the build to fail, it failed => pass\n    exit 0\n  else\n    # we expected the build to fail, it didn'\\''t => fail\n    RED='\\''\\033[0;31m'\\''\n    RESET='\\''\\033[0m'\\'' # No Color\n    echo \"${RED}Build was expected to fail, but it passed. Was  resolved?${RESET}\"\n    exit 1\n  fi\nfi\n\n# exit with the original error code if set\nif [ -n \"$error_code\" ]; then\n  exit \"$error_code\"\nfi'"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 900000
+    }
+  },
+  "notes": [
+    "ci: candidates _build.yml#Linux=6, _build.yml#Windows=6(non_linux), _build.yml#macOS=6(non_linux), _cross-version.yml#openj9=0",
+    "ci: .github/workflows/_build.yml job Linux",
+    "env DEVELOCITY_ACCESS_KEY needs a secret; left unset",
+    "\".github/actions/run-gradle step 4\": unresolved steps.setup-gradle-jdk",
+    "dropped \"./gradlew \\\": runs after the tests",
+    "partial: unknown action graalvm/setup-graalvm@f70bc8032f90a104502824a54bcb94b6f01715bc runs before the tests",
+    "partial: unknown action graalvm/setup-graalvm@f70bc8032f90a104502824a54bcb94b6f01715bc runs before the tests",
+    "partial: unknown action testlens-app/setup-testlens@89edf53f781ac41833b4bc74d0e19a5315c79c67 runs before the tests",
+    "partial: test step \".github/actions/run-gradle step 4\" uses values only known during a real run"
+  ]
+}

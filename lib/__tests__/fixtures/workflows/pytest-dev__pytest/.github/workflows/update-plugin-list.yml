@@ -1,0 +1,87 @@
+name: Update Plugin List
+
+on:
+  schedule:
+    # At 00:00 on Sunday.
+    # https://crontab.guru
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+
+# Set permissions at the job level.
+permissions: {}
+
+jobs:
+  update-plugin-list:
+    if: github.repository_owner == 'pytest-dev'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Find current maintenance branch
+        id: find-branch
+        run: |
+          branch=$(git ls-remote --heads --sort=v:refname https://github.com/pytest-dev/pytest.git 'refs/heads/*.x' \
+            | sed '$!d;s|.*\trefs/heads/||')
+          if [ -z "$branch" ]; then
+            echo "No maintenance branch matching *.x was found" >&2
+            exit 1
+          fi
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: requests-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pytest-plugin-list/
+          key: plugins-http-cache-${{ github.run_id }} # Can use time based key as well
+          restore-keys: plugins-http-cache-
+
+      - name: Set up tox
+        uses: $/.github/actions/setup-tox
+        with:
+          python-version: "3.13"
+
+      - name: Update Plugin List
+        run: tox -e update-plugin-list
+
+      - name: Create Pull Request
+        id: pr
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1
+        with:
+          commit-message: '[automated] Update plugin list'
+          author: 'pytest bot <pytestbot@users.noreply.github.com>'
+          branch: update-plugin-list/patch
+          delete-branch: true
+          branch-suffix: short-commit-hash
+          title: '[automated] Update plugin list'
+          body: '[automated] Update plugin list'
+          draft: true
+
+      - name: Add backport label for maintenance branch
+        if: steps.pr.outputs.pull-request-number && steps.find-branch.outputs.branch
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PULL_REQUEST_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
+          BRANCH_NAME: ${{ steps.find-branch.outputs.branch }}
+        run: >-
+          gh pr edit "$PULL_REQUEST_NUMBER"
+          --repo '${{ github.repository }}'
+          --add-label "backport $BRANCH_NAME"
+
+      - name: Instruct the maintainers to trigger CI by undrafting the PR
+        if: steps.pr.outputs.pull-request-number
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PULL_REQUEST_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
+        run: >-
+          gh pr comment
+          --body 'Please mark the PR as ready for review to trigger PR checks.'
+          --repo '${{ github.repository }}'
+          "$PULL_REQUEST_NUMBER"

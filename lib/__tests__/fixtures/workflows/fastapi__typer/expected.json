@@ -1,0 +1,40 @@
+{
+  "workflow": ".github/workflows/test.yml",
+  "job": "test",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "fastapi/typer",
+    "source": "ci",
+    "runtimes": {
+      "python": "3.14",
+      "uv": "latest-known"
+    },
+    "services": [],
+    "env": {
+      "UV_NO_SYNC": "true",
+      "UV_PYTHON": "3.14",
+      "UV_RESOLUTION": "highest"
+    },
+    "setup": [
+      "uv sync --no-dev --group tests",
+      "mkdir coverage"
+    ],
+    "test": [
+      "uv run bash scripts/test-files.sh",
+      "COVERAGE_FILE='coverage/.coverage.Linux-py3.14' CONTEXT='Linux-py3.14' bash -e -c 'uv run bash scripts/test.sh'"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 900000
+    }
+  },
+  "notes": [
+    "job create-draft-release skipped: its if: is false here",
+    "ci: candidates test.yml#test=9, test-redistribute.yml#test-redistribute=9, test-redistribute.yml#test-redistribute-alls-green=4, test.yml#check=1",
+    "ci: .github/workflows/test.yml job test (matrix: os=ubuntu-latest, python-version=3.14, uv-resolution=highest)",
+    "dropped \"Dump GitHub context\": only prints"
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "workflow": ".github/workflows/tests.yaml",
+  "job": "tests",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "pallets/click",
+    "source": "ci",
+    "runtimes": {
+      "uv": "latest",
+      "python": "3.14"
+    },
+    "services": [],
+    "env": {},
+    "setup": [],
+    "test": [
+      "TOX_ENV='py3.14' bash -e -c 'uv run --locked --no-default-groups --group dev tox run'"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 900000
+    }
+  },
+  "notes": [
+    "ci: candidates tests.yaml#tests=9, tests.yaml#typing=6, pre-commit.yaml#main=-2, publish.yaml#build=-2",
+    "ci: .github/workflows/tests.yaml job tests (matrix: python=3.14)"
+  ]
+}

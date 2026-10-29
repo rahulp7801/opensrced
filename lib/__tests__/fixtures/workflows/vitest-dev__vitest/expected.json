@@ -1,0 +1,44 @@
+{
+  "workflow": ".github/workflows/ci.yml",
+  "job": "test",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "vitest-dev/vitest",
+    "source": "ci",
+    "runtimes": {
+      "pnpm": "11.28.6",
+      "node": "26"
+    },
+    "services": [],
+    "env": {
+      "PLAYWRIGHT_BROWSERS_PATH": "$GITHUB_WORKSPACE/.cache/ms-playwright",
+      "PNPM_CONFIG_TRUST_LOCKFILE": "true"
+    },
+    "setup": [
+      "pnpm i --filter '!docs'",
+      "bash --noprofile --norc -eo pipefail -c 'echo \"$(\n  node -e \"\n    const fs = require('\\''fs'\\'');\n    const lockfile = fs.readFileSync('\\''./pnpm-lock.yaml'\\'', '\\''utf8'\\'');\n    const pattern = (name) => new RegExp(name + '\\'':\\\\\\s+specifier: [\\\\\\s\\\\\\w\\\\\\.^]+version: (\\\\\\d+\\\\\\.\\\\\\d+\\\\\\.\\\\\\d+)'\\'');\n    const playwrightVersion = lockfile.match(pattern('\\''playwright'\\''))[1];\n    console.log('\\''PLAYWRIGHT_VERSION='\\'' + playwrightVersion);\n  \"\n)\" >> $GITHUB_OUTPUT'",
+      "pnpm --filter @vitest/test-browser exec playwright install chromium --only-shell",
+      "pnpm run build"
+    ],
+    "test": [
+      "VITEST_CI_BLOB_LABEL='ubuntu-latest-node-26' bash -e -c 'pnpm run test:ci:unit'",
+      "pnpm run test:examples",
+      "VITEST_CI_BLOB_LABEL='ubuntu-latest-node-26' bash -e -c 'pnpm -C packages/ui test:ui'"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 1800000
+    }
+  },
+  "notes": [
+    "job release skipped: its if: is false here",
+    "ci: candidates ci.yml#test=9, ci.yml#test-browser-windows=9(non_linux), ci.yml#test-browser-linux=9, ci.yml#test-vite7=9",
+    "ci: .github/workflows/ci.yml job test (matrix: suite=unit, os=ubuntu-latest, node_version=26)",
+    "dropped \"Check resolved package versions\": a failure guard",
+    "\"Install Playwright chromium (cache miss)\": unresolved steps.playwright-cache",
+    "skipped \"Install Playwright browsers (cache miss)\": its if: is false here"
+  ]
+}

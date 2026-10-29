@@ -1,0 +1,32 @@
+{
+  "workflow": ".github/workflows/CI.yml",
+  "job": "test-versions",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "tokio-rs/axum",
+    "source": "ci",
+    "runtimes": {
+      "rust": "stable"
+    },
+    "services": [],
+    "env": {
+      "CARGO_TERM_COLOR": "always",
+      "MSRV": "1.85"
+    },
+    "setup": [],
+    "test": [
+      "cargo test --locked --workspace --all-features --all-targets --manifest-path ./Cargo.toml"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 900000
+    }
+  },
+  "notes": [
+    "ci: candidates CI.yml#test-versions=9, CI.yml#test-nightly=5, CI.yml#test-msrv=5, CI.yml#check=1",
+    "ci: .github/workflows/CI.yml job test-versions (matrix: rust=stable, workspace=.)"
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "workflow": ".github/workflows/tests.yml",
+  "job": "javascript-tests",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "django/django",
+    "source": "ci",
+    "runtimes": {
+      "node": "24.15.0"
+    },
+    "services": [],
+    "env": {},
+    "setup": [
+      "npm install"
+    ],
+    "test": [
+      "npm test"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 3600000
+    }
+  },
+  "notes": [
+    "job Run_benchmarks skipped: its if: is false here",
+    "job check-commit-prefix skipped: its if: is false here",
+    "job coverage skipped: its if: is false here",
+    "job playwright-sqlite skipped: its if: is false here",
+    "job playwright-postgresql skipped: its if: is false here",
+    "job postgis skipped: its if: is false here",
+    "job define-matrix skipped: its if: is false here",
+    "job playwright-screenshots skipped: its if: is false here",
+    "ci: candidates tests.yml#javascript-tests=9, tests.yml#scripts-tests=9, docs.yml#sphinx-extension-tests=6, tests.yml#windows=6(non_linux)",
+    "ci: .github/workflows/tests.yml job javascript-tests"
+  ]
+}

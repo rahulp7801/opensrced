@@ -16,6 +16,8 @@
     "test": "node --test .test-build/lib/__tests__/*.test.js"
   },
   "dependencies": {
+    "@actions/expressions": "0.3.61",
+    "@actions/workflow-parser": "0.3.61",
     "@auth0/nextjs-auth0": "^4.30.0",
     "@phosphor-icons/react": "2.1.10",
     "@vercel/blob": "2.8.0",

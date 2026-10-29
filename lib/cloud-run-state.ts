@@ -11,7 +11,8 @@ export type CloudRun = DispatchRecord & {
   expires_at: number;
   log: string;
   log_size: number;
-  /** Hosted subscription runs: the Claude sign-in link the user must open. */
+  /** Hosted subscription runs: whether the run waits on the user's Claude sign-in
+   *  (its web terminal, lib/hosted-sign-in.ts). */
   sign_in?: SignInState;
 };
 
@@ -81,7 +82,7 @@ export function validCloudRun(value: unknown, owner: string, id: string): value 
     (run.pr_failure_reason === undefined || (typeof run.pr_failure_reason === "string" && run.pr_failure_reason.length <= 500)) &&
     (run.tests === undefined || TEST_STATUSES.has(run.tests)) &&
     (run.stats === undefined || validDispatchStats(run.stats)) &&
-    // Only an Anthropic authorize URL; a worker cannot plant any other link.
+    // A status only: the run page renders no worker-written link.
     (run.sign_in === undefined || validSignInState(run.sign_in)) &&
     typeof run.expires_at === "number" && Number.isFinite(run.expires_at) && run.expires_at > 0 &&
     // The worker can rewrite its own record, so expiry is bounded by the

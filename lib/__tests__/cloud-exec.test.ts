@@ -7,7 +7,7 @@ import type { AddressInfo } from "node:net";
 // Sandbox stand-in: records what the exec VM is created and started with.
 type Created = { params: Record<string, unknown>; commands: Array<Record<string, unknown>> };
 const created: Created[] = [];
-let protocolMarker = "7";
+let protocolMarker = "8";
 let domainUrl = "";
 const fakeSandbox = {
   APIError: class extends Error {},
@@ -95,7 +95,7 @@ test("startExecVm creates a credential-free VM with one exposed port and the exe
   const { startExecVm } = await import("../cloud-exec");
   const { EXEC_EGRESS } = await import("../sandbox-egress");
   created.length = 0;
-  protocolMarker = "7";
+  protocolMarker = "8";
   // The token is minted inside; accept any bearer for this server.
   const server = http.createServer((q, s) => { s.writeHead(/^Bearer [a-f0-9]{64}$/.test(String(q.headers.authorization)) ? 200 : 401); s.end("{}"); });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
@@ -130,7 +130,7 @@ test("startExecVm refuses a snapshot from another protocol and never starts the 
   protocolMarker = "6";
   await assert.rejects(startExecVm("c-1-x-exec", "snap_old", 60_000), /incompatible/);
   assert.equal(created[0].commands.length, 0);
-  protocolMarker = "7";
+  protocolMarker = "8";
 });
 
 test("startExecVm fails when the server never answers with the minted token", async () => {

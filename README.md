@@ -209,9 +209,14 @@ on a single-operator self-hosted instance) the CLIs' existing logins are used.
 Never set `OPENSRCER_LOCAL_SUBSCRIPTION` where other people sign in: their runs
 would bill the operator's plan.
 
-Hosted, runs use the user's Anthropic API key. Signing in to Claude inside the
-run's own VM is gated by `OPENSRCER_HOSTED_SUBSCRIPTION=1`, which is off by
-default (`lib/hosted-sign-in.ts`). ChatGPT plans are not offered hosted.
+Hosted, runs use the user's Anthropic API key or their OpenRouter key
+("Connect OpenRouter" in Settings, `lib/openrouter.ts`; OpenRouter runs the
+same Claude Code through its Anthropic-compatible endpoint, with a model the
+user picks). Signing in to Claude inside the run's own VM, through a web
+terminal on Claude Code's own login, is gated by
+`OPENSRCER_HOSTED_SUBSCRIPTION=1`, which is off by default
+(`lib/hosted-sign-in.ts`). A Claude plan only ever pays for the fix agent.
+ChatGPT plans are not offered hosted.
 
 Subscription runs are capped by turns and wall clock; API-key runs also by
 dollars (`lib/limits.ts`). "Ask about this change", the own-words check, the

@@ -5,11 +5,11 @@ const { startAgenticDispatch, startFindingDispatch, RunTargetError } = require('
 const store = require('../.worker-build/lib/dispatch-store');
 const { readLogTail } = require('../.worker-build/lib/dispatcher');
 const { cloudRunSummary, dispatchStatsFromLog, WORKER_TIMEOUT_MS } = require('../.worker-build/lib/cloud-run-state');
-const { signInInVm, HostedSignInError, SIGN_IN_CODE_DIR } = require('../.worker-build/lib/hosted-sign-in');
+const { serveSignInTerminal, ptyCommand, HostedSignInError, SIGN_IN_TTY_PORT } = require('../.worker-build/lib/hosted-sign-in');
 const { claudeStatusFrom } = require('../.worker-build/lib/run-payment');
 const { childEnv } = require('../.worker-build/lib/child-env');
 const { execFile } = require('node:child_process');
-const { mkdirSync, mkdtempSync, rmSync } = require('node:fs');
+const { mkdtempSync, rmSync } = require('node:fs');
 
 /** `claude auth <args>` against this run's own config dir. */
 function claudeAuth(args, env) {
@@ -23,6 +23,8 @@ async function main() {
   const uploadToken = process.env.OPENSRCER_UPLOAD_TOKEN;
   const summaryUploadToken = process.env.OPENSRCER_SUMMARY_UPLOAD_TOKEN;
   const previewUploadToken = process.env.OPENSRCER_PREVIEW_UPLOAD_TOKEN;
+  const ttyToken = process.env.OPENSRCER_TTY_TOKEN;
+  delete process.env.OPENSRCER_TTY_TOKEN;
   delete process.env.OPENSRCER_JOB;
   delete process.env.OPENSRCER_UPLOAD_TOKEN;
   delete process.env.OPENSRCER_SUMMARY_UPLOAD_TOKEN;
@@ -53,24 +55,29 @@ async function main() {
       }
     }
   }
-  // Hosted subscription run: the user signs in to Claude inside this VM
-  // (lib/hosted-sign-in.ts). The login lives only in this config dir.
+  // Hosted subscription run: the user signs in to Claude inside this VM,
+  // through a web terminal on Claude Code's own login (lib/hosted-sign-in.ts).
+  // The login lives only in this config dir.
   let loginEnv;
   try {
     if (opts.provider === 'claude-subscription') {
       const configDir = mkdtempSync('/tmp/opensrcer-claude-');
-      // Default permissions: the app's writeFiles may land as another VM user.
-      mkdirSync(SIGN_IN_CODE_DIR, { recursive: true });
-      loginEnv = childEnv({ CLAUDE_CONFIG_DIR: configDir, BROWSER: 'none' });
-      await signInInVm({
-        bin: 'claude', env: loginEnv, timeoutMs: 8 * 60000,
-        onUrl: url => publish({ ...lastRecord, sign_in: { url, status: 'waiting' } }),
+      loginEnv = childEnv({ CLAUDE_CONFIG_DIR: configDir, BROWSER: 'none', TERM: 'xterm-256color' });
+      // The CLI's own status is the only signal; the terminal's bytes are never read.
+      const signedIn = async () => {
+        const auth = await claudeAuth(['status', '--json'], loginEnv);
+        return claudeStatusFrom(auth.code, auth.out).available;
+      };
+      await publish({ ...lastRecord, sign_in: { status: 'waiting' } });
+      await serveSignInTerminal({
+        command: ptyCommand('claude', ['auth', 'login', '--claudeai']), env: loginEnv,
+        token: ttyToken, port: SIGN_IN_TTY_PORT, signedIn, timeoutMs: 8 * 60000,
       });
       // Trust the CLI's own status, not the login command's exit.
       const auth = await claudeAuth(['status', '--json'], loginEnv);
       const status = claudeStatusFrom(auth.code, auth.out);
       if (!status.available) throw new HostedSignInError(`Claude sign-in did not complete: ${status.detail}.`);
-      await publish({ ...lastRecord, sign_in: { ...lastRecord.sign_in, status: 'signed_in' } });
+      await publish({ ...lastRecord, sign_in: { status: 'signed_in' } });
       opts.claudeConfigDir = configDir;
     }
     const dispatch = await (finding ? startFindingDispatch(run.repo_url, finding, opts) : startAgenticDispatch(run.repo_url, run.issue_number, opts));
@@ -111,8 +118,6 @@ async function main() {
   } finally {
     // Revoke this run's login; the VM (and its config dir) is discarded anyway.
     if (loginEnv) {
-      // A code that arrived late (or after a failure) must not outlive the run.
-      rmSync(SIGN_IN_CODE_DIR, { recursive: true, force: true });
       await claudeAuth(['logout'], loginEnv);
       rmSync(loginEnv.CLAUDE_CONFIG_DIR, { recursive: true, force: true });
     }

@@ -50,9 +50,10 @@ export async function triageIssue(opts: {
   repo: string; issueFormatted: string; workDir: string; provider?: AgentProvider; anthropicKey?: string;
 }): Promise<{ triage: Triage; costUsd: number | null } | null> {
   if (process.env.OPENSRCER_TRIAGE === "0") return null;
-  // Triage reads Claude's stream format; a run paid by the ChatGPT plan must
-  // not spend a Claude login or key on it, so it is skipped there.
-  if (opts.provider === "codex-subscription") return null;
+  // Triage runs on Anthropic's fast model. A run paid by the ChatGPT plan or
+  // an OpenRouter key must not spend a Claude login or key on it (and an
+  // OpenRouter key must never be sent to Anthropic), so it is skipped there.
+  if (opts.provider === "codex-subscription" || opts.provider === "openrouter-key" || opts.provider === "copilot") return null;
   mkdirSync(opts.workDir, { recursive: true });
   const mcpConfig = path.join(opts.workDir, "triage-mcp.json");
   writeFileSync(mcpConfig, JSON.stringify({ mcpServers: {} }));

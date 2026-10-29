@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
     const payment = await resolveRunPayment();
     const run = await startFollowupRun(auth0UserId, body.pr_url, body.kind, token, {
       provider: payment.provider, anthropicKey: payment.anthropicKey, keyFallback: payment.keyFallback,
+      openrouterKey: payment.openrouterKey, agentModel: payment.agentModel,
       geminiKey: (await resolveGeminiKey()) ?? undefined, maxSpendUsd: await resolveMaxSpendUsd(),
       auth0UserId, author,
     }, cloudExecution() ? startCloudRun : startAgenticDispatch);

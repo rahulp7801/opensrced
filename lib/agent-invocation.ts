@@ -1,12 +1,18 @@
 // One place that decides how an agent CLI is launched for a run: which
 // binary, which flags, which environment, and how the run is capped.
 //
-// Three ways to pay for a run, in the order users are steered toward:
+// The ways to pay for a run, in the default order (PLAN.md §0.6):
+//   copilot              the user's GitHub Copilot plan via the Copilot SDK.
+//                        Listed and orderable, but no fix-agent adapter yet:
+//                        see TODO(copilot-fix-agent) below.
 //   claude-subscription  the user's own Claude plan, via the unmodified Claude
 //                        Code CLI and the login it already holds
 //   codex-subscription   the user's own ChatGPT plan, via their own installed
 //                        and logged-in Codex CLI (local/self-hosted only)
 //   anthropic-key        the user's Anthropic API key (the original flow)
+//   openrouter-key       the user's OpenRouter key: the same unmodified Claude
+//                        Code CLI, pointed at OpenRouter's Anthropic-compatible
+//                        endpoint with an OpenRouter model
 //
 // Compliance notes (PLAN.md has the clause-by-clause mapping):
 //   - We never read, copy or pass a Claude login. A subscription run simply
@@ -22,18 +28,20 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { childEnv } from "./child-env";
 import { ALLOWED_TOOLS, isolationArgs } from "./claude-tools";
-import { CLAUDE_AGENT_MODEL } from "./models";
+import { CLAUDE_AGENT_MODEL, OPENROUTER_BASE_URL, OPENROUTER_DEFAULT_MODEL } from "./models";
 import { cloudExecution } from "./cloud-run-state";
 import { mcpConnectTimeoutMs } from "./limits";
 
-export const AGENT_PROVIDERS = ["claude-subscription", "codex-subscription", "anthropic-key"] as const;
+export const AGENT_PROVIDERS = ["copilot", "claude-subscription", "codex-subscription", "anthropic-key", "openrouter-key"] as const;
 export type AgentProvider = (typeof AGENT_PROVIDERS)[number];
 
 /** Plain-text labels for logs and the UI. No product names in feature names. */
 export const PROVIDER_LABELS: Record<AgentProvider, string> = {
+  copilot: "GitHub Copilot",
   "claude-subscription": "Claude subscription",
   "codex-subscription": "ChatGPT subscription",
   "anthropic-key": "Anthropic API key",
+  "openrouter-key": "OpenRouter key",
 };
 
 // Field names match the contrib-engine branch's version of this module
@@ -61,6 +69,9 @@ export type AgentInvocationInput = {
   /** anthropic-key runs only: an Anthropic-compatible gateway (e.g. https://openrouter.ai/api).
    *  The key is then sent as a bearer token and `model` names the gateway's model. */
   baseUrl?: string;
+  /** The user's OpenRouter key for an openrouter-key run. `model` is then an
+   *  OpenRouter model id (default OPENROUTER_DEFAULT_MODEL). */
+  openrouterKey?: string;
   /** Claude config directory holding this run's login (hosted VM sign-in).
    *  Local subscription runs leave it unset so the CLI uses its own login. */
   claudeConfigDir?: string;
@@ -150,12 +161,24 @@ export function buildAgentInvocation(input: AgentInvocationInput): AgentInvocati
   const provider: AgentProvider = input.provider ?? (anthropicKey ? "anthropic-key" : "claude-subscription");
   if (!AGENT_PROVIDERS.includes(provider)) throw new AgentInvocationError(`Unknown provider: ${String(provider)}`);
   if (provider === "anthropic-key" && !anthropicKey) throw new AgentInvocationError("An API-key run needs the user's key (anthropicKey or ANTHROPIC_API_KEY).");
+  // TODO(copilot-fix-agent): a Copilot SDK adapter for the hidden fix. The SDK
+  // drives a long-lived Copilot CLI runtime (JSON-RPC), so it needs an
+  // always-on process in the agent VM rather than this one-shot CLI spawn.
+  // run-payment never picks copilot for a fix run until this exists.
+  if (provider === "copilot") throw new AgentInvocationError("Fix runs on GitHub Copilot are not available yet.");
+  const openrouter = provider === "openrouter-key";
+  if (openrouter && !input.openrouterKey) throw new AgentInvocationError("An OpenRouter run needs the user's OpenRouter key.");
+  // The OpenRouter key only ever goes to OpenRouter.
+  if (openrouter && input.baseUrl !== undefined) throw new AgentInvocationError("An OpenRouter run always uses OpenRouter's own URL.");
+  const gatewayKey = openrouter ? input.openrouterKey : anthropicKey;
+  const baseUrl = openrouter ? OPENROUTER_BASE_URL : input.baseUrl;
+  const model = openrouter ? input.model ?? OPENROUTER_DEFAULT_MODEL : input.model;
   if (input.budgetUsd !== undefined && (!Number.isFinite(input.budgetUsd) || input.budgetUsd <= 0)) throw new RangeError("budgetUsd must be a positive number");
   if (input.maxTurns !== undefined && (!Number.isSafeInteger(input.maxTurns) || input.maxTurns < 1)) throw new RangeError("maxTurns must be a positive integer");
-  if (input.baseUrl !== undefined) {
-    if (provider !== "anthropic-key") throw new AgentInvocationError("A gateway base URL applies to API-key runs only.");
-    if (!/^https:\/\/[^\s/]+(\/\S*)?$/.test(input.baseUrl)) throw new AgentInvocationError("The gateway base URL must be an https URL.");
-    if (!input.model) throw new AgentInvocationError("A gateway run must name its model.");
+  if (baseUrl !== undefined) {
+    if (provider !== "anthropic-key" && !openrouter) throw new AgentInvocationError("A gateway base URL applies to API-key runs only.");
+    if (!/^https:\/\/[^\s/]+(\/\S*)?$/.test(baseUrl)) throw new AgentInvocationError("The gateway base URL must be an https URL.");
+    if (!model) throw new AgentInvocationError("A gateway run must name its model.");
     if (input.maxTurns === undefined) throw new AgentInvocationError("A gateway run needs a turn cap (maxTurns).");
   }
   if (provider === "claude-subscription" && input.maxTurns === undefined) throw new AgentInvocationError("A subscription run needs a turn cap (maxTurns).");
@@ -197,11 +220,14 @@ export function buildAgentInvocation(input: AgentInvocationInput): AgentInvocati
     for (const key of CLAUDE_CREDENTIAL_VARS) if (!(key === "ANTHROPIC_API_KEY" && !subscription)) delete env[key];
     // Gateway run: the CLI sends ANTHROPIC_AUTH_TOKEN as `Authorization: Bearer`
     // (checked against a capture of its requests), which is what OpenRouter expects.
-    const gateway = input.baseUrl !== undefined && anthropicKey !== undefined;
+    const gateway = baseUrl !== undefined && gatewayKey !== undefined;
     if (gateway) {
       delete env.ANTHROPIC_API_KEY;
-      env.ANTHROPIC_BASE_URL = input.baseUrl;
-      env.ANTHROPIC_AUTH_TOKEN = anthropicKey;
+      env.ANTHROPIC_BASE_URL = baseUrl;
+      env.ANTHROPIC_AUTH_TOKEN = gatewayKey;
+      // The CLI's background calls use its "haiku" model; on a gateway that
+      // name would bill a different (Anthropic) model to the user's key.
+      env.ANTHROPIC_DEFAULT_HAIKU_MODEL = model;
     }
 
     // --bare skips OAuth/keychain auth, so only API-key runs use it. The
@@ -224,7 +250,7 @@ export function buildAgentInvocation(input: AgentInvocationInput): AgentInvocati
       "--no-session-persistence",
       "--output-format", "stream-json",
       "--verbose",
-      "--model", input.model ?? CLAUDE_AGENT_MODEL,
+      "--model", model ?? CLAUDE_AGENT_MODEL,
       ...caps.flat(),
     ];
     // OPENSRCER_AGENT_BIN/_ARGS: operator-only override for end-to-end checks
@@ -233,7 +259,7 @@ export function buildAgentInvocation(input: AgentInvocationInput): AgentInvocati
     const pre = standIn ? (process.env.OPENSRCER_AGENT_ARGS ?? "").split(/\s+/).filter(Boolean) : [];
     return {
       provider, bin: standIn ? process.env.OPENSRCER_AGENT_BIN! : process.env.CLAUDE_BIN || "claude", args: [...pre, ...args], env, cwd,
-      capMode: subscription ? "turns" : "budget",
+      capMode: subscription || gateway ? "turns" : "budget",
       capLabel: caps.map(([flag, value]) => `${flag}=${value}`).join(" ") || "wall-clock timeout only",
       output: "claude-stream-json", cleanup, standIn,
     };

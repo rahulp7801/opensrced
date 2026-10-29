@@ -151,7 +151,8 @@ export async function POST(req: NextRequest) {
     invocation = buildAgentInvocation({
       provider: payment.provider, prompt, mcpConfig: MCP_CONFIG,
       inject: { OPENSRCER_ALLOWED_REPO: repoFull, GITHUB_TOKEN: githubToken },
-      anthropicKey, model: payment.provider === "codex-subscription" ? undefined : CLAUDE_AGENT_MODEL,
+      anthropicKey, openrouterKey: payment.openrouterKey,
+      model: payment.agentModel ?? (payment.provider === "codex-subscription" ? undefined : CLAUDE_AGENT_MODEL),
       budgetUsd, maxTurns,
     });
   } catch (error) {

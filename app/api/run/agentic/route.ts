@@ -84,6 +84,8 @@ export async function POST(req: NextRequest) {
       provider: payment.provider,
       anthropicKey: payment.anthropicKey,
       keyFallback: payment.keyFallback,
+      openrouterKey: payment.openrouterKey,
+      agentModel: payment.agentModel,
       geminiKey,
       maxSpendUsd,
       auth0UserId,

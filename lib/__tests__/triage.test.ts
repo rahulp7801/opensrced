@@ -31,3 +31,10 @@ test("triageIssue is skipped when OPENSRCER_TRIAGE=0", async () => {
     if (saved === undefined) delete process.env.OPENSRCER_TRIAGE; else process.env.OPENSRCER_TRIAGE = saved;
   }
 });
+
+test("triage never spends a Claude login or key on a run another provider pays for", async () => {
+  // workDir would be created (and a CLI spawned) if triage ran at all.
+  for (const provider of ["openrouter-key", "codex-subscription", "copilot"] as const) {
+    assert.equal(await triageIssue({ repo: "o/r", issueFormatted: "x", workDir: "\0never-created", provider, anthropicKey: "fallback-key" }), null, provider);
+  }
+});

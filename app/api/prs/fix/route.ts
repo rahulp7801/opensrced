@@ -230,7 +230,8 @@ CONSTRAINTS — these are hard rules, not suggestions:
     invocation = buildAgentInvocation({
       provider: payment.provider, prompt, mcpConfig: MCP_CONFIG,
       inject: { OPENSRCER_ALLOWED_REPO: sourceRepo, OPENSRCER_REPO_REF: head.sha, GITHUB_TOKEN: ghToken ?? undefined },
-      anthropicKey: apiKey, model: payment.provider === "codex-subscription" ? undefined : CLAUDE_AGENT_MODEL,
+      anthropicKey: apiKey, openrouterKey: payment.openrouterKey,
+      model: payment.agentModel ?? (payment.provider === "codex-subscription" ? undefined : CLAUDE_AGENT_MODEL),
       budgetUsd, maxTurns,
     });
   } catch (error) {

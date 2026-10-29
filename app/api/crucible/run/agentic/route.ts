@@ -113,6 +113,8 @@ export async function POST(req: NextRequest) {
       provider: payment.provider,
       anthropicKey: payment.anthropicKey,
       keyFallback: payment.keyFallback,
+      openrouterKey: payment.openrouterKey,
+      agentModel: payment.agentModel,
       geminiKey,
       maxSpendUsd,
       // Owner of the resulting dispatch. Crucible logs carry private-repo

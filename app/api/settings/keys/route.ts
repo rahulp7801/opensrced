@@ -6,12 +6,14 @@ import { readJsonBody } from "@/lib/request-body";
 // DELETE /api/settings/keys — clear all stored keys
 
 import { NextRequest, NextResponse } from "next/server";
-import { getStoredKeys, setStoredKeys, clearStoredKeys, type StoredKeys } from "@/lib/api-keys";
+import { getStoredKeys, openRouterCredential, setStoredKeys, clearStoredKeys, type StoredKeys } from "@/lib/api-keys";
 import { validStoredKeys } from "@/lib/key-cookie";
 import { requireSession } from "@/lib/require-session";
+import { resolveGitHubToken } from "@/lib/github-token";
+import { OPENROUTER_DEFAULT_MODEL } from "@/lib/models";
 import {
-  choosePayment, currentAvailability, hostLoginsAllowed, hostedSubscriptionEnabled,
-  normalizeOrder, NoRunCredentialError, offeredProviders,
+  choosePayment, copilotStatus, currentAvailability, hostLoginsAllowed, hostedSubscriptionEnabled,
+  normalizeOrder, NoRunCredentialError, offeredProviders, teacherProviders,
 } from "@/lib/run-payment";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +25,7 @@ async function status(keys: StoredKeys, recheck = false) {
   const availability = await currentAvailability(recheck);
   let ready = true;
   let problem: string | undefined;
-  try { choosePayment({ order, keyFallback }, offered, availability, keys.anthropic || null); }
+  try { choosePayment({ order, keyFallback }, offered, availability, keys.anthropic || null, openRouterCredential(keys)); }
   catch (error) {
     if (!(error instanceof NoRunCredentialError)) throw error;
     ready = false;
@@ -32,6 +34,12 @@ async function status(keys: StoredKeys, recheck = false) {
   return {
     anthropic: Boolean(keys.anthropic),
     gemini: Boolean(keys.gemini),
+    openrouter: Boolean(keys.openrouter),
+    openrouterModel: keys.openrouterModel ?? OPENROUTER_DEFAULT_MODEL,
+    // GitHub Copilot: never spends to find out (lib/run-payment.ts copilotStatus).
+    copilot: await copilotStatus(await resolveGitHubToken()),
+    // What may power the teacher, in the user's order: never a Claude plan.
+    teacher: teacherProviders(keys),
     maxSpendUsd: keys.maxSpendUsd ?? 2,
     providerOrder: order,
     keyFallback,
@@ -59,12 +67,17 @@ export async function POST(req: NextRequest) {
   const body = await readJsonBody<{
     anthropic?: string;
     gemini?: string;
+    openrouter?: string;
+    openrouterModel?: string;
     maxSpendUsd?: number;
     providerOrder?: string[];
     keyFallback?: boolean;
   }>(req);
+  // An empty model means "back to the default"; validStoredKeys checks the rest.
+  const defaultModel = body?.openrouterModel === "";
+  if (defaultModel && body) delete body.openrouterModel;
   if (!validStoredKeys(body)) {
-    return NextResponse.json({ error: "Keys must be at most 512 printable characters; the task budget must be between $0.10 and $10; the payment order must list known methods once each." }, { status: 400 });
+    return NextResponse.json({ error: "Keys must be at most 512 printable characters; the task budget must be between $0.10 and $10; the payment order must list known methods once each; an OpenRouter model looks like \"vendor/model\"." }, { status: 400 });
   }
 
   const existing = await getStoredKeys();
@@ -77,6 +90,10 @@ export async function POST(req: NextRequest) {
   if (body.gemini !== undefined) {
     updated.gemini = body.gemini || undefined;
   }
+  if (body.openrouter !== undefined) {
+    updated.openrouter = body.openrouter || undefined;
+  }
+  if (body.openrouterModel !== undefined || defaultModel) updated.openrouterModel = body.openrouterModel;
   if (typeof body.maxSpendUsd === "number" && body.maxSpendUsd > 0) {
     updated.maxSpendUsd = body.maxSpendUsd;
   }

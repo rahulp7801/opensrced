@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AgentInvocationError, buildAgentInvocation, resolveMcpServers, StandInAgentError, type AgentInvocationInput } from "../agent-invocation";
 import { ALLOWED_TOOLS, EXEC_TOOLS } from "../claude-tools";
-import { CLAUDE_AGENT_MODEL } from "../models";
+import { CLAUDE_AGENT_MODEL, OPENROUTER_DEFAULT_MODEL } from "../models";
 
 function withConfig(run: (config: string) => void) {
   const dir = mkdtempSync(join(tmpdir(), "opensrcer-invocation-test-"));
@@ -297,6 +297,42 @@ test("a gateway run sends the key as a bearer token to the gateway, names its mo
     } finally {
       run.cleanup();
     }
+  });
+});
+
+test("an OpenRouter run sends only the OpenRouter key, only to OpenRouter, on the chosen or default model", () => {
+  withConfig((config) => {
+    const run = buildAgentInvocation(input(config, {
+      provider: "openrouter-key", openrouterKey: "sk-or-user", anthropicKey: "anthropic-key-must-not-travel",
+      inject: { OPENSRCER_ALLOWED_REPO: "acme/app", ANTHROPIC_API_KEY: "injected-anthropic-key" },
+    }));
+    try {
+      assert.equal(run.provider, "openrouter-key");
+      assert.equal(run.env.ANTHROPIC_BASE_URL, "https://openrouter.ai/api");
+      assert.equal(run.env.ANTHROPIC_AUTH_TOKEN, "sk-or-user");
+      assert.equal(run.env.ANTHROPIC_API_KEY, undefined);
+      assert.equal(value(run.args, "--model"), OPENROUTER_DEFAULT_MODEL);
+      assert.equal(run.env.ANTHROPIC_DEFAULT_HAIKU_MODEL, OPENROUTER_DEFAULT_MODEL);
+      assert.ok(!run.args.includes("--max-budget-usd"), "Anthropic prices do not apply to OpenRouter models");
+      assert.equal(run.capMode, "turns");
+      assert.ok(run.args.includes("--bare"));
+      assert.ok(!JSON.stringify(run.env).includes("anthropic-key-must-not-travel"));
+      assert.ok(!JSON.stringify(run.env).includes("injected-anthropic-key"));
+    } finally { run.cleanup(); }
+    const picked = buildAgentInvocation(input(config, { provider: "openrouter-key", openrouterKey: "k", model: "z-ai/glm-5.3" }));
+    try { assert.equal(value(picked.args, "--model"), "z-ai/glm-5.3"); } finally { picked.cleanup(); }
+  });
+});
+
+test("an OpenRouter run is refused without its key, with another base URL or without a turn cap; Copilot has no fix agent yet", () => {
+  withConfig((config) => {
+    for (const bad of [
+      { provider: "openrouter-key" as const },
+      { provider: "openrouter-key" as const, anthropicKey: "k" },
+      { provider: "openrouter-key" as const, openrouterKey: "k", baseUrl: "https://evil.example/api" },
+      { provider: "openrouter-key" as const, openrouterKey: "k", maxTurns: undefined },
+      { provider: "copilot" as const },
+    ]) assert.throws(() => buildAgentInvocation(input(config, bad)), AgentInvocationError, JSON.stringify(bad));
   });
 });
 

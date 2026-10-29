@@ -1,9 +1,16 @@
 // Which credential pays for a run.
 //
-// Subscriptions come first; the user's API key is used only when they ranked
-// it first, or when they opted in to "use my API key when my plan is
-// unavailable" (default off, so API spend is never a surprise). Anything else
-// fails with a NoRunCredentialError that says what to do.
+// The default order is PLAN.md §0.6: GitHub Copilot, then a Claude plan (fix
+// agent only), then the user's Anthropic key, then their OpenRouter key; the
+// user can reorder. Subscriptions ranked above a key keep it from being spent
+// unless the user ranked the key above them, or opted in to "use my API key
+// when my plan is unavailable" (default off, so API spend is never a
+// surprise). Anything else fails with a NoRunCredentialError that says what
+// to do.
+//
+// A Claude plan only ever pays for the fix agent (the unmodified Claude Code
+// CLI). Anthropic forbids routing any other feature through a user's plan, so
+// the teacher asks teacherProviders(), which never returns it.
 //
 // Host logins (the Claude Code / Codex CLI already signed in on this machine)
 // are only offered where the operator IS the user: local mode, or a
@@ -18,17 +25,28 @@ import { childEnv } from "./child-env";
 import { cloudExecution } from "./cloud-run-state";
 
 export type PaymentPrefs = { order: AgentProvider[]; keyFallback: boolean };
-export const DEFAULT_ORDER: AgentProvider[] = ["claude-subscription", "codex-subscription", "anthropic-key"];
+export const DEFAULT_ORDER: AgentProvider[] = ["copilot", "claude-subscription", "codex-subscription", "anthropic-key", "openrouter-key"];
+
+/** Paid per token with the user's own key (as opposed to a plan). */
+const KEY_PROVIDERS: AgentProvider[] = ["anthropic-key", "openrouter-key"];
+/** What may power the teacher: never a Claude or ChatGPT plan (PLAN.md §0.6). */
+const TEACHER_PROVIDERS: AgentProvider[] = ["copilot", "anthropic-key", "openrouter-key"];
 
 export type ProviderStatus = { available: boolean; detail: string };
 export type Availability = Partial<Record<AgentProvider, ProviderStatus>>;
+
+/** The user's OpenRouter key and the model it runs. */
+export type OpenRouterCredential = { key: string; model: string };
 
 export type RunPayment = {
   provider: AgentProvider;
   /** Present only when the key pays (primary) or may take over (opted-in fallback). */
   anthropicKey?: string;
-  /** May a subscription run that hits its plan limit be re-run on the key? */
+  /** May a subscription run that hits its plan limit be re-run on the Anthropic key? */
   keyFallback: boolean;
+  /** openrouter-key runs: the user's OpenRouter key and model. */
+  openrouterKey?: string;
+  agentModel?: string;
 };
 
 /** No credential the user allowed can pay for this run. Safe to show. */
@@ -50,22 +68,35 @@ export function hostedSubscriptionEnabled(): boolean {
   return cloudExecution() && process.env.OPENSRCER_HOSTED_SUBSCRIPTION === "1";
 }
 
-/** Providers this deployment can offer at all, before checking any login. */
+/** Providers this deployment can use for a fix run, before checking any
+ *  login. Copilot is not among them until its adapter exists
+ *  (TODO(copilot-fix-agent) in lib/agent-invocation.ts). */
 export function offeredProviders(): AgentProvider[] {
-  if (hostLoginsAllowed()) return [...AGENT_PROVIDERS];
+  if (hostLoginsAllowed()) return AGENT_PROVIDERS.filter((p) => p !== "copilot");
   // Hosted ChatGPT plan usage needs OpenAI's approval for remotely hosted apps.
-  return hostedSubscriptionEnabled() ? ["claude-subscription", "anthropic-key"] : ["anthropic-key"];
+  return hostedSubscriptionEnabled() ? ["claude-subscription", ...KEY_PROVIDERS] : [...KEY_PROVIDERS];
+}
+
+/** Teacher providers in the user's order. A Claude (or ChatGPT) plan is never
+ *  one of them, whatever the user ranked first. */
+export function teacherProviders(settings: { providerOrder?: unknown }): AgentProvider[] {
+  return normalizeOrder(settings.providerOrder).filter((p) => TEACHER_PROVIDERS.includes(p));
 }
 
 /** Pure decision: walk the user's order over what is offered and available. */
-export function choosePayment(prefs: PaymentPrefs, offered: AgentProvider[], availability: Availability, anthropicKey: string | null): RunPayment {
+export function choosePayment(
+  prefs: PaymentPrefs, offered: AgentProvider[], availability: Availability, anthropicKey: string | null,
+  openrouter: OpenRouterCredential | null = null,
+): RunPayment {
   const order = normalizeOrder(prefs.order).filter((p) => offered.includes(p));
-  const keyIsPrimary = order[0] === "anthropic-key";
-  const keyAllowed = Boolean(anthropicKey) && (keyIsPrimary || prefs.keyFallback);
   const reasons: string[] = [];
-  for (const provider of order) {
-    if (provider === "anthropic-key") {
-      if (keyAllowed) return { provider, anthropicKey: anthropicKey!, keyFallback: prefs.keyFallback };
+  for (const [index, provider] of order.entries()) {
+    if (KEY_PROVIDERS.includes(provider)) {
+      // A key pays when nothing but keys is ranked above it, or with the opt-in.
+      const allowed = prefs.keyFallback || order.slice(0, index).every((p) => KEY_PROVIDERS.includes(p));
+      if (!allowed) continue;
+      if (provider === "anthropic-key" && anthropicKey) return { provider, anthropicKey, keyFallback: prefs.keyFallback };
+      if (provider === "openrouter-key" && openrouter) return { provider, openrouterKey: openrouter.key, agentModel: openrouter.model, keyFallback: false };
       continue;
     }
     const status = availability[provider];
@@ -74,13 +105,14 @@ export function choosePayment(prefs: PaymentPrefs, offered: AgentProvider[], ava
     }
     reasons.push(`${PROVIDER_LABELS[provider]}: ${status?.detail ?? "not checked"}`);
   }
-  const keyHint = !anthropicKey
-    ? "add an Anthropic API key in Settings"
-    : "turn on \"Use my API key when my plan is unavailable\" in Settings, or rank the API key first";
+  const hasKey = Boolean(anthropicKey || openrouter);
+  const keyHint = !hasKey
+    ? "add an Anthropic API key or connect OpenRouter in Settings"
+    : "turn on \"Use my API key when my plan is unavailable\" in Settings, or rank your key first";
   throw new NoRunCredentialError(
-    order.some((p) => p !== "anthropic-key")
+    order.some((p) => !KEY_PROVIDERS.includes(p))
       ? `No subscription can pay for this run (${reasons.join("; ")}). Sign in, or ${keyHint}.`
-      : `No Anthropic API key configured. Add one in Settings → How runs are paid for.`,
+      : `No API key configured. Add an Anthropic key or connect OpenRouter in Settings → Connect your AI.`,
   );
 }
 
@@ -116,6 +148,20 @@ export function codexStatusFrom(code: number, out: string): ProviderStatus {
   if (/logged in using an api key/i.test(out)) return { available: false, detail: "signed in with an API key, not a ChatGPT plan" };
   if (code === -1 && !/not logged in/i.test(out)) return { available: false, detail: "the codex CLI is not installed (set OPENSRCER_CODEX_BIN)" };
   return { available: false, detail: "not signed in (run `codex login`)" };
+}
+
+export type CopilotStatus = { state: "no_github_token" | "unknown"; detail: string };
+
+/** GitHub Copilot on the user's own GitHub sign-in, without spending anything.
+ *  The Copilot SDK's account/quota calls (`account.getQuota`, the runtime's
+ *  `copilotUser` snapshot) run inside its Copilot CLI runtime process, which
+ *  a web request cannot start; GitHub has no documented REST call for an
+ *  individual's Copilot plan. So with a token the answer is "unknown" until
+ *  that runtime exists (TODO(copilot-runtime): ask it for the quota then).
+ *  Never makes a paid Copilot request. */
+export async function copilotStatus(token: string | null): Promise<CopilotStatus> {
+  if (!token) return { state: "no_github_token", detail: "Sign in with GitHub to use Copilot." };
+  return { state: "unknown", detail: "Uses your GitHub sign-in. Plan and remaining allowance can't be checked yet." };
 }
 
 let cached: { at: number; value: Availability } | null = null;

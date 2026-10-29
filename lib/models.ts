@@ -37,3 +37,16 @@ export const CLAUDE_AGENT_MODEL = "claude-sonnet-5";
  *  fast. Alias rather than the dated claude-haiku-4-5-20251001 pin; same
  *  model, and it won't silently rot when the snapshot rolls. */
 export const CLAUDE_FAST_MODEL = "claude-haiku-4-5";
+
+// ── OpenRouter ────────────────────────────────────────────────────────
+// The user's own OpenRouter key runs the unmodified Claude Code CLI through
+// OpenRouter's Anthropic-compatible endpoint (lib/agent-invocation.ts).
+
+/** Claude Code appends /v1/messages to this. */
+export const OPENROUTER_BASE_URL = "https://openrouter.ai/api";
+
+/** Fix-agent model when the user has not picked one in Settings: near the
+ *  frontier on Terminal-Bench and cheap per token (reports/Using AI
+ *  subscriptions safely.md). OPENSRCER_OPENROUTER_MODEL overrides it for the
+ *  whole deployment. */
+export const OPENROUTER_DEFAULT_MODEL = process.env.OPENSRCER_OPENROUTER_MODEL || "deepseek/deepseek-v4-pro";

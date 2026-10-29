@@ -1,25 +1,34 @@
 import { createHash, randomBytes, createCipheriv, createDecipheriv } from "node:crypto";
+import { AGENT_PROVIDERS } from "./agent-invocation";
 
 export type StoredKeys = {
   anthropic?: string; gemini?: string; maxSpendUsd?: number;
+  /** The user's OpenRouter key (OAuth PKCE or pasted) and the model it runs. */
+  openrouter?: string; openrouterModel?: string;
   /** How runs are paid for, most preferred first (lib/run-payment.ts). */
   providerOrder?: string[];
   /** Use the API key when the user's plan is unavailable. Default off. */
   keyFallback?: boolean;
 };
 
-const PROVIDERS = new Set(["claude-subscription", "codex-subscription", "anthropic-key"]);
+const PROVIDERS = new Set<string>(AGENT_PROVIDERS);
 export const KEY_COOKIE_NAME = "opensrcer-keys";
 export const KEY_COOKIE_SECONDS = 30 * 24 * 60 * 60;
+
+/** An OpenRouter model id such as "deepseek/deepseek-v4-pro" or "x/y:free". */
+export function validOpenRouterModel(value: unknown): value is string {
+  return typeof value === "string" && value.length <= 100 && /^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._:-]*$/i.test(value);
+}
 
 export function validStoredKeys(value: unknown): value is StoredKeys {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const keys = value as StoredKeys;
-  return [keys.anthropic, keys.gemini].every(key => key === undefined || (typeof key === "string" && key.length <= 512 && !/[^\x21-\x7e]/.test(key))) &&
+  return [keys.anthropic, keys.gemini, keys.openrouter].every(key => key === undefined || (typeof key === "string" && key.length <= 512 && !/[^\x21-\x7e]/.test(key))) &&
     (keys.maxSpendUsd === undefined || (typeof keys.maxSpendUsd === "number" && Number.isFinite(keys.maxSpendUsd) && keys.maxSpendUsd >= 0.1 && keys.maxSpendUsd <= 10)) &&
     (keys.providerOrder === undefined || (Array.isArray(keys.providerOrder) && keys.providerOrder.length <= PROVIDERS.size &&
       new Set(keys.providerOrder).size === keys.providerOrder.length && keys.providerOrder.every(p => PROVIDERS.has(p)))) &&
-    (keys.keyFallback === undefined || typeof keys.keyFallback === "boolean");
+    (keys.keyFallback === undefined || typeof keys.keyFallback === "boolean") &&
+    (keys.openrouterModel === undefined || validOpenRouterModel(keys.openrouterModel));
 }
 
 function encryptionKey(secret: string): Buffer {

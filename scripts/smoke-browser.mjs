@@ -393,7 +393,7 @@ try {
   await page.getByText('Settings saved.', { exact: true }).waitFor();
   assert.equal(await keyInput.inputValue(), '');
   assert.equal(settings.at(-1).maxSpendUsd, 0.1);
-  assert.equal(await page.getByText('Anthropic key required', { exact: true }).count(), 0, 'Gemini is optional');
+  assert.equal(await page.getByText('Connect your AI', { exact: true }).count(), 0, 'Gemini is optional');
   await page.getByRole('button', { name: 'Disconnect all & sign out', exact: true }).click();
   await page.getByText('Stop your active hosted runs before access is cleared', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Stop runs, disconnect, and sign out', exact: true }).click();
@@ -425,7 +425,7 @@ try {
   await page.setViewportSize({ width: 390, height: 900 });
   await page.evaluate(() => window.dispatchEvent(new Event('opensrcer-keys-updated')));
   await page.goto(base + '/trigger');
-  await page.getByText('Anthropic key required', { exact: true }).waitFor();
+  await page.getByText('Connect your AI', { exact: true }).waitFor();
   assert.equal(await page.getByText('Go to Settings', { exact: true }).count(), 0, 'missing-key guidance must not render twice');
   const unpaidStart = page.getByRole('button', { name: 'Start publishable run', exact: true });
   await page.waitForFunction(() => [...document.querySelectorAll('button[type="submit"]')].some(b => b.disabled));

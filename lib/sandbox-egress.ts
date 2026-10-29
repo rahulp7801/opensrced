@@ -46,12 +46,38 @@ export function agentEgressWithExec(base: NetworkPolicy, execHost: string): Netw
 //   objects.githubusercontent.com,     where GitHub release and LFS downloads
 //   release-assets.githubusercontent.com  redirect (uv-managed Python builds,
 //                                      pre-commit tool binaries)
+// and, for recipes compiled from other ecosystems' CI (PLAN.md §5.6), an
+// explicit list per ecosystem rather than open internet:
+//   Rust        crates.io index and downloads, rustup's static.rust-lang.org
+//   Go          module proxy and checksum DB; module zips on
+//               storage.googleapis.com; go.dev/dl.google.com for toolchains
+//   Ruby        rubygems
+//   JVM         Maven Central, the Gradle plugin portal and distributions
+//   PHP         packagist
+//   Conda       conda-forge / anaconda channels
+//   Containers  Docker Hub (registry, auth, blob CDN), ghcr.io and its blob
+//               host, mcr.microsoft.com: images for CI `services:`
+//   apt         Ubuntu and Debian mirrors
+//   Runtimes    nodejs.org and mise.jdx.dev (mise's own downloads; other
+//               runtimes come from GitHub releases, already allowed)
+// The VM holds no keys, so the risk is abuse (mining, scanning), not leaked
+// secrets; the allowlist and short VM lifetimes keep that small. The
+// benchmark logs blocked hosts, and each new one is added here by hand.
 // Not listed on purpose: api.github.com, the Blob store, model providers.
 export const EXEC_EGRESS: NetworkPolicy = {
   allow: [
     "pypi.org", "files.pythonhosted.org", "download.pytorch.org",
     "registry.npmjs.org", "registry.yarnpkg.com",
     "github.com", "codeload.github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com",
+    "crates.io", "index.crates.io", "static.crates.io", "static.rust-lang.org",
+    "proxy.golang.org", "sum.golang.org", "storage.googleapis.com", "go.dev", "dl.google.com",
+    "rubygems.org", "index.rubygems.org",
+    "repo.maven.apache.org", "repo1.maven.org", "plugins.gradle.org", "services.gradle.org", "downloads.gradle.org",
+    "packagist.org", "repo.packagist.org",
+    "conda.anaconda.org", "repo.anaconda.com",
+    "registry-1.docker.io", "auth.docker.io", "production.cloudflare.docker.com", "ghcr.io", "pkg-containers.githubusercontent.com", "mcr.microsoft.com",
+    "archive.ubuntu.com", "security.ubuntu.com", "deb.debian.org",
+    "nodejs.org", "mise.jdx.dev",
   ],
 };
 export const EXPLORE_EGRESS: NetworkPolicy = { allow: ["api.anthropic.com", ...GITHUB] };

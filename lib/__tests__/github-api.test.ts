@@ -37,6 +37,20 @@ test("GitHub requests use caller credentials, a deadline, and reject redirects",
   }
 });
 
+test("PUT/PATCH and a caller-handled redirect are opt-in; other 3xx still fail", async (t) => {
+  const requests: RequestInit[] = [];
+  t.mock.method(globalThis, "fetch", async (_url: string, options: RequestInit) => {
+    requests.push(options);
+    return new Response(null, { status: 302, headers: { location: "https://signed.example/log" } });
+  });
+  const redirected = await githubResponse("/repos/acme/app/actions/jobs/1/logs", "tok", undefined, undefined, undefined, { redirect: "manual" });
+  assert.equal(redirected.headers.get("location"), "https://signed.example/log");
+  assert.equal(requests[0].redirect, "manual");
+  await assert.rejects(githubResponse("/repos/acme/app/actions/permissions", "tok", { enabled: true }, undefined, undefined, { method: "PUT" }), GitHubApiError);
+  assert.equal(requests[1].method, "PUT");
+  assert.equal(requests[1].redirect, "error");
+});
+
 test("routes answer GitHub failures with a status that names whose problem it is", async (t) => {
   let status = 401;
   t.mock.method(globalThis, "fetch", async () => Response.json({}, { status }));

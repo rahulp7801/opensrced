@@ -10,8 +10,9 @@
 // A worktree gives us an isolated checkout on a throwaway branch while
 // leaving the shared clone untouched for concurrent MCP calls.
 //
-// All shelling is done via execFile (no shell interpolation). gh CLI
-// is used for fork + PR; git for the local mechanics. Any step that
+// All shelling is done via execFile (no shell interpolation). The fork
+// is made through the REST API (lib/fork-ci.ts), the PR with gh CLI, and
+// git does the local mechanics. Any step that
 // fails returns a diagnostic string instead of throwing — the dispatch
 // already succeeded, we just couldn't ship the PR.
 
@@ -33,6 +34,7 @@ import { readJsonBody } from "./request-body";
 import type { PrPreview } from "./pr-preview";
 import { testOutcome } from "./verify";
 import { outOfScopePaths } from "./contrib-profile";
+import { ensureFork } from "./fork-ci";
 
 const execFileAsync = promisify(execFile);
 
@@ -347,21 +349,21 @@ export async function createDraftPrFromLog(args: CreatePrArgs): Promise<PrResult
     if (ghUser.toLowerCase() === owner.toLowerCase()) {
       pushRemote = "origin";
     } else {
+      // Through the REST API (lib/fork-ci.ts, shared with fork CI): it waits
+      // until a new fork is ready, and names an existing fork whatever it is
+      // called (a renamed fork is not <user>/<name>).
+      let forkFull: string;
       try {
-        await run(
-          ghBin(),
-          ["repo", "fork", args.repoFull],
-          { env, timeout: 30_000 },
-        );
+        forkFull = await ensureFork(args.token, args.repoFull);
       } catch (e) {
         return {
           ok: false,
-          reason: `gh repo fork failed: ${e instanceof Error ? e.message : String(e)}`,
+          reason: `fork failed: ${e instanceof Error ? e.message : String(e)}`,
         };
       }
 
       // 2. In the shared shallow clone, ensure a `fork` remote.
-      const forkUrl = `https://github.com/${ghUser}/${name}.git`;
+      const forkUrl = `https://github.com/${forkFull}.git`;
       try {
         await run("git", ["-C", clone, "remote", "set-url", "fork", forkUrl], { env });
       } catch {

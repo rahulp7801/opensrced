@@ -10,6 +10,7 @@ import { cn, formatRelative } from "@/lib/utils";
 import { extractFirstDiff, parseSplitHunks, type DiffRow } from "@/lib/diff-view";
 import { findGitHubPullUrl } from "@/lib/github-pull-url";
 import { PublishPanel } from "./publish-panel";
+import { ForkCiPanel } from "./fork-ci-panel";
 import { NextSteps } from "./next-steps";
 import { Doodle } from "./brand/doodles";
 import { spark } from "./brand/doodle-data";
@@ -464,6 +465,9 @@ export function DispatchList() {
                 </div>
               );
             })()}
+
+            {/* The project's own CI on the published branch, in the user's fork (renders nothing when off). */}
+            {prInfo && <ForkCiPanel dispatchId={detail.id} />}
 
             {/* Diff preview */}
             <DiffPreviewFromLog log={detail.log} prOpened={!!prInfo} prUrl={detail.pr_url} dryRun={detail.dry_run} />

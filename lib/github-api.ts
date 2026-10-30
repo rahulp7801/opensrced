@@ -7,6 +7,9 @@ export async function githubResponse(
   body?: unknown,
   accept = "application/vnd.github+json",
   signal?: AbortSignal,
+  // PUT/PATCH for settings and PR updates; "manual" hands a 3xx back to the
+  // caller (job logs redirect to signed storage that must not get the token).
+  init: { method?: "PUT" | "PATCH"; redirect?: "manual" } = {},
 ): Promise<Response> {
   if (path.length > 8_000 || !GITHUB_API_PATH.test(path) || path.startsWith("//")) {
     throw new Error("Invalid GitHub API path");
@@ -16,7 +19,7 @@ export async function githubResponse(
     throw new Error("Invalid GitHub API destination");
   }
   const response = await fetch(url.href, {
-    method: body === undefined ? "GET" : "POST",
+    method: init.method ?? (body === undefined ? "GET" : "POST"),
     headers: {
       Accept: accept,
       "X-GitHub-Api-Version": "2022-11-28",
@@ -26,10 +29,10 @@ export async function githubResponse(
     },
     body: body === undefined ? undefined : JSON.stringify(body),
     cache: "no-store",
-    redirect: "error",
+    redirect: init.redirect ?? "error",
     signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000),
   });
-  if (!response.ok) {
+  if (!response.ok && !(init.redirect === "manual" && response.status >= 300 && response.status < 400)) {
     // Do not forward arbitrary upstream bodies or credentials into user errors.
     const message = response.status === 401 ? "GitHub session expired. Please sign in again."
       : response.status === 403 || response.status === 429 ? "GitHub denied this request or its rate limit was reached. Try again later."

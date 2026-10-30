@@ -122,7 +122,8 @@ function detectEvents(snap: PrSnapshot, state: LifecycleState): { events: Lifecy
 type GhCheckRun = { name: string; status: string; conclusion: string | null; html_url: string };
 type GhStatus = { context: string; state: string; target_url: string | null };
 
-function checkState(status: string, conclusion: string | null): CheckResult["state"] {
+/** One check run (or Actions job) as a check state. Exported for lib/fork-ci.ts. */
+export function checkState(status: string, conclusion: string | null): CheckResult["state"] {
   if (status !== "completed") return "pending";
   if (conclusion === "success") return "success";
   if (conclusion === "neutral" || conclusion === "skipped") return "neutral";

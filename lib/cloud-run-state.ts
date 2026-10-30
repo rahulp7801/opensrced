@@ -201,6 +201,13 @@ export function runUnderstandingPath(owner: string, id: string): string {
   return `${ownerPrefix(owner).slice(0, -"runs/".length)}understanding/${id}.json`;
 }
 
+/** The run's fork-CI result (lib/fork-ci.ts). Written only by the app's
+ *  routes, never by a worker. */
+export function runForkCiPath(owner: string, id: string): string {
+  if (!RUN_ID_RE.test(id)) throw new Error("Invalid run id");
+  return `${ownerPrefix(owner).slice(0, -"runs/".length)}fork-ci/${id}.json`;
+}
+
 /** Created once per publish; a second concurrent publish finds it. */
 export function runPublishLockPath(owner: string, id: string): string {
   if (!RUN_ID_RE.test(id)) throw new Error("Invalid run id");

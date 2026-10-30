@@ -23,6 +23,9 @@ export const AGENT_EGRESS: NetworkPolicy = { allow: AGENT_HOSTS };
 export const SUBSCRIPTION_AGENT_EGRESS: NetworkPolicy = {
   allow: [...AGENT_HOSTS, "platform.claude.com", "claude.ai"],
 };
+// OpenRouter-key runs: Claude Code talks to OpenRouter's Anthropic-compatible
+// endpoint instead of api.anthropic.com.
+export const OPENROUTER_AGENT_EGRESS: NetworkPolicy = { allow: [...AGENT_HOSTS, "openrouter.ai"] };
 /** Agent VM of a hosted exec run: its usual hosts plus exactly one more, its
  *  own exec VM's public port route (`<id>.vercel.run`). The exact host, never
  *  a wildcard: other users' exec VMs share the suffix. */

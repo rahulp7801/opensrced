@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { AGENT_EGRESS, EXEC_EGRESS, EXPLORE_EGRESS, SUBSCRIPTION_AGENT_EGRESS, agentEgressWithExec } from "../sandbox-egress";
+import { AGENT_EGRESS, EXEC_EGRESS, EXPLORE_EGRESS, OPENROUTER_AGENT_EGRESS, SUBSCRIPTION_AGENT_EGRESS, agentEgressWithExec } from "../sandbox-egress";
 
 const hosts = (policy: unknown) => (policy as { allow: string[] }).allow;
 
@@ -8,6 +8,12 @@ test("subscription runs add exactly Anthropic's sign-in hosts to the agent allow
   const added = hosts(SUBSCRIPTION_AGENT_EGRESS).filter((host) => !hosts(AGENT_EGRESS).includes(host));
   assert.deepEqual(added.sort(), ["claude.ai", "platform.claude.com"]);
   for (const host of hosts(AGENT_EGRESS)) assert.ok(hosts(SUBSCRIPTION_AGENT_EGRESS).includes(host), host);
+});
+
+test("OpenRouter-key runs add exactly openrouter.ai, and no other run reaches it", () => {
+  const added = hosts(OPENROUTER_AGENT_EGRESS).filter((host) => !hosts(AGENT_EGRESS).includes(host));
+  assert.deepEqual(added, ["openrouter.ai"]);
+  for (const policy of [AGENT_EGRESS, SUBSCRIPTION_AGENT_EGRESS, EXPLORE_EGRESS, EXEC_EGRESS]) assert.ok(!hosts(policy).includes("openrouter.ai"));
 });
 
 test("API-key runs and exploration do not gain the sign-in hosts", () => {

@@ -28,6 +28,7 @@ const fakeSandbox = {
         status: "running",
         async stop() { stops.push(name); },
         async writeFiles(files: Array<{ path: string; content: Buffer; mode?: number }>) { writes.push({ sandbox: name, files }); },
+        domain(port: number) { return `https://${name}-${port}.vm.test`; },
       };
     },
     async create(params: Record<string, unknown>) {
@@ -35,7 +36,7 @@ const fakeSandbox = {
       const entry = { params, commands: [] as Array<Record<string, unknown>> };
       creates.push(entry);
       return {
-        async readFileToBuffer() { return Buffer.from("7\n"); },
+        async readFileToBuffer() { return Buffer.from("8\n"); },
         async runCommand(command: Record<string, unknown>) { entry.commands.push(command); return {}; },
         domain() { return execDomain; },
       };
@@ -49,7 +50,7 @@ for (const [id, fake] of [["@vercel/blob", fakeBlob], ["@vercel/sandbox", fakeSa
   req.cache[resolved] = { id: resolved, filename: resolved, loaded: true, exports: fake } as never;
 }
 
-const SIGN_IN = { url: "https://claude.com/cai/oauth/authorize?code=true&state=s", status: "waiting" as const };
+const SIGN_IN = { status: "waiting" as const };
 const CODE = "good-code-123#state";
 
 async function seed(owner: string, overrides: Record<string, unknown> = {}) {
@@ -65,43 +66,88 @@ async function seed(owner: string, overrides: Record<string, unknown> = {}) {
   return id;
 }
 
-test("the owner's waiting run receives the code in its VM, as a 0600 file", async () => {
-  const { relaySignInCode } = await import("../cloud-runs");
-  const { SIGN_IN_CODE_PATH } = await import("../hosted-sign-in");
-  const id = await seed("alice");
-  writes.length = 0;
-  assert.equal(await relaySignInCode("alice", id, CODE), true);
-  assert.equal(writes.length, 1);
-  assert.equal(writes[0].sandbox, id.replaceAll("_", "-"));
-  assert.equal(writes[0].files[0].path, SIGN_IN_CODE_PATH);
-  assert.equal(writes[0].files[0].mode, 0o600);
-  assert.equal(writes[0].files[0].content.toString(), CODE);
-  // Nothing about the code is written to the run record or anywhere in Blob.
-  assert.ok(![...store.values()].some((entry) => entry.body.includes(CODE)));
+// ── Hosted Claude sign-in terminal (lib/hosted-sign-in.ts) ─────────────
+
+/** A stand-in for the VM's terminal port: records each request, answers GET
+ *  with the given bytes and POST with 204. */
+function fakeVm(output: Uint8Array<ArrayBuffer>, status = 200) {
+  const calls: Array<{ url: string; method: string; auth: string | null; body: Uint8Array | null }> = [];
+  const impl = (async (url: string, init: RequestInit) => {
+    const body = init.body ? new Uint8Array(await new Response(init.body).arrayBuffer()) : null;
+    calls.push({ url, method: String(init.method), auth: new Headers(init.headers).get("authorization"), body });
+    if (status !== 200) return new Response("no", { status });
+    return init.method === "GET" ? new Response(output) : new Response(null, { status: 204 });
+  }) as unknown as typeof fetch;
+  return { impl, calls };
+}
+
+// Escape sequences, a carriage return and a byte that is not UTF-8: whatever
+// the terminal sends must arrive exactly as sent.
+const TTY_BYTES = new Uint8Array([0x1b, 0x5b, 0x33, 0x31, 0x6d, 0x68, 0x69, 0x0d, 0x0a, 0xff, 0x00]);
+
+test("the owner's terminal output streams from their run's VM, byte for byte, with the run's own capability", async () => {
+  const { proxySignInTerminal, signInTtyToken } = await import("../cloud-runs");
+  const saved = process.env.AUTH0_SECRET;
+  process.env.AUTH0_SECRET = "unit-test-secret";
+  try {
+    const id = await seed("alice");
+    const vm = fakeVm(TTY_BYTES);
+    const response = await proxySignInTerminal("alice", id, { method: "GET" }, vm.impl);
+    assert.equal(response?.status, 200);
+    assert.equal(response?.headers.get("content-type"), "application/octet-stream");
+    assert.deepEqual(new Uint8Array(await response!.arrayBuffer()), TTY_BYTES);
+    assert.equal(vm.calls[0].url, `https://${id.replaceAll("_", "-")}-7071.vm.test/tty`);
+    assert.equal(vm.calls[0].auth, `Bearer ${signInTtyToken(id)}`);
+    assert.match(signInTtyToken(id), /^[a-f0-9]{64}$/);
+    assert.notEqual(signInTtyToken(id), signInTtyToken(await seed("alice")), "one capability per run");
+  } finally {
+    if (saved === undefined) delete process.env.AUTH0_SECRET; else process.env.AUTH0_SECRET = saved;
+  }
 });
 
-test("another user's run, a run not waiting, a finished run and a bad code are refused without a write", async () => {
-  const { relaySignInCode } = await import("../cloud-runs");
-  const cases: Array<[string, string, string]> = [
-    ["mallory", await seed("alice"), CODE],
-    ["alice", await seed("alice", { sign_in: { ...SIGN_IN, status: "signed_in" } }), CODE],
-    ["alice", await seed("alice", { sign_in: undefined }), CODE],
-    ["alice", await seed("alice", { status: "failed", ended_at: new Date().toISOString(), sandbox_stopped: true }), CODE],
-    ["alice", await seed("alice"), "bad code\nsecond line"],
-    ["alice", "c_123_not-an-id", CODE],
+test("typed bytes reach the VM unchanged, and nothing of them is kept in Blob", async () => {
+  const { proxySignInTerminal } = await import("../cloud-runs");
+  const saved = process.env.AUTH0_SECRET;
+  process.env.AUTH0_SECRET = "unit-test-secret";
+  try {
+    const id = await seed("alice");
+    const vm = fakeVm(new Uint8Array());
+    const typed = new TextEncoder().encode(`${CODE}\r`);
+    const response = await proxySignInTerminal("alice", id, { method: "POST", body: new Response(typed).body }, vm.impl);
+    assert.equal(response?.status, 204);
+    assert.equal(vm.calls[0].method, "POST");
+    assert.deepEqual(vm.calls[0].body, typed);
+    assert.ok(![...store.values()].some((entry) => entry.body.includes(CODE)));
+    // A VM that refuses (wrong capability, worker gone) is a 502, not a pass-through.
+    assert.equal((await proxySignInTerminal("alice", id, { method: "GET" }, fakeVm(TTY_BYTES, 401).impl))?.status, 502);
+    assert.equal((await proxySignInTerminal("alice", id, { method: "POST", body: new Response(typed).body }, fakeVm(TTY_BYTES, 401).impl))?.status, 502);
+  } finally {
+    if (saved === undefined) delete process.env.AUTH0_SECRET; else process.env.AUTH0_SECRET = saved;
+  }
+});
+
+test("another user's run, a run not waiting and a finished run never reach a VM", async () => {
+  const { proxySignInTerminal } = await import("../cloud-runs");
+  const cases: Array<[string, string]> = [
+    ["mallory", await seed("alice")],
+    ["alice", await seed("alice", { sign_in: { status: "signed_in" } })],
+    ["alice", await seed("alice", { sign_in: undefined })],
+    ["alice", await seed("alice", { status: "failed", ended_at: new Date().toISOString(), sandbox_stopped: true })],
+    ["alice", "c_123_not-an-id"],
   ];
-  writes.length = 0;
-  for (const [viewer, id, code] of cases) assert.equal(await relaySignInCode(viewer, id, code), false, `${viewer} ${id}`);
-  assert.equal(writes.length, 0);
+  const vm = fakeVm(TTY_BYTES);
+  for (const [viewer, id] of cases) assert.equal(await proxySignInTerminal(viewer, id, { method: "GET" }, vm.impl), null, `${viewer} ${id}`);
+  assert.equal(vm.calls.length, 0);
 });
 
-test("signInRelayable is true only for a live run waiting on sign-in", async () => {
-  const { signInRelayable } = await import("../cloud-runs");
+test("signInOpen is true only for a live run waiting on sign-in; the capability needs the server secret", async () => {
+  const { signInOpen, signInTtyToken } = await import("../cloud-runs");
   const base = { status: "running", expires_at: Date.now() + 60_000, sign_in: SIGN_IN } as never;
-  assert.equal(signInRelayable(base), true);
-  assert.equal(signInRelayable(null), false);
-  assert.equal(signInRelayable({ ...(base as object), sign_in: { ...SIGN_IN, status: "failed" } } as never), false);
-  assert.equal(signInRelayable({ ...(base as object), status: "killed" } as never), false);
+  assert.equal(signInOpen(base), true);
+  assert.equal(signInOpen(null), false);
+  assert.equal(signInOpen({ ...(base as object), sign_in: { status: "failed" } } as never), false);
+  assert.equal(signInOpen({ ...(base as object), status: "killed" } as never), false);
+  assert.throws(() => signInTtyToken("c_1", ""), /AUTH0_SECRET/);
 });
 
 // ── Hosted exec VM (OPENSRCER_HOSTED_EXEC) ─────────────────────────────
@@ -171,6 +217,41 @@ test("with the gate off nothing changes: one VM, today's egress and worker env",
   const env = creates[0].commands[0].env as Record<string, string>;
   assert.ok(!Object.keys(env).some((k) => k.startsWith("OPENSRCER_EXEC")));
   assert.equal(env.OPENSRCER_AGENTIC_TIMEOUT_MS, String(30 * 60_000));
+});
+
+test("a Claude-plan run exposes only its sign-in terminal port and gets that run's capability", async () => {
+  const { startCloudRun, signInTtyToken } = await import("../cloud-runs");
+  const { SUBSCRIPTION_AGENT_EGRESS } = await import("../sandbox-egress");
+  creates.length = 0;
+  store.clear();
+  const vars = { ...HOSTED, OPENSRCER_HOSTED_EXEC: undefined, AUTH0_SECRET: "unit-test-secret" };
+  const run = await withEnv(vars, () => startCloudRun("https://github.com/acme/app", 3, { auth0UserId: "frank-tty", dryRun: true, provider: "claude-subscription" }));
+  assert.deepEqual(creates[0].params.ports, [7071]);
+  assert.deepEqual(creates[0].params.networkPolicy, SUBSCRIPTION_AGENT_EGRESS);
+  const env = creates[0].commands[0].env as Record<string, string>;
+  assert.equal(env.OPENSRCER_TTY_TOKEN, await withEnv(vars, async () => signInTtyToken(run.id)));
+});
+
+test("an OpenRouter-key run may reach OpenRouter, and its key goes only into the agent VM's job", async () => {
+  const { startCloudRun } = await import("../cloud-runs");
+  const { OPENROUTER_AGENT_EGRESS } = await import("../sandbox-egress");
+  const server = await execHealth();
+  creates.length = 0;
+  store.clear();
+  try {
+    await withEnv(HOSTED, () => startCloudRun("https://github.com/acme/app", 3, {
+      auth0UserId: "gina-or", dryRun: true, provider: "openrouter-key", openrouterKey: "sk-or-secret", agentModel: "z-ai/glm-5.3",
+    }));
+    const [exec, agent] = creates;
+    assert.ok(!JSON.stringify(exec).includes("sk-or-secret"), "never in the exec VM");
+    assert.deepEqual((agent.params.networkPolicy as { allow: string[] }).allow.slice(0, -1), (OPENROUTER_AGENT_EGRESS as { allow: string[] }).allow);
+    assert.equal(agent.params.ports, undefined);
+    const job = JSON.parse((agent.commands[0].env as Record<string, string>).OPENSRCER_JOB);
+    assert.equal(job.opts.openrouterKey, "sk-or-secret");
+    assert.equal(job.opts.agentModel, "z-ai/glm-5.3");
+  } finally {
+    server.close();
+  }
 });
 
 test("a failed exec VM fails the start, stops both VMs by name and frees the slot", async () => {

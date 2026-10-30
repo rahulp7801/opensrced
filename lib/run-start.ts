@@ -69,6 +69,8 @@ export async function startIssueRun(input: IssueRunInput): Promise<Dispatch> {
       provider: payment.provider,
       anthropicKey: payment.anthropicKey,
       keyFallback: payment.keyFallback,
+      openrouterKey: payment.openrouterKey,
+      agentModel: payment.agentModel,
       geminiKey,
       maxSpendUsd,
       auth0UserId: input.auth0UserId,

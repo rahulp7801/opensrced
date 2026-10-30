@@ -3,19 +3,23 @@
 import { useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/toast";
 
-type Provider = "claude-subscription" | "codex-subscription" | "anthropic-key";
+type Provider = "copilot" | "claude-subscription" | "codex-subscription" | "anthropic-key" | "openrouter-key";
 type KeyStatus = {
   anthropic: boolean; gemini: boolean; maxSpendUsd: number;
+  openrouter?: boolean; openrouterModel?: string;
+  copilot?: { state: "no_github_token" | "unknown"; detail: string };
   providerOrder?: Provider[]; keyFallback?: boolean; ready?: boolean; problem?: string;
   offered?: Provider[]; availability?: Partial<Record<Provider, { available: boolean; detail: string }>>;
   local?: boolean; hostedSubscription?: boolean;
 };
 
-// Plain-text descriptions; no product names used as feature names.
+// Plain-language notes (PLAN.md §0.6); no product names used as feature names.
 const PROVIDER_INFO: Record<Provider, { title: string; note: string }> = {
-  "claude-subscription": { title: "Claude subscription", note: "Recommended. Runs Claude Code with your own Claude Pro, Max, Team or Enterprise plan; no API charges." },
+  copilot: { title: "GitHub Copilot", note: "Uses the GitHub account you signed in with and bills your own Copilot plan (Copilot Free or Student work too, with a small monthly allowance). It will power the teacher; fix runs on Copilot are not available yet." },
+  "claude-subscription": { title: "Claude subscription", note: "Your own Claude Pro or Max plan, for the fix agent only: Anthropic doesn't allow a plan to power anything else here. You sign in to Claude at the start of each run, in a terminal inside that run's isolated worker. opensrcer never sees or keeps your login." },
   "codex-subscription": { title: "ChatGPT subscription", note: "Runs your own signed-in Codex CLI with your ChatGPT plan. Local and self-hosted only." },
-  "anthropic-key": { title: "Anthropic API key", note: "Billed per token to your API account, capped by the budget below." },
+  "anthropic-key": { title: "Anthropic API key", note: "Billed per token to your Anthropic API account. Fix runs stop at the budget below." },
+  "openrouter-key": { title: "OpenRouter", note: "Any model on OpenRouter, billed to your own OpenRouter credits. Fix runs are capped by steps, not dollars, so set a credit limit on the key at openrouter.ai. OpenRouter accounts are 18+." },
 };
 
 const SPEND_OPTIONS = [
@@ -34,6 +38,9 @@ export function ApiKeysForm() {
   const [loading, setLoading] = useState(true);
   const [anthropicInput, setAnthropicInput] = useState("");
   const [geminiInput, setGeminiInput] = useState("");
+  const [openrouterInput, setOpenrouterInput] = useState("");
+  const [modelInput, setModelInput] = useState("");
+  const [adult, setAdult] = useState(false);
   const [maxSpend, setMaxSpend] = useState(2);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
@@ -41,6 +48,13 @@ export function ApiKeysForm() {
   // A slow first load must not undo what the user already chose or saved.
   const budgetTouched = useRef(false);
   const saved = useRef(false);
+
+  // Back from "Connect OpenRouter" (app/api/settings/openrouter/callback).
+  useEffect(() => {
+    const result = new URLSearchParams(window.location.search).get("openrouter");
+    if (result === "connected") setMessage({ text: "OpenRouter connected. Your key is saved, encrypted, in this browser only.", ok: true });
+    if (result === "failed") setMessage({ text: "OpenRouter was not connected. Try again, or paste a key from openrouter.ai/keys instead.", ok: false });
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -67,6 +81,8 @@ export function ApiKeysForm() {
       const body: Record<string, unknown> = { maxSpendUsd: maxSpend };
       if (anthropicInput) body.anthropic = anthropicInput;
       if (geminiInput) body.gemini = geminiInput;
+      if (openrouterInput) body.openrouter = openrouterInput;
+      if (modelInput) body.openrouterModel = modelInput.trim();
 
       const res = await fetch("/api/settings/keys", {
         method: "POST",
@@ -80,6 +96,8 @@ export function ApiKeysForm() {
       setStatus(data);
       setAnthropicInput("");
       setGeminiInput("");
+      setOpenrouterInput("");
+      setModelInput("");
       setMessage({ text: "Settings saved.", ok: true });
       toast("Settings saved", "ok");
       window.dispatchEvent(new Event("opensrcer-keys-updated"));
@@ -128,16 +146,18 @@ export function ApiKeysForm() {
     }
   }
 
-  const order = (status?.providerOrder ?? ["claude-subscription", "codex-subscription", "anthropic-key"]).filter((p) => !status?.offered || status.offered.includes(p));
+  // Copilot is listed (and orderable) even before fix runs can use it.
+  const order = (status?.providerOrder ?? ["copilot", "claude-subscription", "codex-subscription", "anthropic-key", "openrouter-key"])
+    .filter((p) => p === "copilot" || !status?.offered || status.offered.includes(p));
   function move(index: number, by: -1 | 1) {
     const next = [...order];
     [next[index], next[index + by]] = [next[index + by], next[index]];
     void savePayment({ providerOrder: next });
   }
 
-  const [confirmClear, setConfirmClear] = useState<"anthropic" | "gemini" | null>(null);
+  const [confirmClear, setConfirmClear] = useState<"anthropic" | "gemini" | "openrouter" | null>(null);
 
-  async function clearKey(key: "anthropic" | "gemini") {
+  async function clearKey(key: "anthropic" | "gemini" | "openrouter") {
     setSaving(true);
     setConfirmClear(null);
     try {
@@ -165,9 +185,9 @@ export function ApiKeysForm() {
     <div className="space-y-7">
       {/* How runs are paid for */}
       <fieldset className="space-y-3" aria-describedby="payment-help">
-        <legend className="text-[16px] font-semibold text-paper">Payment order</legend>
+        <legend className="text-[16px] font-semibold text-paper">Connect your AI</legend>
         <p id="payment-help" className="text-[14px] leading-[1.55] text-paper-muted">
-          Runs try these in order. Your own subscription comes first, so you are not charged API prices by default.
+          opensrcer runs on AI you already have. Runs try these in order; your own plans come first, so you are not charged API prices by default.
         </p>
         {loading ? (
           <p className="text-[12px] text-paper-faint">loading…</p>
@@ -176,10 +196,13 @@ export function ApiKeysForm() {
             {order.map((provider, index) => {
               const info = PROVIDER_INFO[provider];
               const detected = status?.availability?.[provider];
-              const isKey = provider === "anthropic-key";
-              const chip = isKey
-                ? status?.anthropic ? { tone: "ok", text: "key saved" } : { tone: "muted", text: "no key" }
-                : detected?.available ? { tone: "ok", text: "ready" } : { tone: "muted", text: "not available" };
+              const isKey = provider === "anthropic-key" || provider === "openrouter-key";
+              const keySaved = provider === "anthropic-key" ? status?.anthropic : status?.openrouter;
+              const chip = provider === "copilot"
+                ? status?.copilot?.state === "unknown" ? { tone: "ok", text: "GitHub connected" } : { tone: "muted", text: "not signed in" }
+                : isKey
+                  ? keySaved ? { tone: "ok", text: "key saved" } : { tone: "muted", text: "no key" }
+                  : detected?.available ? { tone: "ok", text: "ready" } : { tone: "muted", text: "not available" };
               return (
                 <li key={provider} className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
                   <div className="min-w-0 flex-1">
@@ -190,6 +213,10 @@ export function ApiKeysForm() {
                     </p>
                     <p className="mt-1 text-[14px] leading-[1.55] text-paper-muted">{info.note}</p>
                     {!isKey && detected && <p className="mt-1 text-[14px] leading-[1.55] text-paper-dim">{status?.local ? "This machine: " : ""}{detected.detail}</p>}
+                    {provider === "copilot" && status?.copilot && <p className="mt-1 text-[14px] leading-[1.55] text-paper-dim">{status.copilot.detail}</p>}
+                    {provider === "openrouter-key" && status?.openrouter && status.openrouterModel && (
+                      <p className="mt-1 text-[14px] leading-[1.55] text-paper-dim">Model: <code className="font-mono">{status.openrouterModel}</code></p>
+                    )}
                   </div>
                   <div className="flex gap-1.5">
                     <button type="button" onClick={() => move(index, -1)} disabled={saving || index === 0}
@@ -300,6 +327,78 @@ export function ApiKeysForm() {
           <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" className="underline hover:text-paper-muted">
             console.anthropic.com
           </a>
+        </div>
+      </div>
+
+      {/* OpenRouter: OpenRouter's own sign-in (OAuth PKCE), or a pasted key */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 text-[14px]">
+          <span className="font-medium text-paper">OpenRouter</span>
+          {loading ? (
+            <span className="text-paper-faint text-[12px]">loading…</span>
+          ) : status?.openrouter ? (
+            <span className="chip chip-ok">connected</span>
+          ) : status ? (
+            <span className="text-[12.5px] text-paper-muted px-1.5 py-0.5">not connected</span>
+          ) : (
+            <span className="chip chip-alert">unavailable</span>
+          )}
+        </div>
+        <p className="text-[14px] leading-[1.55] text-paper-muted">
+          Sign in on OpenRouter and approve a key for opensrcer; runs bill your own OpenRouter credits. OpenRouter accounts are 18+.
+        </p>
+        <label className="flex items-start gap-2.5 text-[14px] text-paper">
+          <input type="checkbox" checked={adult} onChange={(e) => setAdult(e.target.checked)} className="h-6 w-6 shrink-0" />
+          <span>I am 18 or older</span>
+        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          {adult ? (
+            <a href="/api/settings/openrouter/connect?adult=1" className="btn-primary">Connect OpenRouter</a>
+          ) : (
+            <button type="button" disabled className="btn-primary">Connect OpenRouter</button>
+          )}
+          {status?.openrouter && (
+            confirmClear === "openrouter" ? (
+              <span className="flex items-center gap-1.5">
+                <button type="button" onClick={() => clearKey("openrouter")} disabled={saving} className="btn-quiet text-alert" data-size="sm">
+                  {saving ? "..." : "confirm"}
+                </button>
+                <button type="button" onClick={() => setConfirmClear(null)} className="text-[12px] text-paper-muted hover:text-paper px-1.5 py-1.5">
+                  cancel
+                </button>
+              </span>
+            ) : (
+              <button type="button" onClick={() => setConfirmClear("openrouter")} disabled={saving} className="btn-quiet" data-size="sm">
+                Disconnect
+              </button>
+            )
+          )}
+        </div>
+        <label htmlFor="openrouter-key" className="block pt-1 text-[14px] text-paper-muted">Or paste a key from openrouter.ai/keys</label>
+        <input
+          type="password"
+          id="openrouter-key"
+          value={openrouterInput}
+          onChange={(e) => setOpenrouterInput(e.target.value)}
+          placeholder={status?.openrouter ? "••••••• (replace)" : "sk-or-v1-..."}
+          className="field w-full min-w-0"
+          autoComplete="off"
+          spellCheck={false}
+        />
+        <label htmlFor="openrouter-model" className="block pt-1 text-[14px] text-paper-muted">Model for fix runs</label>
+        <input
+          type="text"
+          id="openrouter-model"
+          aria-describedby="openrouter-model-help"
+          value={modelInput}
+          onChange={(e) => setModelInput(e.target.value)}
+          placeholder={status?.openrouterModel ?? "deepseek/deepseek-v4-pro"}
+          className="field w-full min-w-0 font-mono"
+          autoComplete="off"
+          spellCheck={false}
+        />
+        <div id="openrouter-model-help" className="text-[14px] leading-[1.55] text-paper-muted">
+          An OpenRouter model id, like <code className="font-mono">vendor/model</code>. Leave it empty to keep the one shown.
         </div>
       </div>
 

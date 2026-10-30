@@ -524,9 +524,13 @@ export type StartAgenticOpts = {
   // User-provided API keys (from encrypted cookie).
   anthropicKey?: string;
   // Anthropic-compatible gateway for an API-key run (anthropicKey is then the
-  // gateway's key) and the gateway model to run. Eval-only for now.
+  // gateway's key). Eval-only.
   anthropicBaseUrl?: string;
+  // The model to run: a gateway model for the eval, or the user's OpenRouter
+  // model for an openrouter-key run. Unset means each provider's default.
   agentModel?: string;
+  // openrouter-key runs: the user's OpenRouter key (encrypted cookie).
+  openrouterKey?: string;
   geminiKey?: string;
   // Hard cap on Anthropic API spend for this dispatch.
   maxSpendUsd?: number;
@@ -780,6 +784,7 @@ async function spawnDispatch(
       maxTurns: limits.maxTurns,
       anthropicKey: opts.anthropicKey,
       baseUrl: opts.anthropicBaseUrl,
+      openrouterKey: opts.openrouterKey,
       model: opts.agentModel,
       claudeConfigDir: opts.claudeConfigDir,
       inject: {
@@ -867,7 +872,9 @@ async function spawnDispatch(
       // taskkill on Windows exits 1 with no signal, so a user cancel is only
       // visible through the flag cancelDispatch() leaves behind.
       const wasKilled = signal === "SIGKILL" || signal === "SIGTERM" || killedByTimeout || consumeCancelRequest(dispatch.id);
-      if (!wasKilled && provider !== "anthropic-key" && result.unavailable && opts.keyFallback && opts.anthropicKey) {
+      // Only a plan falls back to the Anthropic key; a key run never switches keys.
+      const plan = provider === "claude-subscription" || provider === "codex-subscription";
+      if (!wasKilled && plan && result.unavailable && opts.keyFallback && opts.anthropicKey) {
         out.write(
           `\n[agentic-dispatcher] ─────────────────────────────\n` +
             `[agentic-dispatcher] ${PROVIDER_LABELS[provider]} unavailable for this run; retrying on your Anthropic API key (you turned on the API-key fallback)\n`,
@@ -889,7 +896,7 @@ async function spawnDispatch(
           (killedByTimeout ? " (killed by wall-clock timeout)" : "") +
           `\n`,
       );
-      if (!wasKilled && result.unavailable && provider !== "anthropic-key") {
+      if (!wasKilled && result.unavailable && plan) {
         out.write(`[agentic-dispatcher] ${PROVIDER_LABELS[provider]} could not serve this run. Sign in again or wait for your plan limit to reset${opts.anthropicKey ? "" : ", or save an API key and turn on the API-key fallback"}.\n`);
       }
       if (!wasKilled && code === 0 && (!result.complete || result.failed)) out.write("[agentic-dispatcher] No successful completion event; incomplete output will not be published.\n");
@@ -912,7 +919,7 @@ async function spawnDispatch(
                 privateOrg: Boolean(opts.orgCtx || opts.installationToken), token,
                 // The model the CLI reported it ran, for the disclosure note.
                 model: result.model ?? (provider === "codex-subscription" ? "Codex (ChatGPT plan)" : undefined),
-                provider: provider === "codex-subscription" ? "OpenAI" : "Anthropic",
+                provider: provider === "codex-subscription" ? "OpenAI" : provider === "openrouter-key" ? "OpenRouter" : "Anthropic",
                 standIn: invocation.standIn,
                 followup: Boolean(opts.followupPr),
               }).catch(async (e) => {

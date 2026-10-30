@@ -57,5 +57,6 @@ export function paymentSummary(input: PaymentInput): string {
   if (subscriptions.length > 0) {
     return `The agent is an AI model, so each run uses AI time. Use the ${plans} subscription you already have (no per-run charge), or an Anthropic API key billed per use, where each run stops at ${cap}. ${free}`;
   }
-  return `The agent is an AI model (Claude), so each run costs a little. Add your own Anthropic API key: Anthropic bills you per use, and each run stops at ${cap} (change it in Settings). ${free}`;
+  const openrouter = input.offered.includes("openrouter-key") ? " Or connect your own OpenRouter account (18+) and pick a model there." : "";
+  return `The agent is an AI model (Claude), so each run costs a little. Add your own Anthropic API key: Anthropic bills you per use, and each run stops at ${cap} (change it in Settings).${openrouter} ${free}`;
 }

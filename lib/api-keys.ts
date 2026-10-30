@@ -7,7 +7,8 @@ import { cookies } from "next/headers";
 import { sessionUserId } from "./require-session";
 import { KEY_COOKIE_NAME, KEY_COOKIE_SECONDS, sealKeys, openKeys, type StoredKeys } from "./key-cookie";
 export type { StoredKeys } from "./key-cookie";
-import { choosePayment, currentAvailability, normalizeOrder, offeredProviders, type RunPayment } from "./run-payment";
+import { choosePayment, currentAvailability, normalizeOrder, offeredProviders, type OpenRouterCredential, type RunPayment } from "./run-payment";
+import { OPENROUTER_DEFAULT_MODEL } from "./models";
 
 export async function getStoredKeys(): Promise<StoredKeys> {
   try {
@@ -71,5 +72,11 @@ export async function resolveRunPayment(): Promise<RunPayment> {
     offeredProviders(),
     await currentAvailability(),
     keys.anthropic || null,
+    openRouterCredential(keys),
   );
+}
+
+/** The saved OpenRouter key and its model (the default when none was picked). */
+export function openRouterCredential(keys: StoredKeys): OpenRouterCredential | null {
+  return keys.openrouter ? { key: keys.openrouter, model: keys.openrouterModel ?? OPENROUTER_DEFAULT_MODEL } : null;
 }

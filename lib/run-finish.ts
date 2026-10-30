@@ -24,7 +24,7 @@ export type FinishInput = {
   privateOrg: boolean;
   token?: string;
   model?: string;
-  /** Who served the model, for the disclosure note ("Anthropic" or "OpenAI"). */
+  /** Who served the model, for the disclosure note ("Anthropic", "OpenAI" or "OpenRouter"). */
   provider?: string;
   /** Produced by the scripted stand-in agent: never publishable. */
   standIn?: boolean;

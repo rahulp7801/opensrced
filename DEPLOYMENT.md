@@ -141,9 +141,11 @@ opt-in fallback (Settings → How runs are paid for). See `lib/run-payment.ts`.
   host's logins. Never set it on an instance other people sign in to: their
   runs would bill the operator's plan, which Anthropic's terms forbid.
 - **Hosted (Vercel)**: `OPENSRCER_HOSTED_SUBSCRIPTION=1` lets a user sign in to
-  Claude inside their own run's worker VM through Anthropic's sign-in page; the
-  login lives only in that VM and is discarded with it; opensrcer never reads or stores it. Off by default; it needs a worker
-  snapshot built from this release (protocol 7) and Anthropic's Commercial
+  Claude inside their own run's worker VM, in a web terminal attached to
+  Claude Code's own `claude auth login` (the app forwards the terminal's bytes
+  untouched); the login lives only in that VM and is discarded with it;
+  opensrcer never reads or stores it. Off by default; it needs a worker
+  snapshot built from this release (protocol 8) and Anthropic's Commercial
   Terms. ChatGPT plans are not offered hosted (OpenAI requires approval for
   remotely hosted apps).
 - Subscription runs are capped by `--max-turns` (`OPENSRCER_AGENTIC_MAX_TURNS`,

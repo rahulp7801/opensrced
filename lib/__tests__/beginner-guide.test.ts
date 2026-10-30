@@ -48,6 +48,8 @@ test("hosted: only an API key is offered, so no subscription is promised; the ca
   assert.match(text, /stops at \$2\.00/);
   assert.doesNotMatch(text, /subscription/);
   assert.match(text, /free/);
+  assert.doesNotMatch(text, /OpenRouter/);
+  assert.match(paymentSummary({ offered: ["anthropic-key", "openrouter-key"], maxSpendUsd: 2 }), /OpenRouter account \(18\+\)/);
 });
 
 for (const [offered, plans] of [

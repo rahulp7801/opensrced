@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  choosePayment, claudeStatusFrom, codexStatusFrom, DEFAULT_ORDER, hostLoginsAllowed, hostedSubscriptionEnabled,
-  NoRunCredentialError, normalizeOrder, offeredProviders, type Availability,
+  choosePayment, claudeStatusFrom, codexStatusFrom, copilotStatus, DEFAULT_ORDER, hostLoginsAllowed, hostedSubscriptionEnabled,
+  NoRunCredentialError, normalizeOrder, offeredProviders, teacherProviders, type Availability,
 } from "../run-payment";
 
 const ALL = [...DEFAULT_ORDER];
@@ -38,7 +38,37 @@ test("a key ranked first pays directly; a key ranked after a subscription needs 
 test("with no subscription offered (hosted, gate off) the key is the only method", () => {
   assert.equal(choosePayment({ order: ALL, keyFallback: false }, ["anthropic-key"], {}, "key").provider, "anthropic-key");
   assert.throws(() => choosePayment({ order: ALL, keyFallback: false }, ["anthropic-key"], {}, null), (error: Error) =>
-    error instanceof NoRunCredentialError && /No Anthropic API key configured/.test(error.message));
+    error instanceof NoRunCredentialError && /No API key configured/.test(error.message));
+});
+
+const KEYS = ["anthropic-key", "openrouter-key"] as const;
+const OPENROUTER = { key: "sk-or-user", model: "deepseek/deepseek-v4-pro" };
+
+test("an OpenRouter key pays with its model when only keys rank above it", () => {
+  assert.deepEqual(choosePayment({ order: ALL, keyFallback: false }, [...KEYS], {}, null, OPENROUTER),
+    { provider: "openrouter-key", openrouterKey: "sk-or-user", agentModel: "deepseek/deepseek-v4-pro", keyFallback: false });
+  // Both keys saved: the user's order decides.
+  assert.equal(choosePayment({ order: ALL, keyFallback: false }, [...KEYS], {}, "key", OPENROUTER).provider, "anthropic-key");
+  assert.equal(choosePayment({ order: ["openrouter-key", ...ALL], keyFallback: false }, [...KEYS], {}, "key", OPENROUTER).provider, "openrouter-key");
+});
+
+test("an OpenRouter key ranked after a plan needs the opt-in, and never rides along as the fallback", () => {
+  assert.throws(() => choosePayment({ order: ALL, keyFallback: false }, ALL, signedOut, null, OPENROUTER), (error: Error) =>
+    error instanceof NoRunCredentialError && /rank your key first/.test(error.message));
+  assert.equal(choosePayment({ order: ALL, keyFallback: true }, ALL, signedOut, null, OPENROUTER).provider, "openrouter-key");
+  // A plan run's fallback is the Anthropic key only.
+  assert.deepEqual(choosePayment({ order: ALL, keyFallback: true }, ALL, signedIn, null, OPENROUTER), { provider: "claude-subscription", keyFallback: false });
+});
+
+test("the teacher never gets a Claude or ChatGPT plan, whatever the order", () => {
+  assert.deepEqual(teacherProviders({}), ["copilot", "anthropic-key", "openrouter-key"]);
+  assert.deepEqual(teacherProviders({ providerOrder: ["claude-subscription", "openrouter-key", "codex-subscription"] }), ["openrouter-key", "copilot", "anthropic-key"]);
+  assert.deepEqual(teacherProviders({ providerOrder: "nonsense" }), ["copilot", "anthropic-key", "openrouter-key"]);
+});
+
+test("Copilot status needs the user's GitHub token and never claims more than it knows", async () => {
+  assert.deepEqual(await copilotStatus(null), { state: "no_github_token", detail: "Sign in with GitHub to use Copilot." });
+  assert.equal((await copilotStatus("gho_user")).state, "unknown");
 });
 
 test("nothing signed in and no key fails with what to do", () => {
@@ -48,7 +78,9 @@ test("nothing signed in and no key fails with what to do", () => {
 });
 
 test("normalizeOrder keeps known providers once and appends the rest", () => {
-  assert.deepEqual(normalizeOrder(["anthropic-key", "anthropic-key", "bogus"]), ["anthropic-key", "claude-subscription", "codex-subscription"]);
+  assert.deepEqual(normalizeOrder(["anthropic-key", "anthropic-key", "bogus"]), ["anthropic-key", "copilot", "claude-subscription", "codex-subscription", "openrouter-key"]);
+  // PLAN.md §0.6: Copilot, then a Claude plan, then the Anthropic key, then OpenRouter.
+  assert.deepEqual(DEFAULT_ORDER, ["copilot", "claude-subscription", "codex-subscription", "anthropic-key", "openrouter-key"]);
   assert.deepEqual(normalizeOrder(undefined), ALL);
   assert.deepEqual(normalizeOrder("claude-subscription"), ALL);
 });
@@ -76,10 +108,11 @@ test("host logins are offered only where the operator is the user", () => {
     for (const key of ["VERCEL", "OPENSRCER_EXECUTION", "AUTH_DISABLED", "OPENSRCER_LOCAL_SUBSCRIPTION", "OPENSRCER_HOSTED_SUBSCRIPTION"]) delete env[key];
     env.NODE_ENV = "test";
     assert.equal(hostLoginsAllowed(), false, "a multi-user deployment never bills the host's plan");
-    assert.deepEqual(offeredProviders(), ["anthropic-key"]);
+    assert.deepEqual(offeredProviders(), ["anthropic-key", "openrouter-key"]);
     env.AUTH_DISABLED = "1";
     assert.equal(hostLoginsAllowed(), true);
-    assert.deepEqual(offeredProviders(), ALL);
+    // Copilot has no fix-agent adapter yet, so a fix run is never offered it.
+    assert.deepEqual(offeredProviders(), ALL.filter((p) => p !== "copilot"));
     env.NODE_ENV = "production";
     assert.equal(hostLoginsAllowed(), false);
     env.OPENSRCER_LOCAL_SUBSCRIPTION = "1";
@@ -89,7 +122,7 @@ test("host logins are offered only where the operator is the user", () => {
     assert.equal(hostedSubscriptionEnabled(), false);
     env.OPENSRCER_HOSTED_SUBSCRIPTION = "1";
     assert.equal(hostedSubscriptionEnabled(), true);
-    assert.deepEqual(offeredProviders(), ["claude-subscription", "anthropic-key"], "hosted ChatGPT stays off");
+    assert.deepEqual(offeredProviders(), ["claude-subscription", "anthropic-key", "openrouter-key"], "hosted ChatGPT stays off");
   } finally {
     for (const key of Object.keys(env)) if (!(key in saved)) delete env[key];
     Object.assign(env, saved);

@@ -24,6 +24,8 @@ export function cloudWorkerJobJson(
       provider: opts.provider,
       keyFallback: opts.keyFallback,
       anthropicKey: opts.anthropicKey,
+      openrouterKey: opts.openrouterKey,
+      agentModel: opts.agentModel,
       geminiKey: opts.geminiKey,
       maxSpendUsd: opts.maxSpendUsd,
       auth0UserId: opts.auth0UserId,

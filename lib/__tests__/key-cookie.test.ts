@@ -33,3 +33,15 @@ test("key settings reject invalid types, control characters and unbounded budget
   }
   for (const value of [{}, { anthropic: "" }, keys, { maxSpendUsd: 0.1 }, { maxSpendUsd: 0.5 }, { maxSpendUsd: 10 }]) assert.equal(validStoredKeys(value), true);
 });
+
+test("the OpenRouter key and model share the encrypted cookie, and models must look like vendor/model", () => {
+  const withOpenRouter = { ...keys, openrouter: "sk-or-v1-test", openrouterModel: "deepseek/deepseek-v4-pro" };
+  const cookie = sealKeys(withOpenRouter, "alice", secret);
+  assert.deepEqual(openKeys(cookie, "alice", secret), withOpenRouter);
+  assert.equal(Buffer.from(cookie, "base64url").includes(Buffer.from("sk-or-v1-test")), false);
+  for (const model of ["z-ai/glm-5.3", "openai/gpt-oss-120b:free", "a/b"]) assert.equal(validStoredKeys({ openrouterModel: model }), true, model);
+  for (const model of ["", "deepseek", "/x", "a/b c", "a/b\n", "a/" + "b".repeat(100), 5]) assert.equal(validStoredKeys({ openrouterModel: model }), false, String(model));
+  assert.equal(validStoredKeys({ openrouter: "line\nbreak" }), false);
+  assert.equal(validStoredKeys({ providerOrder: ["copilot", "claude-subscription", "codex-subscription", "anthropic-key", "openrouter-key"] }), true);
+  assert.equal(validStoredKeys({ providerOrder: ["copilot", "copilot"] }), false);
+});

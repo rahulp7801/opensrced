@@ -32,10 +32,11 @@ import {
 import { cloudRunLease, cloudRunLeaseIsStarting } from "./cloud-leases";
 import { cloudWorkerJobJson } from "./cloud-worker-job";
 import { assertWorkerProtocol } from "./worker-protocol";
-import { AGENT_EGRESS, SUBSCRIPTION_AGENT_EGRESS, agentEgressWithExec } from "./sandbox-egress";
+import { AGENT_EGRESS, OPENROUTER_AGENT_EGRESS, SUBSCRIPTION_AGENT_EGRESS, agentEgressWithExec } from "./sandbox-egress";
 import { execSandboxName, startExecVm, workerExecEnv } from "./cloud-exec";
 import { agentSlots, hostedExecLimits } from "./limits";
-import { SIGN_IN_CODE_PATH, validSignInCode } from "./hosted-sign-in";
+import { SIGN_IN_TTY_PORT } from "./hosted-sign-in";
+import { createHmac } from "node:crypto";
 
 const TTL = 45 * 60_000;
 const MAX_LISTED_RECORDS = 250;
@@ -205,8 +206,10 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
   try {
     await writeRun(path, run);
     await writeSummary(summaryPath, run);
-    // A subscription run also needs Anthropic's sign-in token exchange.
-    const baseEgress = opts.provider === "claude-subscription" ? SUBSCRIPTION_AGENT_EGRESS : AGENT_EGRESS;
+    // A subscription run also needs Anthropic's sign-in token exchange; an
+    // OpenRouter-key run needs OpenRouter.
+    const baseEgress = opts.provider === "claude-subscription" ? SUBSCRIPTION_AGENT_EGRESS
+      : opts.provider === "openrouter-key" ? OPENROUTER_AGENT_EGRESS : AGENT_EGRESS;
     // Hosted exec (issue runs only; findings keep the text-diff path, as
     // locally): the credential-free exec VM first, so the agent VM's egress
     // can name its exact host. Same lifetime as the agent VM.
@@ -214,7 +217,10 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
       ? await startExecVm(execSandboxName(run.sandbox_name), snapshotId, WORKER_TIMEOUT_MS)
       : null;
     const networkPolicy = execVm ? agentEgressWithExec(baseEgress, execVm.host) : baseEgress;
+    // A Claude-plan run serves its sign-in terminal on one port (lib/hosted-sign-in.ts).
+    const signIn = opts.provider === "claude-subscription";
     const sandbox = await Sandbox.create({ name: run.sandbox_name, source: { type: "snapshot", snapshotId }, networkPolicy,
+      ...(signIn ? { ports: [SIGN_IN_TTY_PORT] } : {}),
       persistent: false, timeout: WORKER_TIMEOUT_MS, signal: AbortSignal.timeout(60_000) });
     await assertWorkerProtocol(sandbox);
     const tokenOptions = { allowedContentTypes: ["application/json"],
@@ -238,6 +244,8 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
         OPENSRCER_AGENTIC_TIMEOUT_MS: String(30 * 60_000),
         // Exec VM capability and the hosted time caps (they replace the line above).
         ...(execVm ? workerExecEnv(execVm) : {}),
+        // The sign-in terminal's capability; the app's proxy recomputes it.
+        ...(signIn ? { OPENSRCER_TTY_TOKEN: signInTtyToken(id) } : {}),
       } });
     // Retention never controls whether the already-started worker succeeds.
     // Delete a bounded batch after launch so storage converges toward the
@@ -349,24 +357,50 @@ export async function listCloudRunSummaries(owner: string, limit = 20): Promise<
     .slice(0, cappedLimit);
 }
 
-/** A run may receive a sign-in code only while it is live and its worker is
- *  waiting on `claude auth login`. Exported for tests. */
-export function signInRelayable(run: CloudRun | null): boolean {
+/** A run's sign-in terminal is reachable only while the run is live and its
+ *  worker is waiting on `claude auth login`. Exported for tests. */
+export function signInOpen(run: CloudRun | null): boolean {
   return Boolean(run && runIsActive(run) && run.sign_in?.status === "waiting");
 }
 
-/** Hand the user's one-time Claude sign-in code to their run's VM, where the
- *  worker types it into `claude auth login` (lib/hosted-sign-in.ts). The code
- *  goes straight into the VM's filesystem: never to Blob, a log, or a record.
- *  False when the run is not the caller's or is not waiting for a sign-in. */
-export async function relaySignInCode(owner: string, id: string, code: string): Promise<boolean> {
-  if (!validSignInCode(code)) return false;
+/** The bearer capability for one run's sign-in terminal. Derived from the
+ *  server secret and the server-minted run id, so it is never stored: the
+ *  worker gets it at launch and the proxy recomputes it. */
+export function signInTtyToken(runId: string, secret = process.env.AUTH0_SECRET ?? ""): string {
+  if (!secret) throw new Error("AUTH0_SECRET not set");
+  return createHmac("sha256", secret).update(`opensrcer-sign-in-tty:${runId}`).digest("hex");
+}
+
+/** Proxy one sign-in terminal request (lib/hosted-sign-in.ts) to the caller's
+ *  waiting run. The bytes pass through untouched in both directions: never
+ *  read, parsed, logged or stored here. Null when the run is not the
+ *  caller's or not waiting for a sign-in. */
+export async function proxySignInTerminal(
+  owner: string, id: string,
+  request: { method: "GET" | "POST"; body?: ReadableStream<Uint8Array> | null; signal?: AbortSignal },
+  fetchImpl: typeof fetch = fetch,
+): Promise<Response | null> {
   // getCloudRun is owner-scoped: another user's run reads as missing.
-  if (!signInRelayable(await getCloudRun(owner, id))) return false;
+  if (!signInOpen(await getCloudRun(owner, id))) return null;
   // Name the VM from the server-minted run id, never from a worker-written field.
   const sandbox = await Sandbox.get({ name: id.replaceAll("_", "-"), signal: AbortSignal.timeout(15_000) });
-  await sandbox.writeFiles([{ path: SIGN_IN_CODE_PATH, content: Buffer.from(code), mode: 0o600 }], { signal: AbortSignal.timeout(15_000) });
-  return true;
+  const upstream = await fetchImpl(`${sandbox.domain(SIGN_IN_TTY_PORT)}/tty`, {
+    method: request.method,
+    headers: { authorization: `Bearer ${signInTtyToken(id)}` },
+    ...(request.body ? { body: request.body, duplex: "half" } : {}),
+    signal: request.signal,
+  } as RequestInit);
+  if (request.method === "POST") {
+    await upstream.body?.cancel();
+    return new Response(null, { status: upstream.ok ? 204 : 502 });
+  }
+  if (!upstream.ok) {
+    await upstream.body?.cancel();
+    return new Response(null, { status: 502 });
+  }
+  return new Response(upstream.body, {
+    headers: { "content-type": "application/octet-stream", "cache-control": "no-store", "x-accel-buffering": "no" },
+  });
 }
 
 export async function cancelCloudRun(owner: string, id: string): Promise<boolean> {

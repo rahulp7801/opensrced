@@ -1,85 +1,154 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  extractSignInUrl, HostedSignInError, signInInVm, takeSignInCode, validSignInCode, validSignInState, validSignInUrl,
+  HostedSignInError, MAX_TTY_INPUT_BYTES, ptyCommand, serveSignInTerminal, validSignInState, validTtyToken,
 } from "../hosted-sign-in";
 
-// The URL shape claude 2.1.269 printed in a Linux container (parameter values replaced).
-const URL_LINE = "If the browser didn't open, visit: https://claude.com/cai/oauth/authorize?code=true&client_id=c&response_type=code&redirect_uri=https%3A%2F%2Fplatform.claude.com%2Foauth%2Fcode%2Fcallback&scope=user%3Ainference&code_challenge=x&code_challenge_method=S256&state=s\nPaste code here if prompted > ";
+const TOKEN = "a".repeat(64);
 
-test("the sign-in URL is taken from CLI output and only Anthropic's authorize pages qualify", () => {
-  const url = extractSignInUrl("\x1b[2mOpening browser to sign in…\x1b[0m\n" + URL_LINE);
-  assert.ok(url?.startsWith("https://claude.com/cai/oauth/authorize?code=true"));
-  assert.ok(url?.endsWith("state=s"));
-  assert.equal(extractSignInUrl("visit https://evil.example/cai/oauth/authorize?x=1"), null);
-  assert.equal(extractSignInUrl("no url here"), null);
-  assert.equal(validSignInUrl("https://claude.ai/oauth/authorize?a=b"), true);
-  assert.equal(validSignInUrl("https://claude.com.evil.example/cai/oauth/authorize?a=b"), false);
-  assert.equal(validSignInUrl("javascript:alert(1)"), false);
-  assert.equal(validSignInState({ url: "https://claude.ai/oauth/authorize?a=b", status: "waiting" }), true);
-  assert.equal(validSignInState({ url: "https://claude.ai/oauth/authorize?a=b", status: "done" }), false);
-  assert.equal(validSignInState(null), false);
+test("sign-in states carry only a status; a legacy url is ignored", () => {
+  assert.equal(validSignInState({ status: "waiting" }), true);
+  assert.equal(validSignInState({ url: "https://claude.ai/oauth/authorize?a=b", status: "signed_in" }), true);
+  for (const bad of [null, [], {}, { status: "done" }]) assert.equal(validSignInState(bad), false, JSON.stringify(bad));
 });
 
-test("sign-in codes are one line of safe characters", () => {
-  assert.equal(validSignInCode("AbC-123_xyz#state-456"), true);
-  for (const bad of ["", "short", "two\nlines", "a b c d e f g h", "x".repeat(1025), 42]) assert.equal(validSignInCode(bad), false, String(bad));
+test("terminal capabilities are 32 bytes of hex", () => {
+  assert.equal(validTtyToken(TOKEN), true);
+  for (const bad of ["", "a".repeat(63), "A".repeat(64), undefined]) assert.equal(validTtyToken(bad), false, String(bad));
 });
 
-test("takeSignInCode reads the dropped code once and deletes it", () => {
-  const dir = mkdtempSync(join(tmpdir(), "opensrcer-sign-in-test-"));
-  try {
-    const path = join(dir, "code");
-    assert.equal(takeSignInCode(path), null);
-    writeFileSync(path, "abc-123#state\n");
-    assert.equal(takeSignInCode(path), "abc-123#state");
-    assert.equal(existsSync(path), false);
-  } finally { rmSync(dir, { recursive: true, force: true }); }
+test("the login runs on a fixed-size pty, its arguments quoted for the shell", () => {
+  const { bin, args } = ptyCommand("claude", ["auth", "login", "it's"]);
+  assert.equal(bin, "script");
+  assert.deepEqual([args[0], args[2]], ["-qfec", "/dev/null"]);
+  assert.equal(args[1], "stty cols 100 rows 30 2>/dev/null; exec 'claude' 'auth' 'login' 'it'\\''s'");
 });
 
-// A stand-in for `claude auth login`: prints the URL, reads one line, and
-// succeeds only for the expected code. Never a real login.
+// A stand-in for the login CLI: prints a prompt, then echoes every byte it is
+// given (as a terminal would), and exits when it reads "quit". Never a real login.
 const STUB = `
-const expected = process.env.STUB_EXPECTED;
-process.stdout.write(${JSON.stringify(URL_LINE)});
-process.stdin.once("data", (line) => {
-  if (String(line).trim() === expected) { process.stdout.write("Login successful.\\n"); process.exit(0); }
-  process.stderr.write("Login failed: Request failed with status code 400\\n"); process.exit(1);
+process.stdout.write("prompt> ");
+process.stdin.on("data", (chunk) => {
+  if (chunk.toString("latin1").includes("quit")) process.exit(0);
+  process.stdout.write(chunk);
 });
 `;
 
-test("the URL is reported, the pasted code is relayed to stdin, and success resolves", async () => {
+async function withStub(run: (script: string) => Promise<void>) {
   const dir = mkdtempSync(join(tmpdir(), "opensrcer-sign-in-test-"));
   const script = join(dir, "stub.cjs");
   writeFileSync(script, STUB);
-  try {
-    const urls: string[] = [];
-    let code: string | null = "good-code-123#state";
-    await signInInVm({
-      bin: process.execPath, env: { PATH: process.env.PATH, STUB_EXPECTED: "good-code-123#state" } as unknown as NodeJS.ProcessEnv,
-      args: [script], onUrl: (url) => { urls.push(url); },
-      takeCode: () => { const c = code; code = null; return c; }, timeoutMs: 10_000,
-    });
-    assert.equal(urls.length, 1);
-    assert.ok(validSignInUrl(urls[0]));
-  } finally { rmSync(dir, { recursive: true, force: true }); }
+  try { await run(script); } finally { rmSync(dir, { recursive: true, force: true }); }
+}
+
+function start(script: string, signedIn: () => Promise<boolean>, timeoutMs = 10_000) {
+  let port = 0;
+  let ready = () => {};
+  const listening = new Promise<void>((resolve) => { ready = resolve; });
+  const done = serveSignInTerminal({
+    command: { bin: process.execPath, args: [script] }, env: { PATH: process.env.PATH } as unknown as NodeJS.ProcessEnv,
+    token: TOKEN, port: 0, host: "127.0.0.1", signedIn, timeoutMs, pollMs: 50,
+    onListening: (p) => { port = p; ready(); },
+  });
+  // Tests that expect a rejection attach their own handler.
+  done.catch(() => {});
+  return { done, listening, url: () => `http://127.0.0.1:${port}/tty` };
+}
+
+const auth = { authorization: `Bearer ${TOKEN}` };
+
+/** Read a byte stream until `want` has arrived (or fail after 5 s). */
+async function readUntil(reader: ReadableStreamDefaultReader<Uint8Array>, want: Uint8Array): Promise<Uint8Array> {
+  let seen = new Uint8Array();
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    seen = new Uint8Array([...seen, ...value]);
+    if (Buffer.from(seen).includes(Buffer.from(want))) return seen;
+  }
+  throw new Error(`did not see ${Buffer.from(want).toString("hex")} in ${Buffer.from(seen).toString("hex")}`);
+}
+
+test("only the run's capability opens the terminal, and only at /tty", async () => {
+  await withStub(async (script) => {
+    let signed = false;
+    const server = start(script, async () => signed);
+    await server.listening;
+    try {
+      assert.equal((await fetch(server.url())).status, 401);
+      assert.equal((await fetch(server.url(), { headers: { authorization: `Bearer ${"b".repeat(64)}` } })).status, 401);
+      assert.equal((await fetch(server.url().replace("/tty", "/other"), { headers: auth })).status, 404);
+      assert.equal((await fetch(server.url(), { method: "PUT", headers: auth })).status, 405);
+    } finally {
+      signed = true;
+      await server.done;
+    }
+  });
 });
 
-test("a rejected code, a malformed code and a timeout fail with named errors", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "opensrcer-sign-in-test-"));
-  const script = join(dir, "stub.cjs");
-  writeFileSync(script, STUB);
-  const base = { bin: process.execPath, env: { PATH: process.env.PATH, STUB_EXPECTED: "good-code-123#state" } as unknown as NodeJS.ProcessEnv, args: [script], onUrl: () => {} };
-  try {
-    let wrong: string | null = "wrong-code-123#state";
-    await assert.rejects(signInInVm({ ...base, takeCode: () => { const c = wrong; wrong = null; return c; }, timeoutMs: 10_000 }),
-      (error: Error) => error instanceof HostedSignInError && /did not accept/.test(error.message));
-    await assert.rejects(signInInVm({ ...base, takeCode: () => "bad code with spaces", timeoutMs: 10_000 }),
-      (error: Error) => error instanceof HostedSignInError && /not valid/.test(error.message));
-    await assert.rejects(signInInVm({ ...base, takeCode: () => null, timeoutMs: 1_500 }),
-      (error: Error) => error instanceof HostedSignInError && /not completed in time/.test(error.message));
-  } finally { rmSync(dir, { recursive: true, force: true }); }
+test("output written before anyone attached arrives, and typed bytes reach the CLI unchanged", async () => {
+  await withStub(async (script) => {
+    let signed = false;
+    const server = start(script, async () => signed);
+    await server.listening;
+    try {
+      const output = await fetch(server.url(), { headers: auth });
+      assert.equal(output.status, 200);
+      const reader = output.body!.getReader();
+      await readUntil(reader, new TextEncoder().encode("prompt> "));
+      // Escape sequences, a carriage return and a non-UTF-8 byte, as a terminal sends them.
+      const typed = new Uint8Array([0x1b, 0x5b, 0x41, 0x63, 0x6f, 0x64, 0x65, 0x0d, 0xff]);
+      assert.equal((await fetch(server.url(), { method: "POST", headers: auth, body: typed })).status, 204);
+      await readUntil(reader, typed);
+      // A reconnect takes over; the first viewer's stream ends.
+      const second = await fetch(server.url(), { headers: auth });
+      assert.equal((await reader.read()).done, true);
+      const again = second.body!.getReader();
+      await fetch(server.url(), { method: "POST", headers: auth, body: "next" });
+      await readUntil(again, new TextEncoder().encode("next"));
+      signed = true;
+      await server.done;
+      assert.equal((await again.read().catch(() => ({ done: true }))).done, true, "the stream ends once signed in");
+    } finally {
+      signed = true;
+      await server.done;
+    }
+  });
+});
+
+test("an oversized input is cut off instead of being typed", async () => {
+  await withStub(async (script) => {
+    let signed = false;
+    const server = start(script, async () => signed);
+    await server.listening;
+    try {
+      const huge = new Uint8Array(MAX_TTY_INPUT_BYTES + 1024).fill(0x61);
+      const sent = await fetch(server.url(), { method: "POST", headers: auth, body: huge }).then((r) => r.status, () => "reset");
+      assert.notEqual(sent, 204);
+    } finally {
+      signed = true;
+      await server.done;
+    }
+  });
+});
+
+test("the CLI exiting without a login, a timeout and a bad capability fail with named errors", async () => {
+  await withStub(async (script) => {
+    const exits = start(script, async () => false);
+    await exits.listening;
+    await fetch(exits.url(), { method: "POST", headers: auth, body: "quit" });
+    await assert.rejects(exits.done!, (error: Error) => error instanceof HostedSignInError && /did not complete/.test(error.message));
+
+    const slow = start(script, async () => false, 300);
+    await slow.listening;
+    await assert.rejects(slow.done!, (error: Error) => error instanceof HostedSignInError && /not completed in time/.test(error.message));
+
+    await assert.rejects(serveSignInTerminal({
+      command: { bin: process.execPath, args: [script] }, env: {} as NodeJS.ProcessEnv, token: "short", port: 0, signedIn: async () => true, timeoutMs: 1000,
+    }), HostedSignInError);
+  });
 });

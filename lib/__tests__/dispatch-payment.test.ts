@@ -91,6 +91,24 @@ test("a subscription run never bills a key unless the user opted in, and never s
       await logHas(dispatch.id, /Your Anthropic API key has no credit\. Add credit or use a subscription\./);
     }
 
+    // An OpenRouter-key run: only the OpenRouter key, to OpenRouter, and a limit
+    // never moves it onto the Anthropic key, even with the fallback on.
+    {
+      const before = workers.length;
+      const dispatch = await startFindingDispatch("acme/app", { id: "test-finding", kind: "advisory" }, {
+        ...opts, provider: "openrouter-key", openrouterKey: "test-openrouter-value", agentModel: "z-ai/glm-5.3", keyFallback: true,
+      });
+      const run = workers[before];
+      assert.equal(run.env.ANTHROPIC_BASE_URL, "https://openrouter.ai/api");
+      assert.equal(run.env.ANTHROPIC_AUTH_TOKEN, "test-openrouter-value");
+      assert.equal(run.env.ANTHROPIC_API_KEY, undefined, "the Anthropic key never travels with an OpenRouter run");
+      assert.equal(run.args[run.args.indexOf("--model") + 1], "z-ai/glm-5.3");
+      await finish(run, [init("ANTHROPIC_AUTH_TOKEN"), limit], 1);
+      assert.equal(await settled(dispatch), "failed");
+      assert.equal(workers.length, before + 1, "never retried on the Anthropic key");
+      await logHas(dispatch.id, /paid by: OpenRouter key/);
+    }
+
     // Repository tools that never connected: prose about tool calls is not a result.
     {
       const before = workers.length;

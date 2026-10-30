@@ -27,8 +27,11 @@ export async function POST(req: NextRequest) {
   try { repo = parseRunTarget(body.repo_url).repo; }
   catch { return Response.json({ error: "Invalid repository URL" }, { status: 400 }); }
   let token: string | null;
+  let access: "public" | "private";
   try {
-    token = (await resolveRepositoryToken(userId, repo, req.signal)).token ?? null;
+    const resolved = await resolveRepositoryToken(userId, repo, req.signal);
+    token = resolved.token ?? null;
+    access = resolved.private ? "private" : "public";
   }
   catch { return Response.json({ error: "Repository not accessible" }, { status: 403 }); }
   const [owner, name] = repo.split("/");
@@ -55,7 +58,7 @@ export async function POST(req: NextRequest) {
         const progress = (message: string) => send({ status: "progress", message });
         const graph = cloudExecution() ? await buildCloudGraph(repo, token, signal, progress, release) : await buildGraphWorker(repo, token, signal, progress);
         progress("Saving graph...");
-        await saveStoredGraph(userId, repo, graph);
+        await saveStoredGraph(userId, repo, graph, access);
         send({ status: "done", message: `Built ${graph.graph.nodes.length} nodes and ${graph.graph.links.length} edges.`, owner, repo: name, engine: "graphify" });
       } catch {
         send({ error: signal.aborted ? "Graph build timed out. Try a smaller repository." : "Graph build failed or exceeded its limits. Check the graph runtime and try a smaller repository." });

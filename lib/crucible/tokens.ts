@@ -76,20 +76,23 @@ export async function resolveRunTokenForRequest(orgCtx: OrgContext, repoName: st
 
 /** Resolve access for a repository selected from the combined public and
  * connected-organization picker. Verified GitHub App access takes priority
- * for a connected owner; other repositories use the caller's OAuth token. */
+ * for a connected owner; other repositories use the caller's OAuth token.
+ * `private` comes from the same access check; anything but an explicit
+ * `private: false` counts as private, so a graph never lands in the shared
+ * store by mistake. */
 export async function resolveRepositoryToken(
   auth0UserId: string,
   repo: string,
   signal?: AbortSignal,
-): Promise<ResolvedToken> {
+): Promise<ResolvedToken & { private: boolean }> {
   const canonical = parseRunTarget(repo).repo;
   const owner = canonical.split("/")[0];
   try {
     // Repository-scoped: these tokens reach graph, fix, and push workers.
     const installation = await resolveGithubTokenForRequest({ auth0UserId, githubOrg: owner }, canonical.split("/")[1]);
     if (installation.token) {
-      await githubApi(`/repos/${canonical}`, installation.token, undefined, signal);
-      return installation;
+      const data = await githubApi<{ private?: unknown }>(`/repos/${canonical}`, installation.token, undefined, signal);
+      return { ...installation, private: data.private !== false };
     }
   } catch (error) {
     if (signal?.aborted) throw error;
@@ -98,6 +101,6 @@ export async function resolveRepositoryToken(
     // repositories under the same owner.
   }
   const token = await resolveGitHubToken();
-  await githubApi(`/repos/${canonical}`, token, undefined, signal);
-  return { token: token ?? undefined, source: token ? "oauth" : "none" };
+  const data = await githubApi<{ private?: unknown }>(`/repos/${canonical}`, token, undefined, signal);
+  return { token: token ?? undefined, source: token ? "oauth" : "none", private: data.private !== false };
 }

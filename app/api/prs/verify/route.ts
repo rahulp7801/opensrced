@@ -221,8 +221,13 @@ export async function POST(req: NextRequest) {
   // Uses code-review-graph (preferred — defensive, capped traversal) or
   // graphify (fallback) to check downstream impact of the change.
   let repositoryToken: string | null = null;
+  let repositoryAccess: "public" | "private" = "private";
   if (body.repo) {
-    try { repositoryToken = (await resolveRepositoryToken(userId, body.repo, req.signal)).token ?? null; }
+    try {
+      const resolved = await resolveRepositoryToken(userId, body.repo, req.signal);
+      repositoryToken = resolved.token ?? null;
+      repositoryAccess = resolved.private ? "private" : "public";
+    }
     catch { return Response.json({ error: "Repository not accessible" }, { status: 403 }); }
     if (cloudExecution()) {
       const stored = await getStoredGraph(userId, body.repo);
@@ -296,7 +301,7 @@ export async function POST(req: NextRequest) {
         let release: (() => void) | undefined;
         try {
           release = reserveSlot("graph", 2);
-          await saveStoredGraph(userId, body.repo, await buildGraphWorker(`${m[1]}/${m[2]}`, repositoryToken, req.signal));
+          await saveStoredGraph(userId, body.repo, await buildGraphWorker(`${m[1]}/${m[2]}`, repositoryToken, req.signal), repositoryAccess);
         } catch (error) {
           // A failed clone's message repeats git's argv, including the
           // credential header; never return that to the browser.

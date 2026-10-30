@@ -66,7 +66,10 @@ behavior, and Sandbox OIDC readiness have been exercised there. The cloud worker
 path has passed compilation and automated checks but has not been provisioned
 or exercised with live user credentials. Agent runs, exploration, deep fixes, graph generation, and patch pushes use
 isolated workers. Quick fixes, replies, and graph questions use bounded API
-requests. Activity, PR history, and graph storage are scoped to their owners. Do not treat deployment alone as release
+requests. Activity, PR history, and private repositories' graphs are scoped to
+their owners. A public repository's graph is shared by everyone, one per commit
+(`graphs/<owner>/<repo>/<sha>.json.gz` plus a `latest.json` pointer; the newest
+3 commits are kept), and readers try it before their own copy. Do not treat deployment alone as release
 acceptance. Repository code never runs inside the agent worker, because it
 could read the user credentials supplied to the agent.
 
@@ -87,6 +90,32 @@ from this release (protocol 7). Time caps, all inside the 40-minute VM:
 `OPENSRCER_HOSTED_EXEC_SETUP_MS` (install before the agent, default 8 min),
 `OPENSRCER_HOSTED_EXEC_AGENT_MS` (agent wall clock and command budget, 20 min),
 `OPENSRCER_HOSTED_EXEC_CMD_TIMEOUT_MS` (one command, 5 min).
+
+### Database (Neon Postgres, not provisioned yet)
+
+The teacher plan's data (lessons, the issue index, records) lives in Postgres
+through Drizzle (`lib/db/`). Nothing reads it yet, and no Neon database exists
+yet. To provision it:
+
+1. Add Neon from the Vercel Marketplace to the project (free tier). It sets
+   `DATABASE_URL`; use the **pooled** connection string (host contains
+   `-pooler`).
+2. `vercel env pull`, then `npm run db:migrate`. It applies `drizzle/` to
+   `DATABASE_URL` from `.env.local`, including `CREATE EXTENSION vector`.
+   Run it again before deploying any commit that adds a migration.
+
+Hosted, `getDb()` throws unless `DATABASE_URL` is a `postgres://` URL. Locally,
+`DATABASE_URL` unset means an in-memory PGlite database (Postgres in WASM,
+pgvector included) that is migrated on first use and lost on restart;
+`DATABASE_URL=pglite:./.pglite` keeps it on disk. Tests use PGlite, so no
+Postgres server is needed anywhere but production. After changing
+`lib/db/schema.ts`, run `npx drizzle-kit generate` and commit the new migration.
+
+### Teacher-plan feature flags
+
+The plan's phases ship dark. Each flag is off unless set to exactly `1`:
+`OPENSRCER_LESSONS`, `OPENSRCER_ENV_RECIPES`, `OPENSRCER_FORK_CI`,
+`OPENSRCER_IDE`, `OPENSRCER_LEVELS` (read only in `lib/flags.ts`).
 
 ### PR follow-ups
 

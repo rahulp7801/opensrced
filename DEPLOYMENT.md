@@ -115,7 +115,28 @@ Postgres server is needed anywhere but production. After changing
 
 The plan's phases ship dark. Each flag is off unless set to exactly `1`:
 `OPENSRCER_LESSONS`, `OPENSRCER_ENV_RECIPES`, `OPENSRCER_FORK_CI`,
-`OPENSRCER_IDE`, `OPENSRCER_LEVELS` (read only in `lib/flags.ts`).
+`OPENSRCER_IDE`, `OPENSRCER_LEVELS`, `OPENSRCER_RECS` (read only in `lib/flags.ts`).
+
+### Recommendations (`OPENSRCER_RECS=1`, off by default)
+
+`lib/recs/` indexes the catalog's issues in Postgres: difficulty v2 with
+reasons, worked examples (similar solved issues and their merged PRs), repo
+health, and the `/api/recs` feeds. With the flag on, the existing issue lists
+also show difficulty v2, "testable here" and a worked-examples drawer for
+issues in the index; with it off they are unchanged.
+
+- **Catalog:** `npm run catalog:add -- owner/name [--ingest]` (needs
+  `DATABASE_URL` and `OPENSRCER_INGEST_GITHUB_TOKEN` or `GITHUB_TOKEN`;
+  read-only on GitHub). `--remove` takes a repo out.
+- **Nightly ingest:** `vercel.json` schedules `/api/cron/ingest`. Set
+  `CRON_SECRET` (≥ 16 characters; Vercel sends it as a bearer token) and
+  `OPENSRCER_INGEST_GITHUB_TOKEN`. Without the secret the route refuses
+  every call.
+- **Embeddings:** `VOYAGE_API_KEY` turns on Voyage `voyage-3.5`; without it
+  similarity uses full text and code-graph overlap only.
+- **Calibration:** `npm run calibrate:difficulty [-- owner/name]` prints
+  Spearman ρ between difficulty and real fix sizes. Weights live in
+  `lib/recs/weights.ts`.
 
 ### PR follow-ups
 

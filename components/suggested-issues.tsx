@@ -10,6 +10,7 @@ import { pollJson } from "@/lib/poll-json";
 import { cn } from "@/lib/utils";
 import { cacheGet, cacheSet } from "@/lib/client-cache";
 import { DifficultyAndExamples, TestableTag, type IssueInsight } from "./worked-examples";
+import { StartLessonButton } from "./lesson/start-lesson";
 
 type CachedSuggestions = { issues: SuggestedIssue[]; filteredOut: number; partial?: boolean };
 
@@ -66,7 +67,8 @@ function validSuggestions(value: unknown): value is CachedSuggestions {
     && (result.partial === undefined || typeof result.partial === "boolean");
 }
 
-export function SuggestedIssues() {
+/** `lessons`: OPENSRCER_LESSONS is on (the page reads it on the server). */
+export function SuggestedIssues({ lessons = false }: { lessons?: boolean }) {
   const stopRequest = useRef<(() => void) | undefined>(undefined);
   const [partial, setPartial] = useState(false);
   const [issues, setIssues] = useState<SuggestedIssue[]>([]);
@@ -319,6 +321,7 @@ export function SuggestedIssues() {
                     >
                       Fix this issue <span aria-hidden>→</span>
                     </a>
+                    {lessons && <StartLessonButton repo={issue.repo} issue={issue.number} />}
                   </div>
                 </div>
                 <DifficultyAndExamples repo={issue.repo} number={issue.number} recs={issue.recs} className="mt-2" />

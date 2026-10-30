@@ -5,6 +5,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { IconArrow, IconChevronDown, IconSearch } from "./icons";
 import { DifficultyAndExamples, TestableTag, type IssueInsight } from "./worked-examples";
+import { StartLessonButton } from "./lesson/start-lesson";
 
 type ScopeBucket = "doc" | "leaf" | "cross-file" | "refactor" | "new-file" | "unknown";
 
@@ -83,7 +84,8 @@ function useBookmarks() {
   return { bookmarks, toggle, isBookmarked: (repo: string) => bookmarks.includes(repo) };
 }
 
-export function DiscoverScanner() {
+/** `lessons`: OPENSRCER_LESSONS is on (the page reads it on the server). */
+export function DiscoverScanner({ lessons = false }: { lessons?: boolean }) {
   const [minStars, setMinStars] = useState("500");
   const { bookmarks, toggle: toggleBookmark, isBookmarked } = useBookmarks();
   // Empty string = no ceiling. Letting users target smaller repos where
@@ -403,6 +405,7 @@ export function DiscoverScanner() {
                         <Link href={href} className="row-cta">
                           Fix this issue <span aria-hidden>→</span>
                         </Link>
+                        {lessons && i.solvable && <StartLessonButton repo={i.repo.fullName} issue={i.number} />}
                       </div>
                     </div>
                   </li>

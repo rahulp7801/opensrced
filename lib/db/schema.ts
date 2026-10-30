@@ -39,6 +39,9 @@ export const repos = pgTable("repos", {
   catalog: boolean().notNull().default(false), // in the recommendation catalog
   health: jsonb().$type<Record<string, unknown>>(),
   updatedAt: createdAt(),
+  // When lib/recs/ingest.ts last finished this repo: the next run asks GitHub
+  // only for issues updated since then.
+  ingestedAt: at(),
 }, (t) => [unique().on(t.owner, t.name), index().on(t.catalog)]);
 
 const repoId = () => integer().notNull().references(() => repos.id, { onDelete: "cascade" });
@@ -85,6 +88,9 @@ export const issues = pgTable("issues", {
   mergeHours: integer(),
   difficulty: real(),
   difficultyReasons: jsonb(),
+  // What the difficulty was computed from (lib/recs/difficulty.ts
+  // DifficultyFeatures), kept so calibration can refit without refetching.
+  features: jsonb().$type<Record<string, unknown>>(),
   scopeNodes: text().array(),
   embedding: vector({ dimensions: EMBEDDING_DIMENSIONS }),
   // Full-text side of the hybrid search. Generated, so it can never drift

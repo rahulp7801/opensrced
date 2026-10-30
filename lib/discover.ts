@@ -1,21 +1,23 @@
 // Discover — deterministic, no-LLM repo + issue discovery.
 //
-// Flow:
-//   1. `gh search repos` filtered by stars/language. Pull the top N repos
-//      ordered by stars (or recent activity).
-//   2. For each of those repos, fan out to `gh issue list` and pipe through
-//      the existing text-only scorer (category/severity/complexity/scope).
+// Flow (GitHub's API as the requesting user, through lib/github-api.ts):
+//   1. REST `/search/repositories` filtered by stars/language/recent push,
+//      the top N repos by stars.
+//   2. For each of those repos, listIssues() (GraphQL with a token, REST
+//      without) and the existing text-only scorer (category/severity/
+//      complexity/scope).
 //   3. Merge all issues, carry the repo's `stars` and `fullName` alongside,
 //      return them sorted newest-first.
 //
 // Client does the final filtering (by age, complexity, scope bucket) so the
 // user can tweak without re-hitting GitHub.
 //
-// Rate limits: `gh search repos` costs 1 code-search request (authed quota
-// is 30/min). `gh issue list` uses the REST API, limit 5000/hr. Reasonable
-// caps: 12 repos × 20 issues = 240 issues, at most ~13 gh calls per scan.
+// Rate limits: the repository search is 1 search request (authed quota is
+// 30/min); the issue lists use the core REST/GraphQL limits. Reasonable
+// caps: 12 repos × 20 issues = 240 issues, at most ~13 API calls per scan.
 
-import { githubApi } from "./github-api";
+import { githubApi, githubGraphql } from "./github-api";
+import { sanitizeGitHubName } from "./sanitize";
 import { classifyScope, type ScopeInfo } from "./scope";
 
 
@@ -188,6 +190,32 @@ export async function discover(filters: DiscoverFilters, token?: string | null, 
   }
   if (queue.length) warnings.push(`${queue.length} repositories were not scanned before the search deadline.`);
   return { repos, issues, warnings };
+}
+
+/** Star counts for "owner/name" repos in one GraphQL request (the issue
+ *  search API doesn't return them). Keys are lowercase "owner/name"; a repo
+ *  GitHub can't resolve is absent. At most 50 repos per call. */
+export async function repoStars(repos: string[], token: string, signal?: AbortSignal): Promise<Map<string, number>> {
+  const unique = [...new Set(repos.map((repo) => repo.toLowerCase()))].slice(0, 50);
+  const pairs = unique.map((repo) => repo.split("/")).filter(([owner, name, extra]) =>
+    extra === undefined && owner && name && sanitizeGitHubName(owner) === owner && sanitizeGitHubName(name) === name);
+  if (!pairs.length) return new Map();
+  // Names go in as variables, never into the query text.
+  const variables: Record<string, string> = {};
+  const fields = pairs.map(([owner, name], index) => {
+    variables[`o${index}`] = owner;
+    variables[`n${index}`] = name;
+    return `r${index}: repository(owner: $o${index}, name: $n${index}) { stargazerCount }`;
+  });
+  const declarations = pairs.map((_, index) => `$o${index}: String!, $n${index}: String!`).join(", ");
+  const data = await githubGraphql<Record<string, { stargazerCount: number } | null>>(
+    `query Stars(${declarations}) { ${fields.join(" ")} }`, variables, token, signal);
+  const stars = new Map<string, number>();
+  pairs.forEach(([owner, name], index) => {
+    const repo = data[`r${index}`];
+    if (repo) stars.set(`${owner}/${name}`, repo.stargazerCount);
+  });
+  return stars;
 }
 
 // Re-export for route handler convenience.

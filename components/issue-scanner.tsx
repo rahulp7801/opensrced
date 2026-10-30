@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { cacheGet, cacheSet } from "@/lib/client-cache";
 import { IconArrow, IconChevronDown, IconSearch } from "./icons";
+import { DifficultyAndExamples, TestableTag, type IssueInsight } from "./worked-examples";
 
 type ScopeBucket = "doc" | "leaf" | "cross-file" | "refactor" | "new-file" | "unknown";
 
@@ -33,6 +34,8 @@ type Issue = {
   solvable: boolean;
   reason: string;
   scope: ScopeInfo;
+  /** Difficulty v2 and friends, present only with OPENSRCER_RECS for catalog issues. */
+  recs?: IssueInsight;
 };
 
 type Scan = {
@@ -59,6 +62,7 @@ export function IssueScanner() {
   const [filter, setFilter] = useState<"all" | "solvable">("solvable");
   const [age, setAge] = useState<"recent" | "any">("recent");
   const [beginner, setBeginner] = useState<"any" | "good-first">("any");
+  const [testableOnly, setTestableOnly] = useState(false);
   const [dispatching, setDispatching] = useState<{ number: number; kind: ActionKind } | null>(null);
   const scanRequest = useRef<AbortController | null>(null);
   // Row expansion — one issue at a time, showing the full body + scope
@@ -170,6 +174,7 @@ export function IssueScanner() {
           return now - created <= RECENT_CUTOFF_MS;
         })
         .filter((i) => (beginner === "good-first" ? isGoodFirstIssue(i) : true))
+        .filter((i) => !testableOnly || i.recs?.testable === true)
         .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
     : [];
 
@@ -293,6 +298,13 @@ export function IssueScanner() {
                       <FilterButton key={option.k} active={beginner === option.k} onClick={() => setBeginner(option.k)}>{option.label}</FilterButton>
                     ))}
                   </FilterGroup>
+                  {/* Only when the recommendations index knows this repo's issues. */}
+                  {scan.issues.some((i) => i.recs) && (
+                    <FilterGroup label="Environment" className="col-span-2">
+                      <FilterButton active={!testableOnly} onClick={() => setTestableOnly(false)}>Any</FilterButton>
+                      <FilterButton active={testableOnly} onClick={() => setTestableOnly(true)}>Testable here ({scan.issues.filter((i) => i.recs?.testable).length})</FilterButton>
+                    </FilterGroup>
+                  )}
                 </div>
               </div>
             </div>
@@ -352,8 +364,9 @@ export function IssueScanner() {
                           <p className="meta mt-2 items-center font-sans text-[14px]">
                             <span className="first-letter:uppercase"><ScopeBadge s={issue.scope} /></span>
                             <span>about {fmtMinutes(issue.est_minutes)}</span>
-                            <span className="inline-flex items-center gap-1.5">difficulty <ComplexityPips value={issue.complexity} /></span>
+                            <span className="inline-flex items-center gap-1.5" title={issue.recs?.reasons.join("; ") || undefined}>difficulty <ComplexityPips value={issue.recs?.difficulty ?? issue.complexity} /></span>
                             <span>risk <SeverityChip s={issue.severity} /></span>
+                            <TestableTag recs={issue.recs} />
                             <span className={cn("chip", !issue.solvable && "font-normal")} data-tone={issue.solvable ? "ok" : undefined}>{issue.solvable ? "Ready" : "Needs review"}</span>
                           </p>
                         </div>
@@ -372,7 +385,7 @@ export function IssueScanner() {
                       {expanded && (
                         <div id={`issue-detail-${issue.number}`} className="border-t border-border-soft py-6">
                           {/* The row above holds the run buttons; the detail only explains. */}
-                          <IssueDetail issue={issue} rec={rec} />
+                          <IssueDetail issue={issue} rec={rec} repo={scan.repo} />
                         </div>
                       )}
                     </article>
@@ -523,7 +536,7 @@ function ActionButton({
   );
 }
 
-function IssueDetail({ issue, rec }: { issue: Issue; rec: Recommendation }) {
+function IssueDetail({ issue, rec, repo }: { issue: Issue; rec: Recommendation; repo: string }) {
   const body = (issue.body ?? "").trim() || "(issue has no body)";
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -575,6 +588,8 @@ function IssueDetail({ issue, rec }: { issue: Issue; rec: Recommendation }) {
             </div>
           </div>
         </div>
+
+        <DifficultyAndExamples repo={repo} number={issue.number} recs={issue.recs} />
       </div>
     </div>
   );

@@ -14,7 +14,9 @@
     "typecheck": "tsc --noEmit",
     "pretest": "tsc -p tsconfig.test.json",
     "test": "node --test .test-build/lib/__tests__/*.test.js",
-    "db:migrate": "tsc -p tsconfig.test.json && node --env-file-if-exists=.env.local .test-build/lib/db/migrate.js"
+    "db:migrate": "tsc -p tsconfig.test.json && node --env-file-if-exists=.env.local .test-build/lib/db/migrate.js",
+    "catalog:add": "tsc -p tsconfig.test.json && node --env-file-if-exists=.env.local scripts/catalog-add.mjs",
+    "calibrate:difficulty": "tsc -p tsconfig.test.json && node --env-file-if-exists=.env.local scripts/calibrate-difficulty.mjs"
   },
   "dependencies": {
     "@actions/expressions": "0.3.61",

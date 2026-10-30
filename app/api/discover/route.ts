@@ -4,6 +4,7 @@ import { recordDiscoverRun } from "@/lib/stats";
 import { sessionUserId } from "@/lib/require-session";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { errorStatus } from "@/lib/github-api";
+import { attachInsights } from "@/lib/recs/rank";
 
 export const maxDuration = 60;
 
@@ -47,6 +48,8 @@ export async function GET(req: NextRequest) {
       repo_count: result.repos.length,
       issue_count: result.issues.length,
       ...result,
+      // Difficulty v2, "testable here" and worked examples when OPENSRCER_RECS is on.
+      issues: await attachInsights(result.issues, (issue) => issue.repo.fullName),
     });
   } catch (err) {
     return NextResponse.json(

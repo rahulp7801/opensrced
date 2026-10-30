@@ -9,6 +9,7 @@ export const FLAGS = {
   forkCi: "OPENSRCER_FORK_CI",
   ide: "OPENSRCER_IDE",
   levels: "OPENSRCER_LEVELS",
+  recs: "OPENSRCER_RECS",
 } as const;
 
 export type Flag = keyof typeof FLAGS;

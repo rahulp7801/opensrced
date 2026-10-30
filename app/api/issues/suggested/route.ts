@@ -10,6 +10,8 @@ import { NextRequest } from "next/server";
 import { requireSession } from "@/lib/require-session";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { githubApi } from "@/lib/github-api";
+import { repoStars } from "@/lib/discover";
+import { attachInsights } from "@/lib/recs/rank";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -126,6 +128,18 @@ export async function GET(req: NextRequest) {
     // get buried.
     const filtered = deduped.filter((i) => !isBotEngagementIssue(i));
 
+    // The issue search doesn't return the repository's stars; one GraphQL
+    // request fills them in. Stars are display-only, so a failed lookup
+    // leaves them at 0 (hidden by the UI) instead of failing the feed.
+    if (token && filtered.length) {
+      try {
+        const stars = await repoStars(filtered.map((i) => i.repo), token, signal);
+        for (const issue of filtered) issue.stars = stars.get(issue.repo.toLowerCase()) ?? 0;
+      } catch (error) {
+        console.error("[issues/suggested] star counts unavailable:", error instanceof Error ? error.message : error);
+      }
+    }
+
     // Sort: recently updated first, then by stars
     filtered.sort((a, b) => {
       const da = new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
@@ -134,7 +148,8 @@ export async function GET(req: NextRequest) {
     });
 
     return Response.json({
-      issues: filtered.slice(0, limit),
+      // Difficulty v2, "testable here" and worked examples when OPENSRCER_RECS is on.
+      issues: await attachInsights(filtered.slice(0, limit), (issue) => issue.repo),
       filteredOut: deduped.length - filtered.length,
       partial: failures > 0 || next < plan.length || plan.length < queryPlan.length,
     });

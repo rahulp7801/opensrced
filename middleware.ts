@@ -51,6 +51,8 @@ const PUBLIC_PATHS = new Set([
   "/opengraph-image",
   "/demo/opengraph-image",
   "/apple-icon",
+  // Vercel Cron's nightly catalog ingest — authenticates via CRON_SECRET.
+  "/api/cron/ingest",
   // GitHub App webhook — authenticates via HMAC, not session.
   "/api/crucible/github/webhook",
   // Install callback — authenticates via nonce cookie.
@@ -139,6 +141,7 @@ const PREVIEW_PUBLIC_PATHS = new Set([
   // The stage's repository map (components/tour/repo-map.tsx): a static snapshot of a public repo.
   "/demo/pydantic-graph.json",
   "/api/access",
+  "/api/cron/ingest",
   "/api/crucible/github/webhook",
   "/api/crucible/github/install-callback",
   "/fix",

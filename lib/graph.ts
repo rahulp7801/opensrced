@@ -119,7 +119,7 @@ function buildAdjacency(graph: GraphData): AdjacencyMap {
   return { outgoing, incoming, nodeMap };
 }
 
-function findNode(graph: GraphData, query: string): GraphNode | null {
+export function findNode(graph: GraphData, query: string): GraphNode | null {
   const q = query.toLowerCase().trim();
   return (
     graph.nodes.find((n) => n.id === q) ??

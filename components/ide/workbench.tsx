@@ -2,7 +2,7 @@
 
 // The write-it-yourself IDE (PLAN §8.0): VS Code's workbench running in the
 // page via @codingame/monaco-editor-wrapper, with opensrcer's run panel and
-// teacher placeholder beside it. Loaded only through components/ide/ide.tsx
+// teacher beside it. Loaded only through components/ide/ide.tsx
 // (next/dynamic, ssr:false), so none of this reaches other pages' bundles.
 
 // Wrapper features register their services on import; they must come before initialize().
@@ -79,7 +79,23 @@ export default function Workbench(props: IdeProps) {
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState<TeacherMessage[]>([]);
   const [saved, setSaved] = useState<string | null>(null);
+  const [submit, setSubmit] = useState<{ pending: boolean; error: string | null }>({ pending: false, error: null });
   const addMessage = useCallback((message: TeacherMessage) => setMessages((all) => [...all, message]), []);
+
+  // "I'm done, check my work" (PLAN §8.2 item 4): the diff goes to the lesson
+  // for the reveal; the lesson page takes it from there.
+  async function submitWork() {
+    if (!fs) return;
+    setSubmit({ pending: true, error: null });
+    try {
+      const res = await fetch(`/api/lessons/${encodeURIComponent(props.lessonId)}/submit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ diff: await fs.getDiff() }) });
+      const body = await res.json().catch(() => null) as { error?: string } | null;
+      if (!res.ok) throw new Error(body?.error ?? `Could not submit (${res.status}).`);
+      window.location.assign(`/learn/${encodeURIComponent(props.lessonId)}`);
+    } catch (e) {
+      setSubmit({ pending: false, error: e instanceof Error ? e.message : "Could not submit." });
+    }
+  }
 
   useEffect(() => {
     const started = performance.now();
@@ -133,6 +149,13 @@ export default function Workbench(props: IdeProps) {
         {!fs && !error && <span role="status">Loading the editor…</span>}
         {error && <span role="alert" className="text-red-300">{error}</span>}
         {saved && <span className="ml-auto">Checkpoint saved {saved}</span>}
+        {submit.error && <span role="alert" className="text-red-300">{submit.error}</span>}
+        {/* Lessons only: the demo page has no lesson to submit to. */}
+        {props.lessonId.startsWith("l_") && (
+          <button type="button" onClick={() => void submitWork()} disabled={!fs || submit.pending} className={`${saved ? "" : "ml-auto "}rounded bg-sky-600 px-3 py-1 font-medium text-white disabled:opacity-50`}>
+            {submit.pending ? "Submitting…" : "I'm done, check my work"}
+          </button>
+        )}
       </header>
       <div ref={container} data-testid="ide-workbench" className="min-h-0 min-w-0" />
       <div className="row-span-2 min-h-0">

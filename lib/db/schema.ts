@@ -23,8 +23,11 @@ export const users = pgTable("users", {
   createdAt: createdAt(),
   level: integer().notNull().default(0),
   standing: integer().notNull().default(0),
-  // Path preference, digest opt-in, public profile opt-in.
+  // Path preference, digest opt-in, public profile opt-in, and what first-run
+  // onboarding asked (lib/users.ts: languages, interests, experience).
   settings: jsonb().$type<Record<string, unknown>>().notNull().default({}),
+  // Set when /welcome is finished or skipped; null shows it after sign-in.
+  onboardedAt: at(),
 }, (t) => [index().on(t.login)]);
 
 export const repos = pgTable("repos", {

@@ -1,6 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { anthropicStream } from "../anthropic-stream";
+import { anthropicCost, anthropicStream } from "../anthropic-stream";
+
+test("cost counts cache writes at 1.25x and reads at 0.1x of the model's input price", () => {
+  assert.equal(anthropicCost("claude-haiku-4-5", { input_tokens: 1000, output_tokens: 200 }), (1000 * 1 + 200 * 5) / 1e6);
+  assert.equal(anthropicCost("claude-sonnet-5", { input_tokens: 100, cache_creation_input_tokens: 4000, output_tokens: 10 }), ((100 + 5000) * 2 + 100) / 1e6);
+  assert.equal(anthropicCost("claude-sonnet-5", { input_tokens: 100, cache_read_input_tokens: 4000 }), (500 * 2) / 1e6);
+  assert.equal(anthropicCost("claude-sonnet-5", {}), 0);
+  assert.equal(anthropicCost("some-new-model", { output_tokens: 1000 }), anthropicCost("claude-sonnet-5", { output_tokens: 1000 }), "unknown models are priced as the agent model");
+});
 
 function providerStream(events: unknown[]) { return new Response(events.map(event => `data: ${JSON.stringify(event)}\n\n`).join("")); }
 

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { EXPLAIN_LIMITS, ExplainInputError, explainPrompt, handleExplain, parseExplainRequest, type ExplainDeps } from "../explain";
+import { EXPLAIN_LIMITS, ExplainInputError, explainPrompt, handleExplain, parseExplainRequest, previewChangeContext, type ExplainDeps } from "../explain";
 
 const post = (body: unknown) => new Request("http://local/api/explain", { method: "POST", headers: { "content-type": "application/json" }, body: typeof body === "string" ? body : JSON.stringify(body) });
 
@@ -10,10 +10,35 @@ function deps(over: Partial<ExplainDeps> = {}) {
     requireSession: async () => null,
     resolveKey: async () => "test-key",
     stream: (key, system, user, maxTokens) => { calls.push({ key, system, user, maxTokens }); return new Response("data: {\"done\":true}\n\n"); },
+    loadChange: async (ref) => ("lessonId" in ref && ref.lessonId === LESSON
+      ? { runId: "c_1700000000000_aaaaaaaaaaaa", change: { repo: "acme/app", title: "server title", context: { description: "", diff: "+server diff", verification: "", rules: "" } } }
+      : Response.json({ error: "This run's fix stays hidden until the lesson reveals it." }, { status: 403 })),
     ...over,
   };
   return { d, calls };
 }
+
+const LESSON = "l_1700000000000_aaaaaaaaaaaa";
+
+test("run mode: the server loads the change; a browser-sent diff is ignored, a hidden run is refused", async () => {
+  const { d, calls } = deps();
+  const res = await handleExplain(post({ lessonId: LESSON, question: "Why?", context: { diff: "+browser diff" } }), d);
+  assert.equal(res.status, 200);
+  assert.match(calls[0].user, /\+server diff/);
+  assert.doesNotMatch(calls[0].user, /browser diff/);
+  const hidden = deps();
+  const refused = await handleExplain(post({ runId: "c_1700000000000_bbbbbbbbbbbb", question: "Why?" }), hidden.d);
+  assert.equal(refused.status, 403);
+  assert.equal(hidden.calls.length, 0);
+});
+
+test("previewChangeContext builds the same context the review page shows", () => {
+  const ctx = previewChangeContext({ profile: null, signoff: false, executed: true, verification: { status: "verified", reason: "tests pass", regression: "reproduced", plan: { setup: [], test: [], lint: [] }, evidence: [] }, blockers: [], warnings: [], body: "PR body", diagnosis: "the cause" }, "+x");
+  assert.equal(ctx.description, "The agent's diagnosis:\nthe cause\n\nPR text:\nPR body");
+  assert.equal(ctx.verification, "Verification: verified — tests pass; regression check: reproduced");
+  assert.equal(ctx.diff, "+x");
+  assert.equal(previewChangeContext({ profile: null, signoff: false, executed: false, verification: null, blockers: [], warnings: [], body: "b" }, undefined).verification, "Verification: not verified (no code was run)");
+});
 
 test("no session: the route answers 401 and never calls the model", async () => {
   const { d, calls } = deps({ requireSession: async () => Response.json({ error: "Not authenticated" }, { status: 401 }) });

@@ -543,6 +543,9 @@ export type StartAgenticOpts = {
   // updates. Its own PR does not count as a competing PR, and publishing
   // pushes a commit to that PR's branch.
   followupPr?: string;
+  // A lesson's hidden fix: recorded on the run so the dispatch routes keep its
+  // log and preview from the browser until the reveal (lib/hidden-runs.ts).
+  hidden?: boolean;
   // Auth0 `sub` of the requesting user. Recorded on the dispatch so only
   // they can read its log (which contains repo source and the generated
   // diff) or cancel the run.
@@ -752,6 +755,7 @@ async function spawnDispatch(
     log_path: logPath,
     ...(findingId ? { finding_id: findingId } : {}),
     ...(opts.followupPr ? { followup_pr: opts.followupPr } : {}),
+    ...(opts.hidden ? { hidden: true } : {}),
   };
 
   out.write(

@@ -14,6 +14,7 @@ import { getDispatch, readLogSince } from "@/lib/dispatcher";
 import { sessionUserId } from "@/lib/require-session";
 import { cloudExecution, runLogChunk } from "@/lib/cloud-run-state";
 import { getCloudRun } from "@/lib/cloud-runs";
+import { HIDDEN_RUN_MESSAGE, hiddenRunLocked } from "@/lib/hidden-runs";
 
 export async function GET(
   req: NextRequest,
@@ -29,6 +30,8 @@ export async function GET(
     try {
       const run = await getCloudRun(viewerId, id);
       if (!run) return NextResponse.json({ error: "not found" }, { status: 404 });
+      // A lesson's hidden fix: the log carries the diff and PR text (§7.2).
+      if (await hiddenRunLocked(viewerId, run)) return NextResponse.json({ error: HIDDEN_RUN_MESSAGE }, { status: 403 });
       return NextResponse.json(runLogChunk(run, Number(req.nextUrl.searchParams.get("since") ?? 0)));
     } catch {
       return NextResponse.json({ error: "This run is temporarily unavailable. Please retry." }, { status: 503 });
@@ -38,6 +41,7 @@ export async function GET(
   // so the 404 below doesn't confirm that someone else's dispatch exists.
   const d = getDispatch(id, viewerId);
   if (!d) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (await hiddenRunLocked(viewerId, d)) return NextResponse.json({ error: HIDDEN_RUN_MESSAGE }, { status: 403 });
 
   const sinceRaw = req.nextUrl.searchParams.get("since");
   const since = Number(sinceRaw);

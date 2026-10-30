@@ -12,7 +12,8 @@
 // the same caps and fences as "Ask about this change" (lib/explain.ts).
 
 import { CLAUDE_FAST_MODEL } from "./models";
-import { EXPLAIN_LIMITS, ExplainInputError, changeContextBlock, clean, parseChangeInput, str, type ChangeInput, type ExplainDeps } from "./explain";
+import { EXPLAIN_LIMITS, ExplainInputError, changeContextBlock, clean, parseChangeInput, resolveChange, str, type ChangeInput, type ExplainDeps } from "./explain";
+import type { UnderstandingEvent } from "./understanding-record";
 import { readJsonBody } from "./request-body";
 import { sseEvents } from "./sse";
 
@@ -60,7 +61,8 @@ export type PracticeFeedback = { feedback: string; followUp: string | null };
 
 const MAX_REPLY = 6000;
 
-function jsonObject(reply: string): Record<string, unknown> {
+/** The one JSON object in a model reply. Throws ReplyFormatError. */
+export function jsonObject(reply: string): Record<string, unknown> {
   if (reply.length > MAX_REPLY) throw new ReplyFormatError("reply is too long");
   // Tolerate a code fence or a stray sentence around the object, nothing more.
   const start = reply.indexOf("{"), end = reply.lastIndexOf("}");
@@ -71,13 +73,13 @@ function jsonObject(reply: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
-function text(v: unknown, name: string, max: number): string {
+export function replyText(v: unknown, name: string, max: number): string {
   if (typeof v !== "string" || !v.trim()) throw new ReplyFormatError(`${name} is missing`);
   if (v.trim().length > max) throw new ReplyFormatError(`${name} is longer than ${max} characters`);
   return v.trim();
 }
 
-function bool(v: unknown, name: string): boolean {
+export function replyBool(v: unknown, name: string): boolean {
   if (typeof v !== "boolean") throw new ReplyFormatError(`${name} must be true or false`);
   return v;
 }
@@ -86,11 +88,11 @@ export function parseExplanationCheck(reply: string): ExplanationCheck {
   const o = jsonObject(reply);
   if (!Array.isArray(o.mistakes) || o.mistakes.length > 3) throw new ReplyFormatError("mistakes must be a list of at most 3");
   return {
-    rootCause: bool(o.rootCause, "rootCause"),
-    change: bool(o.change, "change"),
-    evidence: bool(o.evidence, "evidence"),
-    mistakes: o.mistakes.map((m, i) => text(m, `mistake ${i + 1}`, 200)),
-    tip: text(o.tip, "tip", 300),
+    rootCause: replyBool(o.rootCause, "rootCause"),
+    change: replyBool(o.change, "change"),
+    evidence: replyBool(o.evidence, "evidence"),
+    mistakes: o.mistakes.map((m, i) => replyText(m, `mistake ${i + 1}`, 200)),
+    tip: replyText(o.tip, "tip", 300),
   };
 }
 
@@ -109,14 +111,14 @@ export function explanationPasses(c: ExplanationCheck): boolean {
 export function parsePracticeQuestions(reply: string): string[] {
   const o = jsonObject(reply);
   if (!Array.isArray(o.questions) || o.questions.length !== 2) throw new ReplyFormatError("expected exactly 2 questions");
-  const qs = o.questions.map((q, i) => text(q, `question ${i + 1}`, 300));
+  const qs = o.questions.map((q, i) => replyText(q, `question ${i + 1}`, 300));
   if (qs[0].toLowerCase() === qs[1].toLowerCase()) throw new ReplyFormatError("the questions repeat");
   return qs;
 }
 
 export function parsePracticeFeedback(reply: string): PracticeFeedback {
   const o = jsonObject(reply);
-  return { feedback: text(o.feedback, "feedback", 400), followUp: o.followUp == null || o.followUp === "" ? null : text(o.followUp, "followUp", 300) };
+  return { feedback: replyText(o.feedback, "feedback", 400), followUp: o.followUp == null || o.followUp === "" ? null : replyText(o.followUp, "followUp", 300) };
 }
 
 // ── Prompts ────────────────────────────────────────────────────────────────
@@ -171,7 +173,7 @@ export function feedbackPrompt(change: ChangeInput, question: string, answer: st
 // ── Route ──────────────────────────────────────────────────────────────────
 
 /** The text and cost of one bounded generation (lib/anthropic-stream.ts). */
-async function generate(res: Response): Promise<{ text: string; cost: number }> {
+export async function readGeneration(res: Response): Promise<{ text: string; cost: number }> {
   let out = "";
   for await (const event of sseEvents<{ text?: string; cost?: number; done?: boolean; error?: string }>(res)) {
     if (event.error) throw new Error(event.error);
@@ -181,10 +183,18 @@ async function generate(res: Response): Promise<{ text: string; cost: number }> 
   throw new Error("The response ended before completion. Please retry.");
 }
 
+/** What /api/understand needs beyond "Ask about this change": somewhere to
+ *  keep a run's result for the publish gate (lib/understanding-record.ts). */
+export type UnderstandDeps = ExplainDeps & {
+  record: (runId: string, event: UnderstandingEvent) => Promise<void>;
+};
+
 /** POST /api/understand, with its collaborators passed in for tests.
  *  { step: "check" | "questions" | "feedback", repo, title, context,
- *    explanation? (check), question? + answer? (feedback) } */
-export async function handleUnderstand(req: Request, deps: ExplainDeps, log: (line: string) => void = console.warn): Promise<Response> {
+ *    explanation? (check), question? + answer? (feedback) }
+ *  or, in run mode, { step, runId | lessonId, ... } without context: the
+ *  server loads the change and records the outcome for publishing. */
+export async function handleUnderstand(req: Request, deps: UnderstandDeps, log: (line: string) => void = console.warn): Promise<Response> {
   const unauth = await deps.requireSession();
   if (unauth) return unauth;
   const raw = await readJsonBody(req, EXPLAIN_LIMITS.body);
@@ -193,8 +203,15 @@ export async function handleUnderstand(req: Request, deps: ExplainDeps, log: (li
   let prompt: { system: string; user: string };
   let parse: (reply: string) => unknown;
   let step: string;
+  let runId: string | null;
+  // What a usable reply records in run mode.
+  let onSuccess: (parsed: unknown) => UnderstandingEvent | null = () => null;
   try {
-    const { body, ...change } = parseChangeInput(raw);
+    const { body, ...browser } = parseChangeInput(raw);
+    const resolved = await resolveChange(body, browser, deps);
+    if (resolved instanceof Response) return resolved;
+    const change = resolved.change;
+    runId = resolved.runId;
     step = str(body.step, "step");
     if (!change.context.diff) throw new ExplainInputError("There is no change to ask about.");
     if (step === "check") {
@@ -208,6 +225,7 @@ export async function handleUnderstand(req: Request, deps: ExplainDeps, log: (li
         const c = parsed.evidence && !mentionsEvidence(explanation) ? { ...parsed, evidence: false } : parsed;
         return { ...c, passed: explanationPasses(c) };
       };
+      onSuccess = (parsed) => ((parsed as { passed: boolean }).passed ? { kind: "passed", text: explanation } : null);
     } else if (step === "questions") {
       prompt = questionsPrompt(change);
       parse = (reply) => ({ questions: parsePracticeQuestions(reply) });
@@ -218,33 +236,53 @@ export async function handleUnderstand(req: Request, deps: ExplainDeps, log: (li
       if (answer.length < OWN_WORDS.answerMin || answer.length > OWN_WORDS.answerMax) throw new ExplainInputError(`Write between ${OWN_WORDS.answerMin} and ${OWN_WORDS.answerMax} characters.`);
       prompt = feedbackPrompt(change, clean(question, 300), clean(answer, OWN_WORDS.answerMax));
       parse = parsePracticeFeedback;
+      onSuccess = () => ({ kind: "practiced" });
     } else throw new ExplainInputError('step must be "check", "questions" or "feedback".');
   } catch (error) {
     if (error instanceof ExplainInputError) return Response.json({ error: error.message }, { status: 400 });
     throw error;
   }
 
+  // Run mode keeps the outcome for the publish gate. A result that could not
+  // be saved is reported as a failure, so the page never shows a pass the
+  // server will not honor.
+  const save = async (event: UnderstandingEvent | null): Promise<Response | null> => {
+    if (!runId || !event) return null;
+    try {
+      await deps.record(runId, event);
+      return null;
+    } catch (error) {
+      log(`[understand] ${step}: could not record ${event.kind}: ${error instanceof Error ? error.message : String(error)}`);
+      return Response.json({ error: "The result could not be saved. Please retry." }, { status: 503 });
+    }
+  };
+  // The check could not run: publishing then accepts an unchecked explanation, as the page always has.
+  const unavailable = async (response: Response) => (step === "check" ? (await save({ kind: "unavailable" })) ?? response : response);
+
   const key = await deps.resolveKey();
   if (!key) {
     log(`[understand] ${step}: no Anthropic key`);
-    return Response.json({ error: "No Anthropic API key configured. Add one in Settings." }, { status: 400 });
+    return unavailable(Response.json({ error: "No Anthropic API key configured. Add one in Settings." }, { status: 400 }));
   }
   let cost = 0;
   for (let attempt = 1; attempt <= 2; attempt++) {
     let reply: { text: string; cost: number };
     try {
-      reply = await generate(deps.stream(key, prompt.system, prompt.user, 800, req.signal));
+      reply = await readGeneration(deps.stream(key, prompt.system, prompt.user, 800, req.signal));
     } catch (error) {
       log(`[understand] ${step} failed: ${error instanceof Error ? error.message : String(error)}`);
-      return Response.json({ error: error instanceof Error ? error.message : "The check could not run." }, { status: 502 });
+      return unavailable(Response.json({ error: error instanceof Error ? error.message : "The check could not run." }, { status: 502 }));
     }
     cost += reply.cost;
+    let parsed: unknown;
     try {
-      return Response.json({ ...(parse(reply.text) as object), model: CLAUDE_FAST_MODEL, cost });
+      parsed = parse(reply.text);
     } catch (error) {
       if (!(error instanceof ReplyFormatError)) throw error;
       log(`[understand] ${step} attempt ${attempt} returned unusable JSON: ${error.message}`);
+      continue;
     }
+    return (await save(onSuccess(parsed))) ?? Response.json({ ...(parsed as object), model: CLAUDE_FAST_MODEL, cost });
   }
-  return Response.json({ error: "The model did not return a usable answer.", cost }, { status: 502 });
+  return unavailable(Response.json({ error: "The model did not return a usable answer.", cost }, { status: 502 }));
 }

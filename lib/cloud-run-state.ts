@@ -80,6 +80,7 @@ export function validCloudRun(value: unknown, owner: string, id: string): value 
       run.followup_pr.toLowerCase().startsWith(`${run.repo_url!.toLowerCase()}/pull/`))) &&
     (run.pr_failure_reason === undefined || (typeof run.pr_failure_reason === "string" && run.pr_failure_reason.length <= 500)) &&
     (run.tests === undefined || TEST_STATUSES.has(run.tests)) &&
+    (run.hidden === undefined || typeof run.hidden === "boolean") &&
     (run.stats === undefined || validDispatchStats(run.stats)) &&
     // Only an Anthropic authorize URL; a worker cannot plant any other link.
     (run.sign_in === undefined || validSignInState(run.sign_in)) &&
@@ -184,6 +185,20 @@ export function runPath(owner: string, id: string): string {
 export function runPreviewPath(owner: string, id: string): string {
   if (!RUN_ID_RE.test(id)) throw new Error("Invalid run id");
   return `${ownerPrefix(owner).slice(0, -"runs/".length)}previews/${id}.json`;
+}
+
+/** Server-written, outside every worker token's scope: the lesson revealed
+ *  this hidden run (lib/hidden-runs.ts). */
+export function runRevealPath(owner: string, id: string): string {
+  if (!RUN_ID_RE.test(id)) throw new Error("Invalid run id");
+  return `${ownerPrefix(owner).slice(0, -"runs/".length)}revealed-runs/${id}.json`;
+}
+
+/** Server-written: the own-words result that the publish gate checks
+ *  (lib/understanding-record.ts). */
+export function runUnderstandingPath(owner: string, id: string): string {
+  if (!RUN_ID_RE.test(id)) throw new Error("Invalid run id");
+  return `${ownerPrefix(owner).slice(0, -"runs/".length)}understanding/${id}.json`;
 }
 
 /** Created once per publish; a second concurrent publish finds it. */

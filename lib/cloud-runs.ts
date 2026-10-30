@@ -20,6 +20,8 @@ import {
   runPath,
   runPreviewPath,
   runPublishLockPath,
+  runRevealPath,
+  runUnderstandingPath,
   runSummaryPath,
   runSummaryPrefix,
   staleCloudRunIds,
@@ -86,6 +88,8 @@ async function pruneCloudRunHistory(owner: string): Promise<void> {
     runCancellationPath(owner, id),
     runPreviewPath(owner, id),
     runPublishLockPath(owner, id),
+    runRevealPath(owner, id),
+    runUnderstandingPath(owner, id),
   ]), { abortSignal: AbortSignal.timeout(8_000) });
 }
 
@@ -194,6 +198,7 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
     log_path: "", sandbox_name: id.replaceAll("_", "-"), expires_at: Date.now() + TTL,
     log: "Preparing isolated agent worker...\n", log_size: 35, tests: "not_run",
     ...(opts.followupPr ? { followup_pr: opts.followupPr } : {}),
+    ...(opts.hidden ? { hidden: true } : {}),
   };
   run.log_size = Buffer.byteLength(run.log);
   const leaseKey = await reserveCapacity(path, run.expires_at);

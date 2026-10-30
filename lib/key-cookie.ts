@@ -2,6 +2,8 @@ import { createHash, randomBytes, createCipheriv, createDecipheriv } from "node:
 
 export type StoredKeys = {
   anthropic?: string; gemini?: string; maxSpendUsd?: number;
+  /** The lesson teacher's OpenRouter key (lib/lesson/runtime.ts). */
+  openrouter?: string;
   /** How runs are paid for, most preferred first (lib/run-payment.ts). */
   providerOrder?: string[];
   /** Use the API key when the user's plan is unavailable. Default off. */
@@ -15,7 +17,7 @@ export const KEY_COOKIE_SECONDS = 30 * 24 * 60 * 60;
 export function validStoredKeys(value: unknown): value is StoredKeys {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const keys = value as StoredKeys;
-  return [keys.anthropic, keys.gemini].every(key => key === undefined || (typeof key === "string" && key.length <= 512 && !/[^\x21-\x7e]/.test(key))) &&
+  return [keys.anthropic, keys.gemini, keys.openrouter].every(key => key === undefined || (typeof key === "string" && key.length <= 512 && !/[^\x21-\x7e]/.test(key))) &&
     (keys.maxSpendUsd === undefined || (typeof keys.maxSpendUsd === "number" && Number.isFinite(keys.maxSpendUsd) && keys.maxSpendUsd >= 0.1 && keys.maxSpendUsd <= 10)) &&
     (keys.providerOrder === undefined || (Array.isArray(keys.providerOrder) && keys.providerOrder.length <= PROVIDERS.size &&
       new Set(keys.providerOrder).size === keys.providerOrder.length && keys.providerOrder.every(p => PROVIDERS.has(p)))) &&

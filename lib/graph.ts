@@ -119,7 +119,7 @@ function buildAdjacency(graph: GraphData): AdjacencyMap {
   return { outgoing, incoming, nodeMap };
 }
 
-function findNode(graph: GraphData, query: string): GraphNode | null {
+export function findNode(graph: GraphData, query: string): GraphNode | null {
   const q = query.toLowerCase().trim();
   return (
     graph.nodes.find((n) => n.id === q) ??
@@ -515,6 +515,29 @@ export function shortestPath(
   }
 
   return lines.join("\n");
+}
+
+/** Hops from the nearest of `startIds` to every node within `maxHops`,
+ *  walking edges both ways like shortestPath. The lesson's s7 grader uses it
+ *  to ask "how close is this pick to the fix?" in one walk from the fix's
+ *  nodes, instead of one shortestPath per pair. */
+export function hopDistances(graph: GraphData, startIds: Iterable<string>, maxHops: number): Map<string, number> {
+  const adj = buildAdjacency(graph);
+  const seen = new Map<string, number>([...startIds].map((id) => [id, 0]));
+  let frontier = [...seen.keys()];
+  for (let hop = 1; hop <= maxHops && frontier.length; hop++) {
+    const next: string[] = [];
+    for (const id of frontier) {
+      for (const edge of [...(adj.outgoing.get(id) ?? []), ...(adj.incoming.get(id) ?? [])]) {
+        const other = edge.source === id ? edge.target : edge.source;
+        if (seen.has(other)) continue;
+        seen.set(other, hop);
+        next.push(other);
+      }
+    }
+    frontier = next;
+  }
+  return seen;
 }
 
 export function godNodes(graph: GraphData, topN = 10): string {

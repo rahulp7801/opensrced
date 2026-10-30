@@ -47,6 +47,11 @@ export async function resolveAnthropicKey(): Promise<string | null> {
   return keys.anthropic || null;
 }
 
+export async function resolveOpenRouterKey(): Promise<string | null> {
+  const keys = await getStoredKeys();
+  return keys.openrouter || null;
+}
+
 export async function resolveGeminiKey(): Promise<string | null> {
   const keys = await getStoredKeys();
   return keys.gemini || null;

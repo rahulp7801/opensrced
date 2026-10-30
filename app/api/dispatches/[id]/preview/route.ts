@@ -10,6 +10,7 @@ import { CONFIRMATION } from "@/lib/publish";
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { getCloudRun } from "@/lib/cloud-runs";
 import { getCloudPreview } from "@/lib/cloud-publish";
+import { HIDDEN_RUN_MESSAGE, hiddenRunLocked } from "@/lib/hidden-runs";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const viewerId = await sessionUserId();
@@ -19,6 +20,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     // Both lookups answer "not yours" like "missing".
     const d = cloudExecution() ? await getCloudRun(viewerId, id) : getDispatch(id, viewerId);
     if (!d) return NextResponse.json({ error: "not found" }, { status: 404 });
+    if (await hiddenRunLocked(viewerId, d)) return NextResponse.json({ error: HIDDEN_RUN_MESSAGE }, { status: 403 });
     const stored = cloudExecution() ? await getCloudPreview(viewerId, id) : await readPreview(join(process.cwd(), ".dispatches", id));
     if (!stored) return NextResponse.json({ error: "no preview for this run" }, { status: 404 });
     return NextResponse.json({ ...stored.preview, diff: stored.diff, confirmation: CONFIRMATION, publishable: !d.dry_run && (d.pr_status === "awaiting_review" || d.pr_status === "failed"),

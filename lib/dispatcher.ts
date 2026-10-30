@@ -83,6 +83,9 @@ export type Dispatch = {
   /** A follow-up run on the user's own open PR (lib/pr-followups.ts):
    *  publishing pushes one commit to that PR's branch instead of opening a PR. */
   followup_pr?: string;
+  /** A lesson's hidden fix (lib/hidden-runs.ts): its log, preview and PR
+   *  text are not served until the lesson reveals it. */
+  hidden?: boolean;
 };
 
 // In-memory registry. Surviving logs are reconstructed from disk on read.

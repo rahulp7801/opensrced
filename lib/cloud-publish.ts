@@ -12,7 +12,9 @@ import { getCloudRun, listCloudRunSummaries } from "./cloud-runs";
 import { runPath, runPreviewPath, runPublishLockPath, runSummaryPath, cloudRunSummary, type CloudRun } from "./cloud-run-state";
 import { PUSH_EGRESS } from "./sandbox-egress";
 import { assertWorkerProtocol } from "./worker-protocol";
-import { assertPublishable, followupGuards, followupPushTarget, liveGuards, PublishError, type PublishInput, type StoredPreview } from "./publish";
+import { assertPublishable, assertUnderstood, followupGuards, followupPushTarget, liveGuards, PublishError, withWords, type PublishInput, type StoredPreview } from "./publish";
+import { HIDDEN_RUN_MESSAGE, hiddenRunLocked } from "./hidden-runs";
+import { readUnderstanding } from "./understanding-record";
 import { cloudPush } from "./cloud-push";
 import { testOutcome } from "./verify";
 import type { PrPreview } from "./pr-preview";
@@ -77,7 +79,11 @@ export async function publishCloudRun(
 ): Promise<{ url: string; tests: string }> {
   const run = await getCloudRun(input.viewerId, input.id);
   if (!run) throw new PublishError(404, "not found");
-  const stored = assertPublishable(run, input.confirmed, await getCloudPreview(input.viewerId, input.id), input.authorWords ?? null);
+  if (await hiddenRunLocked(input.viewerId, run)) throw new PublishError(403, HIDDEN_RUN_MESSAGE);
+  const checked = assertPublishable(run, input.confirmed, await getCloudPreview(input.viewerId, input.id));
+  // Same understanding gate as a local publish (lib/publish.ts); follow-ups carry no PR text.
+  const stored = withWords(checked, run.followup_pr ? input.authorWords ?? null
+    : assertUnderstood(await readUnderstanding(input.viewerId, input.id), input.authorWords ?? null, checked.preview));
   if (!input.token || !input.author) throw new PublishError(401, "Sign in with GitHub again: the PR is opened from your account.");
   const repo = parseRunTarget(run.repo_url).repo;
   const issue = run.issue_number ?? 0;

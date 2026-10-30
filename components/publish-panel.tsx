@@ -17,7 +17,8 @@ import { useCallback, useEffect, useState } from "react";
 import { copyText } from "@/lib/clipboard";
 import { publishSteps } from "@/lib/beginner-guide";
 import { GLOSSARY, type GlossaryTerm } from "@/lib/glossary";
-import { projectRules, rulesText, RULE_STATUS_LABEL, type RuleRow, type RuleStatus, type RulesPreview } from "@/lib/project-rules";
+import { previewChangeContext } from "@/lib/explain";
+import { projectRules, RULE_STATUS_LABEL, type RuleRow, type RuleStatus, type RulesPreview } from "@/lib/project-rules";
 import { useCurrentUser } from "@/lib/use-current-user";
 import { safeAvatarUrl } from "@/lib/avatar-url";
 import { cn } from "@/lib/utils";
@@ -126,12 +127,8 @@ export function PublishPanel({ dispatchId, repo, issue, dryRun = false, rerun, o
   // A follow-up only adds a commit (no PR text to carry the explanation).
   const askOwnWords = (canPublish || dryRun) && !preview.followup_pr;
   const gateOpen = !askOwnWords || Boolean(ownWords?.ready);
-  const context = {
-    description: `${preview.diagnosis ? `The agent's diagnosis:\n${preview.diagnosis}\n\n` : ""}PR text:\n${preview.body}`,
-    diff: preview.diff,
-    verification: `Verification: ${verdict}${v?.regression ? `; regression check: ${v.regression.replace(/_/g, " ")}` : ""}`,
-    rules: rulesText(rules),
-  };
+  // Shown for reference only: with `runId` the server loads its own copy.
+  const context = previewChangeContext(preview, preview.diff);
   const comment = preview.draft_issue_comment;
   const commentBlock = comment && (
     <>
@@ -257,6 +254,7 @@ export function PublishPanel({ dispatchId, repo, issue, dryRun = false, rerun, o
       {askOwnWords && (
         <OwnWords
           storageKey={`run:${dispatchId}`}
+          runId={dispatchId}
           repo={repo}
           title={preview.title}
           context={context}

@@ -1,14 +1,8 @@
 import { readJsonBody } from "@/lib/request-body";
 import { NextRequest, NextResponse } from "next/server";
-import { findOpenRunPr, RunTargetError, startAgenticDispatch } from "@/lib/agentic-dispatcher";
-import { resolveCommitAuthor, resolveGitHubToken, type CommitAuthor } from "@/lib/github-token";
-import { resolveGeminiKey, resolveMaxSpendUsd, resolveRunPayment } from "@/lib/api-keys";
-import { NoRunCredentialError, type RunPayment } from "@/lib/run-payment";
 import { sessionUserId } from "@/lib/require-session";
 import { parseRunTarget } from "@/lib/run-target";
-import { CapacityError } from "@/lib/concurrency";
-import { cloudExecution } from "@/lib/cloud-run-state";
-import { startCloudRun } from "@/lib/cloud-runs";
+import { RunStartError, startIssueRun } from "@/lib/run-start";
 
 // startCloudRun's bounded steps (capacity reads, record writes, Sandbox.create,
 // protocol check, launch) can exceed 120s; a kill mid-start strands the lease.
@@ -47,49 +41,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: "error", message: "Invalid dry_run or notes" }, { status: 400 });
   }
 
-  // Resolve the logged-in user's GitHub token from their Auth0 session so
-  // the agentic child process — and the auto-PR hook after it — authenticate
-  // as THEM. There is no env or gh-keychain fallback; see lib/github-token.ts.
-  const token = await resolveGitHubToken();
-  if (!token && body.dry_run !== true) {
-    return NextResponse.json(
-      { status: "error", message: "Sign in with GitHub before starting a live solve. GitHub access is required to open the pull request." },
-      { status: 401 },
-    );
-  }
-  // Subscription first; the API key only when ranked first or opted in as fallback.
-  let payment: RunPayment;
-  try { payment = await resolveRunPayment(); }
-  catch (error) {
-    if (!(error instanceof NoRunCredentialError)) throw error;
-    return NextResponse.json({ status: "error", message: error.message }, { status: 400 });
-  }
-  // Live runs commit as the requester, never as the deployer.
-  let author: CommitAuthor | undefined;
-  if (body.dry_run !== true) {
-    author = (await resolveCommitAuthor(req.signal).catch(() => null)) ?? undefined;
-    if (!author) return NextResponse.json({ status: "error", message: "Sign in with GitHub again before starting a live solve." }, { status: 401 });
-  }
-
   try {
-    if (author && token) {
-      const existing = await findOpenRunPr(parseRunTarget(canonicalRepoUrl).repo, issue_number, author.login, token, req.signal);
-      if (existing) throw new RunTargetError(`You already have an open pull request for this issue: ${existing}. Close it before starting another live run.`);
-    }
-    const geminiKey = (await resolveGeminiKey()) ?? undefined;
-    const maxSpendUsd = await resolveMaxSpendUsd();
-    const start = cloudExecution() ? startCloudRun : startAgenticDispatch;
-    const d = await start(canonicalRepoUrl, issue_number, {
-      token: token ?? undefined,
-      provider: payment.provider,
-      anthropicKey: payment.anthropicKey,
-      keyFallback: payment.keyFallback,
-      geminiKey,
-      maxSpendUsd,
-      auth0UserId,
-      author,
-      dryRun: body.dry_run === true,
-      notes: body.notes,
+    // The same start path as a lesson's hidden run (lib/run-start.ts).
+    const d = await startIssueRun({
+      repoUrl: canonicalRepoUrl, issueNumber: issue_number, auth0UserId,
+      dryRun: body.dry_run === true, notes: body.notes as string | undefined, signal: req.signal,
     });
     return NextResponse.json(
       {
@@ -104,11 +60,7 @@ export async function POST(req: NextRequest) {
       { status: 202 },
     );
   } catch (err) {
-    if (err instanceof RunTargetError) return NextResponse.json({ status: "error", message: err.message }, { status: 400 });
-    const capacity = err instanceof CapacityError;
-    return NextResponse.json(
-      { status: "error", message: capacity ? err.message : "Could not start the worker. Check the server configuration and try again." },
-      { status: capacity ? 429 : 503 },
-    );
+    if (err instanceof RunStartError) return NextResponse.json({ status: "error", message: err.message }, { status: err.status });
+    throw err;
   }
 }

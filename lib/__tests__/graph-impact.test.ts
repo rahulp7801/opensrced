@@ -1,7 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { analyzeImpactFromDiff } from "../graph-impact";
+import { analyzeImpactFromDiff, touchedNodeIds } from "../graph-impact";
 import type { GraphData } from "../graph";
+
+test("touchedNodeIds: nodes in changed files and changed definitions, nothing else", () => {
+  const graph = {
+    nodes: [
+      { id: "s", label: "searchUsers", source_file: "src/users.ts", community: 1 },
+      { id: "h", label: "helper", source_file: "src/other.ts", community: 1 },
+      { id: "r", label: "usersRoute", source_file: "src/routes.ts", community: 2 },
+    ],
+    links: [],
+  } as unknown as GraphData;
+  assert.deepEqual([...touchedNodeIds(graph, "+++ b/src/users.ts\n+x")], ["s"]);
+  assert.deepEqual([...touchedNodeIds(graph, "+++ b/src/none.ts\n+function helper() {}")], ["h"], "a changed definition elsewhere");
+  assert.deepEqual([...touchedNodeIds(graph, "")], []);
+});
 
 test("graph impact follows downstream callers and ignores unrelated links", () => {
   const graph = {

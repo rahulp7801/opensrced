@@ -12,7 +12,7 @@ export default function LandingPage() {
     : { href: "/demo", label: "See a complete run" };
   const secondary = localMode
     ? { href: "/demo", label: "Explore the demo" }
-    : { href: "/login", label: "Connect GitHub" };
+    : { href: "/discover", label: "Continue with GitHub", signIn: true };
 
   return <Landing primary={primary} secondary={secondary} />;
 }

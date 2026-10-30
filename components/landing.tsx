@@ -18,8 +18,16 @@ import { underline } from "./brand/doodle-data";
 import { InkReveal } from "./brand/ink-reveal";
 import { CodeMap } from "./brand/code-map";
 import { CtaPill } from "./brand/pill";
+import { GitHubSignIn } from "./github-sign-in";
 
-type Cta = { href: string; label: string };
+/** `signIn` makes it the shared "Continue with GitHub" link (to `href` after). */
+type Cta = { href: string; label: string; signIn?: boolean };
+
+function SecondaryCta({ cta }: { cta: Cta }) {
+  return cta.signIn
+    ? <GitHubSignIn returnTo={cta.href} icon={false} className="text-link text-[16px]">{cta.label}</GitHubSignIn>
+    : <Link href={cta.href} className="text-link text-[16px]">{cta.label}</Link>;
+}
 
 // The verified demo run (components/tour/data.ts: REPORT, PR_BODY): issue #2 →
 // draft PR #7, whose body has "Tests run" (fail reverted, pass with the fix)
@@ -122,7 +130,7 @@ export function Landing({ primary, secondary }: { primary: Cta; secondary: Cta }
         </p>
         <div className="rise mt-9 flex flex-wrap items-center gap-x-6 gap-y-3" style={{ "--delay": "240ms" } as React.CSSProperties}>
           <CtaPill href={primary.href}>{primary.label}</CtaPill>
-          <Link href={secondary.href} className="text-link text-[16px]">{secondary.label}</Link>
+          <SecondaryCta cta={secondary} />
         </div>
         {/* The receipt: three real facts, the first linking to its proof. */}
         <p className="rise mt-7 font-mono text-[12px] leading-[1.7] text-paper-faint" style={{ "--delay": "300ms" } as React.CSSProperties}>
@@ -196,7 +204,7 @@ export function Landing({ primary, secondary }: { primary: Cta; secondary: Cta }
         </h2>
         <div className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-3">
           <Link href={primary.href} className="btn-primary min-h-11 rounded-[10px] px-5 text-[15px] font-semibold">{primary.label}</Link>
-          <Link href={secondary.href} className="text-link text-[16px]">{secondary.label}</Link>
+          <SecondaryCta cta={secondary} />
         </div>
         <ul className="mt-16 grid gap-3 text-[16px] text-paper-muted sm:grid-cols-3 sm:gap-8">
           {FINE_PRINT.map((line) => <li key={line}>{line}</li>)}

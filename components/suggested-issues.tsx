@@ -9,6 +9,7 @@ import {
 import { pollJson } from "@/lib/poll-json";
 import { cn } from "@/lib/utils";
 import { cacheGet, cacheSet } from "@/lib/client-cache";
+import { DifficultyAndExamples, TestableTag, type IssueInsight } from "./worked-examples";
 
 type CachedSuggestions = { issues: SuggestedIssue[]; filteredOut: number; partial?: boolean };
 
@@ -23,7 +24,19 @@ type SuggestedIssue = {
   comments: number;
   language: string;
   stars: number;
+  /** Difficulty v2 and friends, present only with OPENSRCER_RECS for catalog issues. */
+  recs?: IssueInsight;
 };
+
+function validInsight(value: unknown): value is IssueInsight {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const recs = value as Partial<IssueInsight>;
+  return (recs.difficulty === null || (Number.isInteger(recs.difficulty) && recs.difficulty! >= 1 && recs.difficulty! <= 5))
+    && Array.isArray(recs.reasons) && recs.reasons.length <= 20 && recs.reasons.every((reason) => typeof reason === "string" && reason.length <= 300)
+    && typeof recs.testable === "boolean"
+    && (recs.unreachableReason === null || (typeof recs.unreachableReason === "string" && recs.unreachableReason.length <= 300))
+    && Number.isSafeInteger(recs.workedExamples) && recs.workedExamples! >= 0;
+}
 
 const LANGUAGES = [
   "python", "typescript", "javascript", "rust", "go", "java", "c", "cpp", "ruby", "swift",
@@ -41,7 +54,8 @@ function validIssue(value: unknown): value is SuggestedIssue {
     && typeof issue.updatedAt === "string" && Number.isFinite(Date.parse(issue.updatedAt))
     && Number.isSafeInteger(issue.comments) && issue.comments! >= 0
     && typeof issue.language === "string" && issue.language.length <= 100
-    && Number.isSafeInteger(issue.stars) && issue.stars! >= 0;
+    && Number.isSafeInteger(issue.stars) && issue.stars! >= 0
+    && (issue.recs === undefined || validInsight(issue.recs));
 }
 
 function validSuggestions(value: unknown): value is CachedSuggestions {
@@ -62,6 +76,8 @@ export function SuggestedIssues() {
   const [selectedLangs, setSelectedLangs] = useState<string[]>(["python", "typescript"]);
   const [expanded, setExpanded] = useState(true);
   const [tags, setTags] = useState<"strict" | "broad">("strict");
+  const [testableOnly, setTestableOnly] = useState(false);
+  const shown = testableOnly ? issues.filter((issue) => issue.recs?.testable) : issues;
 
   function toggleLang(lang: string) {
     setSelectedLangs((previous) =>
@@ -196,6 +212,19 @@ export function SuggestedIssues() {
                 ))}
               </div>
             </fieldset>
+            {/* Only when the recommendations index knows some of these issues. */}
+            {issues.some((issue) => issue.recs) && (
+              <button
+                type="button"
+                onClick={() => setTestableOnly((value) => !value)}
+                aria-pressed={testableOnly}
+                className="pill"
+                data-size="sm"
+                data-edge=""
+              >
+                Testable here
+              </button>
+            )}
           </div>
           <button
             type="button"
@@ -240,9 +269,13 @@ export function SuggestedIssues() {
           </div>
         )}
 
-        {issues.length > 0 && (
+        {issues.length > 0 && shown.length === 0 && (
+          <p className="border-y border-border-soft py-10 text-[15px] text-paper-muted">None of these issues are in a project whose tests run here yet.</p>
+        )}
+
+        {shown.length > 0 && (
           <div className="ruled">
-            {issues.map((issue) => (
+            {shown.map((issue) => (
               <article key={issue.url} className="group py-[18px]">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <div className="min-w-0 flex-1">
@@ -254,6 +287,8 @@ export function SuggestedIssues() {
                       {issue.language && <span>{issue.language.toLowerCase()}</span>}
                       <span>updated {timeAgo(issue.updatedAt)}</span>
                       {issue.comments > 0 && <span>{issue.comments} comment{issue.comments === 1 ? "" : "s"}</span>}
+                      {issue.recs?.difficulty != null && <span title={issue.recs.reasons.join("; ") || undefined}>difficulty {issue.recs.difficulty}/5</span>}
+                      <TestableTag recs={issue.recs} />
                       {issue.labels.slice(0, 2).map((label) => (
                         <span
                           key={label}
@@ -286,6 +321,7 @@ export function SuggestedIssues() {
                     </a>
                   </div>
                 </div>
+                <DifficultyAndExamples repo={issue.repo} number={issue.number} recs={issue.recs} className="mt-2" />
               </article>
             ))}
           </div>

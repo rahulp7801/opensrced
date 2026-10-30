@@ -5,6 +5,7 @@ import { recordScan } from "@/lib/stats";
 import { sessionUserId } from "@/lib/require-session";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { parseRunTarget } from "@/lib/run-target";
+import { attachInsights } from "@/lib/recs/rank";
 
 export const maxDuration = 60;
 
@@ -59,7 +60,8 @@ export async function GET(req: NextRequest) {
       total: issues.length,
       solvable: issues.filter((i) => i.solvable).length,
       policy,
-      issues,
+      // Difficulty v2, "testable here" and worked examples when OPENSRCER_RECS is on.
+      issues: await attachInsights(issues, () => `${parsed.owner}/${parsed.repo}`),
     });
   } catch (err) {
     return NextResponse.json(

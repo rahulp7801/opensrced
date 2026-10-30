@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { IconArrow, IconChevronDown, IconSearch } from "./icons";
+import { DifficultyAndExamples, TestableTag, type IssueInsight } from "./worked-examples";
 
 type ScopeBucket = "doc" | "leaf" | "cross-file" | "refactor" | "new-file" | "unknown";
 
@@ -42,6 +43,8 @@ type DiscoverIssue = {
   solvable: boolean;
   reason: string;
   scope: ScopeInfo;
+  /** Difficulty v2 and friends, present only with OPENSRCER_RECS for catalog issues. */
+  recs?: IssueInsight;
 };
 
 type DiscoverResponse = {
@@ -102,6 +105,7 @@ export function DiscoverScanner() {
     "any",
   );
   const [solvableOnly, setSolvableOnly] = useState(true);
+  const [testableOnly, setTestableOnly] = useState(false);
 
   const request = useRef<AbortController | null>(null);
   useEffect(() => () => request.current?.abort(), []);
@@ -138,12 +142,13 @@ export function DiscoverScanner() {
 
   const now = Date.now();
   // Any filter narrower than "everything": offer a one-click way back.
-  const filtersNarrow = ageFilter !== "any" || difficulty !== "any" || scopeFilter !== "any" || solvableOnly;
+  const filtersNarrow = ageFilter !== "any" || difficulty !== "any" || scopeFilter !== "any" || solvableOnly || testableOnly;
   function showAll() {
     setAgeFilter("any");
     setDifficulty("any");
     setScopeFilter("any");
     setSolvableOnly(false);
+    setTestableOnly(false);
   }
 
   const filtered = useMemo(() => {
@@ -156,13 +161,16 @@ export function DiscoverScanner() {
         if (!Number.isFinite(t)) return false;
         if (now - t > ageMs) return false;
       }
-      if (difficulty === "easy" && i.complexity > 2) return false;
-      if (difficulty === "medium" && (i.complexity < 3 || i.complexity > 3)) return false;
-      if (difficulty === "hard" && i.complexity < 4) return false;
+      // Difficulty v2 when the recommendations index has the issue.
+      const level = i.recs?.difficulty ?? i.complexity;
+      if (difficulty === "easy" && level > 2) return false;
+      if (difficulty === "medium" && (level < 3 || level > 3)) return false;
+      if (difficulty === "hard" && level < 4) return false;
       if (scopeFilter !== "any" && i.scope.bucket !== scopeFilter) return false;
+      if (testableOnly && !i.recs?.testable) return false;
       return true;
     });
-  }, [data, ageFilter, difficulty, scopeFilter, solvableOnly, now]);
+  }, [data, ageFilter, difficulty, scopeFilter, solvableOnly, testableOnly, now]);
 
   return (
     <div>
@@ -314,6 +322,18 @@ export function DiscoverScanner() {
               >
                 Only issues ready for a fix
               </button>
+              {/* Only when the recommendations index knows some of these issues. */}
+              {data.issues.some((i) => i.recs) && (
+                <button
+                  type="button"
+                  onClick={() => setTestableOnly((v) => !v)}
+                  aria-pressed={testableOnly}
+                  className="pill"
+                  data-size="sm"
+                >
+                  Testable here
+                </button>
+              )}
               {filtersNarrow && (
                 <button type="button" onClick={showAll} className="link min-h-10 px-1 text-[13px] font-medium">
                   Show all
@@ -363,8 +383,10 @@ export function DiscoverScanner() {
                         <p className="meta mt-2 items-center font-sans text-[14px]">
                           <span className="first-letter:uppercase"><ScopeBadge s={i.scope} /></span>
                           <span>about {fmtMinutes(i.est_minutes)}</span>
-                          <span className="inline-flex items-center gap-1.5">difficulty <ComplexityPips value={i.complexity} /></span>
+                          <span className="inline-flex items-center gap-1.5" title={i.recs?.reasons.join("; ") || undefined}>difficulty <ComplexityPips value={i.recs?.difficulty ?? i.complexity} /></span>
+                          <TestableTag recs={i.recs} />
                         </p>
+                        <DifficultyAndExamples repo={i.repo.fullName} number={i.number} recs={i.recs} className="mt-2" />
                       </div>
                       <div className="flex shrink-0 items-center gap-4">
                         <button

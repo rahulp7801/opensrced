@@ -15,6 +15,13 @@
       "when": 1793340060115,
       "tag": "0001_recs",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793380621910,
+      "tag": "0002_lesson_store",
+      "breakpoints": true
     }
   ]
 }

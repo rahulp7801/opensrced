@@ -13,7 +13,7 @@ import { siteUrl } from "../site-url";
 import type { LessonDeps } from "./api";
 import { answerKeyStatus, defaultContextDeps, loadLessonContext } from "./context";
 import { chooseRuntime } from "./runtime";
-import { lessonStore } from "./store";
+import { lessonStore } from "./db-store";
 
 export function defaultLessonDeps(): LessonDeps {
   return {

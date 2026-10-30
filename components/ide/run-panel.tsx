@@ -22,7 +22,7 @@ export function RunPanel({ lessonId, defaultCommand, getDiff }: { lessonId: stri
     const style = document.createElement("style");
     style.textContent = xtermCss;
     document.head.append(style);
-    const terminal = new Terminal({ convertEol: true, fontSize: 13, fontFamily: "var(--font-mono), monospace", theme: { background: "#1e1e1e" }, disableStdin: true });
+    const terminal = new Terminal({ convertEol: true, fontSize: 13, fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", theme: { background: "#1e1e1e" }, disableStdin: true });
     const fit = new FitAddon();
     terminal.loadAddon(fit);
     terminal.open(host.current!);

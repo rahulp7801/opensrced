@@ -20,6 +20,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     || (body.question !== undefined && (typeof body.question !== "string" || body.question.length > 2_000))) {
     return Response.json({ error: "Expected { selection: string, file: string, question?: string }" }, { status: 400 });
   }
-  const lines = body.selection ? body.selection.split("\n").length : 0;
+  // A whole-line selection ends in a newline; that doesn't start another line.
+  const lines = body.selection ? body.selection.replace(/\r?\n$/, "").split("\n").length : 0;
   return Response.json({ reply: `The teacher isn't connected yet. It received ${lines} selected line${lines === 1 ? "" : "s"} from ${body.file || "no file"}.` });
 }

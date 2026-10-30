@@ -57,11 +57,21 @@ function pyright() {
     await provider.init(monaco as unknown as Parameters<typeof provider.init>[0]);
     // The package wires diagnostics to one standalone editor. In the workbench
     // editors come and go, so send whichever Python model the contributor is
-    // in, and only apply diagnostics that belong to the text pyright last saw.
+    // in, and only apply diagnostics while that model still holds the text we sent.
     const client = provider.lspClient;
+    // Pyright sees one file, so every import of another repo module or a
+    // dependency would be an error. Silence those; the rest still reports.
+    // (Same settings the package sends, plus the overrides.)
+    await client.connection.sendNotification("workspace/didChangeConfiguration", {
+      settings: { python: { pythonVersion: "3.13", pythonPlatform: "All", analysis: {
+        typeshedPaths: ["/typeshed-fallback"],
+        diagnosticSeverityOverrides: { reportMissingImports: "none", reportMissingModuleSource: "none", reportAttributeAccessIssue: "none" },
+      } } },
+    });
     let current: monaco.editor.ITextModel | null = null;
+    let sent = "";
     client.setupDiagnosticsCallback((diagnostics) => {
-      if (!current || current.isDisposed() || current.getValue() !== client.docText) return;
+      if (!current || current.isDisposed() || current.getValue() !== sent) return;
       monaco.editor.setModelMarkers(current, "Pyright", diagnostics.map((d) => ({
         startLineNumber: d.range.start.line + 1, startColumn: d.range.start.character + 1,
         endLineNumber: d.range.end.line + 1, endColumn: d.range.end.character + 1,
@@ -74,7 +84,11 @@ function pyright() {
       if (!model || model.getLanguageId() !== "python") return;
       current = model;
       clearTimeout(timer);
-      timer = setTimeout(() => { if (!model.isDisposed()) void client.updateDocVersion(model.getValue()); }, 400);
+      timer = setTimeout(() => {
+        if (model.isDisposed()) return;
+        sent = model.getValue();
+        void client.updateDocVersion(sent);
+      }, 400);
     };
     const watch = (editor: monaco.editor.ICodeEditor) => {
       send(editor.getModel());

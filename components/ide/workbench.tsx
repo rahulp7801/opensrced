@@ -49,6 +49,8 @@ function startWorkbench(container: HTMLElement, { repo, sha, lessonId }: IdeProp
         "files.autoSave": "afterDelay",
         "files.autoSaveDelay": 500,
         "workbench.startupEditor": "none",
+        // One row per folder: easier to follow for someone new to the repo.
+        "explorer.compactFolders": false,
         "window.commandCenter": false,
         "workbench.layoutControl.enabled": false,
       },

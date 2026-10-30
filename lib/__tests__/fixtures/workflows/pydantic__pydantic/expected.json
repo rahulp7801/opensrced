@@ -1,0 +1,65 @@
+{
+  "workflow": ".github/workflows/ci.yml",
+  "job": "test",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "pydantic/pydantic",
+    "source": "ci",
+    "runtimes": {
+      "uv": "latest",
+      "python": "3.15"
+    },
+    "services": [],
+    "env": {
+      "COLUMNS": "150",
+      "UV_FROZEN": "true",
+      "FORCE_COLOR": "1",
+      "OS": "ubuntu-latest",
+      "DEPS": "yes",
+      "UV_PYTHON_PREFERENCE": "only-managed"
+    },
+    "setup": [
+      "uv sync --all-packages --group testing-extra --all-extras",
+      "uv run python -c \"import pydantic.version; print(pydantic.version.version_info())\"",
+      "mkdir coverage"
+    ],
+    "test": [
+      "COVERAGE_FILE='coverage/.coverage.Linux-py3.15' CONTEXT='Linux-py3.15-without-deps' bash -e -c 'make test NUM_THREADS=1'"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 900000
+    }
+  },
+  "notes": [
+    "job core-build skipped: its if: is false here",
+    "job core-build-pgo skipped: its if: is false here",
+    "job core-test-python-debug skipped: its if: is false here",
+    "job build-pydantic skipped: its if: is false here",
+    "job release-pydantic skipped: its if: is false here",
+    "job test-fastapi skipped: its if: is false here",
+    "job test-sqlmodel skipped: its if: is false here",
+    "job test-beanie skipped: its if: is false here",
+    "job test-openapi-python-client skipped: its if: is false here",
+    "job test-pandera skipped: its if: is false here",
+    "job test-odmantic skipped: its if: is false here",
+    "job test-polar skipped: its if: is false here",
+    "job test-bentoml skipped: its if: is false here",
+    "job test-semantic-kernel skipped: its if: is false here",
+    "job test-langchain skipped: its if: is false here",
+    "job test-dify skipped: its if: is false here",
+    "job test-cadwyn skipped: its if: is false here",
+    "job test-pydantic-xml skipped: its if: is false here",
+    "job test-redis-om skipped: its if: is false here",
+    "job test-django-ninja skipped: its if: is false here",
+    "job test-fastdepends skipped: its if: is false here",
+    "job test-mcp-python-sdk skipped: its if: is false here",
+    "job test-fastmcp skipped: its if: is false here",
+    "ci: candidates ci.yml#test=9, ci.yml#test-typing-extensions=9, ci.yml#core-test-os=9, ci.yml#core-test-debug=9",
+    "ci: .github/workflows/ci.yml job test (matrix: os=ubuntu-latest, python-version=3.15)",
+    "skipped \"Run pytest (no coverage)\": its if: is false here"
+  ]
+}

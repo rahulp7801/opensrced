@@ -1,0 +1,33 @@
+{
+  "workflow": ".github/workflows/ci.yml",
+  "job": "test",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "serde-rs/serde",
+    "source": "ci",
+    "runtimes": {
+      "rust": "nightly"
+    },
+    "services": [],
+    "env": {
+      "RUSTFLAGS": "-Dwarnings"
+    },
+    "setup": [],
+    "test": [
+      "(cd test_suite && cargo test --features unstable)"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 2700000
+    }
+  },
+  "notes": [
+    "job clippy skipped: its if: is false here",
+    "job outdated skipped: its if: is false here",
+    "ci: candidates ci.yml#test=9, ci.yml#windows=9(non_linux), ci.yml#nightly=2, ci.yml#stable=1",
+    "ci: .github/workflows/ci.yml job test"
+  ]
+}

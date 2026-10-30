@@ -1,0 +1,54 @@
+name: Setup Playwright
+description: Setup and cache Playwright browser binaries
+
+inputs:
+  browsers:
+    required: false
+    default: chromium
+    description: 'Playwright browsers to install: "chromium" (headless shell only) or "all"'
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve package versions
+      id: resolve-package-versions
+      shell: bash
+      run: >
+        echo "$(
+          node -e "
+            const fs = require('fs');
+            const lockfile = fs.readFileSync('./pnpm-lock.yaml', 'utf8');
+            const pattern = (name) => new RegExp(name + ':\\\s+specifier: [\\\s\\\w\\\.^]+version: (\\\d+\\\.\\\d+\\\.\\\d+)');
+            const playwrightVersion = lockfile.match(pattern('playwright'))[1];
+            console.log('PLAYWRIGHT_VERSION=' + playwrightVersion);
+          "
+        )" >> $GITHUB_OUTPUT
+
+    - name: Check resolved package versions
+      shell: bash
+      if: |
+        contains(fromJSON('[null, "", "undefined"]'), steps.resolve-package-versions.outputs.PLAYWRIGHT_VERSION)
+      run: echo "Failed to resolve package versions. See log above." && exit 1
+
+    - name: Cache Playwright v${{ steps.resolve-package-versions.outputs.PLAYWRIGHT_VERSION }}
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      id: playwright-cache
+      with:
+        path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
+        key: ${{ runner.os }}-playwright-${{ inputs.browsers }}-${{ steps.resolve-package-versions.outputs.PLAYWRIGHT_VERSION }}
+        restore-keys: |
+          ${{ runner.os }}-playwright-${{ inputs.browsers }}-
+
+    # System libraries are never installed here: Linux jobs that need them run
+    # inside the playwright-deps container image (see .github/docker/Dockerfile), and
+    # Windows/macOS need no system deps (--with-deps on Windows is a slow ~3min
+    # Media Foundation DISM).
+    - name: Install Playwright chromium (cache miss)
+      shell: bash
+      if: steps.playwright-cache.outputs.cache-hit != 'true' && inputs.browsers != 'all'
+      run: pnpm --filter @vitest/test-browser exec playwright install chromium --only-shell
+
+    - name: Install Playwright browsers (cache miss)
+      shell: bash
+      if: steps.playwright-cache.outputs.cache-hit != 'true' && inputs.browsers == 'all'
+      run: pnpm --filter @vitest/test-browser exec playwright install --only-shell

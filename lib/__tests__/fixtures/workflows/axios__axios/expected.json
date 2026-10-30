@@ -1,0 +1,12 @@
+{
+  "workflow": ".github/workflows/run-ci.yml",
+  "job": "build-and-run-vitest",
+  "unreachable": "self_hosted",
+  "partial": false,
+  "unknownActions": [],
+  "recipe": null,
+  "notes": [
+    "ci: candidates run-ci.yml#build-and-run-vitest=9(self_hosted), run-ci.yml#cjs-module-tests=7(self_hosted), run-ci.yml#esm-module-tests=7(self_hosted), run-ci.yml#cjs-smoke-tests=3(self_hosted)",
+    "the test job .github/workflows/run-ci.yml#build-and-run-vitest runs on self_hosted"
+  ]
+}

@@ -1,0 +1,17 @@
+name: Set up Test JDK
+description: Sets up the JDK required to run platform-tooling-support-tests
+inputs:
+  distribution:
+    required: true
+    description: 'The JDK distribution to use'
+    default: 'temurin'
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      with:
+        distribution: ${{ inputs.distribution }}
+        java-version: 17
+        check-latest: true
+    - shell: bash
+      run: echo "JDK17=$JAVA_HOME" >> $GITHUB_ENV # zizmor: ignore[github-env]

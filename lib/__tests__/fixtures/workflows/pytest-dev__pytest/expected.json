@@ -1,0 +1,35 @@
+{
+  "workflow": ".github/workflows/test.yml",
+  "job": "build",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "pytest-dev/pytest",
+    "source": "ci",
+    "runtimes": {
+      "python": "3.15",
+      "uv": "latest"
+    },
+    "services": [],
+    "env": {
+      "PYTEST_ADDOPTS": "--color=yes"
+    },
+    "setup": [
+      "PYTHON_VERSION='3.15' bash --noprofile --norc -eo pipefail -c 'if [ -n \"$PYTHON_VERSION\" ]; then\n  uv tool install --python \"$PYTHON_VERSION\" tox --with tox-uv\nelse\n  uv tool install tox --with tox-uv\nfi'"
+    ],
+    "test": [
+      "_PYTEST_TOX_POSARGS_JUNIT='--junitxml=junit.xml' bash --noprofile --norc -eo pipefail -c 'tox run -e py315-coverage --installpkg `find dist/*.tar.gz`'"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 2700000
+    }
+  },
+  "notes": [
+    "ci: candidates test.yml#build=4, test.yml#package=1, test.yml#check=1",
+    "ci: .github/workflows/test.yml job build (matrix: name=ubuntu-py315, python=3.15, os=ubuntu-latest, tox_env=py315, use_coverage=true)",
+    "skipped \"Test without coverage\": its if: is false here"
+  ]
+}

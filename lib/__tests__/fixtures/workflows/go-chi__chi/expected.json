@@ -1,0 +1,31 @@
+{
+  "workflow": ".github/workflows/ci.yml",
+  "job": "test",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "go-chi/chi",
+    "source": "ci",
+    "runtimes": {
+      "go": "1.27"
+    },
+    "services": [],
+    "env": {
+      "GOPATH": "$GITHUB_WORKSPACE"
+    },
+    "setup": [],
+    "test": [
+      "bash -e -c 'go get -d -t ./...\nmake test'"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 900000
+    }
+  },
+  "notes": [
+    "ci: candidates ci.yml#test=9",
+    "ci: .github/workflows/ci.yml job test (matrix: go-version=1.27.x, os=ubuntu-latest)"
+  ]
+}

@@ -1,0 +1,106 @@
+name: Sanitizes assigned labels and milestone on closed issues
+on:
+  issues:
+    types:
+      - closed
+permissions: {}
+jobs:
+  label_issues:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const issue = await github.rest.issues.get({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            const originalLabels = issue.data.labels.map(l => l.name);
+            const newLabels = originalLabels.filter(l => l !== "status: in progress" && l !== "status: new" && l !== "status: waiting-for-feedback" && l !== "status: waiting-for-interest");
+            if (newLabels.length !== originalLabels.length) {
+              await github.rest.issues.update({
+                issue_number: issue.data.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                labels: newLabels,
+              });
+            }
+            if (issue.data.state_reason === "not_planned" || issue.data.state_reason === "duplicate") {
+              if (issue.data.milestone) {
+                await github.rest.issues.update({
+                  issue_number: issue.data.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  milestone: null,
+                });
+              }
+              const statusLabels = newLabels.filter(l => l.startsWith("status: "));
+              if (statusLabels.length === 0) {
+                if (issue.data.state_reason === "not_planned") {
+                  await github.rest.issues.createComment({
+                    issue_number: issue.data.number,
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    body: "Please assign a status label to this issue.",
+                  });
+                  await github.rest.issues.update({
+                    issue_number: issue.data.number,
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    state: "open",
+                  });
+                } else {
+                  newLabels.push("status: duplicate");
+                  await github.rest.issues.update({
+                    issue_number: issue.data.number,
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    labels: newLabels,
+                  });
+                }
+              }
+            } else {
+              if (!(newLabels.includes("type: task") || newLabels.includes("type: question")) && !issue.data.milestone) {
+                let collaborator;
+                try {
+                  await github.rest.repos.checkCollaborator({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    username: context.actor,
+                  });
+                  collaborator = true;
+                } catch (error) {
+                  collaborator = false;
+                }
+                if (collaborator) {
+                  await github.rest.issues.createComment({
+                    issue_number: issue.data.number,
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    body: "Please assign a milestone to this issue or label it with `type: task` or `type: question` – or assign a status label and close it as _not planned_.",
+                  });
+                  await github.rest.issues.update({
+                    issue_number: issue.data.number,
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    state: "open",
+                  });
+                } else {
+                  const statusLabels = newLabels.filter(l => l.startsWith("status: "));
+                  if (statusLabels.length === 0) {
+                    newLabels.push("status: invalid");
+                  }
+                  await github.rest.issues.update({
+                    issue_number: issue.data.number,
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    labels: newLabels,
+                    state: "closed",
+                    state_reason: "not_planned",
+                  });
+                }
+              }
+            }

@@ -112,3 +112,26 @@ test("exec prompt: enumerate variants, one test each, fix at the owning layer, r
   assert.match(p, /Do not put a diff in your answer/);
   assert.doesNotMatch(buildExecPrompt("o/r", 7, "x"), /minutes of wall-clock/);
 });
+
+test("exec prompt: a detected recipe replaces the image's runtime claim and lists its commands", () => {
+  const recipe = {
+    repo: "o/r", source: "ci" as const, runtimes: { python: "3.13", uv: "latest" }, services: [{ name: "postgres", image: "postgres:16", ports: [5432] }],
+    env: { DJANGO_SETTINGS: "test" }, setup: ["uv sync --group test"], test: ["uv run pytest -n auto"],
+    testRelated: { kind: "pytest-files" as const, template: "uv run pytest {targets}" }, lint: ["uv run ruff check ."], timeouts: { setupMs: 1, testMs: 1 },
+  };
+  const p = buildExecPrompt("o/r", 7, "x", "notes", 20, recipe);
+  assert.doesNotMatch(p, /python3\.11/);
+  assert.match(p, /the runtimes the host set up for this repository \(python 3\.13, uv latest\)/);
+  assert.match(p, /## The repository's environment/);
+  assert.match(p, /Already run \(do not repeat unless it failed\):\n- `uv sync --group test`/);
+  assert.match(p, /The full test suite .*\n- `uv run pytest -n auto`/);
+  assert.match(p, /Related tests only .*`uv run pytest \{targets\}`, with `\{targets\}` replaced by the test files you touch/);
+  assert.match(p, /Services started: postgres \(postgres:16, port 5432\)/);
+  assert.match(p, /`DJANGO_SETTINGS=test`/);
+  assert.match(p, /`uv run ruff check \.`/);
+  // Flag off (no recipe): the original text, unchanged.
+  const plain = buildExecPrompt("o/r", 7, "x", "notes", 20);
+  assert.match(plain, /node 24 with npm\/yarn, python3\.11 with venv\/pip\/uv, pre-commit/);
+  assert.doesNotMatch(plain, /repository's environment/);
+  assert.equal(buildExecPrompt("o/r", 7, "x", "notes", 20, null), plain);
+});

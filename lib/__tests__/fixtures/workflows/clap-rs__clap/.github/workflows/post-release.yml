@@ -1,0 +1,55 @@
+name: post-release
+
+permissions:
+  contents: read
+
+on:
+  push:
+    tags:
+    - "v*"
+
+jobs:
+  create-release:
+    permissions:
+      contents: write
+    name: create-release
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ env.TAG }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      with:
+        fetch-depth: 1
+        persist-credentials: false
+    - name: Get the release version from the tag
+      if: env.TAG == ''
+      run: echo "TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+    - name: Show the tag
+      run: |
+        echo "tag is: $TAG"
+    - name: Generate Release Notes
+      run: |
+        ./.github/workflows/release-notes.py --tag ${TAG} --output notes-${TAG}.md
+        cat notes-${TAG}.md
+    - name: Create GitHub release
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: gh release create $TAG --verify-tag --draft --title $TAG --notes-file notes-${TAG}.md
+  publish-release:
+    permissions:
+      contents: write
+    name: Publish Release
+    needs: [create-release]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      with:
+        fetch-depth: 1
+        persist-credentials: false
+    - name: Publish Release
+      env:
+        GH_TOKEN: ${{ github.token }}
+        NEEDS_CREATE_RELEASE_OUTPUTS_TAG: ${{ needs.create-release.outputs.tag }}
+      run: gh release edit "${NEEDS_CREATE_RELEASE_OUTPUTS_TAG}" --draft=false

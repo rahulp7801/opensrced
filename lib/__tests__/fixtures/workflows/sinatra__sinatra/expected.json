@@ -1,0 +1,43 @@
+{
+  "workflow": ".github/workflows/test.yml",
+  "job": "sinatra",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "sinatra/sinatra",
+    "source": "ci",
+    "runtimes": {
+      "ruby": "4.0"
+    },
+    "services": [],
+    "env": {
+      "rack": "stable",
+      "rack_session": "stable",
+      "puma": "stable",
+      "tilt": "stable",
+      "zeitwerk": "stable",
+      "RUBYOPT": ""
+    },
+    "setup": [
+      "bash -e -c 'sudo apt-get update\nsudo apt-get install --yes \\\n  pandoc \\\n  nodejs \\\n  pkg-config \\\n  libxml2-dev \\\n  libxslt-dev \\\n  libyaml-dev'"
+    ],
+    "test": [
+      "bundle exec rake",
+      "(cd 'sinatra-contrib' && bash -e -c 'bundle install --jobs=3 --retry=3\nbundle exec rake')"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 900000
+    }
+  },
+  "notes": [
+    "ci: candidates test.yml#sinatra=6, test.yml#rack-protection=6, release.yml#release=-1",
+    "ci: .github/workflows/test.yml job sinatra (matrix: ruby=4.0, rack=stable, puma=stable, tilt=stable, rack_session=stable, zeitwerk=stable)",
+    "dropped \"sinatra step 6\": only prints",
+    "dropped \"sinatra step 7\": only prints",
+    "dropped \"sinatra step 8\": only prints",
+    "skipped \"zzak/action-discord@v6\": its if: is false here"
+  ]
+}

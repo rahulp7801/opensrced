@@ -49,7 +49,7 @@ export type ContribProfile = {
 const MAX_DOC_BYTES = 200_000;
 
 /** Read a regular file inside `dir`, never through a symlink. */
-function readDoc(dir: string, rel: string): string | null {
+export function readDoc(dir: string, rel: string, maxBytes = MAX_DOC_BYTES): string | null {
   const parts = rel.split("/");
   let current = dir;
   try {
@@ -58,7 +58,7 @@ function readDoc(dir: string, rel: string): string | null {
       if (lstatSync(current).isSymbolicLink()) return null;
     }
     const stat = lstatSync(current);
-    if (!stat.isFile() || stat.size > MAX_DOC_BYTES) return null;
+    if (!stat.isFile() || stat.size > maxBytes) return null;
     return readFileSync(current, "utf8");
   } catch {
     return null;
@@ -248,13 +248,20 @@ const SETUP: Record<string, SetupPlan> = {
   },
 };
 
+/** A repository we set up by hand (lib/env/detect.ts's first layer):
+ *  its plan, null when it is deliberately left to the agent (pytorch's
+ *  nightly-wheel overlay, see the profile notes), undefined when none. */
+export function builtinSetup(repo: string): SetupPlan | null | undefined {
+  const key = repo.toLowerCase();
+  if (key === "pytorch/pytorch") return null;
+  return SETUP[key === "react/react" ? "facebook/react" : key];
+}
+
 /** The environment recipe for a checkout: a built-in one, else detected from
  *  its lockfiles/manifests, else null (the agent sets up what it needs). */
 export function setupPlan(dir: string, repo: string): SetupPlan | null {
-  const key = repo.toLowerCase();
-  const builtin = SETUP[key === "react/react" ? "facebook/react" : key];
-  if (builtin) return builtin;
-  if (key === "pytorch/pytorch") return null; // nightly-wheel overlay is left to the agent (profile notes)
+  const builtin = builtinSetup(repo);
+  if (builtin !== undefined) return builtin;
   const has = (f: string) => readDoc(dir, f) !== null || lockSize(dir, f) > 0;
   if (has("package.json") && has("yarn.lock")) return { commands: ["yarn install --frozen-lockfile --ignore-engines"], hashFiles: ["yarn.lock"], persistent: false, hint: "Node dependencies are installed (yarn). Run the repository's test script on the files you touch." };
   if (has("package.json") && has("package-lock.json")) return { commands: ["npm ci --no-audit --no-fund"], hashFiles: ["package-lock.json"], persistent: false, hint: "Node dependencies are installed (npm ci). Run the repository's test script on the files you touch." };

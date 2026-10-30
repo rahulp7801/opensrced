@@ -1,0 +1,38 @@
+{
+  "workflow": ".github/workflows/pythonpackage.yml",
+  "job": "build",
+  "unreachable": null,
+  "partial": true,
+  "unknownActions": [
+    "snok/install-poetry@v1.3.4"
+  ],
+  "recipe": {
+    "repo": "Textualize/rich",
+    "source": "ci",
+    "runtimes": {
+      "python": "3.14"
+    },
+    "services": [],
+    "env": {},
+    "setup": [
+      "poetry install"
+    ],
+    "test": [
+      "bash --noprofile --norc -eo pipefail -c 'source $VENV\npytest tests -v --cov=./rich --cov-report=xml:./coverage.xml --cov-report term-missing'"
+    ],
+    "lint": [
+      "bash --noprofile --norc -eo pipefail -c 'source $VENV\nmake format-check'",
+      "bash --noprofile --norc -eo pipefail -c 'source $VENV\nmake typecheck'"
+    ],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 900000
+    }
+  },
+  "notes": [
+    "ci: candidates pythonpackage.yml#build=6, readmechanged.yml#send_notification=0, codeql.yml#analyze=-2, codespell.yml#codespell=-6",
+    "ci: .github/workflows/pythonpackage.yml job build (matrix: os=ubuntu-latest, python-version=3.14)",
+    "\"Install dependencies\": unresolved steps.cached-poetry-dependencies",
+    "partial: unknown action snok/install-poetry@v1.3.4 runs before the tests"
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "workflow": ".github/workflows/ci.yml",
+  "job": "test_on_node",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "eslint/eslint",
+    "source": "ci",
+    "runtimes": {
+      "node": "26"
+    },
+    "services": [],
+    "env": {},
+    "setup": [
+      "npm install"
+    ],
+    "test": [
+      "NODE_OPTIONS='' bash -e -c 'node Makefile mocha'",
+      "node Makefile fuzz",
+      "npm run test:emfile"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 900000
+    }
+  },
+  "notes": [
+    ".github/workflows/ci.yml job test_package_manager: reusable workflow eslint/workflows/.github/workflows/ci-package-manager.yml@main not inlined",
+    "job report_failures skipped: its if: is false here",
+    "ci: candidates ci.yml#test_on_node=9, ci.yml#test_on_browser=9, ci.yml#test_types=9, ci.yml#pnpm_test=9",
+    "ci: .github/workflows/ci.yml job test_on_node (matrix: os=ubuntu-latest, node=26.x, NODE_OPTIONS=)"
+  ]
+}

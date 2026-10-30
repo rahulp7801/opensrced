@@ -1,0 +1,31 @@
+name: Issue Close Require
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  close-stale:
+    runs-on: ubuntu-slim
+    name: Close Marked Issues and PRs
+    permissions:
+      issues: write # to close issues
+      pull-requests: write # to close pull requests
+    steps:
+      - name: needs reproduction
+        uses: $/.github/actions/issues-helper
+        with:
+          actions: close-issues
+          token: ${{ secrets.GITHUB_TOKEN }}
+          labels: needs reproduction
+          inactive-day: 3
+      - name: maybe automated
+        uses: $/.github/actions/issues-helper
+        with:
+          actions: close-issues
+          token: ${{ secrets.GITHUB_TOKEN }}
+          labels: maybe automated
+          inactive-day: 1

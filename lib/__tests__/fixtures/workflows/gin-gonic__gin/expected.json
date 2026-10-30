@@ -1,0 +1,33 @@
+{
+  "workflow": ".github/workflows/gin.yml",
+  "job": "test",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "gin-gonic/gin",
+    "source": "ci",
+    "runtimes": {
+      "go": "1.27"
+    },
+    "services": [],
+    "env": {
+      "GO111MODULE": "on",
+      "TESTTAGS": "",
+      "GOPROXY": "https://proxy.golang.org"
+    },
+    "setup": [],
+    "test": [
+      "make test"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 900000
+    }
+  },
+  "notes": [
+    "ci: candidates gin.yml#test=9, codeql.yml#analyze=-2, gin.yml#lint=-3, goreleaser.yml#goreleaser=-6",
+    "ci: .github/workflows/gin.yml job test (matrix: os=ubuntu-latest, go=1.27, test-tags=, go-build=~/.cache/go-build)"
+  ]
+}

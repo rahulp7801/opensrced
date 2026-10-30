@@ -24,11 +24,23 @@ test("API-key runs and exploration do not gain the sign-in hosts", () => {
   }
 });
 
-test("the exec VM reaches only package registries and git hosts", () => {
-  assert.deepEqual([...hosts(EXEC_EGRESS)].sort(), [
-    "codeload.github.com", "download.pytorch.org", "files.pythonhosted.org", "github.com", "objects.githubusercontent.com",
-    "pypi.org", "registry.npmjs.org", "registry.yarnpkg.com", "release-assets.githubusercontent.com",
-  ]);
+test("the exec VM reaches only package registries, runtime and image hosts, and git hosts (PLAN §5.6)", () => {
+  const byEcosystem = {
+    python: ["pypi.org", "files.pythonhosted.org", "download.pytorch.org"],
+    js: ["registry.npmjs.org", "registry.yarnpkg.com"],
+    git: ["github.com", "codeload.github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com"],
+    rust: ["crates.io", "index.crates.io", "static.crates.io", "static.rust-lang.org"],
+    go: ["proxy.golang.org", "sum.golang.org", "storage.googleapis.com", "go.dev", "dl.google.com"],
+    ruby: ["rubygems.org", "index.rubygems.org"],
+    jvm: ["repo.maven.apache.org", "repo1.maven.org", "plugins.gradle.org", "services.gradle.org", "downloads.gradle.org"],
+    php: ["packagist.org", "repo.packagist.org"],
+    conda: ["conda.anaconda.org", "repo.anaconda.com"],
+    containers: ["registry-1.docker.io", "auth.docker.io", "production.cloudflare.docker.com", "ghcr.io", "pkg-containers.githubusercontent.com", "mcr.microsoft.com"],
+    apt: ["archive.ubuntu.com", "security.ubuntu.com", "deb.debian.org"],
+    runtimes: ["nodejs.org", "mise.jdx.dev"],
+  };
+  assert.deepEqual([...hosts(EXEC_EGRESS)].sort(), Object.values(byEcosystem).flat().sort());
+  assert.equal(new Set(hosts(EXEC_EGRESS)).size, hosts(EXEC_EGRESS).length, "no duplicates");
   // Nothing that holds or accepts the run's credentials.
   for (const host of ["api.github.com", "api.anthropic.com", "vercel.com", "*.blob.vercel-storage.com", "generativelanguage.googleapis.com"]) {
     assert.ok(!hosts(EXEC_EGRESS).includes(host), host);

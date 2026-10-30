@@ -1,0 +1,33 @@
+{
+  "workflow": ".github/workflows/run-tests.yml",
+  "job": "build",
+  "unreachable": null,
+  "partial": false,
+  "unknownActions": [],
+  "recipe": {
+    "repo": "psf/requests",
+    "source": "ci",
+    "runtimes": {
+      "python": "3.14"
+    },
+    "services": [],
+    "env": {},
+    "setup": [
+      "PYO3_USE_ABI3_FORWARD_COMPATIBILITY='' bash -e -c 'make'"
+    ],
+    "test": [
+      "make ci"
+    ],
+    "lint": [],
+    "timeouts": {
+      "setupMs": 900000,
+      "testMs": 600000
+    }
+  },
+  "notes": [
+    "job publish skipped: its if: is false here",
+    "job publish-test-pypi skipped: its if: is false here",
+    "ci: candidates run-tests.yml#build=6, run-tests.yml#no_chardet=6, run-tests.yml#urllib3=6, codeql-analysis.yml#analyze=-2",
+    "ci: .github/workflows/run-tests.yml job build (matrix: python-version=3.14, os=ubuntu-22.04)"
+  ]
+}

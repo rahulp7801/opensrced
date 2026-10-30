@@ -72,8 +72,8 @@ test("constraints reject duplicates, dangling references and wrong-sized vectors
   const [repo] = await db.insert(repos).values({ owner: "o", name: "constraints" }).returning();
   const issue = { repoId: repo.id, number: 7, title: "t", state: "open" as const, createdAt: new Date() };
   await db.insert(issues).values(issue);
-  await assert.rejects(db.insert(issues).values(issue));
-  await assert.rejects(db.insert(repos).values({ owner: "o", name: "constraints" }));
-  await assert.rejects(db.insert(lessons).values({ userId: "github|nobody", repoId: repo.id, issueNumber: 7, stage: "kickoff" }));
-  await assert.rejects(db.insert(issues).values({ ...issue, number: 8, embedding: [1, 0, 0] }));
+  await assert.rejects(db.insert(issues).values(issue).execute());
+  await assert.rejects(db.insert(repos).values({ owner: "o", name: "constraints" }).execute());
+  await assert.rejects(db.insert(lessons).values({ userId: "github|nobody", repoId: repo.id, issueNumber: 7, stage: "kickoff" }).execute());
+  await assert.rejects(db.insert(issues).values({ ...issue, number: 8, embedding: [1, 0, 0] }).execute());
 });

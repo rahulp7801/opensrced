@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { authConfigured } from "@/lib/auth-config";
 import { safeReturnTo } from "@/lib/safe-return-to";
 import { inviteOnly } from "@/lib/access";
+import { AUTH_ERROR_COPY, parseAuthErrorKind } from "@/lib/auth-errors";
+import { GitHubSignIn } from "@/components/github-sign-in";
 
 export const metadata = { title: "Sign in" };
 
@@ -12,11 +14,28 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   if (process.env.AUTH_DISABLED === "1" && process.env.NODE_ENV !== "production") {
     redirect(returnTo === "/" || returnTo.startsWith("/login") ? "/discover" : returnTo);
   }
-  // connection=github skips Auth0's own provider screen (middleware allows exactly this value).
-  const loginHref = `/auth/login?connection=github&returnTo=${encodeURIComponent(returnTo)}`;
   const canSignIn = authConfigured();
   // Private preview: sign-in is for invited accounts; the product tour stays public.
   const preview = inviteOnly();
+  // Set by lib/auth0.ts onCallback when Auth0 or GitHub refused the sign-in.
+  const failure = canSignIn ? parseAuthErrorKind(params.error) : null;
+
+  if (failure) {
+    const copy = AUTH_ERROR_COPY[failure];
+    return (
+      <section className="m-auto w-full max-w-xl px-6 py-20" aria-labelledby="sign-in-error">
+        <p className="label-mono">Sign-in</p>
+        <h1 id="sign-in-error" className="display mt-5 text-[44px] leading-[0.95] tracking-[-0.025em] text-paper sm:text-[56px]">{copy.title}</h1>
+        <p role="alert" className="mt-5 text-[16px] leading-[1.6] text-paper-muted">{copy.body}</p>
+        <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3">
+          <GitHubSignIn returnTo={returnTo}>Try again with GitHub</GitHubSignIn>
+          {failure === "invite"
+            ? <Link href="/join" className="link inline-flex min-h-10 items-center text-[15px]">Ask for early access</Link>
+            : <Link href={returnTo} className="link inline-flex min-h-10 items-center text-[15px]">Go back</Link>}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <div className="mx-auto grid w-full max-w-[1000px] flex-1 gap-12 px-5 py-16 sm:px-8 lg:grid-cols-[1fr_420px] lg:items-center lg:gap-20 lg:py-24">
@@ -41,16 +60,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <section className="card p-6 sm:p-8" aria-labelledby="sign-in-heading">
         <h2 id="sign-in-heading" className="display text-[28px] leading-[1.05] text-paper">{canSignIn ? "Sign in to opensrcer" : "Sign-in is being configured"}</h2>
         <p className="mt-3 text-[16px] leading-[1.6] text-paper-muted">{canSignIn ? "Authentication is handled by Auth0 using your GitHub account." : "This deployment is available for preview, but its GitHub sign-in is not ready yet."}</p>
-        {canSignIn && params.error === "signin" && (
-          <p role="alert" className="callout callout-alert mt-4 text-[15px] leading-6">
-            Sign-in didn&apos;t complete. The sign-in page may have been open too long, or cookies may be blocked. Please try again.
-          </p>
-        )}
         {canSignIn ? (
-          <a href={loginHref} className="btn-primary mt-6 flex min-h-12 w-full gap-3 text-[16px]">
-            <GitHubMark />
-            Continue with GitHub
-          </a>
+          <GitHubSignIn returnTo={returnTo} className="btn-primary mt-6 flex min-h-12 w-full gap-3 text-[16px]" />
         ) : (
           <div className="mt-6 flex flex-wrap gap-3">
             {!preview && <Link href="/demo" className="btn-primary min-h-12 px-6">Explore the demo</Link>}
@@ -70,13 +81,5 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
 Private repositories require a separate GitHub App connection that you initiate from Settings. You can revoke OAuth access from GitHub at any time.</p>}
       </section>
     </div>
-  );
-}
-
-function GitHubMark() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z" />
-    </svg>
   );
 }

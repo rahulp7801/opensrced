@@ -104,7 +104,7 @@ test("capsLevelFor: newcomer (today's caps) while OPENSRCER_RECORD is off, witho
 
 test("ensureUser and ensureRepo: validated, idempotent, repos matched case-insensitively", async () => {
   await assert.rejects(ensureUser(connection.db, "github|900", "bad login!"), InvalidLoginError);
-  await assert.rejects(ensureUser(connection.db, "", "ok"), UnknownUserError);
+  await assert.rejects(ensureUser(connection.db, "", "ok"), RangeError);
   await ensureUser(connection.db, "github|900", "old");
   await ensureUser(connection.db, "github|900", "renamed");
   const [row] = await connection.db.select().from(users).where(eq(users.id, "github|900"));

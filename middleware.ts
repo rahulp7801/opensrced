@@ -276,6 +276,14 @@ export async function middleware(req: NextRequest) {
     if (pathname === "/auth/profile" && (req.method === "GET" || req.method === "HEAD")) {
       return new NextResponse(null, { status: 204, headers: { "Cache-Control": "no-store" } });
     }
+    // "Continue with GitHub" links straight here; without a tenant, the login
+    // page explains that sign-in is still being set up instead of a 503.
+    if (pathname === "/auth/login") {
+      const loginUrl = new URL("/login", req.url);
+      const returnTo = req.nextUrl.searchParams.get("returnTo");
+      if (returnTo) loginUrl.searchParams.set("returnTo", returnTo);
+      return NextResponse.redirect(loginUrl);
+    }
     if (pathname.startsWith("/api/") || pathname.startsWith("/auth/")) {
       return NextResponse.json(
         { error: "Authentication is not configured for this deployment." },

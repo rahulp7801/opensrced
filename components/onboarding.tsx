@@ -40,7 +40,8 @@ const STEPS = [
 // completes the steps, so showing the prompt would be redundant.
 // Key-required pages already show the persistent ApiKeyGate. Keeping onboarding
 // off them avoids two banners with two buttons for the same settings page.
-const HIDDEN_ON = ["/crucible", "/login", "/", "/trigger", "/explore"];
+// /welcome and /account carry the provider settings themselves.
+const HIDDEN_ON = ["/crucible", "/login", "/", "/trigger", "/explore", "/welcome", "/account"];
 
 export function Onboarding({ localMode = false, inviteOnly = false }: { localMode?: boolean; inviteOnly?: boolean }) {
   // `user` here means "may use the app": an account without a preview invite gets no setup prompts.

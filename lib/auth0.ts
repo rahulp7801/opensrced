@@ -24,6 +24,12 @@ import { Auth0Client } from "@auth0/nextjs-auth0/server";
 import { NextResponse } from "next/server";
 import { prepareSession } from "./auth-session";
 import { authConfigured } from "./auth-config";
+import { authErrorKind } from "./auth-errors";
+import { safeReturnTo } from "./safe-return-to";
+
+/** The GitHub scopes sign-in asks for (connection_scope below). The account
+ *  page lists them, so they live in one place. */
+export const GITHUB_SCOPES = ["public_repo", "read:user", "user:email", "read:org"] as const;
 
 const localMode = process.env.AUTH_DISABLED === "1" && process.env.NODE_ENV !== "production";
 const inactiveConfig = localMode || !authConfigured();
@@ -57,13 +63,20 @@ export const auth0 = new Auth0Client({
   beforeSessionSaved: prepareSession,
   // The SDK's default answers a failed callback (a stale or replayed login
   // tab, blocked cookies, denied consent) with a bare 500 text page. Send the
-  // user back to sign-in with an explanation instead. Success keeps the
-  // default: return to the requested page, same origin only.
+  // user back to sign-in with an explanation of which one it was, keeping
+  // where they were headed so "Try again" returns them there.
+  //
+  // Success goes through /welcome/start, which records the account in the
+  // users table and shows first-run onboarding once; every later sign-in is
+  // redirected straight on to the requested page (same origin only).
   onCallback: async (error, ctx) => {
     const base = ctx.appBaseUrl ?? process.env.APP_BASE_URL ?? process.env.AUTH0_BASE_URL ?? "http://localhost:3000";
-    if (error) return NextResponse.redirect(new URL("/login?error=signin", base));
     const target = new URL(ctx.returnTo || "/", base);
-    return NextResponse.redirect(target.origin === new URL(base).origin ? target : new URL("/", base));
+    const returnTo = target.origin === new URL(base).origin ? safeReturnTo(target.pathname + target.search + target.hash) : "/";
+    const next = error
+      ? `/login?error=${authErrorKind(error)}&returnTo=${encodeURIComponent(returnTo)}`
+      : `/welcome/start?returnTo=${encodeURIComponent(returnTo)}`;
+    return NextResponse.redirect(new URL(next, base));
   },
   // Signed-out visitors get 204 rather than 401, so public pages don't log a
   // failed request (and SWR doesn't retry it). useUser() maps 204 to null.
@@ -91,6 +104,6 @@ export const auth0 = new Auth0Client({
     //
     // In v3 this lived in handleLogin() inside the catch-all route. With the
     // route gone, it belongs on the client config.
-    connection_scope: "public_repo read:user user:email read:org",
+    connection_scope: GITHUB_SCOPES.join(" "),
   },
 });

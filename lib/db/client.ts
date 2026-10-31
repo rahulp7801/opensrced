@@ -46,19 +46,24 @@ export async function openDb(target: DbTarget = dbTarget()): Promise<DbConnectio
   return { driver: "pglite", db: drizzle({ client, schema, casing: "snake_case" }), close: () => client.close() };
 }
 
-let shared: Promise<Db> | undefined;
+// Kept on globalThis, not in a module variable: `next dev` gives each route
+// bundle its own copy of this module and re-evaluates idle ones, and every
+// copy would otherwise open its own empty in-memory PGlite, so a write from
+// one route was invisible to the next (or gone a minute later).
+const holder = globalThis as typeof globalThis & { __opensrcerDb?: Promise<Db> };
 
-/** The app's database, opened once per instance. PGlite is migrated on first
+/** The app's database, opened once per process. PGlite is migrated on first
  *  use, since an in-memory database starts empty; Neon is migrated by
  *  `npm run db:migrate` before a deploy, never by a request. */
 export function getDb(): Promise<Db> {
-  if (!shared) {
-    shared = openDb().then(async (connection) => {
+  if (!holder.__opensrcerDb) {
+    const opening = openDb().then(async (connection) => {
       if (connection.driver === "pglite") await (await import("./migrate")).migrateDb(connection);
       return connection.db;
     });
+    holder.__opensrcerDb = opening;
     // A failed open is retried by the next caller instead of cached.
-    shared.catch(() => { shared = undefined; });
+    opening.catch(() => { if (holder.__opensrcerDb === opening) holder.__opensrcerDb = undefined; });
   }
-  return shared;
+  return holder.__opensrcerDb;
 }

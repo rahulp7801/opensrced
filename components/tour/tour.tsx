@@ -14,6 +14,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import Link from "next/link";
 import { ArrowCounterClockwise, ArrowRight, CornersIn, CornersOut, HandPointing, Pause, Play, SkipBack, SkipForward } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { GitHubSignIn } from "@/components/github-sign-in";
 import { CHAPTERS, STARTS, TOTAL } from "./chapters";
 import { ACTS, InteractContext, TimeContext, progress, type Interact } from "./kit";
 
@@ -505,7 +506,9 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
                   <h2 className="display mt-3 text-[30px] leading-[1.05] text-paper sm:text-[34px]">Issues in. Pull requests out.</h2>
                   <p className="mx-auto mt-3 max-w-[46ch] text-[15px] leading-6 text-paper-muted">One Pydantic issue: found, proved with its own tests, explained in your own words, and opened as a draft in your name.</p>
                   <div className="mt-6 flex flex-wrap justify-center gap-3">
-                    <Link href={inviteOnly ? "/join" : "/login"} className="inline-flex min-h-11 items-center rounded-full bg-signal px-5 text-[15px] font-medium text-white transition hover:brightness-110">{inviteOnly ? "Request early access" : "Connect GitHub"}</Link>
+                    {inviteOnly
+                      ? <Link href="/join" className="inline-flex min-h-11 items-center rounded-full bg-signal px-5 text-[15px] font-medium text-white transition hover:brightness-110">Request early access</Link>
+                      : <GitHubSignIn returnTo="/discover" className="inline-flex min-h-11 items-center gap-2 rounded-full bg-signal px-5 text-[15px] font-medium text-white transition hover:brightness-110">Connect GitHub</GitHubSignIn>}
                     <button type="button" onClick={replay} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-surface px-5 text-[15px] font-medium text-paper transition hover:border-border-strong">
                       <ArrowCounterClockwise aria-hidden size={16} weight="bold" />Watch again
                     </button>
@@ -636,8 +639,10 @@ export function ProductTour({ inviteOnly }: { inviteOnly: boolean }) {
               <p className="mt-1 text-[14px] text-paper-muted">{inviteOnly ? "Invited accounts can sign in now. Everyone else can request early access." : "Connect GitHub, add your provider key, and review every change before it ships."}</p>
             </div>
             <div className="flex shrink-0 items-center gap-6">
-              {inviteOnly ? <Link href="/login" className="text-[15px] text-paper-muted transition hover:text-paper">Have an invite? Sign in</Link> : <Link href="/" className="text-[15px] text-paper-muted transition hover:text-paper">How it works</Link>}
-              <Link href={inviteOnly ? "/join" : "/login"} className="btn-primary min-h-11 px-5 text-[15px]">{inviteOnly ? "Request early access" : "Connect GitHub"}</Link>
+              {inviteOnly ? <GitHubSignIn returnTo="/discover" icon={false} className="text-[15px] text-paper-muted transition hover:text-paper">Have an invite? Continue with GitHub</GitHubSignIn> : <Link href="/" className="text-[15px] text-paper-muted transition hover:text-paper">How it works</Link>}
+              {inviteOnly
+                ? <Link href="/join" className="btn-primary min-h-11 px-5 text-[15px]">Request early access</Link>
+                : <GitHubSignIn returnTo="/discover" className="btn-primary min-h-11 gap-2 px-5 text-[15px]">Connect GitHub</GitHubSignIn>}
             </div>
           </section>
         </>

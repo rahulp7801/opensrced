@@ -18,7 +18,7 @@ import { flagEnabled } from "@/lib/flags";
 import { getDb } from "@/lib/db/client";
 import { parseGitHubPullUrl } from "@/lib/github-pull-url";
 import { approachForRun } from "@/lib/lesson/approach";
-import { lessonStore } from "@/lib/lesson/store";
+import { lessonStore } from "@/lib/lesson/db-store";
 import { recordPublished } from "@/lib/record/sync";
 
 export const maxDuration = 300;

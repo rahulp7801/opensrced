@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  createLesson, getLesson, GRADED_QUIETLY, leakGate, lessonStatus, nextHint, publicLesson, revealLesson, submitStep, teacherTurn,
-  LESSONS_DISABLED, type LessonDeps,
+  askAboutSelection, createLesson, getLesson, GRADED_QUIETLY, leakGate, lessonStatus, nextHint, publicLesson, revealLesson, saveIdeDiff,
+  submitStep, suggestAtCursor, teacherTurn, updateLesson, LESSONS_DISABLED, type LessonDeps,
 } from "../lesson/api";
 import { MemoryLessonStore, type Lesson } from "../lesson/store";
 import type { AnswerKeyStatus } from "../lesson/machine";
@@ -81,6 +81,8 @@ test("every route: off without the flag, 401 anonymous, 404 for someone else's l
   const calls = (deps: LessonDeps) => [
     getLesson(id, deps), lessonStatus(id, deps), submitStep(post({ answer: "x" }), id, "s1", deps), nextHint(post({ step: "s1" }), id, deps),
     teacherTurn(post({ message: "hi" }), id, deps), revealLesson(post({ give_up: true }), id, deps),
+    updateLesson(post({ path: "B" }), id, deps), askAboutSelection(post({ selection: "", file: "a" }), id, deps),
+    suggestAtCursor(post({ file: "a", line: 1 }), id, deps), saveIdeDiff(post({ diff: "x" }), id, deps, false), saveIdeDiff(post({ diff: "x" }), id, deps, true),
   ];
   for (const res of await Promise.all(calls(mallory.deps))) assert.equal(res.status, 404);
   for (const res of await Promise.all(calls(anon.deps))) assert.equal(res.status, 401);
@@ -267,4 +269,81 @@ test("finishing the lesson (s10) calls deps.finished once, with the done lesson"
   const plain = harness();
   const other = await plain.store.create({ owner: OWNER, repo_url: "https://github.com/pallets/flask", issue_number: 5, run_id: "c_2", mode: "short", path: "A", stage: "next", answer_key: "verified" });
   assert.equal((await submitStep(post({ answer: "Next." }), other.id, "s10", plain.deps)).status, 200);
+});
+
+test("get: pins the commit once, keeps going when GitHub fails, and returns the chat history", async () => {
+  const h = harness();
+  const id = await newLesson(h);
+  const asked: string[] = [];
+  h.deps.headSha = async (repo) => { asked.push(repo); throw new Error("rate limited"); };
+  let body = await (await getLesson(id, h.deps)).json();
+  assert.equal(body.lesson.base_sha, null, "a failed lookup leaves it unpinned");
+  assert.match(h.logs.join("\n"), /could not pin a commit: rate limited/);
+  h.deps.headSha = async (repo) => { asked.push(repo); return "not-a-sha"; };
+  assert.equal((await (await getLesson(id, h.deps)).json()).lesson.base_sha, null, "only a full SHA is kept");
+  h.deps.headSha = async (repo) => { asked.push(repo); return "A".repeat(40); };
+  await h.store.appendMessage(id, { role: "user", content: "hello", step: null, at: "t" });
+  body = await (await getLesson(id, h.deps)).json();
+  assert.equal(body.lesson.base_sha, "a".repeat(40));
+  assert.deepEqual(body.messages.map((m: { content: string }) => m.content), ["hello"]);
+  await getLesson(id, h.deps);
+  assert.deepEqual(asked, ["pallets/flask", "pallets/flask", "pallets/flask"], "pinned once, then never asked again");
+});
+
+test("update: the path changes until s8, the mode only during kickoff, and short mode can move the lesson on", async () => {
+  const h = harness();
+  const id = await newLesson(h, { repo_url: "https://github.com/pallets/flask/issues/5", mode: "full" });
+  for (const [body, status] of [[{}, 400], [{ path: "C" }, 400], [{ mode: "long" }, 400]] as const) {
+    assert.equal((await updateLesson(post(body), id, h.deps)).status, status, JSON.stringify(body));
+  }
+  assert.equal((await (await updateLesson(post({ path: "B" }), id, h.deps)).json()).lesson.path, "B");
+  const done = { answer: "x", grade: null, done: true, hint_level: -1, hints_used: [], updated_at: "t" };
+  await h.store.saveStep(id, { ...done, step: "s1" });
+  await h.store.saveStep(id, { ...done, step: "s4" });
+  const short = await (await updateLesson(post({ mode: "short" }), id, h.deps)).json();
+  assert.deepEqual([short.lesson.mode, short.lesson.stage], ["short", "locate"], "s1 and s4 were all short mode needed");
+  assert.equal((await updateLesson(post({ mode: "full" }), id, h.deps)).status, 409, "mode is fixed after kickoff");
+  assert.equal((await (await updateLesson(post({ path: "A" }), id, h.deps)).json()).lesson.path, "A", "path still open in locate");
+  await h.store.updateStage(id, "reveal");
+  assert.equal((await updateLesson(post({ path: "B" }), id, h.deps)).status, 409, "closed once s8 is done");
+  assert.equal((await updateLesson(post({ path: "A" }), id, h.deps)).status, 200, "the same path is not a change");
+  assert.equal((await h.store.get(id))!.path, "A");
+});
+
+test("IDE ask and suggest: one leak-checked teacher turn each, saved with the chat", async () => {
+  const h = harness({ replies: ["Open sessions.py and read save_session.", "What decides whether the cookie is written?", "What should happen to the status code here?"] });
+  const id = await newLesson(h);
+  const ask = await (await askAboutSelection(post({ selection: "def f():\n  pass\n", file: "src/app.py", question: "Why?" }), id, h.deps)).json();
+  assert.equal(ask.reply, "What decides whether the cookie is written?", "the leaking first reply was regenerated");
+  assert.match(h.sent[0].messages.at(-1)!.content, /Why\?\n\nIn src\/app\.py:\n```\ndef f\(\):/);
+  const suggest = await (await suggestAtCursor(post({ file: "src/app.py", line: 3 }), id, h.deps)).json();
+  assert.equal(suggest.suggestion, "What should happen to the status code here?");
+  assert.equal((await h.store.listMessages(id)).length, 4);
+  for (const body of [{}, { selection: 1, file: "a" }, { selection: "x".repeat(20_001), file: "a" }, { selection: "", file: "a", question: 3 }]) {
+    assert.equal((await askAboutSelection(post(body), id, h.deps)).status, 400, JSON.stringify(body).slice(0, 40));
+  }
+  for (const body of [{}, { file: "", line: 1 }, { file: "a", line: 0 }, { file: "a", line: 1.5 }]) {
+    assert.equal((await suggestAtCursor(post(body), id, h.deps)).status, 400, JSON.stringify(body));
+  }
+  const none = harness({ runtime: false });
+  const id2 = await newLesson(none);
+  assert.equal((await suggestAtCursor(post({ file: "a", line: 1 }), id2, none.deps)).status, 409);
+});
+
+test("IDE diff: checkpoints save, submit needs path B and changes, moves ide to reveal, and freezes at the reveal", async () => {
+  const h = harness();
+  const id = await newLesson(h);
+  const diff = "--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-a\n+b\n";
+  assert.equal((await (await saveIdeDiff(post({ diff }), id, h.deps, false)).json()).ok, true);
+  assert.equal((await h.store.get(id))!.ide_diff, diff);
+  assert.equal((await saveIdeDiff(post({ diff }), id, h.deps, true)).status, 409, "path A has nothing to submit");
+  await updateLesson(post({ path: "B" }), id, h.deps);
+  assert.equal((await saveIdeDiff(post({ diff: "  " }), id, h.deps, true)).status, 400);
+  assert.equal((await saveIdeDiff(post({ diff: 3 }), id, h.deps, false)).status, 400);
+  await h.store.updateStage(id, "ide");
+  const submitted = await (await saveIdeDiff(post({ diff }), id, h.deps, true)).json();
+  assert.deepEqual([submitted.lesson.stage, submitted.lesson.ide_submitted, "ide_diff" in submitted.lesson], ["reveal", true, false]);
+  const revealed = await (await revealLesson(post({}), id, h.deps)).json();
+  assert.equal(revealed.lesson.ide_diff, diff, "the contributor's diff comes back for the comparison");
+  assert.equal((await saveIdeDiff(post({ diff: "" }), id, h.deps, false)).status, 409);
 });

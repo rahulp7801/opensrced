@@ -10,6 +10,7 @@ import { getDb, type Db } from "../db/client";
 import { contributions, repos, standingEvents, users } from "../db/schema";
 import { flagEnabled } from "../flags";
 import type { Lesson } from "../lesson/store";
+import { ensureUser as upsertUser } from "../users";
 import { emptyStats, levelIndex, LEVELS, qualifiedLevel, type Level, type LevelStats } from "./levels";
 
 /** Points per event. Opening a PR earns 0; a PR closed without a merge costs 0. */
@@ -134,11 +135,11 @@ export function assertLogin(login: string): void {
   if (typeof login !== "string" || !LOGIN_RE.test(login)) throw new InvalidLoginError(String(login));
 }
 
-/** The user's row, created on first sight; the login follows GitHub renames. */
+/** lib/users.ts ensureUser, with the login checked as a GitHub login first
+ *  (the record searches GitHub by it). */
 export async function ensureUser(db: Db, id: string, login: string): Promise<void> {
-  if (typeof id !== "string" || !id.trim() || id.length > 200) throw new UnknownUserError(String(id));
   assertLogin(login);
-  await db.insert(users).values({ id, login }).onConflictDoUpdate({ target: users.id, set: { login } });
+  await upsertUser(db, id, login);
 }
 
 /** The repository's id, matched case-insensitively (GitHub is), created when new. */

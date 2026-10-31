@@ -5,7 +5,7 @@
 // Contributor (lib/record/levels.ts). Shown only to the user in this phase.
 // Reads only; nothing is posted.
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { splitRepo } from "../ai-policy";
 import type { Db } from "../db/client";
 import { contributions, repos, users } from "../db/schema";
@@ -99,8 +99,8 @@ export async function importHistory(db: Db, client: GitHubClient, user: { id: st
   const signals = spamSignals(history.opened);
   await appendEvents(db, user.id, importEvents(history.merged, already, signals));
   const summary: HistorySummary = { importedAt: now.toISOString(), merged: history.merged.length, contributedTo: history.contributedTo, mergedPerRepo, signals };
-  const [row] = await db.select({ settings: users.settings }).from(users).where(eq(users.id, user.id));
-  await db.update(users).set({ settings: { ...row.settings, history: summary } }).where(eq(users.id, user.id));
+  // Merged in the database, like lib/users.ts completeOnboarding, so neither overwrites the other.
+  await db.update(users).set({ settings: sql`${users.settings} || ${JSON.stringify({ history: summary })}::jsonb` }).where(eq(users.id, user.id));
   await rebuildStanding(db, user.id);
   return summary;
 }

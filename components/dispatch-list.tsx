@@ -1234,16 +1234,20 @@ function CommitMsgButton({
   );
 }
 
-function SplitDiffView({ body }: { body: string }) {
+/** The side-by-side patch. `verdicts` (the lesson reveal, lib/lesson/reveal.ts)
+ *  marks each hunk green where the contributor's plan reached it, red where not
+ *  (the palette has no amber). */
+export function SplitDiffView({ body, verdicts, className }: { body: string; verdicts?: Array<"match" | "miss">; className?: string }) {
   // Parsing lives in lib/diff-view.ts so the alignment rule can be tested.
   const hunks = useMemo(() => parseSplitHunks(body), [body]);
 
   return (
-    <div tabIndex={0} role="region" aria-label="Patch" className="max-h-[50vh] overflow-auto">
+    <div tabIndex={0} role="region" aria-label="Patch" className={cn("max-h-[50vh] overflow-auto", className)}>
       {hunks.map((h, hi) => (
-        <div key={hi}>
+        <div key={hi} className={cn(verdicts?.[hi] === "match" && "border-l-4 border-ok", verdicts?.[hi] === "miss" && "border-l-4 border-alert-dim")}>
           <div className="px-6 py-2 text-[12px] text-paper-muted bg-ink-2 border-b border-border-soft font-mono sm:px-8">
             {h.file}
+            {verdicts?.[hi] && <span className={cn("ml-3 font-sans", verdicts[hi] === "match" ? "text-ok" : "text-alert")}>{verdicts[hi] === "match" ? "your plan reached this" : "your plan missed this"}</span>}
           </div>
           <div className="grid grid-cols-2 divide-x divide-border-soft">
             <DiffPane lines={h.before} tone="before" />

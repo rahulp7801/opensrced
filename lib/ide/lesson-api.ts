@@ -1,6 +1,7 @@
 // Shared by the IDE's lesson routes (app/api/lessons/[id]/*) and the browser.
-// The routes are stubs until the lesson store and the exec VM are wired in;
-// the shapes here are the contract those later pieces keep.
+// Run is a stub until the exec VM is wired in; the shapes here are the
+// contract that later piece keeps. Ask, suggest, checkpoint and submit go
+// through lib/lesson/api.ts.
 
 /** Lesson ids are generated server-side; anything else is refused before any work. */
 export function validLessonId(id: unknown): id is string {
@@ -20,9 +21,6 @@ export const RUN_NOT_CONNECTED: RunEvent[] = [
   { type: "out", data: "Your edits are saved in this browser; when the exec VM is wired up, Run applies your diff to a clean checkout and streams the output here.\r\n" },
   { type: "exit", data: 1 },
 ];
-
-/** Suggest's stub reply until the agent session and leak filter land (PLAN §8.3). */
-export const SUGGEST_NOT_CONNECTED = "Suggestions aren't connected yet. Write a comment saying what this line should do, then ask the teacher about it.";
 
 /** Encode run events as an SSE body. */
 export function runEventStream(events: RunEvent[]): string {

@@ -9,6 +9,7 @@ import { SiteFooter } from "@/components/footer";
 import { SessionGate } from "@/components/session-gate";
 import { ApiKeyGate } from "@/components/api-key-gate";
 import { Onboarding } from "@/components/onboarding";
+import { SessionExpiredPrompt } from "@/components/session-expired-prompt";
 import { ToastProvider } from "@/components/toast";
 import { Auth0Provider } from "@auth0/nextjs-auth0";
 import { siteUrl } from "@/lib/site-url";
@@ -80,6 +81,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           profileRoute={localMode ? "/api/local-profile" : undefined}
         >
           <ToastProvider>
+            {/* First in the tree: React runs effects in tree order, so its fetch
+                watcher is installed before any page's on-mount request. */}
+            {!localMode && <SessionExpiredPrompt />}
             <div className="flex min-h-svh flex-col">
               {/* Header + section tabs pin together, so neither has to hardcode
                   the other's height. */}

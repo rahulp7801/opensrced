@@ -23,8 +23,11 @@ export const users = pgTable("users", {
   createdAt: createdAt(),
   level: integer().notNull().default(0),
   standing: integer().notNull().default(0),
-  // Path preference, digest opt-in, public profile opt-in.
+  // Path preference, digest opt-in, public profile opt-in, and what first-run
+  // onboarding asked (lib/users.ts: languages, interests, experience).
   settings: jsonb().$type<Record<string, unknown>>().notNull().default({}),
+  // Set when /welcome is finished or skipped; null shows it after sign-in.
+  onboardedAt: at(),
 }, (t) => [index().on(t.login)]);
 
 export const repos = pgTable("repos", {
@@ -117,6 +120,12 @@ export const lessons = pgTable("lessons", {
   startedAt: createdAt(),
   finishedAt: at(),
   ideSandbox: text(),
+  // lib/lesson/db-store.ts: the rest of lib/lesson/store.ts Lesson.
+  gaveUp: boolean().notNull().default(false),
+  turnsUsed: integer().notNull().default(0),
+  baseSha: text(), // the commit the code viewer and IDE show
+  ideDiff: text(), // path B: the contributor's latest diff
+  ideSubmittedAt: at(),
 }, (t) => [index().on(t.userId), index().on(t.repoId, t.issueNumber)]);
 
 const lessonId = () => uuid().notNull().references(() => lessons.id, { onDelete: "cascade" });
@@ -129,6 +138,9 @@ export const lessonSteps = pgTable("lesson_steps", {
   hintsUsed: integer().notNull().default(0),
   attempts: integer().notNull().default(0),
   updatedAt: createdAt(),
+  done: boolean().notNull().default(false),
+  hintLevel: integer().notNull().default(-1), // highest hint shown (-1: none)
+  hintLevels: integer().array().notNull().default(sql`'{}'::integer[]`), // every level shown
 }, (t) => [primaryKey({ columns: [t.lessonId, t.step] })]);
 
 export const lessonMessages = pgTable("lesson_messages", {
@@ -137,6 +149,7 @@ export const lessonMessages = pgTable("lesson_messages", {
   role: text().notNull(),
   content: text().notNull(),
   createdAt: createdAt(),
+  step: text(), // the step the message was about, if any
 }, (t) => [primaryKey({ columns: [t.lessonId, t.seq] })]);
 
 export const contributions = pgTable("contributions", {

@@ -13,7 +13,7 @@ import { HIDDEN_RUN_MESSAGE, hiddenRunLocked } from "./hidden-runs";
 import { readPreview } from "./pr-preview";
 import type { StoredPreview } from "./publish";
 import { sanitizeRepoId } from "./sanitize";
-import { lessonStore } from "./lesson/store";
+import { lessonStore } from "./lesson/db-store";
 
 /** The caller's run and its frozen preview (null while there is none yet).
  *  Null when the run is missing or not the caller's: both read as missing. */

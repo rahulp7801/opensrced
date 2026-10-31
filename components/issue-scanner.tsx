@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { cacheGet, cacheSet } from "@/lib/client-cache";
 import { IconArrow, IconChevronDown, IconSearch } from "./icons";
 import { DifficultyAndExamples, TestableTag, type IssueInsight } from "./worked-examples";
+import { StartLessonButton } from "./lesson/start-lesson";
 
 type ScopeBucket = "doc" | "leaf" | "cross-file" | "refactor" | "new-file" | "unknown";
 
@@ -47,7 +48,8 @@ type Scan = {
   issues: Issue[];
 };
 
-export function IssueScanner() {
+/** `lessons`: OPENSRCER_LESSONS is on (the page reads it on the server). */
+export function IssueScanner({ lessons = false }: { lessons?: boolean }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const initial = searchParams.get("repo") ?? "";
@@ -380,6 +382,8 @@ export function IssueScanner() {
                               onSolve={() => solve(issue.number, false)}
                             />
                           ) : <p className="max-w-xs text-[13px] leading-relaxed text-paper-muted">{issue.reason}</p>}
+                          {/* Same checks as a run: only offered where a run is. */}
+                          {lessons && issue.solvable && <StartLessonButton repo={scan.repo} issue={issue.number} className="mt-2 block lg:text-right" />}
                         </div>
                       </div>
                       {expanded && (

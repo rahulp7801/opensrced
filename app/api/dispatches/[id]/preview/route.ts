@@ -14,7 +14,7 @@ import { AiPolicyFetchError, aiPolicyBanReason, repoAiPolicy, type RepoAiPolicy 
 import { gh } from "@/lib/gh";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { approachForRun } from "@/lib/lesson/approach";
-import { lessonStore } from "@/lib/lesson/store";
+import { lessonStore } from "@/lib/lesson/db-store";
 import { parseRunTarget } from "@/lib/run-target";
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { getCloudRun } from "@/lib/cloud-runs";

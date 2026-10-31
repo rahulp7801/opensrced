@@ -46,7 +46,12 @@ export async function complete(runtime: TeacherRuntime, messages: RuntimeMessage
 
 // ── Anthropic key ──────────────────────────────────────────────────────────
 
-export function anthropicRuntime(apiKey: string, models = { teacher: CLAUDE_AGENT_MODEL, grader: CLAUDE_FAST_MODEL }): TeacherRuntime {
+/** Model ids per tier; knobs: OPENSRCER_ANTHROPIC_TEACHER_MODEL / _GRADER_MODEL. */
+export function anthropicModels(env: Env = process.env): { teacher: string; grader: string } {
+  return { teacher: env.OPENSRCER_ANTHROPIC_TEACHER_MODEL || CLAUDE_AGENT_MODEL, grader: env.OPENSRCER_ANTHROPIC_GRADER_MODEL || CLAUDE_FAST_MODEL };
+}
+
+export function anthropicRuntime(apiKey: string, models = anthropicModels()): TeacherRuntime {
   return {
     provider: "anthropic-key",
     send: (messages, opts) => anthropicMessagesStream(apiKey, {
@@ -230,13 +235,16 @@ export function copilotRuntime(gitHubToken: string, opts: { models?: { teacher: 
 
 export type RuntimeCredentials = { gitHubToken: string | null; anthropicKey: string | null; openRouterKey: string | null };
 
-/** Copilot first (when enabled), then the user's Anthropic key, then their
- *  OpenRouter key (§0.6's order without the Claude plan, which cannot teach).
- *  Null: the teacher is unavailable (TEACHER_UNAVAILABLE). */
-export function chooseRuntime(creds: RuntimeCredentials, opts: { siteUrl: string; env?: Env }): TeacherRuntime | null {
+/** The first provider in `order` the user can use. The order comes from
+ *  lib/run-payment.ts teacherProviders (the user's own order, which never
+ *  holds a Claude or ChatGPT plan; anything else in it is skipped). Copilot
+ *  counts only when enabled. Null: the teacher is unavailable (TEACHER_UNAVAILABLE). */
+export function chooseRuntime(creds: RuntimeCredentials, opts: { siteUrl: string; env?: Env; order?: readonly string[] }): TeacherRuntime | null {
   const env = opts.env ?? process.env;
-  if (copilotEnabled(env) && creds.gitHubToken) return copilotRuntime(creds.gitHubToken, { models: copilotModels(env) });
-  if (creds.anthropicKey) return anthropicRuntime(creds.anthropicKey);
-  if (creds.openRouterKey) return openRouterRuntime(creds.openRouterKey, { siteUrl: opts.siteUrl, models: openRouterModels(env) });
+  for (const provider of opts.order ?? ["copilot", "anthropic-key", "openrouter-key"]) {
+    if (provider === "copilot" && copilotEnabled(env) && creds.gitHubToken) return copilotRuntime(creds.gitHubToken, { models: copilotModels(env) });
+    if (provider === "anthropic-key" && creds.anthropicKey) return anthropicRuntime(creds.anthropicKey, anthropicModels(env));
+    if (provider === "openrouter-key" && creds.openRouterKey) return openRouterRuntime(creds.openRouterKey, { siteUrl: opts.siteUrl, models: openRouterModels(env) });
+  }
   return null;
 }

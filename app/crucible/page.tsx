@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { auth0 } from "@/lib/auth0";
 import { PageHeading } from "@/components/page-heading";
+import { SettingsSection } from "@/components/settings-section";
 import { listOrgsFor } from "@/lib/crucible/orgs";
 import { DisconnectButton } from "./disconnect-button";
 import { RevokeAllButton } from "./revoke-all-button";
@@ -60,6 +61,7 @@ export default async function SettingsPage({
         path="account / settings"
         title={<>Settings</>}
         description="Manage provider credentials, GitHub access, and your account."
+        actions={<Link href="/account" className="text-link text-[15px]">Profile, sessions and your data are on the Account page</Link>}
       />
 
       <div className="divide-y divide-border border-t-2 border-paper">
@@ -176,31 +178,5 @@ export default async function SettingsPage({
         )}
       </div>
     </div>
-  );
-}
-
-function SettingsSection({
-  id,
-  title,
-  description,
-  note,
-  children,
-}: {
-  id: string;
-  title: string;
-  description: string;
-  note?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="grid gap-7 py-10 md:grid-cols-[260px_minmax(0,1fr)] md:gap-14" aria-labelledby={id}>
-
-      <div>
-        <h2 id={id} className="display text-[24px] leading-[1.05] text-paper">{title}</h2>
-        <p className="mt-3 text-[16px] leading-[1.6] text-paper-muted">{description}</p>
-        {note && <p className="mt-4 text-[14px] leading-[1.55] text-paper-muted">{note}</p>}
-      </div>
-      <div className="min-w-0">{children}</div>
-    </section>
   );
 }

@@ -4,6 +4,7 @@ import { InviteNotice } from "./invite-notice";
 import { RUN } from "./tour/data";
 import { HeroHeadline } from "./landing";
 import { CtaPill } from "./brand/pill";
+import { GitHubSignIn } from "./github-sign-in";
 
 // What a newcomer needs before anything else: what it does, in plain words.
 const STEPS = [
@@ -36,7 +37,7 @@ export function PreviewLanding() {
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <CtaPill href="/join">Get early access</CtaPill>
             <Link href="/demo" className="text-link ml-2 text-[16px]">Watch the product tour</Link>
-            <Link href="/login" className="text-link ml-2 text-[16px]">Have an invite? Sign in</Link>
+            <GitHubSignIn returnTo="/discover" icon={false} className="text-link ml-2 text-[16px]">Have an invite? Continue with GitHub</GitHubSignIn>
           </div>
         </div>
       </HeroHeadline>

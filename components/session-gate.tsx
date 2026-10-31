@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { useUser } from "@auth0/nextjs-auth0";
 import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { GitHubSignIn } from "./github-sign-in";
 
 export function SessionGate({ children, allowAnonymous = false }: { children: ReactNode; allowAnonymous?: boolean }) {
   const path = usePathname();
@@ -31,7 +32,7 @@ function SignedIn({ children }: { children: ReactNode }) {
           <div className="mx-auto w-full max-w-[1200px] px-5 pt-4 sm:px-8">
             <p role="alert" className="callout text-[14px]" data-tone="alert">
               {error ? "Could not confirm your sign-in." : "Your session has ended."} What you entered on this page is kept.{" "}
-              <a href={`/auth/login?returnTo=${encodeURIComponent(returnTo)}`} className="font-medium underline underline-offset-2">Sign in again</a>
+              <GitHubSignIn returnTo={returnTo} icon={false} className="font-medium underline underline-offset-2">Sign in again</GitHubSignIn>
             </p>
           </div>
         )}
@@ -46,7 +47,7 @@ function SignedIn({ children }: { children: ReactNode }) {
       <h1 className="display text-[44px] leading-[0.95] tracking-[-0.025em] text-paper sm:text-[56px]">Sign in to continue</h1>
       <p className="mt-5 text-[16px] leading-[1.6] text-paper-muted">Connect your GitHub account to browse repositories, start runs, and view your activity.</p>
       <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3">
-        <Link href={`/login?returnTo=${encodeURIComponent(returnTo)}`} className="btn-primary min-h-12 px-6 text-[16px]">Sign in with GitHub</Link>
+        <GitHubSignIn returnTo={returnTo} />
         <Link href="/demo" className="link inline-flex min-h-10 items-center text-[14px]">Try the interactive demo</Link>
       </div>
     </section>
@@ -76,12 +77,7 @@ function SessionLoading({ returnTo, failed = false }: { returnTo: string; failed
           >
             Reload page
           </button>
-          <a
-            href={`/auth/login?returnTo=${encodeURIComponent(returnTo)}`}
-            className="btn-quiet min-h-12 px-6 text-[16px]"
-          >
-            Sign in again
-          </a>
+          <GitHubSignIn returnTo={returnTo} className="btn-quiet min-h-12 gap-2 px-6 text-[16px]">Sign in again</GitHubSignIn>
         </div>
       </section>
     );

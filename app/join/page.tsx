@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PageHeading } from "@/components/page-heading";
 import { JoinForm } from "@/components/join-form";
+import { GitHubSignIn } from "@/components/github-sign-in";
 
 export const metadata: Metadata = {
   title: "Get early access",
@@ -15,6 +16,7 @@ export default function JoinPage() {
         path="opensrcer / early access"
         title={<>Get early access</>}
         description="opensrcer is in private preview. Leave your details and you'll get access with your GitHub account."
+        actions={<GitHubSignIn returnTo="/discover" icon={false} className="text-link text-[15px]">Already invited? Continue with GitHub</GitHubSignIn>}
       />
       <JoinForm />
     </div>

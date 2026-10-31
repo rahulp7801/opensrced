@@ -32,7 +32,8 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const DISPATCH_DIR = join(process.cwd(), ".dispatches");
-function statsPath(owner: string) {
+/** The account's activity counters: a Blob path hosted, under .dispatches/ locally. */
+export function statsPath(owner: string) {
   if (!owner) throw new Error("Activity owner is required");
   return `stats/${createHash("sha256").update(owner).digest("hex")}.json`;
 }

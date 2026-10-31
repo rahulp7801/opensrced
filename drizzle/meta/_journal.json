@@ -15,6 +15,13 @@
       "when": 1793340060115,
       "tag": "0001_recs",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793380621909,
+      "tag": "0002_users_onboarded",
+      "breakpoints": true
     }
   ]
 }

@@ -94,7 +94,7 @@ export function SiteHeader({ localMode = false, inviteOnly = false }: { localMod
                 <IconHelp size={18} />
               </button>
             )}
-            <AuthChip localMode={localMode} />
+            <AuthChip localMode={localMode} canUse={canUse} />
           </div>
         </div>
       </header>
@@ -131,7 +131,7 @@ export function SiteHeader({ localMode = false, inviteOnly = false }: { localMod
                   the part navigation cannot express: the order to do things
                   in, and the two shortcuts tables. */}
               <HelpSection title="Getting started">
-                <p className="text-paper-dim">1. Choose how runs are paid for (your Claude subscription or an API key) in <Link href="/crucible" className="text-signal hover:underline" onClick={() => setHelpOpen(false)}>Settings</Link>, behind your avatar</p>
+                <p className="text-paper-dim">1. Choose how runs are paid for (your Claude subscription or an API key) in <Link href="/crucible" className="text-signal hover:underline" onClick={() => setHelpOpen(false)}>Settings</Link>, in your avatar&apos;s menu</p>
                 <p className="text-paper-dim">2. <strong className="text-paper">Find</strong> — browse repos or issues and pick one</p>
                 <p className="text-paper-dim">3. <strong className="text-paper">Fix</strong> — start a run and watch it work</p>
                 <p className="text-paper-dim">4. <strong className="text-paper">Ship</strong> — read the fix, publish it as a draft PR, then follow the reviews</p>

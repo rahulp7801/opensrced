@@ -30,6 +30,24 @@ export async function requireSession(): Promise<Response | null> {
   return Response.json({ error: "Not authenticated" }, { status: 401 });
 }
 
+export type SessionAccount = { id: string; login: string; name: string | null; picture: string | null };
+
+/** The caller's id plus what /welcome and /account show, or null when
+ *  anonymous (or waiting for a preview invite, as sessionUserId). The login
+ *  is GitHub's (Auth0's nickname for the GitHub connection); local mode is
+ *  one fixed account whose login is its id. */
+export async function sessionAccount(): Promise<SessionAccount | null> {
+  if (authDisabled()) return { id: "local-dev", login: "local-dev", name: "Local workspace", picture: null };
+  try {
+    const user = (await auth0.getSession())?.user;
+    if (!user?.sub || !await canUse(user.sub)) return null;
+    const text = (value: unknown) => typeof value === "string" && value ? value : null;
+    return { id: user.sub, login: text(user.nickname) ?? text(user.name) ?? user.sub, name: text(user.name), picture: text(user.picture) };
+  } catch {
+    return null;
+  }
+}
+
 /** The caller's stable identity, or null when anonymous.
  *
  *  Routes that own per-user resources (dispatches, org mappings) need the

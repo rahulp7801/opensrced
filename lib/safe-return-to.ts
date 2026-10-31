@@ -13,3 +13,9 @@ export function safeReturnTo(value: string | undefined): string {
     return "/";
   }
 }
+
+/** Straight to GitHub (connection=github skips Auth0's own provider screen;
+ *  middleware allows exactly that value), then back to `returnTo`. */
+export function signInHref(returnTo: string | undefined): string {
+  return `/auth/login?connection=github&returnTo=${encodeURIComponent(safeReturnTo(returnTo))}`;
+}

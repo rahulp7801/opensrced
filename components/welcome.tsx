@@ -124,7 +124,7 @@ export function Welcome({ skipTo }: { skipTo: string }) {
 
       {step === 0 && (
         <section aria-label="Connect your AI">
-          <p className="mb-6 max-w-[60ch] text-[16px] leading-[1.6] text-paper-muted">Runs use an AI you already have. Pick one now, or later from Settings: browsing and choosing issues works without it.</p>
+          <p className="mb-6 max-w-[60ch] text-[16px] leading-[1.6] text-paper-muted">Pick one now or later from Settings. Browsing and choosing issues works without it.</p>
           <ApiKeysForm />
           <StepActions onNext={() => setStep(1)} onSkip={() => setStep(1)} busy={busy} />
         </section>

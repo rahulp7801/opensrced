@@ -157,7 +157,8 @@ export function RevealView({ lessonId, forkCi }: { lessonId: string; forkCi: boo
       <section aria-label="Where you and the AI differ" className="mt-10 max-w-3xl">
         <h2 className="text-[20px] font-semibold text-paper">Where you and the AI differ</h2>
         <p className="mt-1 text-paper-dim">Talk it through: would your approach also have worked, and what would it have missed?</p>
-        <TeacherChat lessonId={lessonId} initial={data.messages} step={null} available={data.teacher_available} starters={[DIFFER_PROMPT]} className="mt-4 max-h-[60vh]" />
+        {/* Only the talk since the reveal: earlier steps' chat is about finding the fix, not comparing it. */}
+        <TeacherChat lessonId={lessonId} initial={data.messages.filter((m) => Date.parse(m.at) >= Date.parse(data.lesson.revealed_at ?? ""))} step={null} available={data.teacher_available} starters={[DIFFER_PROMPT]} className="mt-4 max-h-[60vh]" />
       </section>
 
       {preview?.diff && (

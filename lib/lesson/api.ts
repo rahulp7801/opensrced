@@ -85,7 +85,7 @@ export function publicLesson(lesson: Lesson, provider: TeacherProvider | null = 
   return {
     id: lesson.id, repo_url: lesson.repo_url, issue_number: lesson.issue_number, run_id: lesson.run_id,
     mode: lesson.mode, path: lesson.path, stage: lesson.stage, answer_key: lesson.answer_key,
-    revealed: Boolean(lesson.revealed_at), gave_up: lesson.gave_up === true, created_at: lesson.created_at,
+    revealed: Boolean(lesson.revealed_at), revealed_at: lesson.revealed_at ?? null, gave_up: lesson.gave_up === true, created_at: lesson.created_at,
     required: requiredSteps(lesson.mode),
     base_sha: lesson.base_sha ?? null,
     ide_submitted: Boolean(lesson.ide_submitted_at),

@@ -22,6 +22,8 @@ export type StepContext = {
   answerKeyStatus: AnswerKeyStatus;
   /** explain-it only: practice-review answers recorded for the run (lib/understanding-record.ts). */
   practiced?: number;
+  /** How the repo's maintainers like PRs (lib/maintainer-prefs.ts prefsLines); for the teacher. */
+  prefs?: string[];
 };
 
 export type ModelPrompt = { system: string; user: string };
@@ -56,7 +58,7 @@ export class StepInputError extends Error {
   }
 }
 
-const LESSON_TAGS = /<(\/?)(issue|readme|modules|answer-key|diff|diagnosis|cases|contributor-answer|contributor-plan|lesson|step)\b/gi;
+const LESSON_TAGS = /<(\/?)(issue|readme|modules|answer-key|diff|diagnosis|cases|contributor-answer|contributor-plan|contributor-notes|maintainer-prefs|lesson|step)\b/gi;
 
 /** Untrusted text inside one of our tags: control characters stripped, capped,
  *  and our own tags defused so it cannot close the fence. */

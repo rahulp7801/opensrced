@@ -50,10 +50,12 @@ const isPublicPr = (n: SearchPr): n is Required<SearchPr> => typeof n.number ===
 export async function fetchHistory(client: GitHubClient, login: string, now = new Date()): Promise<History> {
   assertLogin(login);
   const since = new Date(now.getTime() - SPAM.windowDays * 86_400_000).toISOString().slice(0, 10);
+  // -user: PRs merged into your own repos say nothing about a maintainer's
+  // trust, and a busy day in them is not a spam burst.
   const [merged, contributed, opened] = await Promise.all([
-    graphqlPaginate<SearchPr>(client, SEARCH, { q: `is:pr is:merged is:public author:${login}` }, ["search"], IMPORT.mergedPages),
+    graphqlPaginate<SearchPr>(client, SEARCH, { q: `is:pr is:merged is:public author:${login} -user:${login}` }, ["search"], IMPORT.mergedPages),
     client.graphql<{ user: { repositoriesContributedTo: { totalCount: number } } | null }>(CONTRIBUTED, { login }),
-    graphqlPaginate<SearchPr>(client, SEARCH, { q: `is:pr is:public author:${login} created:>=${since}` }, ["search"], IMPORT.openedPages),
+    graphqlPaginate<SearchPr>(client, SEARCH, { q: `is:pr is:public author:${login} -user:${login} created:>=${since}` }, ["search"], IMPORT.openedPages),
   ]);
   if (!contributed.user) throw new GitHubUserNotFoundError(login);
   return {

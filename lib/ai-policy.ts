@@ -22,7 +22,7 @@ const RANK: Record<AiPolicyStance, number> = { unknown: 0, allowed: 1, "disclosu
 
 /** Where projects put the policy. GraphQL paths are case-sensitive; these are the spellings in use. */
 export const AI_POLICY_FILES = ["", ".github/", "docs/"].flatMap((dir) =>
-  ["CONTRIBUTING.md", "AI_POLICY.md", "AI-POLICY.md", "AI.md"].map((file) => `${dir}${file}`));
+  ["CONTRIBUTING.md", "CONTRIBUTING.rst", "AI_POLICY.md", "AI-POLICY.md", "AI.md", "PULL_REQUEST_TEMPLATE.md", "pull_request_template.md"].map((file) => `${dir}${file}`));
 
 /** How long a repo's policy is reused before it is read again. */
 export const AI_POLICY_TTL_MS = 6 * 60 * 60_000;

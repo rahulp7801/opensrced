@@ -51,7 +51,7 @@ test("fetchHistory: public PRs only, the 90-day window in the query, unknown use
   assert.deepEqual(h.merged, [{ repo: "pallets/flask", number: 1, createdAt: "2026-01-01T00:00:00Z", mergedAt: "2026-01-01T00:00:00Z" }]);
   assert.deepEqual(h.opened, [{ repo: "pallets/flask", createdAt: "2026-10-01T00:00:00Z", merged: false }]);
   assert.equal(h.contributedTo, 4);
-  assert.ok(github.queries.includes("is:pr is:public author:ada created:>=2026-08-01"), github.queries.join(" | "));
+  assert.ok(github.queries.includes("is:pr is:public author:ada -user:ada created:>=2026-08-01"), github.queries.join(" | "));
   await assert.rejects(fetchHistory(fakeGitHub({ merged: [], opened: [], contributedTo: null }).client, "ghost", NOW), GitHubUserNotFoundError);
   for (const bad of ["", "-ada", "a b", "x".repeat(40), "ada author:other"]) await assert.rejects(fetchHistory(github.client, bad, NOW), InvalidLoginError, bad);
 });

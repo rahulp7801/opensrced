@@ -1,10 +1,11 @@
 "use client";
 
 // The account's own contribution record (GET /api/record): level, standing
-// and where it came from, and the opt-in history import. Private; no
-// leaderboard. Shown on /account behind OPENSRCER_RECORD.
+// and where it came from, the opt-in history import, and the home project
+// (lib/record/continuity.ts). Private; no leaderboard. Shown on /account
+// behind OPENSRCER_RECORD.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 
 type RecordData = {
   level: string;
@@ -13,6 +14,8 @@ type RecordData = {
   spamFlags: string[];
   contributions: unknown[];
   history: { importedAt: string; merged: number; contributedTo: number; signals: { opened: number; merged: number } } | null;
+  home: string | null;
+  homeChoices: string[];
 };
 
 const KIND_LABEL: { [kind: string]: string } = {
@@ -25,6 +28,7 @@ export function RecordSummary() {
   const [record, setRecord] = useState<RecordData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const homeId = useId();
 
   const load = useCallback(async () => {
     const r = await fetch("/api/record", { cache: "no-store" });
@@ -46,6 +50,17 @@ export function RecordSummary() {
       setError(e instanceof Error ? e.message : "Could not import your history.");
     } finally {
       setImporting(false);
+    }
+  }
+
+  async function chooseHome(repo: string | null) {
+    setError(null);
+    try {
+      const r = await fetch("/api/record", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "home", repo }) });
+      if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "Could not change your home project.");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not change your home project.");
     }
   }
 
@@ -74,6 +89,16 @@ export function RecordSummary() {
           {importing ? "Importing…" : record.history ? "Import again" : "Import my GitHub history"}
         </button>
       </div>
+      {record.homeChoices.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border-soft pt-4">
+          <label htmlFor={homeId} className="text-[14px] font-semibold text-paper">Home project</label>
+          <select id={homeId} value={record.home ?? ""} onChange={(e) => void chooseHome(e.target.value || null)} className="field max-w-xs">
+            <option value="">None</option>
+            {record.homeChoices.map((repo) => <option key={repo} value={repo}>{repo}</option>)}
+          </select>
+          <p className="w-full text-[13px] text-paper-muted">Recommendations favour it, and Issues and Browse repos list it first. It is set for you after your second merged PR in one project; your own choice, including None, stays.</p>
+        </div>
+      )}
       {error && <p role="alert" className="mt-2 text-[14px] text-alert">{error}</p>}
     </div>
   );

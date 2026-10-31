@@ -1,5 +1,6 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
+import { eq } from "drizzle-orm";
 import { openDb, type DbConnection } from "../db/client";
 import { migrateDb } from "../db/migrate";
 import { envRecipes, issues, mapCoverage, repos, users } from "../db/schema";
@@ -8,6 +9,7 @@ import {
   attachInsights, fit, issueInsights, knownArea, levelName, loadCandidates, loadUser, rankCandidate, recommend, userLanguages,
   type Candidate, type UserProfile,
 } from "../recs/rank";
+import { RANK } from "../recs/weights";
 
 const candidate = (over: Partial<Candidate> = {}): Candidate => ({
   repoId: 1, repo: "pallets/click", language: "Python", number: 1, title: "t", url: "u", labels: [], difficulty: 2, reasons: [],
@@ -44,6 +46,16 @@ test("rankCandidate: each §6.4 term moves the score and says why", () => {
   assert.equal(rankCandidate(candidate({ unreachableReason: "needs a GPU", difficulty: 3 }), { ...newcomer, level: "Contributor" }).score, 1.1);
   // No difficulty yet: no fit term, no crash.
   assert.equal(rankCandidate(candidate({ difficulty: null }), newcomer).score, 0.1);
+});
+
+test("rankCandidate: the home project scores RANK.homeProject more, in any case, and only there", () => {
+  const home: UserProfile = { ...newcomer, home: "Pallets/Click" };
+  const plain = rankCandidate(candidate(), newcomer).score;
+  const boosted = rankCandidate(candidate(), home);
+  assert.equal(Math.round((boosted.score - plain) * 1000) / 1000, RANK.homeProject);
+  assert.ok(boosted.why.includes("your home project"));
+  assert.equal(rankCandidate(candidate({ repo: "pallets/flask" }), home).score, plain, "another repository");
+  assert.equal(rankCandidate(candidate(), { ...newcomer, home: null }).score, plain);
 });
 
 let connection: DbConnection;
@@ -100,6 +112,18 @@ test("loadUser: level, map coverage and merged languages; an unknown user is a N
   assert.equal(user.level, "Newcomer");
   assert.deepEqual(user.languages, ["python", "go"]);
   assert.deepEqual([...user.known.get(click)!], ["click.core"]);
+  assert.equal(user.home, null, "no home project set");
+  await connection.db.update(users).set({ settings: { homeProject: "pallets/click" } }).where(eq(users.id, "github|1"));
+  const saved = process.env.OPENSRCER_RECORD;
+  try {
+    process.env.OPENSRCER_RECORD = "1";
+    assert.equal((await loadUser(connection.db, "github|1", [])).home, "pallets/click");
+    delete process.env.OPENSRCER_RECORD;
+    assert.equal((await loadUser(connection.db, "github|1", [])).home, null, "the home project is part of the record flag");
+  } finally {
+    if (saved === undefined) delete process.env.OPENSRCER_RECORD; else process.env.OPENSRCER_RECORD = saved;
+    await connection.db.update(users).set({ settings: {} }).where(eq(users.id, "github|1"));
+  }
   const stranger = await loadUser(connection.db, "github|404", []);
   assert.deepEqual({ level: stranger.level, languages: stranger.languages, known: stranger.known.size }, { level: "Newcomer", languages: [], known: 0 });
 });

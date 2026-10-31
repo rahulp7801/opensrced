@@ -59,6 +59,8 @@ export type UserProfile = {
   languages: string[];
   /** Graph nodes the user has explored, explained or changed, per repo id. */
   known: Map<number, Set<string>>;
+  /** Their home project (owner/name), lib/record/continuity.ts. */
+  home?: string | null;
 };
 
 export type Ranked = Candidate & { score: number; why: string[] };
@@ -87,6 +89,10 @@ export function rankCandidate(candidate: Candidate, user: UserProfile, knownArea
   if (known > 0) {
     score += knownAreaWeight * known;
     why.push("touches code you know");
+  }
+  if (user.home && candidate.repo.toLowerCase() === user.home.toLowerCase()) {
+    score += RANK.homeProject;
+    why.push("your home project");
   }
   const responsive = responsiveness(candidate.health);
   score += RANK.responsiveness * responsive;
@@ -184,7 +190,8 @@ export async function userLanguages(client: GitHubClient): Promise<string[]> {
 /** Level, past-lesson languages and map coverage from the database, merged
  *  with the GitHub languages the caller already fetched. */
 export async function loadUser(db: Db, userId: string, githubLanguages: string[]): Promise<UserProfile> {
-  const [user] = rowsOf<{ level: number }>(await db.execute(sql`select level from users where id = ${userId}`));
+  const [user] = rowsOf<{ level: number; home: string | null }>(await db.execute(sql`
+    select level, settings->>'homeProject' as home from users where id = ${userId}`));
   const lessonLanguages = rowsOf<{ language: string }>(await db.execute(sql`
     select distinct lower(r.language) as language from lessons l join repos r on r.id = l.repo_id
     where l.user_id = ${userId} and r.language is not null`)).map((row) => row.language);
@@ -195,7 +202,9 @@ export async function loadUser(db: Db, userId: string, githubLanguages: string[]
     set.add(row.nodeId);
     known.set(row.repoId, set);
   }
-  return { level: levelName(user?.level), languages: [...new Set([...githubLanguages.map((l) => l.toLowerCase()), ...lessonLanguages])], known };
+  return { level: levelName(user?.level), languages: [...new Set([...githubLanguages.map((l) => l.toLowerCase()), ...lessonLanguages])], known,
+    // The home project is part of the record (OPENSRCER_RECORD).
+    home: flagEnabled("record") ? user?.home ?? null : null };
 }
 
 export const FEEDS = ["for-you", "continue", "explore"] as const;

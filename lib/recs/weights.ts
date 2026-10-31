@@ -65,4 +65,9 @@ export const RANK = {
   staleMergeDays: 180,
   /** "Continue in <repo>": how much more known areas count there. */
   continueKnownArea: 1.0,
+  /** "Next in <area>" after a merge (lib/record/continuity.ts): how much more
+   *  the merged PR's area counts, on top of knownArea. */
+  nextInArea: 1.0,
+  /** Every issue in the user's home project (lib/record/continuity.ts). */
+  homeProject: 0.5,
 } as const;

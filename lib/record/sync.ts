@@ -3,15 +3,18 @@
 // refreshes every open one from GitHub: open/merged/closed, review rounds,
 // APPROVED reviews by the project's own people, and whether the author
 // replied to every review thread. Each change becomes standing events
-// (lib/record/standing.ts), and the touched users' levels are rebuilt.
-// Reads only; nothing is posted.
+// (lib/record/standing.ts), and the touched users' levels are rebuilt. A
+// merge also feeds the project map, "Next in <area>" and the home project
+// (lib/record/continuity.ts recordMerge). Reads only; nothing is posted.
 
 import { and, eq, ne } from "drizzle-orm";
 import { splitRepo } from "../ai-policy";
 import type { TimelineEvent } from "../contrib-guard";
 import type { Db } from "../db/client";
+import type { GraphData } from "../graph";
 import { contributions, repos, users } from "../db/schema";
 import type { GitHubClient } from "../gh";
+import { recordMerge } from "./continuity";
 import { closingObjection } from "./signals";
 import { appendEvents, ensureRepo, ensureUser, mergedPoints, POINTS, rebuildStanding, type StandingEvent } from "./standing";
 
@@ -23,6 +26,8 @@ export const SYNC = {
   threadComments: 20,
   /** The newest PR comments read for a maintainer's closing objection. */
   comments: 30,
+  /** Changed files read from a merged PR, for the project map. */
+  files: 100,
 } as const;
 
 const MAINTAINER = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
@@ -35,6 +40,7 @@ export type PrNode = {
   reviews: { nodes: Array<{ state: string; authorAssociation: string; author: Login }> };
   reviewThreads: { nodes: Array<{ comments: { nodes: Array<{ author: Login }> } }> };
   comments: { nodes: Array<{ body: string; authorAssociation: string; author: Login; url: string }> };
+  files?: { nodes: Array<{ path: string }> } | null;
 };
 
 export type PrOutcome = {
@@ -91,7 +97,8 @@ const PR_FIELDS = `
   state mergedAt author { login }
   reviews(first: ${SYNC.reviews}) { nodes { state authorAssociation author { login } } }
   reviewThreads(first: ${SYNC.threads}) { nodes { comments(first: ${SYNC.threadComments}) { nodes { author { login } } } } }
-  comments(last: ${SYNC.comments}) { nodes { body authorAssociation author { login } url } }`;
+  comments(last: ${SYNC.comments}) { nodes { body authorAssociation author { login } url } }
+  files(first: ${SYNC.files}) { nodes { path } }`;
 
 /** Many PRs in one GraphQL request. A missing PR (deleted repo) comes back null. */
 async function fetchPrs(client: GitHubClient, prs: Array<{ owner: string; name: string; number: number }>): Promise<Array<PrNode | null>> {
@@ -106,16 +113,24 @@ async function fetchPrs(client: GitHubClient, prs: Array<{ owner: string; name: 
   return prs.map((_, i) => data[`r${i}`]?.pullRequest ?? null);
 }
 
-export type SyncRun = { checked: number; changed: number; missing: string[]; users: number };
+export type SyncRun = { checked: number; changed: number; missing: string[]; users: number; warnings: string[] };
 
-/** Refresh every open opensrcer contribution. Stops starting batches at `deadline` (ms epoch). */
-export async function syncContributions(db: Db, client: GitHubClient, deadline = Infinity): Promise<SyncRun> {
+async function sharedGraph(repo: string): Promise<GraphData | null> {
+  // Imported lazily, as lib/recs/ingest.ts does: graph-store pulls in Blob.
+  const { getSharedGraph } = await import("../graph-store");
+  return (await getSharedGraph(repo))?.graph ?? null;
+}
+
+/** Refresh every open opensrcer contribution. Stops starting batches at
+ *  `deadline` (ms epoch). `loadGraph` is the repository's code graph, for
+ *  the project map; tests pass their own. */
+export async function syncContributions(db: Db, client: GitHubClient, deadline = Infinity, loadGraph: (repo: string) => Promise<GraphData | null> = sharedGraph): Promise<SyncRun> {
   const open = await db.select({
     id: contributions.id, userId: contributions.userId, repoId: contributions.repoId, number: contributions.prNumber, path: contributions.path,
     login: users.login, owner: repos.owner, name: repos.name,
   }).from(contributions).innerJoin(users, eq(users.id, contributions.userId)).innerJoin(repos, eq(repos.id, contributions.repoId))
     .where(and(eq(contributions.state, "open"), eq(contributions.source, "opensrcer"))).orderBy(contributions.id);
-  const run: SyncRun = { checked: 0, changed: 0, missing: [], users: 0 };
+  const run: SyncRun = { checked: 0, changed: 0, missing: [], users: 0, warnings: [] };
   const touched = new Set<string>();
   for (let start = 0; start < open.length && Date.now() < deadline; start += SYNC.batch) {
     const batch = open.slice(start, start + SYNC.batch);
@@ -136,6 +151,13 @@ export async function syncContributions(db: Db, client: GitHubClient, deadline =
           eq(contributions.source, "opensrcer"), ne(contributions.id, c.id)))).length
         : 0;
       if (await appendEvents(db, c.userId, outcomeEvents(ref, c.path === "self", o, earlier))) touched.add(c.userId);
+      if (o.state === "merged") {
+        let graph: GraphData | null = null;
+        // A broken graph costs the map, not the merge; say so.
+        try { graph = await loadGraph(`${c.owner}/${c.name}`); }
+        catch (error) { run.warnings.push(`${ref}: graph unavailable: ${error instanceof Error ? error.message : String(error)}`); }
+        await recordMerge(db, { userId: c.userId, repoId: c.repoId, repoFull: `${c.owner}/${c.name}`, prNumber: c.number, files: node.files?.nodes.map((f) => f.path) ?? [] }, graph);
+      }
       if (o.state !== "open") run.changed++;
     }
   }

@@ -263,6 +263,15 @@ test("withApproach: the contributor's bullets go above the AI note, escaped; not
   assert.ok(both.indexOf("### How I approached this") < both.indexOf("### AI assistance"));
 });
 
+test("withApproach: the profile link goes under the bullets, only with bullets", () => {
+  const out = withApproach("Fixes #7", ["x"], "https://opensrcer.dev/u/alice");
+  assert.equal(out, "Fixes #7\n\n### How I approached this\n\n- x\n\nMy other contributions, each linked to GitHub: https://opensrcer.dev/u/alice");
+  assert.equal(withApproach("Fixes #7", [], "https://opensrcer.dev/u/alice"), "Fixes #7", "no approach section, no link");
+  assert.equal(withApproach("Fixes #7", ["x"], null), "Fixes #7\n\n### How I approached this\n\n- x");
+  const stored = { preview: buildPreview({ title: "fix", body: "Fixes #7", diff: DIFF, profile: null, verification: verified, executed: true, model: "m", provider: "Anthropic", privateOrg: false }), diff: DIFF };
+  assert.match(withEvidence(stored, ["x"], null, "https://opensrcer.dev/u/alice").preview.body, /- x\n\nMy other contributions, each linked to GitHub: https:\/\/opensrcer\.dev\/u\/alice\n\n### AI assistance/);
+});
+
 test("withPolicyDisclosure: quotes a disclosure rule once; adds a disclosure when there is none; other stances change nothing", () => {
   const out = withPolicyDisclosure(PR_BODY, DISCLOSE);
   assert.ok(out.endsWith(`\n\n${policyDisclosureLine(DISCLOSE)}`));

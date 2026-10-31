@@ -18,7 +18,8 @@ import { flagEnabled } from "@/lib/flags";
 import { getDb } from "@/lib/db/client";
 import { parseGitHubPullUrl } from "@/lib/github-pull-url";
 import { approachForRun } from "@/lib/lesson/approach";
-import { lessonStore } from "@/lib/lesson/db-store";
+import { lessonStore, rowKey } from "@/lib/lesson/db-store";
+import { profileUrlFor } from "@/lib/record/profile";
 import { recordPublished } from "@/lib/record/sync";
 
 export const maxDuration = 300;
@@ -38,10 +39,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const authorWords = parseAuthorWords(body);
     if (body.includeApproach != null && typeof body.includeApproach !== "boolean") throw new PublishError(400, "includeApproach must be true or false.");
     const approach = body.includeApproach === true ? await approachForRun(lessonStore(), viewerId, id) : null;
+    const profileUrl = approach ? await profileUrlFor(viewerId) : null;
     // Hosted runs: same checks, then a short-lived push VM opens the PR.
     const result = cloudExecution()
-      ? await publishCloudRun({ id, viewerId, confirmed: body.confirmed, authorWords, approach, token, author, signal: req.signal })
-      : await publishDispatch({ id, viewerId, confirmed: body.confirmed, authorWords, approach, token, author, geminiKey: geminiKey ?? undefined });
+      ? await publishCloudRun({ id, viewerId, confirmed: body.confirmed, authorWords, approach, profileUrl, token, author, signal: req.signal })
+      : await publishDispatch({ id, viewerId, confirmed: body.confirmed, authorWords, approach, profileUrl, token, author, geminiKey: geminiKey ?? undefined });
     if (flagEnabled("record") && author) await recordPr(viewerId, author.login, id, result.url);
     return NextResponse.json({ ok: true, pr_url: result.url, tests: result.tests });
   } catch (error) {
@@ -57,7 +59,7 @@ async function recordPr(viewerId: string, login: string, runId: string, url: str
   if (!pr) return;
   try {
     const lesson = await lessonStore().findByRun(runId);
-    await recordPublished(await getDb(), { userId: viewerId, login, repoFull: pr.repoFull, prNumber: pr.prNumber, path: lesson?.path === "B" ? "self" : "ai" });
+    await recordPublished(await getDb(), { userId: viewerId, login, repoFull: pr.repoFull, prNumber: pr.prNumber, path: lesson?.path === "B" ? "self" : "ai", lessonId: lesson ? rowKey(lesson.id) : null });
   } catch (error) {
     console.error("[record] could not record the published PR", url, error);
   }

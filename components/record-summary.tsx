@@ -2,11 +2,14 @@
 
 // The account's own contribution record (GET /api/record): level, standing
 // and where it came from, and the opt-in history import. Private; no
-// leaderboard. Shown on /account behind OPENSRCER_RECORD.
+// leaderboard. Shown on /account behind OPENSRCER_RECORD. The public
+// profile (/u/<login>) is off until the user turns it on here.
 
 import { useCallback, useEffect, useState } from "react";
 
 type RecordData = {
+  login?: string;
+  publicProfile: boolean;
   level: string;
   standing: number;
   breakdown: { [kind: string]: number };
@@ -25,6 +28,7 @@ export function RecordSummary() {
   const [record, setRecord] = useState<RecordData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
 
   const load = useCallback(async () => {
     const r = await fetch("/api/record", { cache: "no-store" });
@@ -46,6 +50,20 @@ export function RecordSummary() {
       setError(e instanceof Error ? e.message : "Could not import your history.");
     } finally {
       setImporting(false);
+    }
+  }
+
+  async function setProfile(on: boolean) {
+    setSavingProfile(true);
+    setError(null);
+    try {
+      const r = await fetch("/api/record", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "profile", public: on }) });
+      if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "Could not change your profile.");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not change your profile.");
+    } finally {
+      setSavingProfile(false);
     }
   }
 
@@ -73,6 +91,16 @@ export function RecordSummary() {
         <button onClick={importHistory} disabled={importing} className="btn-quiet" data-size="sm">
           {importing ? "Importing…" : record.history ? "Import again" : "Import my GitHub history"}
         </button>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border-soft pt-4">
+        <label className="flex min-w-0 flex-1 items-start gap-2 text-[14px] text-paper-dim">
+          <input type="checkbox" checked={record.publicProfile} disabled={savingProfile} onChange={(e) => void setProfile(e.target.checked)} className="mt-1" />
+          <span>
+            Public profile for maintainers: your merged PRs and level, each linked to GitHub, at /u/{record.login ?? "your-login"}. Your PRs from lessons link to it.
+            Your standing breakdown and anything private above stay private.
+          </span>
+        </label>
+        {record.publicProfile && record.login && <a href={`/u/${encodeURIComponent(record.login)}`} className="btn-quiet" data-size="sm">View it</a>}
       </div>
       {error && <p role="alert" className="mt-2 text-[14px] text-alert">{error}</p>}
     </div>

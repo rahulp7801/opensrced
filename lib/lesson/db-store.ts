@@ -18,7 +18,7 @@ import {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** The row key for a public id, or null when it cannot be one of ours. */
-function rowKey(id: string): string | null {
+export function rowKey(id: string): string | null {
   return id.startsWith("l_") && UUID_RE.test(id.slice(2)) ? id.slice(2) : null;
 }
 

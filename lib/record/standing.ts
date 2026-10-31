@@ -235,5 +235,7 @@ export async function recordView(db: Db, userId: string) {
     spamFlags: replayed.flags,
     contributions: prs.map(({ repo, name, ...pr }) => ({ repo: `${repo}/${name}`, ...pr })),
     history: (user.settings as { history?: unknown }).history ?? null,
+    // The opt-in for /u/<login> (lib/record/profile.ts).
+    publicProfile: (user.settings as { publicProfile?: unknown }).publicProfile === true,
   };
 }

@@ -10,6 +10,7 @@ import { GITHUB_SCOPES } from "@/lib/auth0";
 import { safeAvatarUrl } from "@/lib/avatar-url";
 import { MemberSince } from "@/components/member-since";
 import { RecordSummary } from "@/components/record-summary";
+import { ProjectMaps } from "@/components/project-map";
 import { flagEnabled } from "@/lib/flags";
 import { authDisabled, sessionAccount } from "@/lib/require-session";
 
@@ -104,8 +105,9 @@ export default async function AccountPage() {
         )}
 
         {flagEnabled("record") && (
-          <SettingsSection id="record-heading" title="Your record" description="Your level and standing, from your merged PRs. Private to you.">
+          <SettingsSection id="record-heading" title="Your record" description="Your level and standing, from your merged PRs, and the code you know. Private to you.">
             <RecordSummary />
+            <ProjectMaps />
           </SettingsSection>
         )}
 

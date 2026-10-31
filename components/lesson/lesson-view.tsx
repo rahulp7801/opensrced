@@ -13,6 +13,7 @@ import { canSubmit, STEP_IDS, type StepId } from "@/lib/lesson/machine";
 import type { RunPhase } from "@/lib/hidden-runs";
 import { pollJson } from "@/lib/poll-json";
 import { cn } from "@/lib/utils";
+import { MapNote } from "../project-map";
 import { StatusChip } from "../status-dot";
 import { CodeViewer } from "./code-viewer";
 import { StepCard } from "./step-card";
@@ -117,6 +118,8 @@ export function LessonView({ lessonId }: { lessonId: string }) {
           {phase ? <StatusChip tone={PHASE_TONE[phase.phase]}>{phase.label}</StatusChip> : <span className="text-paper-muted">checking…</span>}
         </p>
       </header>
+      {/* The project map, when this repository is not new to them (PLAN §9.4). */}
+      {lesson.stage === "kickoff" && <MapNote repo={repo} issue={lesson.issue_number} />}
 
       {/* Path and mode: the path until s8, the mode during kickoff. */}
       <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_auto]">

@@ -7,7 +7,9 @@ import { getDispatch, readLog } from "../dispatcher";
 import { resolveCommitAuthor, resolveGitHubToken } from "../github-token";
 import { getDb } from "../db/client";
 import { flagEnabled } from "../flags";
+import { markNodes } from "../record/map";
 import { recordLessonFinished } from "../record/standing";
+import { parseRunTarget } from "../run-target";
 import { githubApi } from "../github-api";
 import { revealHiddenRun } from "../hidden-runs";
 import { sessionUserId } from "../require-session";
@@ -53,6 +55,15 @@ export function defaultLessonDeps(): LessonDeps {
         if (author) await recordLessonFinished(await getDb(), lesson.owner, author.login, lesson);
       } catch (error) {
         console.error("[record] could not record the finished lesson", lesson.id, error);
+      }
+    },
+    // Like finished: a map that fails to write is logged, never a failed step or reply.
+    mapped: async (lesson, mark) => {
+      if (!flagEnabled("record")) return;
+      try {
+        await markNodes(await getDb(), lesson.owner, parseRunTarget(lesson.repo_url).repo, mark);
+      } catch (error) {
+        console.error("[record] could not update the project map", lesson.id, error);
       }
     },
     headSha: async (repo, signal) => (await githubApi<{ sha: string }>(`/repos/${repo}/commits/HEAD`, await resolveGitHubToken(), undefined, signal)).sha,

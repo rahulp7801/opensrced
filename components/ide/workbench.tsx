@@ -15,6 +15,7 @@ import "@codingame/monaco-editor-wrapper/features/typescriptStandalone";
 import { initialize, monaco } from "@codingame/monaco-editor-wrapper";
 import { registerFileSystemOverlay } from "@codingame/monaco-vscode-files-service-override";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { markExplored } from "../project-map";
 import { RepoFs, WORKSPACE_ROOT, repoFileSystemProvider } from "./fs";
 import { modelPath, registerLanguageSmarts } from "./languages";
 import { RunPanel } from "./run-panel";
@@ -58,6 +59,11 @@ function startWorkbench(container: HTMLElement, { repo, sha, lessonId }: IdeProp
     }, { container, registerAdditionalExtensions: false });
     monaco.editor.onDidCreateEditor((editor) => {
       editor.onDidFocusEditorText(() => { lastEditor = editor; });
+      // A file opened in an editor is explored code on the project map.
+      editor.onDidChangeModel(({ newModelUrl }) => {
+        const path = newModelUrl && modelPath(newModelUrl);
+        if (path) markExplored(repo, path);
+      });
     });
     registerLanguageSmarts(repo);
     return fs;

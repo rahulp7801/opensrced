@@ -17,6 +17,7 @@
 //
 // Every handler answers "not yours" like "missing" (404).
 
+import { askedMark, passedMark, type MapMark } from "../record/map";
 import { readJsonBody } from "../request-body";
 import { parseRunTarget } from "../run-target";
 import { RUN_PHASE_LABEL, runPhase } from "../hidden-runs";
@@ -61,6 +62,8 @@ export type LessonDeps = {
   reveal: (owner: string, runId: string) => Promise<void>;
   /** The lesson just reached "done" (the contribution record, PLAN §9.3). */
   finished?: (lesson: Lesson) => Promise<void>;
+  /** Code the contributor explored or explained (the project map, PLAN §9.4). */
+  mapped?: (lesson: Lesson, mark: MapMark) => Promise<void>;
   /** The default branch's commit now (owner/name), pinned for the code viewer and the IDE. */
   headSha?: (repo: string, signal: AbortSignal) => Promise<string>;
   log?: (line: string) => void;
@@ -296,6 +299,8 @@ export async function submitStep(req: Request, id: string, stepParam: string, de
   const stage = advance(withStep.stage, withStep.mode, withStep.path, withStep.steps);
   const updated = await deps.store.updateStage(lesson.id, stage, { answer_key: ctx.answerKeyStatus, turns_used: lesson.turns_used + calls });
   if (updated.stage === "done" && lesson.stage !== "done") await deps.finished?.(updated);
+  const mark = passedMark(step, answer, grade, ctx);
+  if (mark) await deps.mapped?.(updated, mark);
   return json({ step: { id: step, done: saved.done, grade }, lesson: publicLesson(updated) });
 }
 
@@ -371,6 +376,8 @@ async function teacherExchange(lesson: Lesson, message: string, step: StepId | n
   await deps.store.appendMessage(lesson.id, { role: "user", content: message, step, at });
   await deps.store.appendMessage(lesson.id, { role: "teacher", content: reply.text, step, at });
   await deps.store.updateStage(lesson.id, lesson.stage, { turns_used: lesson.turns_used + reply.calls });
+  const asked = askedMark(ctx.graph, message);
+  if (asked) await deps.mapped?.(lesson, asked);
   return { text: reply.text, turnsLeft: budgetState(runtime.provider, lesson.turns_used + reply.calls).left };
 }
 

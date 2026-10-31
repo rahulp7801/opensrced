@@ -1,5 +1,6 @@
 // GET /api/graph/[owner]/[repo]/viz
-// Serves the graphify-generated graph.html for iframe embedding.
+// Serves the graphify-generated graph.html for iframe embedding. With ?map=1
+// and OPENSRCER_RECORD, recoloured as the caller's project map (PLAN §9.4).
 
 import { NextRequest } from "next/server";
 import { readFile } from "node:fs/promises";
@@ -11,7 +12,10 @@ import { sanitizeGitHubName } from "@/lib/sanitize";
 
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { getStoredGraph, hasStoredGraph } from "@/lib/graph-store";
-import { graphHtmlResponse } from "@/lib/graph-html";
+import { graphHtmlResponse, withMapOverlay } from "@/lib/graph-html";
+import { getDb } from "@/lib/db/client";
+import { flagEnabled } from "@/lib/flags";
+import { findRepoId, mapLevels } from "@/lib/record/map";
 import { resolveRepositoryToken } from "@/lib/crucible/tokens";
 
 export const dynamic = "force-dynamic";
@@ -39,15 +43,22 @@ export async function GET(
   const { owner, repo } = safe;
   try { await resolveRepositoryToken(userId, `${owner}/${repo}`, req.signal); }
   catch { return new Response("Repository not accessible", { status: 403 }); }
+  // The project map overlay: the caller's own levels only.
+  const mapped = async (html: string) => {
+    if (req.nextUrl.searchParams.get("map") !== "1" || !flagEnabled("record")) return html;
+    const db = await getDb();
+    const repoId = await findRepoId(db, `${owner}/${repo}`);
+    return withMapOverlay(html, repoId === null ? new Map() : await mapLevels(db, userId, repoId));
+  };
   if (cloudExecution()) {
     const stored = await getStoredGraph(userId, `${owner}/${repo}`);
-    return stored ? graphHtmlResponse(stored.html) : new Response("Graph not built", { status: 404 });
+    return stored ? graphHtmlResponse(await mapped(stored.html)) : new Response("Graph not built", { status: 404 });
   }
   const htmlPath = graphHtmlPath(owner, repo);
 
   if (existsSync(htmlPath)) {
     const html = await readFile(htmlPath, "utf8");
-    return graphHtmlResponse(html);
+    return graphHtmlResponse(await mapped(html));
   }
 
   // graph.json exists but graph.html doesn't — repo too large for vis.js

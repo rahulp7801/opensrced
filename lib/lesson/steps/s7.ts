@@ -24,7 +24,7 @@ const sameFile = (a: string, b: string) => a === b || a.endsWith(`/${b}`) || b.e
 
 /** The graph nodes a pick names: every node in a picked file, or the node a
  *  symbol resolves to (lib/graph.ts findNode). */
-function pickNodes(graph: GraphData, pick: string): string[] {
+export function pickNodes(graph: GraphData, pick: string): string[] {
   if (looksLikeFile(pick)) {
     return graph.nodes.filter((n) => n.source_file && sameFile(norm(n.source_file), pick)).map((n) => n.id);
   }

@@ -78,12 +78,18 @@ function matching(dir: string, sub: string, re: RegExp): string[] {
 
 // ── Policy text classification (exported for tests) ────────────────────
 
-const AI = String.raw`(?:AI|A\.I\.|LLM|large language model|generative|machine[- ]generated|ChatGPT|Copilot|Claude)`;
+const AI = String.raw`(?:AI|A\.I\.|LLM|large language model|artificial intelligence|generative|machine[- ]generated|ChatGPT|Copilot|Claude)`;
 
 const BAN_PATTERNS = [
   new RegExp(String.raw`(?:do not|don't|will not|won't|cannot|can't|no longer|never)\s+(?:accept|merge|allow|permit|take)\b[^.\n]{0,80}?\b${AI}`, "i"),
   new RegExp(String.raw`\b${AI}[- ]?(?:generated|written|authored|created|produced|assisted)?\b[^.\n]{0,80}?\b(?:(?:are|is|will be)\s+(?:not\s+(?:accepted|allowed|permitted|welcome)|prohibited|forbidden|banned|rejected|closed))`, "i"),
   new RegExp(String.raw`\b(?:prohibit|ban|forbid|reject)s?\b[^.\n]{0,40}?\b${AI}[- ]?(?:generated|written|assisted)`, "i"),
+  // Gentoo: "It is expressly forbidden to contribute ... content ... created with the assistance of ... AI tools."
+  new RegExp(String.raw`\b(?:forbidden|prohibited|banned)\b[^.\n]{0,120}?\b${AI}\b`, "i"),
+  // QEMU: "... and will decline any contribution if use of AI is either known or suspected."
+  new RegExp(String.raw`\b(?:will|we)\s+(?:decline|reject)\b[^.\n]{0,80}?\b${AI}\b`, "i"),
+  // Zig: "No LLMs for issues, pull requests, or comments." / "No AI-generated code."
+  new RegExp(String.raw`\bno\s+${AI}s?(?:[- ]generated)?\s+(?:code|contributions?|PRs?|pull requests?|patches|for)\b`, "i"),
 ];
 
 const DISCLOSE_PATTERNS = [
@@ -98,7 +104,7 @@ const DISCLOSE_PATTERNS = [
 const WELCOME_PATTERNS = [
   new RegExp(String.raw`\bwe\s+(?:welcome|accept|allow|encourage)\s+(?:the\s+use\s+of\s+)?${AI}`, "i"),
   new RegExp(String.raw`\b${AI}[- ]?(?:assisted|generated)?\s+(?:contributions?|pull requests?|PRs?|code)\s+(?:are|is)\s+(?:welcome|allowed|accepted|fine|ok(?:ay)?)\b`, "i"),
-  new RegExp(String.raw`\byou\s+(?:may|can|are\s+welcome\s+to)\s+use\s+${AI}`, "i"),
+  new RegExp(String.raw`\b(?:you|contributors?)\s+(?:may|can|are\s+(?:welcome|free)\s+to)\s+use\s+${AI}`, "i"),
 ];
 
 /** Ban outranks a disclosure requirement, which outranks a welcome (several files may say different things). */

@@ -4,6 +4,8 @@
 // pipeline as any other run.
 
 import { findOpenRunPr, RunTargetError, startAgenticDispatch } from "./agentic-dispatcher";
+import { AiPolicyFetchError, aiPolicyBanReason, repoAiPolicy, type RepoAiPolicy } from "./ai-policy";
+import { gh } from "./gh";
 import { resolveCommitAuthor, resolveGitHubToken, type CommitAuthor } from "./github-token";
 import { resolveGeminiKey, resolveMaxSpendUsd, resolveRunPayment } from "./api-keys";
 import { NoRunCredentialError, type RunPayment } from "./run-payment";
@@ -33,6 +35,19 @@ export type IssueRunInput = {
   signal?: AbortSignal;
 };
 
+/** The project's AI policy (lib/ai-policy.ts), before any spend: a lesson or
+ *  run on a project that bans AI help is refused, quoting its policy. */
+async function assertAiAllowed(repo: string, token: string): Promise<void> {
+  let policy: RepoAiPolicy;
+  try { policy = await repoAiPolicy(gh(token), repo); }
+  catch (error) {
+    if (error instanceof AiPolicyFetchError) throw new RunStartError(503, `${error.message} Try again.`);
+    throw error;
+  }
+  const ban = aiPolicyBanReason(policy);
+  if (ban) throw new RunStartError(409, `Refused: ${ban}. opensrcer won't write code for this project.`);
+}
+
 /** Start the run, or throw RunStartError. */
 export async function startIssueRun(input: IssueRunInput): Promise<Dispatch> {
   // Resolve the logged-in user's GitHub token from their Auth0 session so
@@ -55,6 +70,8 @@ export async function startIssueRun(input: IssueRunInput): Promise<Dispatch> {
     author = (await resolveCommitAuthor(input.signal).catch(() => null)) ?? undefined;
     if (!author) throw new RunStartError(401, "Sign in with GitHub again before starting a live solve.");
   }
+  // A dry run without a token is still refused by the dispatcher's clone-based check.
+  if (token) await assertAiAllowed(parseRunTarget(input.repoUrl).repo, token);
 
   try {
     if (author && token) {

@@ -23,6 +23,7 @@ import { RUN_PHASE_LABEL, runPhase } from "../hidden-runs";
 import { MAX_DIFF_BYTES, MAX_SELECTION_CHARS } from "../ide/lesson-api";
 import { validSha } from "../ide/repo-tree";
 import { ReplyFormatError } from "../understanding";
+import { approachBullets } from "./approach";
 import { assertTurnsLeft, budgetState, TurnBudgetError, type TeacherProvider, type Env } from "./budget";
 import { hintFacts, hintText, maxHintLevel, nextHintLevel, withHint } from "./hints";
 import { checkLeak, type LeakGate } from "./leak";
@@ -353,7 +354,7 @@ async function teacherExchange(lesson: Lesson, message: string, step: StepId | n
   const ctx = await deps.context(lesson);
   const history = (await deps.store.listMessages(lesson.id, HISTORY_TURNS)).map((m) => ({ role: m.role === "user" ? "user" as const : "assistant" as const, content: m.content }));
   const gate = leakGate(lesson);
-  const note = lessonNote({ stage: lesson.stage, step, gate, budget, hintLevel: step ? lesson.steps[step]?.hint_level ?? -1 : -1 });
+  const note = lessonNote({ stage: lesson.stage, step, gate, budget, hintLevel: step ? lesson.steps[step]?.hint_level ?? -1 : -1, plan: lesson.revealed_at ? approachBullets(lesson) : undefined });
   let reply;
   try {
     reply = await guardedReply(runtime, {

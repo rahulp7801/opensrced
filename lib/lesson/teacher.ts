@@ -61,7 +61,9 @@ export function teacherSystem(ctx: StepContext): string {
   ].join("\n");
 }
 
-export type NoteInput = { stage: Stage; step: StepId | null; gate: LeakGate; budget: BudgetState; hintLevel: number };
+/** `plan`: after the reveal, the contributor's own s4/s7/s8 answers (lib/lesson/approach.ts),
+ *  so "would my approach also work?" has an approach to compare. */
+export type NoteInput = { stage: Stage; step: StepId | null; gate: LeakGate; budget: BudgetState; hintLevel: number; plan?: string[] };
 
 /** What the app tells the teacher about where the lesson is. Not untrusted:
  *  written by us, from the lesson record. */
@@ -74,6 +76,9 @@ export function lessonNote(input: NoteInput): string {
     fileNamesUnlocked(input.gate) ? "You may name files the fix changes." : "Do not name any file the fix changes; point to areas and behaviour instead.",
     symbolsUnlocked(input.gate) ? "You may name functions the fix changes." : "Do not name any function, class or variable the fix changes.",
     budgetNote(input.budget),
+    input.plan?.length ? `The fix is revealed. The contributor's plan from before the reveal, to compare with the fix when they ask:
+${fence("contributor-plan", input.plan.join("
+"), 3000)}` : "",
   ].filter(Boolean);
   return `<lesson>\n${lines.join("\n")}\n</lesson>`;
 }

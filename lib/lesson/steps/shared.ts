@@ -56,7 +56,7 @@ export class StepInputError extends Error {
   }
 }
 
-const LESSON_TAGS = /<(\/?)(issue|readme|modules|answer-key|diff|diagnosis|cases|contributor-answer|lesson|step)\b/gi;
+const LESSON_TAGS = /<(\/?)(issue|readme|modules|answer-key|diff|diagnosis|cases|contributor-answer|contributor-plan|lesson|step)\b/gi;
 
 /** Untrusted text inside one of our tags: control characters stripped, capped,
  *  and our own tags defused so it cannot close the fence. */

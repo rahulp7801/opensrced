@@ -43,7 +43,7 @@ export type PrOutcome = {
   /** Reviews by others that asked for changes or commented. */
   reviewRounds: number;
   approvedByMaintainer: boolean;
-  /** Someone else reviewed (a review or a review thread). */
+  /** Someone else asked for something: changes, comments or a review thread. */
   reviewed: boolean;
   /** The author replied in every review thread someone else started. */
   respondedToReview: boolean;
@@ -59,12 +59,14 @@ export function prOutcome(pr: PrNode, login: string): PrOutcome {
   const threads = pr.reviewThreads.nodes.filter((t) => t.comments.nodes.length && !same(t.comments.nodes[0].author, login));
   const state = pr.state === "MERGED" ? "merged" : pr.state === "CLOSED" ? "closed" : "open";
   const comments: TimelineEvent[] = pr.comments.nodes.map((c) => ({ event: "commented", body: c.body, author_association: c.authorAssociation, user: c.author, html_url: c.url }));
+  const reviewRounds = others.filter((r) => r.state === "CHANGES_REQUESTED" || r.state === "COMMENTED").length;
   return {
     state,
     mergedAt: pr.mergedAt ? new Date(pr.mergedAt) : null,
-    reviewRounds: others.filter((r) => r.state === "CHANGES_REQUESTED" || r.state === "COMMENTED").length,
+    reviewRounds,
     approvedByMaintainer: others.some((r) => r.state === "APPROVED" && MAINTAINER.has(r.authorAssociation)),
-    reviewed: others.length > 0 || threads.length > 0,
+    // A plain approval asks for no reply.
+    reviewed: reviewRounds > 0 || threads.length > 0,
     // ponytail: review threads only; a review with just a body counts as answered.
     respondedToReview: threads.every((t) => t.comments.nodes.slice(1).some((c) => same(c.author, login))),
     objection: state === "closed" ? closingObjection(comments) : null,

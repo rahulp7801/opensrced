@@ -39,6 +39,7 @@ test("prOutcome: state, rounds, maintainer approval, replies and closing objecti
   assert.equal(prOutcome(node({ reviews: { nodes: [review("APPROVED", "ada", "OWNER")] } }), "ada").approvedByMaintainer, false);
   const quiet = prOutcome(node(), "ada");
   assert.deepEqual([quiet.reviewed, quiet.respondedToReview, quiet.reviewRounds], [false, true, 0]);
+  assert.equal(prOutcome(node({ reviews: { nodes: [review("APPROVED")] } }), "ada").reviewed, false, "a plain approval asks for no reply");
   const closed = prOutcome(node({ state: "CLOSED", comments: { nodes: [{ body: "Closing: AI-generated PRs are not accepted here.", authorAssociation: "OWNER", author: who("maint"), url: "u" }] } }), "ada");
   assert.match(closed.objection!, /AI-generated PRs are not accepted/);
   assert.equal(prOutcome(node({ state: "CLOSED" }), "ada").objection, null);
@@ -92,7 +93,8 @@ test("syncContributions: refreshes open PRs, appends events once, rebuilds level
   await recordPublished(connection.db, { ...base, repoFull: "acme/app", prNumber: 12 });
   await recordPublished(connection.db, { ...base, repoFull: "gone/repo", prNumber: 1 });
   const mergedNode = node({ state: "MERGED", mergedAt: "2026-10-20T00:00:00Z", author: who("bob"), reviews: { nodes: [review("APPROVED")] } });
-  const github = fakeGitHub({ "acme/app#10": mergedNode, "acme/app#11": mergedNode, "acme/app#12": node({ author: who("bob") }), "gone/repo#1": null });
+  // acme/app#1 is the previous test's PR (another user), still open.
+  const github = fakeGitHub({ "acme/app#1": node(), "acme/app#10": mergedNode, "acme/app#11": mergedNode, "acme/app#12": node({ author: who("bob") }), "gone/repo#1": null });
   const run = await syncContributions(connection.db, github.client);
   assert.deepEqual(run.missing, ["gone/repo#1"]);
   assert.ok(run.checked >= 4 && run.changed >= 2);

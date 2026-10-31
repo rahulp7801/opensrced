@@ -10,6 +10,8 @@ export const FLAGS = {
   ide: "OPENSRCER_IDE",
   levels: "OPENSRCER_LEVELS",
   recs: "OPENSRCER_RECS",
+  // Contribution record, levels and level-aware PR caps (PLAN §9.1-9.3).
+  record: "OPENSRCER_RECORD",
 } as const;
 
 export type Flag = keyof typeof FLAGS;

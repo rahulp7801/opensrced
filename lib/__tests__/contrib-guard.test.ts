@@ -41,8 +41,17 @@ test("caps: defaults, overrides, and the 24h window", () => {
   try {
     delete process.env.OPENSRCER_PRS_PER_REPO; delete process.env.OPENSRCER_DAILY_PR_CAP;
     assert.deepEqual(prCaps(), { perRepo: 1, daily: 3 });
+    // Level-aware (PLAN §9.2): newcomer is today's defaults; a level never gets less than a newcomer.
+    assert.deepEqual(prCaps("newcomer"), { perRepo: 1, daily: 3 });
+    assert.deepEqual(prCaps("contributor"), { perRepo: 1, daily: 3 });
+    assert.deepEqual(prCaps("regular"), { perRepo: 2, daily: 3 });
+    assert.deepEqual(prCaps("trusted"), { perRepo: 2, daily: 5 });
+    assert.throws(() => prCaps("admin" as never), RangeError);
     process.env.OPENSRCER_DAILY_PR_CAP = "0"; process.env.OPENSRCER_PRS_PER_REPO = "-2";
     assert.deepEqual(prCaps(), { perRepo: 1, daily: 0 });
+    // With the plan's newcomer cap of 1/day, the plan's table applies as written.
+    process.env.OPENSRCER_DAILY_PR_CAP = "1";
+    assert.deepEqual(["newcomer", "contributor", "regular", "trusted"].map((l) => prCaps(l as never).daily), [1, 2, 3, 5]);
   } finally {
     for (const [k, v] of [["OPENSRCER_PRS_PER_REPO", saved.a], ["OPENSRCER_DAILY_PR_CAP", saved.b]] as const) {
       if (v === undefined) delete process.env[k]; else process.env[k] = v;

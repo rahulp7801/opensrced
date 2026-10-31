@@ -26,7 +26,7 @@ test("each flag turns on with its own env var only", () => {
 });
 
 test("the env var names are the ones in the plan", () => {
-  assert.deepEqual(Object.values(FLAGS).sort(), ["OPENSRCER_ENV_RECIPES", "OPENSRCER_FORK_CI", "OPENSRCER_IDE", "OPENSRCER_LESSONS", "OPENSRCER_LEVELS", "OPENSRCER_RECS"]);
+  assert.deepEqual(Object.values(FLAGS).sort(), ["OPENSRCER_ENV_RECIPES", "OPENSRCER_FORK_CI", "OPENSRCER_IDE", "OPENSRCER_LESSONS", "OPENSRCER_LEVELS", "OPENSRCER_RECORD", "OPENSRCER_RECS"]);
 });
 
 test("an unknown flag throws instead of reading as off", () => {

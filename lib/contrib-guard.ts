@@ -11,6 +11,7 @@
 
 import { githubApi, githubGraphql, githubText } from "./github-api";
 import { classifyAiPolicy, type AiStance, type ContribProfile } from "./contrib-profile";
+import { LEVEL_CAPS, type Level } from "./record/levels";
 
 export type TimelineEvent = {
   event?: string;
@@ -85,13 +86,19 @@ export async function openOpensrcerPrs(repo: string, login: string, token: strin
   return pulls.filter((p) => p.head?.ref?.startsWith("opensrcer/") && p.head.user?.login?.toLowerCase() === login.toLowerCase()).map((p) => p.html_url);
 }
 
-/** OPENSRCER_PRS_PER_REPO (default 1) and OPENSRCER_DAILY_PR_CAP (default 3). */
-export function prCaps() {
+/** Newcomer caps: OPENSRCER_PRS_PER_REPO (default 1) and OPENSRCER_DAILY_PR_CAP
+ *  (default 3). Higher levels get lib/record/levels.ts LEVEL_CAPS, never less
+ *  than a newcomer. The level comes from capsLevelFor (newcomer with a spam flag). */
+export function prCaps(level: Level = "newcomer") {
   const n = (name: string, fallback: number) => {
     const v = Number(process.env[name]);
     return Number.isSafeInteger(v) && v >= 0 ? v : fallback;
   };
-  return { perRepo: n("OPENSRCER_PRS_PER_REPO", 1), daily: n("OPENSRCER_DAILY_PR_CAP", 3) };
+  const newcomer = { perRepo: n("OPENSRCER_PRS_PER_REPO", 1), daily: n("OPENSRCER_DAILY_PR_CAP", 3) };
+  if (level === "newcomer") return newcomer;
+  const caps = LEVEL_CAPS[level];
+  if (!caps) throw new RangeError(`Unknown level: ${String(level)}`);
+  return { perRepo: Math.max(newcomer.perRepo, caps.perRepo), daily: Math.max(newcomer.daily, caps.daily) };
 }
 
 /** How many PRs this user published in the last 24 hours, from timestamps. */

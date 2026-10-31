@@ -252,3 +252,19 @@ test("publicLesson lists the steps a contributor can see, and nothing of the run
   assert.deepEqual(view.turns, { limit: 15, used: 3, left: 12, low: false, exhausted: false });
   assert.equal("owner" in view, false);
 });
+
+test("finishing the lesson (s10) calls deps.finished once, with the done lesson", async () => {
+  const h = harness();
+  const finished: Lesson[] = [];
+  h.deps.finished = async (lesson) => { finished.push(lesson); };
+  const lesson = await h.store.create({ owner: OWNER, repo_url: "https://github.com/pallets/flask", issue_number: 5, run_id: "c_1", mode: "short", path: "A", stage: "next", answer_key: "verified" });
+  const res = await submitStep(post({ answer: "Pick a related issue." }), lesson.id, "s10", h.deps);
+  assert.equal(res.status, 200);
+  assert.deepEqual(finished.map((l) => [l.id, l.stage]), [[lesson.id, "done"]]);
+  assert.equal((await submitStep(post({ answer: "Again." }), lesson.id, "s10", h.deps)).status, 409, "done: s10 is closed");
+  assert.equal(finished.length, 1);
+  // Without the hook (record off) finishing still works.
+  const plain = harness();
+  const other = await plain.store.create({ owner: OWNER, repo_url: "https://github.com/pallets/flask", issue_number: 5, run_id: "c_2", mode: "short", path: "A", stage: "next", answer_key: "verified" });
+  assert.equal((await submitStep(post({ answer: "Next." }), other.id, "s10", plain.deps)).status, 200);
+});

@@ -4,7 +4,10 @@ import { resolveAnthropicKey, resolveOpenRouterKey } from "../api-keys";
 import { cloudExecution } from "../cloud-run-state";
 import { getCloudRun } from "../cloud-runs";
 import { getDispatch, readLog } from "../dispatcher";
-import { resolveGitHubToken } from "../github-token";
+import { resolveCommitAuthor, resolveGitHubToken } from "../github-token";
+import { getDb } from "../db/client";
+import { flagEnabled } from "../flags";
+import { recordLessonFinished } from "../record/standing";
 import { revealHiddenRun } from "../hidden-runs";
 import { sessionUserId } from "../require-session";
 import { loadOwnedRun } from "../run-change";
@@ -39,5 +42,15 @@ export function defaultLessonDeps(): LessonDeps {
       return chooseRuntime({ gitHubToken, anthropicKey, openRouterKey }, { siteUrl: siteUrl() });
     },
     reveal: revealHiddenRun,
+    // The step is already saved: a record that fails to write is logged, not a failed step.
+    finished: async (lesson) => {
+      if (!flagEnabled("record")) return;
+      try {
+        const author = await resolveCommitAuthor();
+        if (author) await recordLessonFinished(await getDb(), lesson.owner, author.login, lesson);
+      } catch (error) {
+        console.error("[record] could not record the finished lesson", lesson.id, error);
+      }
+    },
   };
 }

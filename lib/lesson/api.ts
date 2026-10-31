@@ -51,6 +51,8 @@ export type LessonDeps = {
   runtime: () => Promise<TeacherRuntime | null>;
   /** Set the hidden run's reveal marker (lib/hidden-runs.ts revealHiddenRun). */
   reveal: (owner: string, runId: string) => Promise<void>;
+  /** The lesson just reached "done" (the contribution record, PLAN §9.3). */
+  finished?: (lesson: Lesson) => Promise<void>;
   log?: (line: string) => void;
 };
 
@@ -241,6 +243,7 @@ export async function submitStep(req: Request, id: string, stepParam: string, de
   const withStep = await deps.store.saveStep(lesson.id, saved);
   const stage = advance(withStep.stage, withStep.mode, withStep.path, withStep.steps);
   const updated = await deps.store.updateStage(lesson.id, stage, { answer_key: ctx.answerKeyStatus, turns_used: lesson.turns_used + calls });
+  if (updated.stage === "done" && lesson.stage !== "done") await deps.finished?.(updated);
   return json({ step: { id: step, done: saved.done, grade }, lesson: publicLesson(updated) });
 }
 

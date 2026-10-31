@@ -8,7 +8,10 @@ import { resolveCommitAuthor, resolveGitHubToken } from "../github-token";
 import { getDb } from "../db/client";
 import { flagEnabled } from "../flags";
 import { recordLessonFinished } from "../record/standing";
+import { issueTimeline } from "../contrib-guard";
+import { gh } from "../gh";
 import { githubApi } from "../github-api";
+import { maintainerPrefs, MaintainerPrefsFetchError } from "../maintainer-prefs";
 import { revealHiddenRun } from "../hidden-runs";
 import { sessionUserId } from "../require-session";
 import { loadOwnedRun } from "../run-change";
@@ -16,6 +19,7 @@ import { teacherProviders } from "../run-payment";
 import { startIssueRun } from "../run-start";
 import { siteUrl } from "../site-url";
 import type { LessonDeps } from "./api";
+import { issueClaims } from "./claim";
 import { answerKeyStatus, defaultContextDeps, loadLessonContext } from "./context";
 import { lessonStore } from "./db-store";
 import { chooseRuntime } from "./runtime";
@@ -56,5 +60,15 @@ export function defaultLessonDeps(): LessonDeps {
       }
     },
     headSha: async (repo, signal) => (await githubApi<{ sha: string }>(`/repos/${repo}/commits/HEAD`, await resolveGitHubToken(), undefined, signal)).sha,
+    claims: async (repo, issue, signal) => {
+      const token = await resolveGitHubToken();
+      const [events, me] = await Promise.all([issueTimeline(repo, issue, token ?? undefined, signal), token ? resolveCommitAuthor(signal) : null]);
+      return issueClaims(events, `https://github.com/${repo}/issues/${issue}`, me?.login ?? null);
+    },
+    prefs: async (repo) => {
+      const token = await resolveGitHubToken();
+      if (!token) throw new MaintainerPrefsFetchError(repo, new Error("no GitHub token"));
+      return maintainerPrefs(gh(token), repo);
+    },
   };
 }

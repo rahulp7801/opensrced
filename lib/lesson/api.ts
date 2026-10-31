@@ -14,18 +14,23 @@
 //   POST /api/lessons/<id>/suggest          IDE Ctrl+I (teacher, leak-checked)
 //   POST /api/lessons/<id>/checkpoint       IDE diff, saved every 30 s
 //   POST /api/lessons/<id>/submit           IDE "I'm done": the diff the reveal compares
+//   POST /api/lessons/<id>/claim            a comment claiming the issue, for the contributor to post
+//   GET  /api/lessons/<id>/prefs            how the repo's maintainers like PRs (lib/maintainer-prefs.ts)
 //
 // Every handler answers "not yours" like "missing" (404).
 
+import { GitHubApiError } from "../github-api";
 import { readJsonBody } from "../request-body";
 import { parseRunTarget } from "../run-target";
 import { RUN_PHASE_LABEL, runPhase } from "../hidden-runs";
 import { MAX_DIFF_BYTES, MAX_SELECTION_CHARS } from "../ide/lesson-api";
 import { validSha } from "../ide/repo-tree";
 import { ReplyFormatError } from "../understanding";
+import { MaintainerPrefsFetchError, prefsLines, type MaintainerPrefs } from "../maintainer-prefs";
 import { approachBullets } from "./approach";
 import { assertTurnsLeft, budgetState, TurnBudgetError, type TeacherProvider, type Env } from "./budget";
 import { hintFacts, hintText, maxHintLevel, nextHintLevel, withHint } from "./hints";
+import { claimPrompt, claimWarning, ClaimDraftError, CLAIM_NEEDS_S4, finishClaimDraft, type Claim } from "./claim";
 import { checkLeak, type LeakGate } from "./leak";
 import {
   advance, canReveal, canSubmit, isGraded, isStepId, requiredSteps, stepsInStage,
@@ -33,7 +38,7 @@ import {
 } from "./machine";
 import { complete, TEACHER_UNAVAILABLE, type TeacherRuntime } from "./runtime";
 import { LESSON_ID_RE, type Lesson, type LessonStep, type LessonStore, type StepGrade } from "./store";
-import { stepDef, StepInputError, type StepContext } from "./steps";
+import { docsIssueDraft, stepDef, StepInputError, type StepContext } from "./steps";
 import { guardedReply, HISTORY_TURNS, lessonNote, teacherMessages, teacherSystem } from "./teacher";
 
 export const LESSONS_DISABLED = "Lessons are not enabled on this deployment.";
@@ -63,6 +68,10 @@ export type LessonDeps = {
   finished?: (lesson: Lesson) => Promise<void>;
   /** The default branch's commit now (owner/name), pinned for the code viewer and the IDE. */
   headSha?: (repo: string, signal: AbortSignal) => Promise<string>;
+  /** Who else has the issue (lib/lesson/claim.ts issueClaims), read before a lesson starts. */
+  claims?: (repo: string, issue: number, signal: AbortSignal) => Promise<Claim[]>;
+  /** How the repo's maintainers like PRs (lib/maintainer-prefs.ts maintainerPrefs). */
+  prefs?: (repo: string) => Promise<MaintainerPrefs>;
   log?: (line: string) => void;
 };
 
@@ -141,6 +150,22 @@ export async function createLesson(req: Request, deps: LessonDeps): Promise<Resp
   if (mode !== "short" && mode !== "full") return json({ error: 'mode must be "short" or "full".' }, 400);
   if (path !== "A" && path !== "B") return json({ error: 'path must be "A" or "B".' }, 400);
   const repoUrl = `https://github.com/${target.repo}`;
+  // Someone else on the issue? Warn before the hidden run spends anything;
+  // the contributor decides (claim_ok: true starts anyway).
+  if (deps.claims && body.claim_ok !== true) {
+    let warning: string | null;
+    let claims: Claim[] = [];
+    try {
+      claims = await deps.claims(target.repo, issue, req.signal);
+      warning = claimWarning(claims);
+    } catch (error) {
+      // GitHub answered with an error, or could not be reached.
+      if (!(error instanceof GitHubApiError) && !(error instanceof TypeError)) throw error;
+      (deps.log ?? console.warn)(`[lesson] claim check failed: ${error.message}`);
+      warning = "Couldn't check whether someone else is already working on this issue. Look at the issue first, then start anyway if it's free.";
+    }
+    if (warning) return json({ error: warning, claimed: claims }, 409);
+  }
   // Same pipeline, guards and verification as any run; only hidden (§7.2).
   let run: { id: string };
   try { run = await deps.startRun({ repoUrl, issueNumber: issue, owner, signal: req.signal }); }
@@ -174,7 +199,9 @@ export async function getLesson(id: string, deps: LessonDeps): Promise<Response>
     if (validSha(sha)) lesson = await deps.store.updateStage(lesson.id, lesson.stage, { base_sha: sha.toLowerCase() });
   }
   const [runtime, messages] = await Promise.all([deps.runtime(), deps.store.listMessages(lesson.id, 50)]);
-  return json({ lesson: publicLesson(lesson, runtime?.provider ?? null), teacher_available: Boolean(runtime), messages });
+  // s10's docs-first suggestion (PLAN §9.5 item 4), from the kickoff notes and questions.
+  const docsIssue = ["next", "done"].includes(lesson.stage) ? docsIssueDraft(lesson, await deps.store.listMessages(lesson.id, 200)) : null;
+  return json({ lesson: publicLesson(lesson, runtime?.provider ?? null), teacher_available: Boolean(runtime), messages, ...(docsIssue ? { docs_issue: docsIssue } : {}) });
 }
 
 // ── PATCH /api/lessons/<id> ───────────────────────────────────────────────
@@ -431,6 +458,63 @@ export async function saveIdeDiff(req: Request, id: string, deps: LessonDeps, su
   const stage = lesson.stage === "ide" ? "reveal" : lesson.stage;
   const updated = await deps.store.updateStage(lesson.id, stage, { ide_diff: diff, ide_submitted_at: new Date().toISOString() });
   return json({ lesson: publicLesson(updated) });
+}
+
+// ── POST /api/lessons/<id>/claim ──────────────────────────────────────────
+
+const CLAIM_MAX_TOKENS = 400;
+
+/** "I'd like to work on this; my plan is …", drafted from the contributor's
+ *  own s4 (and s5/s6) answers for them to post. One teacher turn. The prompt
+ *  never holds the answer key; the draft is still leak-checked, as every
+ *  model text a contributor sees before the reveal is. */
+export async function draftClaim(req: Request, id: string, deps: LessonDeps): Promise<Response> {
+  const found = await ownLesson(deps, id);
+  if (found instanceof Response) return found;
+  const { lesson } = found;
+  if (!lesson.steps.s4?.done) return json({ error: CLAIM_NEEDS_S4 }, 409);
+  const runtime = await deps.runtime();
+  if (!runtime) return json({ error: TEACHER_UNAVAILABLE }, 409);
+  try { assertTurnsLeft(runtime.provider, lesson.turns_used, 1); }
+  catch (error) {
+    if (error instanceof TurnBudgetError) return json({ error: error.message }, 429);
+    throw error;
+  }
+  const ctx = await deps.context(lesson);
+  const prompt = claimPrompt(ctx, lesson)!;
+  let text: string;
+  try { text = (await complete(runtime, [{ role: "user", content: prompt.user }], { system: prompt.system, tier: "teacher", maxTokens: CLAIM_MAX_TOKENS, signal: req.signal })).text; }
+  catch (error) {
+    return json({ error: error instanceof Error ? error.message : "The draft could not be written." }, 502);
+  }
+  await deps.store.updateStage(lesson.id, lesson.stage, { turns_used: lesson.turns_used + 1 });
+  let draft: string;
+  try { draft = finishClaimDraft(text); }
+  catch (error) {
+    if (error instanceof ClaimDraftError) return json({ error: error.message }, 502);
+    throw error;
+  }
+  if (ctx.answerKey && !lesson.revealed_at && checkLeak(draft, ctx.answerKey.diff, leakGate(lesson), await contributorText(deps, lesson)).leak) {
+    (deps.log ?? console.warn)("[lesson] claim draft withheld by the leak check");
+    return json({ error: "The draft came out too close to the hidden fix, so it was withheld. Write the comment yourself, or try again." }, 502);
+  }
+  return json({ draft, issue_url: `${lesson.repo_url}/issues/${lesson.issue_number}` });
+}
+
+// ── GET /api/lessons/<id>/prefs ───────────────────────────────────────────
+
+export async function lessonPrefs(id: string, deps: LessonDeps): Promise<Response> {
+  const found = await ownLesson(deps, id);
+  if (found instanceof Response) return found;
+  if (!deps.prefs) return notFound();
+  const repo = parseRunTarget(found.lesson.repo_url).repo;
+  try {
+    const prefs = await deps.prefs(repo);
+    return json({ repo, sample: prefs.sample, lines: prefsLines(prefs) });
+  } catch (error) {
+    if (error instanceof MaintainerPrefsFetchError) return json({ error: `${error.message} Try again later.` }, 503);
+    throw error;
+  }
 }
 
 // ── POST /api/lessons/<id>/reveal ─────────────────────────────────────────

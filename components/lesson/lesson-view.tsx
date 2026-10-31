@@ -15,6 +15,7 @@ import { pollJson } from "@/lib/poll-json";
 import { cn } from "@/lib/utils";
 import { StatusChip } from "../status-dot";
 import { CodeViewer } from "./code-viewer";
+import { ClaimCard, PrefsCard } from "./rapport-cards";
 import { StepCard } from "./step-card";
 import { TeacherChat } from "./teacher-chat";
 import { fetchLesson, type LessonResponse, type PublicLesson } from "./types";
@@ -193,6 +194,14 @@ export function LessonView({ lessonId }: { lessonId: string }) {
             <button type="button" onClick={() => setSelected(nextUp)} className="row-cta">Next: {byId.get(nextUp)!.title} <span aria-hidden>→</span></button>
           )}
           {!step && beforeReveal && lesson.stage !== "reveal" && lesson.stage !== "ide" && <p className="text-paper-muted">Pick a step on the left.</p>}
+
+          {/* Rapport with the maintainers, while the work is being planned. */}
+          {lesson.stage === "kickoff" && (
+            <>
+              <ClaimCard lessonId={lessonId} issueUrl={`${lesson.repo_url}/issues/${lesson.issue_number}`} ready={byId.get("s4")?.done === true} />
+              <PrefsCard lessonId={lessonId} repo={repo} />
+            </>
+          )}
 
           {beforeReveal && (
             <p className="text-[14px] text-paper-muted">

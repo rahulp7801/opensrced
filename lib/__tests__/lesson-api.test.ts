@@ -1,13 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  askAboutSelection, createLesson, getLesson, GRADED_QUIETLY, leakGate, lessonStatus, nextHint, publicLesson, revealLesson, saveIdeDiff,
+  askAboutSelection, createLesson, draftClaim, getLesson, GRADED_QUIETLY, lessonPrefs, leakGate, lessonStatus, nextHint, publicLesson, revealLesson, saveIdeDiff,
   submitStep, suggestAtCursor, teacherTurn, updateLesson, LESSONS_DISABLED, type LessonDeps,
 } from "../lesson/api";
 import { MemoryLessonStore, type Lesson } from "../lesson/store";
 import type { AnswerKeyStatus } from "../lesson/machine";
 import type { RuntimeMessage, SendOptions, TeacherRuntime } from "../lesson/runtime";
 import type { StepContext } from "../lesson/steps";
+import { GitHubApiError } from "../github-api";
+import { MaintainerPrefsFetchError, summarizePrefs } from "../maintainer-prefs";
 
 process.env.OPENSRCER_LESSONS = "1";
 
@@ -346,4 +348,104 @@ test("IDE diff: checkpoints save, submit needs path B and changes, moves ide to 
   const revealed = await (await revealLesson(post({}), id, h.deps)).json();
   assert.equal(revealed.lesson.ide_diff, diff, "the contributor's diff comes back for the comparison");
   assert.equal((await saveIdeDiff(post({ diff: "" }), id, h.deps, false)).status, 409);
+});
+
+// ── Rapport: claiming the issue, the maintainers' preferences, docs first ──
+
+test("create: someone else on the issue is a warning before any run starts; claim_ok starts anyway", async () => {
+  const h = harness();
+  const asked: unknown[] = [];
+  h.deps.claims = async (repo, issue) => { asked.push([repo, issue]); return [{ by: "bob", kind: "assigned", url: "https://github.com/pallets/flask/issues/5" }]; };
+  const res = await createLesson(post({ repo_url: "https://github.com/pallets/flask/issues/5" }), h.deps);
+  assert.equal(res.status, 409);
+  const body = await res.json();
+  assert.match(body.error, /bob is assigned/);
+  assert.deepEqual(body.claimed, [{ by: "bob", kind: "assigned", url: "https://github.com/pallets/flask/issues/5" }]);
+  assert.deepEqual(asked, [["pallets/flask", 5]]);
+  assert.equal(h.started.length, 0, "no hidden run before the contributor decides");
+  await newLesson(h, { repo_url: "https://github.com/pallets/flask/issues/5", claim_ok: true });
+  assert.equal(h.started.length, 1);
+  assert.equal(asked.length, 1, "claim_ok skips the check");
+});
+
+test("create: a free issue starts at once; a failed check asks the contributor to look first", async () => {
+  const free = harness();
+  free.deps.claims = async () => [];
+  await newLesson(free);
+  const failing = harness();
+  failing.deps.claims = async () => { throw new GitHubApiError("GitHub request failed (502).", 502); };
+  const res = await createLesson(post({ repo_url: "https://github.com/pallets/flask/issues/5" }), failing.deps);
+  assert.equal(res.status, 409);
+  assert.match((await res.json()).error, /Couldn't check whether someone else/);
+  assert.equal(failing.started.length, 0);
+  assert.match(failing.logs.join("\n"), /claim check failed/);
+  const broken = harness();
+  broken.deps.claims = async () => { throw new RangeError("a bug"); };
+  await assert.rejects(createLesson(post({ repo_url: "https://github.com/pallets/flask/issues/5" }), broken.deps), RangeError, "only GitHub failures are softened");
+});
+
+const s4Done = { step: "s4" as const, answer: "When a view redirects, the session cookie is not sent, so users are logged out. Reproduce with a login view that redirects.", grade: { passed: true, feedback: "ok" }, done: true, hint_level: -1, hints_used: [], updated_at: "t" };
+
+test("claim: a draft from the contributor's s4, mentions defused, one turn, without the answer key", async () => {
+  const h = harness({ replies: ["I'd like to work on this, @team. My plan: reproduce it with a redirecting login view, then add a test."] });
+  const id = await newLesson(h);
+  const early = await draftClaim(post({}), id, h.deps);
+  assert.equal(early.status, 409, "needs s4 first");
+  assert.equal(h.sent.length, 0);
+  await h.store.saveStep(id, s4Done);
+  const res = await draftClaim(post({}), id, h.deps);
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.match(body.draft, /^I'd like to work on this, @\u200bteam\./);
+  assert.match(body.draft, /<sub>Drafted with help/);
+  assert.equal(body.issue_url, "https://github.com/pallets/flask/issues/5");
+  assert.equal(h.sent.length, 1);
+  const sent = JSON.stringify(h.sent[0]);
+  assert.match(sent, /session cookie is not sent/);
+  assert.doesNotMatch(sent, /is_redirect|redirects skip the cookie/, "the answer key never reaches the drafter");
+  assert.equal((await h.store.get(id))!.turns_used, 1);
+});
+
+test("claim: no teacher, an empty draft, or a draft that echoes the fix is refused", async () => {
+  const none = harness({ runtime: false });
+  const a = await newLesson(none);
+  await none.store.saveStep(a, s4Done);
+  assert.equal((await draftClaim(post({}), a, none.deps)).status, 409);
+  const empty = harness({ replies: ["   "] });
+  const b = await newLesson(empty);
+  await empty.store.saveStep(b, s4Done);
+  const res = await draftClaim(post({}), b, empty.deps);
+  assert.equal(res.status, 502);
+  assert.match((await res.json()).error, /empty/);
+  const leaky = harness({ replies: ["I'll set is_redirect = 300 <= response.status_code < 400 in save_session."] });
+  const c = await newLesson(leaky);
+  await leaky.store.saveStep(c, s4Done);
+  const leaked = await draftClaim(post({}), c, leaky.deps);
+  assert.equal(leaked.status, 502);
+  assert.doesNotMatch(await leaked.text(), /is_redirect/);
+});
+
+test("prefs: the card's lines for the lesson's repo; a failed read is a 503; off without the dep", async () => {
+  const h = harness();
+  const id = await newLesson(h);
+  assert.equal((await lessonPrefs(id, h.deps)).status, 404, "no prefs dep");
+  h.deps.prefs = async (repo) => summarizePrefs(repo, [], true);
+  const body = await (await lessonPrefs(id, h.deps)).json();
+  assert.deepEqual(body, { repo: "pallets/flask", sample: 0, lines: [] });
+  h.deps.prefs = async (repo) => { throw new MaintainerPrefsFetchError(repo); };
+  const failed = await lessonPrefs(id, h.deps);
+  assert.equal(failed.status, 503);
+  assert.match((await failed.json()).error, /Could not read pallets\/flask's recent merged pull requests/);
+  h.deps.owner = async () => "auth0|mallory";
+  assert.equal((await lessonPrefs(id, h.deps)).status, 404, "someone else's lesson");
+});
+
+test("get: the docs-first suggestion appears from s10 on, built from the kickoff questions", async () => {
+  const h = harness();
+  const lesson = await h.store.create({ owner: OWNER, repo_url: "https://github.com/pallets/flask", issue_number: 5, run_id: "c_1", mode: "short", path: "A", stage: "kickoff", answer_key: "verified" });
+  await h.store.appendMessage(lesson.id, { role: "user", content: "Where is the dev server's config documented?", step: "s1", at: "t" });
+  assert.equal((await (await getLesson(lesson.id, h.deps)).json()).docs_issue, undefined, "not before s10");
+  await h.store.updateStage(lesson.id, "next");
+  const body = await (await getLesson(lesson.id, h.deps)).json();
+  assert.match(body.docs_issue.body, /While working on #5[\s\S]*- Where is the dev server's config documented\?/);
 });

@@ -26,3 +26,4 @@ const STEPS: Record<StepId, unknown> = { s1, s2, s3, s4, s5, s6, s7, s8, "explai
 export function stepDef(id: StepId): StepDef<unknown> {
   return STEPS[id] as unknown as StepDef<unknown>;
 }
+export { docsIssueDraft } from "./s10";

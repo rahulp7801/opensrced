@@ -20,6 +20,7 @@ import { SplitDiffView } from "../dispatch-list";
 import { ForkCiPanel } from "../fork-ci-panel";
 import { OwnWords, type OwnWordsResult } from "../own-words";
 import { PublishPanel } from "../publish-panel";
+import { DocsFirstCard, PrefsCard } from "./rapport-cards";
 import { StepCard } from "./step-card";
 import { TeacherChat } from "./teacher-chat";
 import { fetchLesson, type LessonResponse, type PublicLesson } from "./types";
@@ -181,6 +182,7 @@ export function RevealView({ lessonId, forkCi }: { lessonId: string; forkCi: boo
 
       {lesson.path === "A" && explainDone && preview && (
         <section aria-label="Publish" className="mt-10">
+          <div className="mb-6 max-w-3xl"><PrefsCard lessonId={lessonId} repo={lesson.repo_url.replace("https://github.com/", "")} /></div>
           <PublishPanel dispatchId={lesson.run_id} repo={lesson.repo_url} issue={lesson.issue_number} authorWords={words} onPublished={setPublished} />
           {published && forkCi && <ForkCiPanel dispatchId={lesson.run_id} />}
         </section>
@@ -194,6 +196,7 @@ export function RevealView({ lessonId, forkCi }: { lessonId: string; forkCi: boo
       {next && (lesson.stage === "next" || next.done) && (
         <div className="mt-10 max-w-3xl">
           <StepCard key="s10" lessonId={lessonId} step={next} answerKey={lesson.answer_key} open={lesson.stage === "next"} onLesson={setLesson} />
+          {data.docs_issue && <div className="mt-6"><DocsFirstCard repoUrl={lesson.repo_url} draft={data.docs_issue} /></div>}
         </div>
       )}
     </div>

@@ -6,7 +6,11 @@ import type { LessonMessage } from "@/lib/lesson/store";
 export type PublicLesson = ReturnType<typeof publicLesson> & { ide_diff?: string };
 
 /** GET /api/lessons/<id>. */
-export type LessonResponse = { lesson: PublicLesson; teacher_available: boolean; messages: LessonMessage[] };
+export type LessonResponse = {
+  lesson: PublicLesson; teacher_available: boolean; messages: LessonMessage[];
+  /** From s10 on: the docs-first suggestion (lib/lesson/steps/s10.ts docsIssueDraft). */
+  docs_issue?: { title: string; body: string };
+};
 
 /** Load the caller's lesson. Throws with the server's message. */
 export async function fetchLesson(id: string, signal?: AbortSignal): Promise<LessonResponse> {

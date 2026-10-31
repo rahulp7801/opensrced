@@ -19,7 +19,10 @@ test("classifyAiPolicy: bans, disclosure requirements, and silence", () => {
     "Disclose in PR: Always mention when a pull request includes AI-generated code.",
     "- [ ] AI assistance was used during the creation of this PR.",
     "If you used an LLM, you must state this in the PR description.",
+    "- **All AI usage in any form must be disclosed.** You must state",
   ];
+  // Ghostty's AI_POLICY.md: a disclosure rule outranks the welcome further down.
+  assert.equal(classifyAiPolicy("- **All AI usage in any form must be disclosed.**\n\nAs a project, we welcome AI as a tool!").stance, "disclose");
   for (const text of disclose) assert.equal(classifyAiPolicy(text).stance, "disclose", text);
   // Real policies: Pydantic welcomes AI on conditions; Pallets (Flask) closes AI PRs on sight.
   const pydantic = "## AI policy\n\nWe welcome the use of AI when contributing to Pydantic. However, users should certify that they fully understand the code being submitted.";

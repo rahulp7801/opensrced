@@ -94,7 +94,8 @@ const BAN_PATTERNS = [
 
 const DISCLOSE_PATTERNS = [
   new RegExp(String.raw`\b(?:disclose|disclosure|mention|state|indicate|declare|note|label)\b[^.\n]{0,80}?\b${AI}`, "i"),
-  new RegExp(String.raw`\b${AI}[- ]?(?:assistance|assisted|generated|tools?)\b[^.\n]{0,80}?\b(?:must|should|need to)\s+be\s+(?:disclosed|mentioned|stated|declared|noted)`, "i"),
+  // Ghostty: "All AI usage in any form must be disclosed."
+  new RegExp(String.raw`\b${AI}[- ]?(?:assistance|assisted|generated|tools?|usage|use)\b[^.\n]{0,80}?\b(?:must|should|need to)\s+be\s+(?:disclosed|mentioned|stated|declared|noted)`, "i"),
   new RegExp(String.raw`\b(?:if|when)\s+you\s+(?:used?|rel(?:y|ied) on)\s+(?:an?\s+)?${AI}[^.\n]{0,80}?\b(?:disclose|mention|state|declare|note|say)\b`, "i"),
   /\bAI assistance was used\b/i,
 ];

@@ -99,6 +99,8 @@ export async function startIssueRun(input: IssueRunInput): Promise<Dispatch> {
   } catch (err) {
     if (err instanceof RunTargetError) throw new RunStartError(400, err.message);
     if (err instanceof CapacityError) throw new RunStartError(429, err.message);
+    // The user sees a generic message; the operator needs the real cause (e.g. mcp-server/dist not built).
+    console.error("[run-start] the worker did not start", err);
     throw new RunStartError(503, "Could not start the worker. Check the server configuration and try again.");
   }
 }

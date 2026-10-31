@@ -60,7 +60,7 @@ function diffCounts(diff: string | undefined): { add: number; del: number } | nu
   return { add, del };
 }
 
-export function PublishPanel({ dispatchId, repo, issue, dryRun = false, rerun, onPublished }: {
+export function PublishPanel({ dispatchId, repo, issue, dryRun = false, rerun, onPublished, authorWords }: {
   dispatchId: string;
   /** The run's repository (owner/name or its GitHub URL), for "Ask about this change". */
   repo?: string;
@@ -71,6 +71,9 @@ export function PublishPanel({ dispatchId, repo, issue, dryRun = false, rerun, o
   /** The issue this run was for, to start it again as a publishable run. */
   rerun?: { repoUrl: string; issue: number };
   onPublished?: (url: string) => void;
+  /** The explanation was already written and checked on this page (the lesson
+   *  reveal's explain-it, same run and storage key): use it, don't ask again. */
+  authorWords?: OwnWordsResult | null;
 }) {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -81,7 +84,8 @@ export function PublishPanel({ dispatchId, repo, issue, dryRun = false, rerun, o
   const [copied, setCopied] = useState(false);
   // "Explain it in your own words" + "Practice review": a comprehension aid
   // in the browser, not a security control (see components/own-words.tsx).
-  const [ownWords, setOwnWords] = useState<OwnWordsResult | null>(null);
+  const [askedWords, setOwnWords] = useState<OwnWordsResult | null>(null);
+  const ownWords = authorWords ?? askedWords;
   const onOwnWords = useCallback((r: OwnWordsResult) => setOwnWords(r), []);
   // The signature uses only what the session already has (no new requests).
   const { user } = useCurrentUser();
@@ -251,7 +255,7 @@ export function PublishPanel({ dispatchId, repo, issue, dryRun = false, rerun, o
         <ProjectRules rows={rules} note={note} />
       </Part>
 
-      {askOwnWords && (
+      {askOwnWords && authorWords === undefined && (
         <OwnWords
           storageKey={`run:${dispatchId}`}
           runId={dispatchId}
@@ -267,7 +271,7 @@ export function PublishPanel({ dispatchId, repo, issue, dryRun = false, rerun, o
 
       {canPublish && (
         <>
-          <Part n={askOwnWords ? 4 : 3} current={current === 4} title="What happens when you publish" id={`gate-publish-${dispatchId}`}>
+          <Part n={askOwnWords && authorWords === undefined ? 4 : 3} current={current === 4} title="What happens when you publish" id={`gate-publish-${dispatchId}`}>
             <ol className="space-y-2.5">
               {publishSteps({ files: preview.files.length, signoff: preview.signoff, followupPr: preview.followup_pr }).map((s, i) => (
                 <li key={s} className="grid grid-cols-[1.5rem_1fr] text-paper-dim">

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { anthropicRuntime, chooseRuntime, complete, copilotRuntime, OPENROUTER_URL, openRouterRuntime, TEACHER_UNAVAILABLE } from "../lesson/runtime";
+import { anthropicModels, anthropicRuntime, chooseRuntime, complete, copilotRuntime, OPENROUTER_URL, openRouterRuntime, TEACHER_UNAVAILABLE } from "../lesson/runtime";
 
 const signal = () => new AbortController().signal;
 const sseBody = (events: Array<object | string>) => events.map((e) => `data: ${typeof e === "string" ? e : JSON.stringify(e)}\n\n`).join("");
@@ -123,5 +123,10 @@ test("choosing an engine: Copilot (when enabled), then an Anthropic key, then Op
   assert.equal(chooseRuntime(all, { siteUrl: "x", env: {} })?.provider, "anthropic-key", "Copilot is off by default");
   assert.equal(chooseRuntime({ ...all, anthropicKey: null }, { siteUrl: "x", env: {} })?.provider, "openrouter-key");
   assert.equal(chooseRuntime({ gitHubToken: "gho", anthropicKey: null, openRouterKey: null }, { siteUrl: "x", env: {} }), null);
+  assert.deepEqual(anthropicModels({}), { teacher: "claude-sonnet-5", grader: "claude-haiku-4-5" });
+  assert.deepEqual(anthropicModels({ OPENSRCER_ANTHROPIC_TEACHER_MODEL: "claude-haiku-4-5" }).teacher, "claude-haiku-4-5", "a knob for cheaper teaching");
+  // The user's order (teacherProviders) wins; a Claude plan in it is skipped, never used.
+  assert.equal(chooseRuntime(all, { siteUrl: "x", env: {}, order: ["claude-subscription", "openrouter-key", "anthropic-key"] })?.provider, "openrouter-key");
+  assert.equal(chooseRuntime(all, { siteUrl: "x", env: {}, order: ["claude-subscription"] }), null);
   assert.match(TEACHER_UNAVAILABLE, /Copilot or your own API key/);
 });

@@ -1,6 +1,6 @@
 // Where lessons live (PLAN §2.3: `lessons`, `lesson_steps`, `lesson_messages`).
-// The Postgres implementation arrives with lib/db; until then the routes use
-// the in-memory one below, which is also what the tests use.
+// The app uses the Postgres one (lib/lesson/db-store.ts lessonStore()); the
+// in-memory one below is for tests.
 
 import { randomBytes } from "node:crypto";
 import type { AnswerKeyStatus, LessonMode, LessonPath, Stage, StepId } from "./machine";
@@ -39,13 +39,22 @@ export type Lesson = {
   gave_up?: boolean;
   revealed_at?: string;
   created_at: string;
+  /** The commit the code viewer and the IDE show, pinned on the first read. */
+  base_sha?: string;
+  /** Path B: the contributor's latest IDE diff (checkpoints), and when they
+   *  submitted it with "I'm done, check my work". */
+  ide_diff?: string;
+  ide_submitted_at?: string;
   steps: Partial<Record<StepId, LessonStep>>;
 };
 
 export type LessonMessage = { role: "user" | "teacher"; content: string; step: StepId | null; at: string };
 
 /** The fields updateStage may change alongside the stage. */
-export type LessonUpdate = Partial<Pick<Lesson, "answer_key" | "turns_used" | "gave_up" | "revealed_at">>;
+export type LessonUpdate = Partial<Pick<Lesson, "answer_key" | "turns_used" | "gave_up" | "revealed_at" | "path" | "mode" | "base_sha" | "ide_diff" | "ide_submitted_at">>;
+
+/** Ids from MemoryLessonStore (l_<ms>_<hex>) and DbLessonStore (l_<uuid>). */
+export const LESSON_ID_RE = /^l_(?:\d{13}_[a-f0-9]{12}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
 
 export class LessonNotFoundError extends Error {
   constructor(id: string) {
@@ -115,11 +124,4 @@ export class MemoryLessonStore implements LessonStore {
     if (limit <= 0) return [];
     return (this.messages.get(id) ?? []).slice(-limit).map((m) => ({ ...m }));
   }
-}
-
-// ponytail: one process-wide store until lib/db's implementation is wired in at merge.
-let shared: LessonStore | undefined;
-export function lessonStore(): LessonStore {
-  shared ??= new MemoryLessonStore();
-  return shared;
 }

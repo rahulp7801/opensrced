@@ -5,7 +5,7 @@ import path from "node:path";
 import { persist } from "../dispatch-store";
 import { buildPreview, writePreview } from "../pr-preview";
 import { revealHiddenRun } from "../hidden-runs";
-import { lessonStore } from "../lesson/store";
+import { lessonStore } from "../lesson/db-store";
 import { loadRunChange } from "../run-change";
 import type { ServerChange } from "../explain";
 

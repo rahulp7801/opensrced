@@ -1,9 +1,9 @@
 "use client";
 
-// Placeholder for the teacher side view (PLAN §8.2 item 1). "Ask about
-// selection" sends the selected code and its file; Ctrl+I "Suggest" answers
-// land here too. Both routes are stubs until the teacher and the agent
-// session are wired in.
+// The teacher side view (PLAN §8.2 item 1). "Ask about selection" sends the
+// selected code and its file; Ctrl+I "Suggest" answers land here too. Both
+// are lesson teacher turns on the server, leak-checked and saved with the
+// lesson chat (lib/lesson/api.ts askAboutSelection, suggestAtCursor).
 
 import { useState } from "react";
 

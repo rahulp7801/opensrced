@@ -1,19 +1,21 @@
 // The real collaborators behind the lesson routes (lib/lesson/api.ts).
 
-import { resolveAnthropicKey, resolveOpenRouterKey } from "../api-keys";
+import { getStoredKeys, resolveAnthropicKey, resolveOpenRouterKey } from "../api-keys";
 import { cloudExecution } from "../cloud-run-state";
 import { getCloudRun } from "../cloud-runs";
 import { getDispatch, readLog } from "../dispatcher";
+import { githubApi } from "../github-api";
 import { resolveGitHubToken } from "../github-token";
 import { revealHiddenRun } from "../hidden-runs";
 import { sessionUserId } from "../require-session";
 import { loadOwnedRun } from "../run-change";
+import { teacherProviders } from "../run-payment";
 import { startIssueRun } from "../run-start";
 import { siteUrl } from "../site-url";
 import type { LessonDeps } from "./api";
 import { answerKeyStatus, defaultContextDeps, loadLessonContext } from "./context";
+import { lessonStore } from "./db-store";
 import { chooseRuntime } from "./runtime";
-import { lessonStore } from "./store";
 
 export function defaultLessonDeps(): LessonDeps {
   return {
@@ -35,9 +37,11 @@ export function defaultLessonDeps(): LessonDeps {
     },
     context: async (lesson) => loadLessonContext(lesson, defaultContextDeps(await resolveGitHubToken())),
     runtime: async () => {
-      const [gitHubToken, anthropicKey, openRouterKey] = await Promise.all([resolveGitHubToken(), resolveAnthropicKey(), resolveOpenRouterKey()]);
-      return chooseRuntime({ gitHubToken, anthropicKey, openRouterKey }, { siteUrl: siteUrl() });
+      const [gitHubToken, anthropicKey, openRouterKey, keys] = await Promise.all([resolveGitHubToken(), resolveAnthropicKey(), resolveOpenRouterKey(), getStoredKeys()]);
+      // The user's order, minus any plan: a Claude plan never powers the teacher (PLAN §0.6).
+      return chooseRuntime({ gitHubToken, anthropicKey, openRouterKey }, { siteUrl: siteUrl(), order: teacherProviders(keys) });
     },
     reveal: revealHiddenRun,
+    headSha: async (repo, signal) => (await githubApi<{ sha: string }>(`/repos/${repo}/commits/HEAD`, await resolveGitHubToken(), undefined, signal)).sha,
   };
 }

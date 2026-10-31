@@ -20,6 +20,10 @@ import { testOutcome } from "./verify";
 import { HIDDEN_RUN_MESSAGE, hiddenRunLocked } from "./hidden-runs";
 import { looksCopied, OWN_WORDS } from "./understanding";
 import { explanationSha, normalizeExplanation, readUnderstanding, type UnderstandingRecord } from "./understanding-record";
+import { AiPolicyFetchError, aiPolicyBanReason, repoAiPolicy, type RepoAiPolicy } from "./ai-policy";
+import { gh } from "./gh";
+import type { Level } from "./record/levels";
+import { capsLevelFor } from "./record/standing";
 
 /** What a successful publish returns: the PR (new, or updated by a follow-up). */
 export type Published = { ok: true; url: string; tests: "passed" | "failed" | "skipped" | "not_run" };
@@ -72,15 +76,64 @@ export function parseAuthorWords(body: Record<string, unknown>): AuthorWords | n
  *  `<!--` cannot swallow the disclosure section below it). */
 export function withAuthorWords(body: string, words: AuthorWords | null): string {
   if (!words) return body;
-  const safe = neutralizeMentions(words.text)
-    .split(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)/g)
-    .map((part, i) => (i % 2 ? part : part.replace(/</g, "&lt;")))
-    .join("");
+  const safe = safeBodyText(words.text);
   const section = `### In the author's words\n\n${safe.split("\n").map((l) => (l ? `> ${l}` : ">")).join("\n")}`;
-  const marker = body.lastIndexOf("\n### AI assistance\n");
+  const marker = body.lastIndexOf(AI_SECTION);
   if (marker < 0) return `${body}\n\n${section}`;
   const line = words.practiced ? AUTHOR_LINE.practiced : words.checked ? AUTHOR_LINE.checked : AUTHOR_LINE.unchecked;
   return `${body.slice(0, marker)}\n\n${section}\n${body.slice(marker)}\n\n${line}`;
+}
+
+const AI_SECTION = "\n### AI assistance\n";
+
+/** Text someone else wrote, made safe for the PR body: mentions defused and
+ *  HTML openers escaped outside code. */
+function safeBodyText(text: string): string {
+  return neutralizeMentions(text)
+    .split(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)/g)
+    .map((part, i) => (i % 2 ? part : part.replace(/</g, "&lt;")))
+    .join("");
+}
+
+// ── How I approached this ─────────────────────────────────────────────────
+// Evidence for maintainers vetting a contributor: a few bullets built only
+// from the contributor's own lesson answers (lib/lesson/approach.ts), never
+// the AI's text. Opt-in on the publish screen (on by default) and shown in
+// the preview first. Placed above the AI-assistance section, like the
+// author's words.
+
+export function withApproach(body: string, bullets: string[] | null | undefined): string {
+  if (!bullets?.length) return body;
+  // ponytail: a link to the contributor's opensrcer profile goes here once /u/<login> exists (PLAN §9.5).
+  const section = `### How I approached this\n\n${bullets.map((b) => `- ${safeBodyText(b.replace(/\s+/g, " ").trim())}`).join("\n")}`;
+  const marker = body.lastIndexOf(AI_SECTION);
+  return marker < 0 ? `${body}\n\n${section}` : `${body.slice(0, marker)}\n\n${section}\n${body.slice(marker)}`;
+}
+
+// ── The project's AI policy ───────────────────────────────────────────────
+// A project that requires disclosure (lib/ai-policy.ts) gets its own rule
+// quoted next to the disclosure, so a maintainer sees it was followed. The
+// standard disclosure is added if the body has none (private-org runs may
+// turn it off; a project's rule overrides that).
+
+const STANDARD_DISCLOSURE = "This change was drafted with AI assistance (opensrcer). The PR author reviewed it before opening this PR and is responsible for it.";
+
+export function policyDisclosureLine(policy: RepoAiPolicy): string {
+  return `This project's AI policy (${policy.source}) asks contributors to disclose AI use: "${safeBodyText(policy.evidence ?? "")}" The "AI assistance" section is that disclosure.`;
+}
+
+export function withPolicyDisclosure(body: string, policy: RepoAiPolicy | null | undefined): string {
+  if (policy?.stance !== "disclosure-required") return body;
+  const line = policyDisclosureLine(policy);
+  if (body.includes(line)) return body;
+  return body.includes(AI_SECTION) ? `${body}\n\n${line}` : `${body}\n\n### AI assistance\n\n${STANDARD_DISCLOSURE}\n\n${line}`;
+}
+
+/** The PR body as it will be sent: the approach bullets (when the author
+ *  kept them) and the policy's disclosure. The preview shows the same. */
+export function withEvidence(stored: StoredPreview, approach: string[] | null | undefined, policy: RepoAiPolicy | null | undefined): StoredPreview {
+  const body = withPolicyDisclosure(withApproach(stored.preview.body, approach), policy);
+  return body === stored.preview.body ? stored : { ...stored, preview: { ...stored.preview, body } };
 }
 
 export type PublishInput = {
@@ -89,6 +142,8 @@ export type PublishInput = {
   confirmed: unknown;
   /** The author's own explanation (parseAuthorWords), for the PR body. */
   authorWords?: AuthorWords | null;
+  /** "How I approached this" bullets from the run's lesson (lib/lesson/approach.ts), when the author kept them. */
+  approach?: string[] | null;
   token: string | null;
   author: { login: string; id: number } | null;
   geminiKey?: string;
@@ -137,13 +192,29 @@ export function assertUnderstood(record: UnderstandingRecord | null, words: Auth
   throw new PublishError(409, UNDERSTOOD_MESSAGE);
 }
 
+/** The project's AI policy now (cached, lib/ai-policy.ts), or the refusal. */
+export async function livePolicy(repoFull: string, token: string, read: typeof repoAiPolicy = repoAiPolicy): Promise<RepoAiPolicy> {
+  let policy: RepoAiPolicy;
+  try { policy = await read(gh(token), repoFull); }
+  catch (error) {
+    if (error instanceof AiPolicyFetchError) throw new PublishError(503, `${error.message} Try again.`);
+    throw error;
+  }
+  const ban = aiPolicyBanReason(policy);
+  if (ban) throw new PublishError(409, `Refused: ${ban}.`);
+  return policy;
+}
+
 /** Guards re-checked against GitHub at publish time: the world may have
- *  moved since the preview was made. */
+ *  moved since the preview was made. Returns the project's AI policy, for
+ *  the disclosure (withEvidence). `level` sets the PR caps (capsLevelFor). */
 export async function liveGuards(opts: {
-  repoFull: string; issue: number; token: string; login: string; preview: PrPreview; publishedAt: Array<string | undefined>;
-}): Promise<void> {
+  repoFull: string; issue: number; token: string; login: string; preview: PrPreview; publishedAt: Array<string | undefined>; level?: Level;
+}): Promise<RepoAiPolicy> {
   const ban = opts.preview.profile ? aiBanReason(opts.preview.profile) : null;
   if (ban) throw new PublishError(409, `Refused: ${ban}.`);
+  // The policy files as they are now, AI.md and AI_POLICY.md included.
+  const policy = await livePolicy(opts.repoFull, opts.token);
   // A project that states no AI policy of its own falls under its organization's default guide.
   if (!opts.preview.profile || opts.preview.profile.aiPolicy.stance === "unknown") {
     const orgBan = await orgAiBanReason(opts.repoFull, opts.token);
@@ -158,13 +229,14 @@ export async function liveGuards(opts: {
     const competing = competingPrReason(openPrsFromTimeline(events));
     if (competing) throw new PublishError(409, `Refused: ${competing}`);
   }
-  const caps = prCaps();
+  const caps = prCaps(opts.level);
   let mine: string[];
   try { mine = await openOpensrcerPrs(opts.repoFull, opts.login, opts.token); }
   catch { throw new PublishError(503, "Could not check your open PRs in this repository. Try again."); }
   if (mine.length >= caps.perRepo) throw new PublishError(429, `You already have ${mine.length} open opensrcer PR(s) in ${opts.repoFull} (limit ${caps.perRepo}): ${mine[0]}. Land or close it first.`);
   const today = publishedInLastDay(opts.publishedAt);
   if (today >= caps.daily) throw new PublishError(429, `Daily limit reached: ${today} PR(s) published in the last 24 hours (limit ${caps.daily}).`);
+  return policy;
 }
 
 /** Where a published follow-up goes (runs with `followup_pr`): the PR's
@@ -206,12 +278,14 @@ export async function checkPublishable(input: Pick<PublishInput, "id" | "viewerI
 
 /** `push` is replaceable in tests (follow-up runs only). */
 export async function publishDispatch(input: PublishInput, push: typeof pushPrPatch = pushPrPatch): Promise<Published> {
-  const { record, stored } = await checkPublishable(input);
+  const { record, stored: checked } = await checkPublishable(input);
   if (!input.token || !input.author) throw new PublishError(401, "Sign in with GitHub again: the PR is opened from your account.");
-  if (record.followup_pr) return publishLocalFollowup({ ...input, token: input.token, author: input.author }, record, stored, push);
+  if (record.followup_pr) return publishLocalFollowup({ ...input, token: input.token, author: input.author }, record, checked, push);
   const repoFull = record.repo_url.replace(/^https:\/\/github\.com\//, "");
   const issue = record.issue_number ?? 0;
-  await liveGuards({ repoFull, issue, token: input.token, login: input.author.login, preview: stored.preview, publishedAt: listAll(input.viewerId).map((r) => r.published_at) });
+  const policy = await liveGuards({ repoFull, issue, token: input.token, login: input.author.login, preview: checked.preview,
+    publishedAt: listAll(input.viewerId).map((r) => r.published_at), level: await capsLevelFor(input.viewerId) });
+  const stored = withEvidence(checked, input.approach, policy);
 
   patch(input.id, { pr_status: "pending" });
   forgetFinished(input.id);

@@ -12,13 +12,14 @@ import { getCloudRun, listCloudRunSummaries } from "./cloud-runs";
 import { runPath, runPreviewPath, runPublishLockPath, runSummaryPath, cloudRunSummary, type CloudRun } from "./cloud-run-state";
 import { PUSH_EGRESS } from "./sandbox-egress";
 import { assertWorkerProtocol } from "./worker-protocol";
-import { assertPublishable, assertUnderstood, followupGuards, followupPushTarget, liveGuards, PublishError, withWords, type PublishInput, type StoredPreview } from "./publish";
+import { assertPublishable, assertUnderstood, followupGuards, followupPushTarget, liveGuards, PublishError, withEvidence, withWords, type PublishInput, type StoredPreview } from "./publish";
 import { HIDDEN_RUN_MESSAGE, hiddenRunLocked } from "./hidden-runs";
 import { readUnderstanding } from "./understanding-record";
 import { cloudPush } from "./cloud-push";
 import { testOutcome } from "./verify";
 import type { PrPreview } from "./pr-preview";
 import { parseRunTarget } from "./run-target";
+import { capsLevelFor } from "./record/standing";
 
 /** The stored preview, or null. The worker wrote it, so its shape is checked. */
 export async function getCloudPreview(owner: string, id: string): Promise<StoredPreview | null> {
@@ -90,9 +91,13 @@ export async function publishCloudRun(
   // A follow-up updates the user's own PR: AI-policy check only, and the
   // branch comes from GitHub now, not from the (worker-written) record.
   const followup = run.followup_pr ? (followupGuards(stored.preview), await followupPushTarget(run.followup_pr, input.token, input.author.login)) : null;
+  // A new PR also gets its evidence: the approach bullets and the policy's disclosure.
+  let published = stored;
   if (!followup) {
     const history = await listCloudRunSummaries(input.viewerId, 50);
-    await liveGuards({ repoFull: repo, issue, token: input.token, login: input.author.login, preview: stored.preview, publishedAt: history.map((r) => r.published_at) });
+    const policy = await liveGuards({ repoFull: repo, issue, token: input.token, login: input.author.login, preview: stored.preview,
+      publishedAt: history.map((r) => r.published_at), level: await capsLevelFor(input.viewerId) });
+    published = withEvidence(stored, input.approach, policy);
   }
 
   // One publish per run, across function instances: the lock blob is created
@@ -118,7 +123,7 @@ export async function publishCloudRun(
     await writeRecord(input.viewerId, { ...run, pr_status: "opened", pr_url: followup.url, tests, ...withLog(run, `${note}[publish] ${message} (follow-up to ${followup.url})\n`) });
     return { url: followup.url, tests };
   }
-  const result = await job({ repo, issueNumber: issue, dispatchId: run.id, findingId: run.finding_id, stored, author: input.author }, input.token, input.signal, input.viewerId)
+  const result = await job({ repo, issueNumber: issue, dispatchId: run.id, findingId: run.finding_id, stored: published, author: input.author }, input.token, input.signal, input.viewerId)
     .catch((error): PublishJobResult => ({ ok: false, reason: error instanceof PublishError ? error.message : "The publish worker failed." }));
   if (!result.ok) {
     const failed: CloudRun = { ...run, pr_status: "failed", pr_failure_reason: result.reason.slice(0, 500), ...withLog(run, note) };

@@ -36,11 +36,14 @@ for (const [id, fake] of [["@vercel/blob", fakeBlob], ["@vercel/sandbox", fakeSa
 }
 
 let timeline: unknown[] = [];
+let contributing: string | null = null;
 const followupPr = { state: "open", author: "alice" };
 globalThis.fetch = (async (url: string | URL) => {
   const href = String(url);
   const path = new URL(href).pathname;
-  const body = href.includes("/timeline") ? timeline
+  // The AI-policy read (lib/ai-policy.ts): one GraphQL call; f0 is the root CONTRIBUTING.md.
+  const body = path === "/graphql" ? { data: { repository: { f0: contributing === null ? null : { text: contributing } } } }
+    : href.includes("/timeline") ? timeline
     : path.endsWith("/pulls/12") ? { state: followupPr.state, merged: false, mergeable_state: "clean", user: { login: followupPr.author }, body: "Fixes #7",
       head: { sha: "c".repeat(40), ref: "opensrcer/issue-7-x", repo: { full_name: "alice/app" } }, base: { ref: "main" } }
     : path.endsWith("/check-runs") ? { check_runs: [] }
@@ -128,6 +131,29 @@ test("hosted publish: opens once from the stored preview and records the PR", as
   assert.equal(run?.pr_url, "https://github.com/acme/app/pull/12");
   assert.ok(run?.published_at);
   await assert.rejects(publishCloudRun({ id, viewerId: OWNER, confirmed: true, authorWords: WORDS, token: "t", author, signal }, job), /already published/);
+});
+
+test("hosted publish: the project's AI policy, read live, refuses a ban and adds the disclosure it asks for", async () => {
+  const { publishCloudRun } = await import("../cloud-publish");
+  const { clearAiPolicyCache } = await import("../ai-policy");
+  const seen: Array<{ stored: { preview: { body: string } } }> = [];
+  const job = async (j: unknown) => { seen.push(j as never); return { ok: true as const, url: "https://github.com/acme/app/pull/15", tests: "not_run" }; };
+  try {
+    clearAiPolicyCache();
+    contributing = "No LLMs for issues, pull requests, or comments.";
+    await assert.rejects(publishCloudRun({ id: await seed(), viewerId: OWNER, confirmed: true, authorWords: WORDS, token: "t", author, signal }, job),
+      (e: Error & { status?: number }) => e.status === 409 && /CONTRIBUTING\.md: "No LLMs/.test(e.message));
+    assert.equal(seen.length, 0);
+    clearAiPolicyCache();
+    contributing = "If you use AI tools when you contribute, you must disclose that fact in the pull request.";
+    const approach = ["Where I started looking: a.py"];
+    await publishCloudRun({ id: await seed(), viewerId: OWNER, confirmed: true, authorWords: WORDS, approach, token: "t", author, signal }, job);
+    assert.match(seen[0].stored.preview.body, /### How I approached this\n\n- Where I started looking: a\.py/);
+    assert.match(seen[0].stored.preview.body, /This project's AI policy \(CONTRIBUTING\.md\) asks contributors to disclose AI use: "If you use AI tools/);
+  } finally {
+    contributing = null;
+    clearAiPolicyCache();
+  }
 });
 
 test("hosted publish: a failed job is recorded and can be retried", async () => {

@@ -5,7 +5,11 @@ import path from "node:path";
 import { persist, read } from "../dispatch-store";
 import type { DispatchRecord } from "../dispatch-store";
 import { buildPreview, readPreview, writePreview } from "../pr-preview";
-import { AUTHOR_WORDS_MAX, assertPublishable, assertUnderstood, checkPublishable, CONFIRMATION, parseAuthorWords, PublishError, publishDispatch, UNDERSTOOD_MESSAGE, withAuthorWords } from "../publish";
+import {
+  AUTHOR_WORDS_MAX, assertPublishable, assertUnderstood, checkPublishable, CONFIRMATION, livePolicy, parseAuthorWords, policyDisclosureLine,
+  PublishError, publishDispatch, UNDERSTOOD_MESSAGE, withApproach, withAuthorWords, withEvidence, withPolicyDisclosure,
+} from "../publish";
+import { AiPolicyFetchError, type RepoAiPolicy } from "../ai-policy";
 import { applyUnderstandingEvent, recordUnderstanding } from "../understanding-record";
 import { revealHiddenRun } from "../hidden-runs";
 import type { Verification } from "../verify";
@@ -240,4 +244,51 @@ test("assertPublishable puts the author's words into the stored body it hands to
   assert.equal(out.diff, DIFF);
   assert.doesNotMatch(stored.preview.body, /In the author's words/, "the stored preview itself is not changed");
   assert.equal(assertPublishable(run, true, stored).preview.body, stored.preview.body);
+});
+
+// ── Evidence: "How I approached this" and the project's AI policy ─────────
+
+const DISCLOSE: RepoAiPolicy = { stance: "disclosure-required", source: "CONTRIBUTING.md", evidence: "If you use AI tools, you must disclose it." };
+
+test("withApproach: the contributor's bullets go above the AI note, escaped; nothing to add leaves the body alone", () => {
+  const out = withApproach(PR_BODY, ["The problem, as I understood it: 1e5 parsed as 1.", "Where I started looking: `parse()`  <b>@bob</b>"]);
+  const approach = out.indexOf("### How I approached this");
+  assert.ok(approach > 0 && approach < out.indexOf("### AI assistance"));
+  assert.match(out, /- The problem, as I understood it: 1e5 parsed as 1\.\n- Where I started looking: `parse\(\)` &lt;b>@​bob&lt;\/b>/);
+  for (const none of [null, undefined, []]) assert.equal(withApproach(PR_BODY, none), PR_BODY);
+  assert.equal(withApproach("Fixes #7", ["x"]), "Fixes #7\n\n### How I approached this\n\n- x", "no AI note: appended");
+  // After the author's words, still above the AI note.
+  const both = withApproach(withAuthorWords(PR_BODY, { text: "Mine.", checked: true, practiced: false }), ["x"]);
+  assert.ok(both.indexOf("### In the author's words") < both.indexOf("### How I approached this"));
+  assert.ok(both.indexOf("### How I approached this") < both.indexOf("### AI assistance"));
+});
+
+test("withPolicyDisclosure: quotes a disclosure rule once; adds a disclosure when there is none; other stances change nothing", () => {
+  const out = withPolicyDisclosure(PR_BODY, DISCLOSE);
+  assert.ok(out.endsWith(`\n\n${policyDisclosureLine(DISCLOSE)}`));
+  assert.match(out, /This project's AI policy \(CONTRIBUTING\.md\) asks contributors to disclose AI use: "If you use AI tools, you must disclose it\."/);
+  assert.equal(withPolicyDisclosure(out, DISCLOSE), out, "idempotent");
+  const bare = withPolicyDisclosure("Fixes #7", DISCLOSE);
+  assert.match(bare, /^Fixes #7\n\n### AI assistance\n\nThis change was drafted with AI assistance \(opensrcer\)\./);
+  for (const stance of ["banned", "allowed", "unknown"] as const) assert.equal(withPolicyDisclosure(PR_BODY, { stance, source: null, evidence: null }), PR_BODY, stance);
+  assert.equal(withPolicyDisclosure(PR_BODY, null), PR_BODY);
+  assert.match(withPolicyDisclosure(PR_BODY, { ...DISCLOSE, evidence: "Ping @team <!-- x" }), /@​team &lt;!-- x/, "the quoted policy is escaped too");
+});
+
+test("withEvidence: returns the same object when nothing changes, a new one otherwise", () => {
+  const stored = { preview: buildPreview({ title: "fix", body: "Fixes #7", diff: DIFF, profile: null, verification: verified, executed: true, model: "m", provider: "Anthropic", privateOrg: false }), diff: DIFF };
+  assert.equal(withEvidence(stored, null, null), stored);
+  const out = withEvidence(stored, ["x"], DISCLOSE);
+  assert.notEqual(out, stored);
+  assert.match(out.preview.body, /### How I approached this[\s\S]*### AI assistance[\s\S]*This project's AI policy/);
+  assert.doesNotMatch(stored.preview.body, /How I approached this/, "the stored preview itself is not changed");
+});
+
+test("livePolicy: a ban refuses with the quote, a failed read is a 503, otherwise the policy comes back", async () => {
+  const read = (policy: RepoAiPolicy | Error) => (async () => { if (policy instanceof Error) throw policy; return policy; }) as never;
+  await assert.rejects(livePolicy("a/b", "t", read({ stance: "banned", source: "AI.md", evidence: "No LLMs." })),
+    (e: PublishError) => e.status === 409 && e.message === 'Refused: this project does not accept AI-generated contributions (AI.md: "No LLMs.").');
+  await assert.rejects(livePolicy("a/b", "t", read(new AiPolicyFetchError("a/b"))), (e: PublishError) => e.status === 503);
+  await assert.rejects(livePolicy("a/b", "t", read(new TypeError("boom"))), TypeError, "unexpected errors are not swallowed");
+  assert.deepEqual(await livePolicy("a/b", "t", read(DISCLOSE)), DISCLOSE);
 });

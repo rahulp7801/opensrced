@@ -56,6 +56,8 @@ export class LessonNotFoundError extends Error {
 
 export interface LessonStore {
   get(id: string): Promise<Lesson | null>;
+  /** The lesson whose hidden fix is this run, or null. */
+  findByRun(runId: string): Promise<Lesson | null>;
   create(lesson: Omit<Lesson, "id" | "created_at" | "steps" | "turns_used">): Promise<Lesson>;
   /** Throws LessonNotFoundError. */
   updateStage(id: string, stage: Stage, fields?: LessonUpdate): Promise<Lesson>;
@@ -80,6 +82,11 @@ export class MemoryLessonStore implements LessonStore {
   async get(id: string): Promise<Lesson | null> {
     const found = this.lessons.get(id);
     return found ? structuredClone(found) : null;
+  }
+
+  async findByRun(runId: string): Promise<Lesson | null> {
+    for (const lesson of this.lessons.values()) if (lesson.run_id === runId) return structuredClone(lesson);
+    return null;
   }
 
   async create(input: Omit<Lesson, "id" | "created_at" | "steps" | "turns_used">): Promise<Lesson> {

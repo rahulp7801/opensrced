@@ -45,6 +45,10 @@ type Preview = RulesPreview & {
   publishable: boolean;
   /** A follow-up run: publishing pushes one commit to this PR. */
   followup_pr?: string;
+  /** A lesson's run: "How I approached this", from the contributor's own lesson answers. */
+  approach?: string[];
+  /** The PR text with that section, as publishing would send it. */
+  body_with_approach?: string;
 };
 
 /** Added and removed lines in a unified diff (file headers excluded). */
@@ -83,6 +87,8 @@ export function PublishPanel({ dispatchId, repo, issue, dryRun = false, rerun, o
   // in the browser, not a security control (see components/own-words.tsx).
   const [ownWords, setOwnWords] = useState<OwnWordsResult | null>(null);
   const onOwnWords = useCallback((r: OwnWordsResult) => setOwnWords(r), []);
+  // "How I approached this": on by default, the author can leave it out.
+  const [keepApproach, setKeepApproach] = useState(true);
   // The signature uses only what the session already has (no new requests).
   const { user } = useCurrentUser();
 
@@ -106,6 +112,7 @@ export function PublishPanel({ dispatchId, repo, issue, dryRun = false, rerun, o
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           confirmed: true,
+          includeApproach: withApproach,
           ...(askOwnWords && ownWords?.ready ? { authorExplanation: ownWords.text, explanationChecked: ownWords.checked, practiceAnswered: ownWords.practiced } : {}),
         }),
         signal: AbortSignal.timeout(300_000),
@@ -127,6 +134,8 @@ export function PublishPanel({ dispatchId, repo, issue, dryRun = false, rerun, o
   // A follow-up only adds a commit (no PR text to carry the explanation).
   const askOwnWords = (canPublish || dryRun) && !preview.followup_pr;
   const gateOpen = !askOwnWords || Boolean(ownWords?.ready);
+  const offerApproach = canPublish && !preview.followup_pr && Boolean(preview.approach?.length && preview.body_with_approach);
+  const withApproach = offerApproach && keepApproach;
   // Shown for reference only: with `runId` the server loads its own copy.
   const context = previewChangeContext(preview, preview.diff);
   const comment = preview.draft_issue_comment;
@@ -222,8 +231,19 @@ export function PublishPanel({ dispatchId, repo, issue, dryRun = false, rerun, o
             <span aria-hidden className="font-mono text-paper-muted transition-transform group-open:rotate-90">›</span>
             <span className="min-w-0"><span className="font-semibold">PR text:</span> {preview.title}</span>
           </summary>
-          <pre className="max-h-80 overflow-auto whitespace-pre-wrap border-l border-border-strong pb-2 pl-4 font-sans text-[15px] leading-[1.65] text-paper-dim">{preview.body}</pre>
+          <pre className="max-h-80 overflow-auto whitespace-pre-wrap border-l border-border-strong pb-2 pl-4 font-sans text-[15px] leading-[1.65] text-paper-dim">{withApproach ? preview.body_with_approach : preview.body}</pre>
         </details>
+        {offerApproach && (
+          <div className="mt-4 border-t border-border-soft pt-4">
+            <label className="flex min-h-10 items-start gap-3 text-paper">
+              <input type="checkbox" checked={keepApproach} onChange={(e) => setKeepApproach(e.target.checked)} className="h-6 w-6 shrink-0" />
+              <span>Add &ldquo;How I approached this&rdquo; to the PR: your own lesson answers, so maintainers can see how you worked.</span>
+            </label>
+            <ul className="mt-2 list-disc pl-14 text-[15px] text-paper-dim">
+              {preview.approach!.map((b) => <li key={b}>{b}</li>)}
+            </ul>
+          </div>
+        )}
         {/* The suggested path where maintainers ask for discussion (and on older
             previews, which drafted a comment only then); an option everywhere else. */}
         {comment && (preview.ask_first !== false ? (

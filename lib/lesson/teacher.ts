@@ -76,9 +76,7 @@ export function lessonNote(input: NoteInput): string {
     fileNamesUnlocked(input.gate) ? "You may name files the fix changes." : "Do not name any file the fix changes; point to areas and behaviour instead.",
     symbolsUnlocked(input.gate) ? "You may name functions the fix changes." : "Do not name any function, class or variable the fix changes.",
     budgetNote(input.budget),
-    input.plan?.length ? `The fix is revealed. The contributor's plan from before the reveal, to compare with the fix when they ask:
-${fence("contributor-plan", input.plan.join("
-"), 3000)}` : "",
+    input.plan?.length ? `The fix is revealed. The contributor's plan from before the reveal, to compare with the fix when they ask:\n${fence("contributor-plan", input.plan.join("\n"), 3000)}` : "",
   ].filter(Boolean);
   return `<lesson>\n${lines.join("\n")}\n</lesson>`;
 }

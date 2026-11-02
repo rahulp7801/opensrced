@@ -296,7 +296,7 @@ export function StageDemo() {
           {started && <><span className="text-paper">{step.phase + 1}</span> / {PHASES.length}<span className="ml-3 text-paper">{PHASES[step.phase].name}</span></>}
         </p>
         {/* Always there: the demo is shared as a link, and the next step after it is the waitlist. */}
-        <a href="/join" className="absolute left-1/2 z-[70] inline-flex min-h-9 -translate-x-1/2 items-center rounded-full border border-border-strong px-4 text-[13px] font-medium text-paper transition-colors hover:bg-surface">Join the waitlist</a>
+        {started && <a href="/join" className="absolute left-1/2 z-[70] inline-flex min-h-9 -translate-x-1/2 items-center rounded-full border border-border-strong px-4 text-[13px] font-medium text-paper transition-colors hover:bg-surface">Join the waitlist</a>}
         {(waiting?.kind === "next" || waiting?.kind === "beat") && !ended && (
           <button type="button" onClick={forward} aria-label="Next step" className={cn("absolute right-0 z-[70] grid size-11 place-items-center rounded-full bg-signal text-white transition-opacity duration-300 focus-visible:opacity-100", controls ? "opacity-100" : "opacity-0")}>
             <ArrowRight aria-hidden size={18} weight="bold" />
@@ -305,10 +305,11 @@ export function StageDemo() {
       </div>
 
       {!started && (
-        // Only before the first step, for the presenter, and only while the mouse moves: how to drive it.
-        <div className={cn("pointer-events-auto absolute inset-x-0 bottom-8 mx-auto flex w-fit flex-wrap items-center justify-center gap-2 rounded-full border border-border bg-surface px-2 py-2 text-[13px] text-paper-muted transition-opacity duration-300 focus-within:opacity-100", controls ? "opacity-100" : "opacity-0")}>
+        // Only before the first step: how to start, and the waitlist (it moves under the slides once started).
+        <div className="pointer-events-auto absolute inset-x-0 bottom-8 mx-auto flex w-fit max-w-[calc(100%-1rem)] flex-wrap items-center justify-center gap-2 rounded-[24px] border border-border bg-surface px-2 py-2 text-[13px] text-paper-muted">
           <button type="button" onClick={forward} className="cta-pill" data-size="sm">Begin<span className="cta-pill-arrow"><ArrowGlyph size={13} /></span></button>
           <button type="button" onClick={toggleFullscreen} className="pill" data-quiet><CornersOut aria-hidden size={14} weight="bold" />Full screen</button>
+          <a href="/join" className="pill" data-quiet>Join the waitlist</a>
           <span className="px-2 font-mono text-[12px] [@media(hover:none)]:hidden">→ next · ← back · 1–4 phase · F full screen</span>
         </div>
       )}

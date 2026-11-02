@@ -72,8 +72,11 @@ export function normalizeInterest(input: { name?: unknown; email?: unknown; gith
   return { name, email, github, role };
 }
 
-/** Adds a request, or updates the one with the same email or GitHub login (someone
- *  signing up twice shouldn't appear twice). A re-submission keeps the existing status. */
+/** Adds a request; one with the same email or GitHub login is not added twice. A
+ *  re-submission never changes who a request belongs to (name, email, GitHub login,
+ *  status): otherwise anyone could submit their own GitHub login with someone else's
+ *  email and have the admin approve the wrong account. It only refreshes the time, and
+ *  fills in a GitHub id GitHub couldn't give earlier when the login is the same. */
 export function upsertRequest(
   list: InterestRequest[],
   fields: { name: string; email: string; github: string; githubId: number | null; role?: InterestRole },
@@ -83,7 +86,8 @@ export function upsertRequest(
   const same = (r: InterestRequest) => r.email === fields.email || r.github.toLowerCase() === fields.github.toLowerCase();
   const existing = list.find(same);
   if (existing) {
-    return list.map((r) => (r === existing ? { ...r, ...fields, githubId: fields.githubId ?? r.githubId, updatedAt: now } : r));
+    const sameLogin = existing.github.toLowerCase() === fields.github.toLowerCase();
+    return list.map((r) => (r === existing ? { ...r, githubId: r.githubId ?? (sameLogin ? fields.githubId : null), updatedAt: now } : r));
   }
   if (list.length >= MAX_REQUESTS) throw new InterestFullError();
   return [...list, { id: newId, ...fields, status: "new", createdAt: now, updatedAt: now }];

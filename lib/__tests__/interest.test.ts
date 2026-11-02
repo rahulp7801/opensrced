@@ -63,13 +63,18 @@ describe("upsertRequest", () => {
     assert.deepEqual(list, [req()]);
   });
 
-  test("updates instead of duplicating when the email or the GitHub login matches", () => {
-    const byEmail = upsertRequest([req({ status: "approved" })], { ...ada, name: "Ada L", github: "ada2", githubId: null }, LATER, "r2");
-    assert.equal(byEmail.length, 1);
-    assert.deepEqual(byEmail[0], { ...req({ status: "approved" }), name: "Ada L", github: "ada2", githubId: 1, updatedAt: LATER });
-    const byLogin = upsertRequest([req()], { ...ada, email: "new@example.com", github: "ADA" }, LATER, "r2");
-    assert.equal(byLogin.length, 1);
-    assert.equal(byLogin[0].email, "new@example.com");
+  test("a re-submission with the same email or GitHub login never changes who the request belongs to", () => {
+    // Someone else's email with the attacker's GitHub login: the approved request keeps Ada's login and id.
+    const byEmail = upsertRequest([req({ status: "approved" })], { ...ada, name: "Mallory", github: "mallory", githubId: 666 }, LATER, "r2");
+    assert.deepEqual(byEmail, [req({ status: "approved", updatedAt: LATER })]);
+    // Ada's GitHub login with the attacker's email: Ada's email stays.
+    const byLogin = upsertRequest([req()], { ...ada, name: "Mallory", email: "mallory@example.com", github: "ADA", githubId: 1 }, LATER, "r2");
+    assert.deepEqual(byLogin, [req({ updatedAt: LATER })]);
+  });
+
+  test("a re-submission fills in a missing GitHub id only for the same login", () => {
+    assert.equal(upsertRequest([req({ githubId: null })], { ...ada, github: "Ada", githubId: 1 }, LATER, "r2")[0].githubId, 1);
+    assert.equal(upsertRequest([req({ githubId: null })], { ...ada, github: "mallory", githubId: 666 }, LATER, "r2")[0].githubId, null);
   });
 
   test("refuses past the cap, leaving the list alone", () => {

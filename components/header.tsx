@@ -77,6 +77,9 @@ export function SiteHeader({ localMode = false, inviteOnly = false }: { localMod
           ) : (
             <nav aria-label="Main navigation" className="ml-auto flex items-center">
               <Link href="/demo/stage" className="text-link text-[14px]">Demo</Link>
+              <Link href="/join" className="ml-3 inline-flex min-h-9 items-center rounded-full bg-signal px-3.5 text-[14px] font-medium text-white transition-opacity hover:opacity-90 sm:ml-5">
+                <span className="sm:hidden">Join</span><span className="hidden sm:inline">Join the waitlist</span>
+              </Link>
             </nav>
           )}
 

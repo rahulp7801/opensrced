@@ -295,6 +295,8 @@ export function StageDemo() {
         <p className="font-mono text-[13px] tracking-[0.02em] text-paper-faint">
           {started && <><span className="text-paper">{step.phase + 1}</span> / {PHASES.length}<span className="ml-3 text-paper">{PHASES[step.phase].name}</span></>}
         </p>
+        {/* Always there: the demo is shared as a link, and the next step after it is the waitlist. */}
+        <a href="/join" className="absolute left-1/2 z-[70] inline-flex min-h-9 -translate-x-1/2 items-center rounded-full border border-border-strong px-4 text-[13px] font-medium text-paper transition-colors hover:bg-surface">Join the waitlist</a>
         {(waiting?.kind === "next" || waiting?.kind === "beat") && !ended && (
           <button type="button" onClick={forward} aria-label="Next step" className={cn("absolute right-0 z-[70] grid size-11 place-items-center rounded-full bg-signal text-white transition-opacity duration-300 focus-visible:opacity-100", controls ? "opacity-100" : "opacity-0")}>
             <ArrowRight aria-hidden size={18} weight="bold" />

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { Play } from "@phosphor-icons/react/dist/ssr";
 import { InviteNotice } from "./invite-notice";
 import { RUN } from "./tour/data";
 import { HeroHeadline } from "./landing";
@@ -41,12 +42,27 @@ export function PreviewLanding() {
             <InviteNotice />
           </Suspense>
           <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-4">
+            {/* The demo first: it is what shows people what this is. */}
+            <Link href="/demo/stage" className="inline-flex min-h-14 items-center gap-2.5 rounded-full bg-signal px-7 text-[17px] font-semibold text-white shadow-[0_8px_24px_-8px_var(--color-signal)] transition-transform hover:-translate-y-0.5">
+              <Play aria-hidden size={18} weight="fill" />Watch the demo
+            </Link>
             <CtaPill href="/join">Get early access</CtaPill>
-            <Link href="/demo/stage" className="inline-flex min-h-12 items-center rounded-full border border-border-strong px-6 text-[16px] font-medium text-paper transition-colors hover:bg-surface">Watch the demo</Link>
           </div>
           <p className="mt-5 text-[15px] text-paper-muted">Have an invite? <Link href="/login" className="text-link">Sign in</Link></p>
         </div>
       </HeroHeadline>
+      <section aria-label="The demo" className="px-5 pb-10 sm:px-8">
+        <Link href="/demo/stage" className="group mx-auto flex max-w-[1320px] flex-col gap-5 rounded-[20px] bg-signal p-6 text-white sm:flex-row sm:items-center sm:justify-between sm:p-8">
+          <span>
+            <span className="block font-mono text-[12px] uppercase tracking-[0.08em] text-white/75">The demo</span>
+            <span className="mt-2 block font-display text-[26px] font-[650] leading-[1.15] tracking-[-0.02em] [font-stretch:92%] sm:text-[32px]">Watch an issue become a pull request.</span>
+            <span className="mt-2 block max-w-[56ch] text-[16px] leading-[1.5] text-white/85">Click through it at your own pace: find the issue, understand the code, prove the fix, publish. No account needed.</span>
+          </span>
+          <span className="inline-flex min-h-14 shrink-0 items-center gap-2.5 self-start rounded-full bg-white px-7 text-[17px] font-semibold text-signal transition-transform group-hover:-translate-y-0.5 sm:self-center">
+            <Play aria-hidden size={18} weight="fill" />Start the demo
+          </span>
+        </Link>
+      </section>
       <section aria-label="How it works" className="px-5 pb-8 sm:px-8">
         <ol className="mx-auto grid max-w-[1320px] gap-x-10 border-t border-border-soft sm:grid-cols-3">
           {STEPS.map((step, i) => (

@@ -22,6 +22,8 @@ export function withMapOverlay(html: string, levels: Map<string, keyof typeof MA
   const data = JSON.stringify({ colors: MAP_COLORS, levels: Object.fromEntries(levels) }).replace(/</g, "\\u003c");
   const script = `<script>
 (() => {
+  // The page's own script failed (e.g. vis-network did not load): nothing to recolour.
+  if (typeof nodesDS === "undefined") return;
   const { colors, levels } = ${data};
   const paint = (c) => ({ background: c, border: c, highlight: { background: "#ffffff", border: c } });
   nodesDS.update(nodesDS.getIds().map((id) => ({ id, color: paint(colors[levels[id]] ?? colors.unseen) })));

@@ -21,6 +21,7 @@ test("withMapOverlay: recolours graphify's nodes from the user's levels, before 
   assert.ok(html.includes('"a":"changed"') && html.includes(MAP_COLORS.changed) && html.includes("nodesDS.update"));
   // No levels: everything is grey (unseen), still with the legend.
   assert.ok(withMapOverlay(VIZ, new Map()).includes('"levels":{}'));
+  assert.ok(html.indexOf('typeof nodesDS === "undefined"') < html.indexOf("nodesDS.update"), "a page whose own script failed is left alone");
 });
 
 test("withMapOverlay: node ids cannot close the script; pages without graphify's nodes are unchanged", () => {

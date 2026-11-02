@@ -45,7 +45,11 @@ const config: NextConfig = {
     // installed). The IDE only runs in the browser, which takes the fetch
     // branch, so those imports resolve to empty modules instead of failing
     // the build (the server bundle compiles the IDE too, never runs it).
-    config.resolve.alias = { ...config.resolve.alias, "node-fetch": false };
+    // The wrapper's view panels also bring VS Code's merge-conflict extension.
+    // Its code runs through the main-thread extension host, which evaluates
+    // it with new Function: the IDE's CSP has no 'unsafe-eval', so it failed
+    // to activate on every load (a lesson has no merge conflicts anyway).
+    config.resolve.alias = { ...config.resolve.alias, "node-fetch": false, "@codingame/monaco-vscode-merge-conflict-default-extension": false };
     if (!isServer) {
       // Next emits `new URL("./asset", import.meta.url)` as a relative URL
       // ("/_next/static/media/..."), which VS Code reads as a file:// path.

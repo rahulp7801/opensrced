@@ -32,6 +32,16 @@ const SECTIONS: { title: string; body: React.ReactNode }[] = [
     ),
   },
   {
+    title: "Visit counts",
+    body: (
+      <>
+        opensrcer counts page views with Vercel Web Analytics: which pages are visited, the referring site, and the
+        country and device type. It sets no cookies; a visit is counted with an anonymous hash that is discarded after
+        24 hours, so no one is tracked across sites or from day to day.
+      </>
+    ),
+  },
+  {
     title: "Your AI provider keys",
     body: (
       <>
@@ -57,7 +67,7 @@ const SECTIONS: { title: string; body: React.ReactNode }[] = [
     body: (
       <>
         Draft pull requests are created on GitHub under your account, and only by runs you start in live mode; preview runs never open one. A shared fix
-        link is unlisted and anyone with the link can view it; it stops working 30 days after it is created.
+        link is unlisted, and during the invite-only preview only invited accounts can open it; it stops working 30 days after it is created.
       </>
     ),
   },

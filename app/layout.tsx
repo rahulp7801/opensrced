@@ -11,6 +11,7 @@ import { ApiKeyGate } from "@/components/api-key-gate";
 import { Onboarding } from "@/components/onboarding";
 import { ToastProvider } from "@/components/toast";
 import { Auth0Provider } from "@auth0/nextjs-auth0";
+import { Analytics } from "@vercel/analytics/next";
 import { siteUrl } from "@/lib/site-url";
 import { inviteOnly as inviteOnlyMode } from "@/lib/access";
 
@@ -96,6 +97,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </ToastProvider>
         </Auth0Provider>
+        {/* Cookieless page-view counts (Vercel Web Analytics); see /privacy. */}
+        <Analytics />
       </body>
     </html>
   );

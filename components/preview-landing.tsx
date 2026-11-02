@@ -12,6 +12,13 @@ const STEPS = [
   { title: "Review, then publish", text: "Nothing is posted until you've read the change. Then it opens a draft pull request, your proposed change, in your name." },
 ];
 
+// Why a maintainer can trust what arrives: each is what the product does today.
+const TRUST = [
+  { title: "Reads the rules first", text: "Every run starts with the project's contributing guide and AI policy. Where AI help isn't wanted, it refuses before writing a line." },
+  { title: "Proves the fix", text: "It undoes the change and reruns the project's tests: the new test has to fail without the fix and pass with it." },
+  { title: "You explain it, then you publish", text: "Nothing goes out until you've explained the change in your own words. It opens as a draft, one per project, with AI help disclosed." },
+];
+
 /** The public page during the invite-only preview (lib/access.ts): the line,
  *  how it works, and a way in for invited accounts. The full landing page
  *  (components/landing.tsx) comes back when OPENSRCER_ACCESS is unset. */
@@ -33,11 +40,11 @@ export function PreviewLanding() {
           <Suspense fallback={null}>
             <InviteNotice />
           </Suspense>
-          <div className="mt-7 flex flex-wrap items-center gap-3">
+          <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-4">
             <CtaPill href="/join">Get early access</CtaPill>
-            <Link href="/demo" className="text-link ml-2 text-[16px]">Watch the product tour</Link>
-            <Link href="/login" className="text-link ml-2 text-[16px]">Have an invite? Sign in</Link>
+            <Link href="/demo/stage" className="inline-flex min-h-12 items-center rounded-full border border-border-strong px-6 text-[16px] font-medium text-paper transition-colors hover:bg-surface">Watch the demo</Link>
           </div>
+          <p className="mt-5 text-[15px] text-paper-muted">Have an invite? <Link href="/login" className="text-link">Sign in</Link></p>
         </div>
       </HeroHeadline>
       <section aria-label="How it works" className="px-5 pb-8 sm:px-8">
@@ -50,6 +57,20 @@ export function PreviewLanding() {
             </li>
           ))}
         </ol>
+      </section>
+      <section aria-labelledby="trust-heading" className="px-5 pb-16 pt-10 sm:px-8 sm:pt-16">
+        <div className="mx-auto max-w-[1320px] rounded-[20px] bg-surface p-6 sm:p-10">
+          <h2 id="trust-heading" className="max-w-[24ch] font-display text-[28px] font-[650] leading-[1.1] tracking-[-0.02em] text-paper [font-stretch:92%] sm:text-[36px]">Built so maintainers can say yes.</h2>
+          <ul className="mt-8 grid gap-8 sm:grid-cols-3 sm:gap-10">
+            {TRUST.map((t) => (
+              <li key={t.title}>
+                <p className="text-[18px] font-semibold text-paper">{t.title}</p>
+                <p className="mt-2 max-w-[44ch] text-[16px] leading-[1.55] text-paper-muted">{t.text}</p>
+              </li>
+            ))}
+          </ul>
+          <Link href="/demo/stage" className="text-link mt-8 inline-flex min-h-11 items-center text-[16px]">See all three in the demo <span aria-hidden="true" className="ml-2">&rarr;</span></Link>
+        </div>
       </section>
     </div>
   );

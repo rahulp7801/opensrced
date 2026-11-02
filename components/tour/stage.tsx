@@ -77,6 +77,8 @@ export function StageDemo() {
   // only while the mouse moves (two seconds), or while one has focus.
   const [controls, setControls] = useState(false);
   useEffect(() => {
+    // Touch screens have no mouse to move: keep the controls on.
+    if (window.matchMedia("(hover: none)").matches) { setControls(true); return; }
     let id = 0;
     const show = () => { setControls(true); window.clearTimeout(id); id = window.setTimeout(() => setControls(false), 2000); };
     window.addEventListener("mousemove", show);
@@ -260,13 +262,9 @@ export function StageDemo() {
 
   const View = step.chapter.View;
   return (
-    <div ref={rootRef} data-stage-root="" role="region" aria-label="opensrcer stage demo" className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-ink p-4 sm:p-6">
-      {/* Made for a projector: on a phone the app would shrink past reading, so point to the tour. */}
-      <div className="absolute inset-0 z-[80] flex flex-col items-center justify-center gap-4 bg-ink px-6 text-center md:hidden">
-        <p className="text-[20px] font-semibold text-paper">The stage demo is made for a big screen.</p>
-        <p className="text-[16px] leading-[1.5] text-paper-muted">On a phone, the product tour shows the same run, sized to fit.</p>
-        <a href="/demo" className="btn-primary inline-flex min-h-11 items-center px-6 text-[16px]">Open the product tour</a>
-      </div>
+    <div ref={rootRef} data-stage-root="" role="region" aria-label="opensrcer stage demo" className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-ink p-2 sm:p-6">
+      {/* A phone held upright gets a small slide; sideways it fills the screen. */}
+      <p className="mb-3 hidden shrink-0 text-center text-[13px] text-paper-muted max-md:[@media(orientation:portrait)]:block">Turn your phone sideways for a bigger view.</p>
       {/* The headline sits on the app's left edge, in the display face: big type does the work. */}
       <div className="relative z-[70] mx-auto mb-5 shrink-0" style={{ width: DESIGN.width * scale, fontSize: DESIGN.width * scale * HEADLINE_OF_FRAME }}>
         <StageHeadline head={head} />
@@ -309,7 +307,7 @@ export function StageDemo() {
         <div className={cn("pointer-events-auto absolute inset-x-0 bottom-8 mx-auto flex w-fit flex-wrap items-center justify-center gap-2 rounded-full border border-border bg-surface px-2 py-2 text-[13px] text-paper-muted transition-opacity duration-300 focus-within:opacity-100", controls ? "opacity-100" : "opacity-0")}>
           <button type="button" onClick={forward} className="cta-pill" data-size="sm">Begin<span className="cta-pill-arrow"><ArrowGlyph size={13} /></span></button>
           <button type="button" onClick={toggleFullscreen} className="pill" data-quiet><CornersOut aria-hidden size={14} weight="bold" />Full screen</button>
-          <span className="px-2 font-mono text-[12px]">→ next · ← back · 1–4 phase · F full screen</span>
+          <span className="px-2 font-mono text-[12px] [@media(hover:none)]:hidden">→ next · ← back · 1–4 phase · F full screen</span>
         </div>
       )}
     </div>

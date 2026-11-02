@@ -1,9 +1,10 @@
 // The signed-in user's own contribution record (PLAN §9.1-9.3), behind
 // OPENSRCER_RECORD=1. Private: only ever the caller's record; no leaderboards.
 //
-//   GET  /api/record                       level, standing and its breakdown, PRs, open spam flags, imported history
+//   GET  /api/record                       level, standing and its breakdown, PRs, open spam flags, imported history, home project
 //   POST /api/record { action: "import" }  opt-in "Import my GitHub history" (public PRs only)
 //   POST /api/record { action: "profile", public: boolean }  the opt-in public profile at /u/<login>
+//   POST /api/record { action: "home", repo: "owner/name" | null }  change or clear the home project
 //
 // ponytail: an API until /account exists to show it (another stream builds that page).
 
@@ -15,6 +16,8 @@ import { readJsonBody } from "@/lib/request-body";
 import { sessionUserId } from "@/lib/require-session";
 import { GitHubUserNotFoundError, importHistory } from "@/lib/record/import";
 import { setPublicProfile } from "@/lib/record/profile";
+import { InvalidRepoNameError } from "@/lib/ai-policy";
+import { homeChoices, homeProject, NotYourProjectError, setHomeProject } from "@/lib/record/continuity";
 import { recordView, UnknownUserError } from "@/lib/record/standing";
 
 export const dynamic = "force-dynamic";
@@ -27,10 +30,12 @@ export async function GET() {
   const userId = await sessionUserId();
   if (!userId) return json({ error: "Not authenticated" }, 401);
   try {
-    return json(await recordView(await getDb(), userId));
+    const db = await getDb();
+    const view = await recordView(db, userId);
+    return json({ ...view, home: await homeProject(db, userId), homeChoices: await homeChoices(db, userId) });
   } catch (error) {
     // No record yet: nothing published or imported.
-    if (error instanceof UnknownUserError) return json({ level: "newcomer", standing: 0, breakdown: {}, spamFlags: [], contributions: [], history: null, publicProfile: false });
+    if (error instanceof UnknownUserError) return json({ level: "newcomer", standing: 0, breakdown: {}, spamFlags: [], contributions: [], history: null, publicProfile: false, home: null, homeChoices: [] });
     throw error;
   }
 }
@@ -41,7 +46,17 @@ export async function POST(req: Request) {
   if (!userId) return json({ error: "Not authenticated" }, 401);
   const body = await readJsonBody<Record<string, unknown>>(req);
   if (body?.action === "profile" && typeof body.public !== "boolean") return json({ error: 'Send { "action": "profile", "public": true or false }.' }, 400);
-  if (body?.action !== "import" && body?.action !== "profile") return json({ error: 'Send { "action": "import" } or { "action": "profile", "public": … }.' }, 400);
+  if (body?.action === "home") {
+    if (body.repo !== null && typeof body.repo !== "string") return json({ error: 'Send { "action": "home", "repo": "owner/name" } or "repo": null.' }, 400);
+    try {
+      return json({ home: await setHomeProject(await getDb(), userId, body.repo) });
+    } catch (error) {
+      if (error instanceof InvalidRepoNameError) return json({ error: error.message }, 400);
+      if (error instanceof NotYourProjectError || error instanceof UnknownUserError) return json({ error: "Pick a repository from your record." }, 404);
+      throw error;
+    }
+  }
+  if (body?.action !== "import" && body?.action !== "profile") return json({ error: 'Send { "action": "import" }, { "action": "profile", "public": … } or { "action": "home", "repo": … }.' }, 400);
   const [token, author] = await Promise.all([resolveGitHubToken(), resolveCommitAuthor(req.signal).catch(() => null)]);
   if (!token || !author) return json({ error: `Sign in with GitHub again to ${body.action === "import" ? "import your history" : "change your profile"}.` }, 401);
   if (body.action === "profile") {

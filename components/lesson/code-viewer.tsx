@@ -10,6 +10,7 @@
 
 import { useEffect, useId, useMemo, useState } from "react";
 import { rawFileUrl, type RepoTree } from "@/lib/ide/repo-tree";
+import { markExplored } from "../project-map";
 import { cn } from "@/lib/utils";
 
 /** Files above this are not shown inline (generated, vendored, data). */
@@ -44,6 +45,7 @@ export function CodeViewer({ repo, sha, className }: { repo: string; sha: string
     setText(null);
     setFileError(null);
     if (size > MAX_VIEW_BYTES) { setFileError("This file is too large to show here. Open it on GitHub."); return; }
+    markExplored(repo, open);
     const controller = new AbortController();
     fetch(rawFileUrl(repo, sha, open), { signal: controller.signal })
       .then(async (r) => { if (!r.ok) throw new Error(`Could not load the file (${r.status}).`); setText(await r.text()); })

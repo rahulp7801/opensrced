@@ -9,6 +9,8 @@
 //   3. Voyage embeddings for new or edited issues (skipped without a key)
 //   4. difficulty v2 for every open issue (age and neighbours change daily)
 //   5. repos.health, then ingested_at, so a failed run is retried in full
+//   6. with OPENSRCER_RECORD, "you know this code" alerts for issues opened
+//      since the last run (lib/record/alerts.ts)
 //
 // The catalog is repos.catalog = true. Phase 1 will narrow it to repos with a
 // green env recipe; until then scripts/catalog-add.mjs marks repos by hand.
@@ -18,8 +20,10 @@ import { timingSafeEqual } from "node:crypto";
 import { basename } from "node:path/posix";
 import type { Db } from "../db/client";
 import { issues, repos } from "../db/schema";
+import { flagEnabled } from "../flags";
 import { graphqlPaginate, type GitHubClient } from "../gh";
 import { buildModuleMap, findNode, type GraphData } from "../graph";
+import { createAlerts } from "../record/alerts";
 import { sanitizeGitHubName } from "../sanitize";
 import { classifyScope } from "../scope";
 import { contentSignals, graphSignals, scoreDifficulty, type DifficultyFeatures } from "./difficulty";
@@ -62,6 +66,8 @@ export type IngestResult = {
   embedded: number;
   scored: number;
   health: RepoHealth;
+  /** "You know this code" alerts written (lib/record/alerts.ts). */
+  alerts: number;
   warnings: string[];
 };
 
@@ -323,6 +329,8 @@ export type IngestOptions = {
   loadGraph?: (repo: string) => Promise<GraphData | null>;
   /** Voyage's fetch, for tests. Embedding runs only when embeddingsEnabled(). */
   embedFetch?: typeof fetch;
+  /** Write "you know this code" alerts; defaults to OPENSRCER_RECORD. */
+  alerts?: boolean;
 };
 
 async function sharedGraph(repo: string): Promise<GraphData | null> {
@@ -371,9 +379,18 @@ export async function ingestRepo(db: Db, client: GitHubClient, repo: Repo, optio
   const health = repoHealth(await issueResponseHours(db, current.id, now), prs, now);
   await db.update(repos).set({ health, ingestedAt: now }).where(eq(repos.id, current.id));
 
+  // Only issues opened since the last run are new; a repo's first ingest
+  // alerts nobody, or its whole backlog would arrive at once.
+  let alerted = 0;
+  if ((options.alerts ?? flagEnabled("record")) && since) {
+    const fresh = keep.filter((row) => row.state === "open" && row.createdAt && row.createdAt >= since
+      && !(row.features as IssueFeatures).assigned && (row.features as IssueFeatures).openPrs === 0);
+    alerted = await createAlerts(db, current.id, fresh.map((row) => ({ number: row.number, scopeNodes: row.scopeNodes ?? [] })), context?.graph ?? null, now);
+  }
+
   return {
     repo: fullName, open: openNodes.length, closed: keep.length - openNodes.length, removed: dropped.length,
-    embedded, scored, health, warnings,
+    embedded, scored, health, alerts: alerted, warnings,
   };
 }
 

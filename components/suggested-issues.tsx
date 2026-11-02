@@ -67,8 +67,10 @@ function validSuggestions(value: unknown): value is CachedSuggestions {
     && (result.partial === undefined || typeof result.partial === "boolean");
 }
 
-/** `lessons`: OPENSRCER_LESSONS is on (the page reads it on the server). */
-export function SuggestedIssues({ lessons = false }: { lessons?: boolean }) {
+/** `lessons`: OPENSRCER_LESSONS is on (the page reads it on the server).
+ *  `home`: the user's home project (owner/name), listed first. */
+export function SuggestedIssues({ lessons = false, home = null }: { lessons?: boolean; home?: string | null }) {
+  const isHome = (repo: string) => home !== null && repo.toLowerCase() === home.toLowerCase();
   const stopRequest = useRef<(() => void) | undefined>(undefined);
   const [partial, setPartial] = useState(false);
   const [issues, setIssues] = useState<SuggestedIssue[]>([]);
@@ -79,7 +81,9 @@ export function SuggestedIssues({ lessons = false }: { lessons?: boolean }) {
   const [expanded, setExpanded] = useState(true);
   const [tags, setTags] = useState<"strict" | "broad">("strict");
   const [testableOnly, setTestableOnly] = useState(false);
-  const shown = testableOnly ? issues.filter((issue) => issue.recs?.testable) : issues;
+  // The home project first; the sort is stable, so the rest keep their order.
+  const shown = (testableOnly ? issues.filter((issue) => issue.recs?.testable) : issues)
+    .toSorted((a, b) => Number(isHome(b.repo)) - Number(isHome(a.repo)));
 
   function toggleLang(lang: string) {
     setSelectedLangs((previous) =>
@@ -285,6 +289,7 @@ export function SuggestedIssues({ lessons = false }: { lessons?: boolean }) {
                     {/* Everything else about the issue is one mono line of facts. */}
                     <p className="meta mt-1">
                       <span>{issue.repo} #{issue.number}</span>
+                      {isHome(issue.repo) && <span className="tag" data-tone="ok">your home project</span>}
                       {issue.stars > 0 && <span>★ {issue.stars.toLocaleString()}</span>}
                       {issue.language && <span>{issue.language.toLowerCase()}</span>}
                       <span>updated {timeAgo(issue.updatedAt)}</span>

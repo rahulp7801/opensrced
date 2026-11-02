@@ -7,9 +7,10 @@ import path from "node:path";
 import { and, eq } from "drizzle-orm";
 import { openDb, type DbConnection } from "../db/client";
 import { migrateDb } from "../db/migrate";
-import { EMBEDDING_DIMENSIONS, issues, repos } from "../db/schema";
+import { alerts, EMBEDDING_DIMENSIONS, issues, repos, users } from "../db/schema";
 import { gh } from "../gh";
 import type { GraphData } from "../graph";
+import { markNodes } from "../record/map";
 import { addToCatalog, cronAuthorized, graphContext, ingestCatalog, ingestRepo, mapIssue, scopeNodesFor, type IssueFeatures, type IssueNode } from "../recs/ingest";
 
 const fixture = JSON.parse(readFileSync(path.join(process.cwd(), "lib/__tests__/fixtures/recs-attrs-graphql.json"), "utf8"));
@@ -18,7 +19,7 @@ const NOW = new Date("2026-10-29T12:00:00Z");
 type Request = { query: string; variables: Record<string, unknown> };
 
 /** GitHub's GraphQL endpoint, answering from the fixture. */
-function fakeGitHub(options: { missing?: boolean } = {}) {
+function fakeGitHub(options: { missing?: boolean; open?: unknown } = {}) {
   const requests: Request[] = [];
   const fetch = (async (_url: string, init: RequestInit) => {
     const request = JSON.parse(String(init.body)) as Request;
@@ -26,7 +27,7 @@ function fakeGitHub(options: { missing?: boolean } = {}) {
     let body: unknown;
     if (options.missing) body = { data: { repository: null } };
     else if (request.query.includes("query Repo(")) body = fixture.repo;
-    else if (request.query.includes("query Issues(")) body = (request.variables.states as string[])[0] === "OPEN" ? fixture.open : fixture.closed;
+    else if (request.query.includes("query Issues(")) body = (request.variables.states as string[])[0] === "OPEN" ? options.open ?? fixture.open : fixture.closed;
     else throw new Error("unexpected query");
     return new Response(JSON.stringify(body), { headers: { "content-type": "application/json" } });
   }) as unknown as typeof globalThis.fetch;
@@ -168,6 +169,28 @@ test("ingestRepo: a broken graph is a warning, not a failed ingest", async () =>
   const result = await withEnv({ VOYAGE_API_KEY: undefined }, () =>
     ingestRepo(connection.db, fakeGitHub().client, repo, { now: NOW, loadGraph: async () => { throw new Error("corrupt"); } }));
   assert.deepEqual(result.warnings, ["graph unavailable: corrupt"]);
+});
+
+test("ingestRepo: alerts users who explained an issue's code once it is new since the last run; never on a first ingest", async () => {
+  const { db } = connection;
+  await db.insert(users).values([{ id: "u|knows", login: "knows" }, { id: "u|explored", login: "looked" }]);
+  await markNodes(db, "u|knows", "python-attrs/attrs", { level: "explained", nodes: ["make_attrs"] });
+  await markNodes(db, "u|explored", "python-attrs/attrs", { level: "explored", nodes: ["make_attrs"] });
+  const now = new Date("2026-11-05T12:00:00Z");
+  // #1637, opened five minutes ago, unclaimed, and pointing at _make.py.
+  const open = structuredClone(fixture.open);
+  const fresh = open.data.repository.issues.nodes.find((n: IssueNode) => n.number === 1637);
+  Object.assign(fresh, { createdAt: new Date(now.getTime() - 5 * 60_000).toISOString(), body: `${fresh.body} See _make.py`, timelineItems: { nodes: [] } });
+  const [repo] = await db.update(repos).set({ ingestedAt: null }).where(eq(repos.name, "attrs")).returning();
+  const first = await withEnv({ VOYAGE_API_KEY: undefined }, () => ingestRepo(db, fakeGitHub({ open }).client, repo, { now, loadGraph: async () => graph, alerts: true }));
+  assert.equal(first.alerts, 0, "a first ingest alerts nobody");
+  const second = await withEnv({ VOYAGE_API_KEY: undefined }, () => ingestRepo(db, fakeGitHub({ open }).client, repo, { now: new Date(now.getTime() + 60_000), loadGraph: async () => graph, alerts: true }));
+  assert.equal(second.alerts, 1);
+  const rows = await db.select().from(alerts).where(eq(alerts.repoId, repo.id));
+  assert.deepEqual(rows.map((r) => [r.userId, r.issueNumber]), [["u|knows", 1637]], "explored alone is not enough");
+  assert.ok((rows[0].reason as { nodes: string[] }).nodes.includes("make_attrs"));
+  const off = await withEnv({ VOYAGE_API_KEY: undefined }, () => ingestRepo(db, fakeGitHub({ open }).client, repo, { now: new Date(now.getTime() + 120_000), loadGraph: async () => graph, alerts: false }));
+  assert.equal(off.alerts, 0);
 });
 
 test("ingestCatalog: catalog repos only, failures reported, deadline respected", async () => {

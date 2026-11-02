@@ -84,8 +84,10 @@ function useBookmarks() {
   return { bookmarks, toggle, isBookmarked: (repo: string) => bookmarks.includes(repo) };
 }
 
-/** `lessons`: OPENSRCER_LESSONS is on (the page reads it on the server). */
-export function DiscoverScanner({ lessons = false }: { lessons?: boolean }) {
+/** `lessons`: OPENSRCER_LESSONS is on (the page reads it on the server).
+ *  `home`: the user's home project (owner/name), listed first. */
+export function DiscoverScanner({ lessons = false, home = null }: { lessons?: boolean; home?: string | null }) {
+  const isHome = (repo: string) => home !== null && repo.toLowerCase() === home.toLowerCase();
   const [minStars, setMinStars] = useState("500");
   const { bookmarks, toggle: toggleBookmark, isBookmarked } = useBookmarks();
   // Empty string = no ceiling. Letting users target smaller repos where
@@ -156,6 +158,7 @@ export function DiscoverScanner({ lessons = false }: { lessons?: boolean }) {
   const filtered = useMemo(() => {
     if (!data) return [];
     const ageMs = ageFilter === "any" ? Infinity : Number(ageFilter) * 86_400_000;
+    // The home project first; the sort is stable, so the rest keep their order.
     return data.issues.filter((i) => {
       if (solvableOnly && !i.solvable) return false;
       if (ageFilter !== "any") {
@@ -171,8 +174,9 @@ export function DiscoverScanner({ lessons = false }: { lessons?: boolean }) {
       if (scopeFilter !== "any" && i.scope.bucket !== scopeFilter) return false;
       if (testableOnly && !i.recs?.testable) return false;
       return true;
-    });
-  }, [data, ageFilter, difficulty, scopeFilter, solvableOnly, testableOnly, now]);
+    }).sort((a, b) => Number(isHome(b.repo.fullName)) - Number(isHome(a.repo.fullName)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- isHome only reads `home`
+  }, [data, ageFilter, difficulty, scopeFilter, solvableOnly, testableOnly, now, home]);
 
   return (
     <div>
@@ -374,6 +378,7 @@ export function DiscoverScanner({ lessons = false }: { lessons?: boolean }) {
                         {/* One mono line of facts, then size and effort as one phrase. */}
                         <p className="meta mt-1">
                           <span>{i.repo.fullName}</span>
+                          {isHome(i.repo.fullName) && <span className="tag" data-tone="ok">your home project</span>}
                           <span>★ {fmtStars(i.repo.stars)}</span>
                           {i.repo.language && <span>{i.repo.language.toLowerCase()}</span>}
                           <a href={i.url} target="_blank" rel="noreferrer">#{i.number}<span aria-hidden>↗</span></a>

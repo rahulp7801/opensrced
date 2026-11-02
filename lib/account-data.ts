@@ -1,9 +1,11 @@
 // Everything opensrcer keeps about one account, for "Export my data" and
 // "Delete my data" on /account (app/api/me).
 //
-//   Database   the users row; lessons (and their steps and messages),
-//              contributions, map_coverage, standing_events and alerts all
-//              reference it and go with it (ON DELETE CASCADE).
+//   Database   the users row, settings included (onboarding answers,
+//              imported history, home project, next-in-area card); lessons
+//              (and their steps and messages), contributions, map_coverage,
+//              standing_events and alerts all reference it and go with it
+//              (ON DELETE CASCADE).
 //   Blob       users/<sha256(id)>/ (runs, summaries, graphs, lifecycle,
 //              fork CI) and stats/<sha256(id)>.json, when hosted.
 //   Local      .dispatches/<id>.{json,log} and .dispatches/<id>/ for the

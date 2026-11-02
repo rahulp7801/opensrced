@@ -5,9 +5,10 @@ import { eq } from "drizzle-orm";
 import { InvalidRepoNameError } from "../ai-policy";
 import { openDb, type DbConnection } from "../db/client";
 import { migrateDb } from "../db/migrate";
-import { contributions, standingEvents, users } from "../db/schema";
+import { contributions, mapCoverage, standingEvents, users } from "../db/schema";
 import { gh } from "../gh";
 import { InvalidContributionError, outcomeEvents, prOutcome, recordPublished, syncContributions, type PrNode } from "../record/sync";
+import { mapGraph } from "./fixtures/map-graph";
 
 let connection: DbConnection;
 before(async () => {
@@ -95,7 +96,7 @@ test("syncContributions: refreshes open PRs, appends events once, rebuilds level
   const mergedNode = node({ state: "MERGED", mergedAt: "2026-10-20T00:00:00Z", author: who("bob"), reviews: { nodes: [review("APPROVED")] } });
   // acme/app#1 is the previous test's PR (another user), still open.
   const github = fakeGitHub({ "acme/app#1": node(), "acme/app#10": mergedNode, "acme/app#11": mergedNode, "acme/app#12": node({ author: who("bob") }), "gone/repo#1": null });
-  const run = await syncContributions(connection.db, github.client);
+  const run = await syncContributions(connection.db, github.client, Infinity, async () => null);
   assert.deepEqual(run.missing, ["gone/repo#1"]);
   assert.ok(run.checked >= 4 && run.changed >= 2);
   const events = await connection.db.select().from(standingEvents).where(eq(standingEvents.userId, "github|2"));
@@ -105,15 +106,35 @@ test("syncContributions: refreshes open PRs, appends events once, rebuilds level
   ], "the second merged PR in the same repo gets continuity");
   const [user] = await connection.db.select().from(users).where(eq(users.id, "github|2"));
   assert.equal(user.standing, 435);
+  assert.equal(user.settings.homeProject, "acme/app", "two merged PRs in one repository make it the home project");
   // A second run only re-reads what is still open and adds nothing new.
-  const again = await syncContributions(connection.db, github.client);
+  const again = await syncContributions(connection.db, github.client, Infinity, async () => null);
   assert.equal(again.users, 0);
   assert.equal((await connection.db.select().from(standingEvents).where(eq(standingEvents.userId, "github|2"))).length, 4);
+});
+
+test("syncContributions: a merge marks its files changed on the map; a broken graph is a warning, not a failure", async () => {
+  const base = { userId: "github|3", login: "cy", path: "ai" as const };
+  await recordPublished(connection.db, { ...base, repoFull: "acme/web", prNumber: 20 });
+  await recordPublished(connection.db, { ...base, repoFull: "acme/broken", prNumber: 21 });
+  const merged = (path: string) => node({ state: "MERGED", mergedAt: "2026-10-21T00:00:00Z", author: who("cy"), files: { nodes: [{ path }] } });
+  const github = fakeGitHub({ "acme/web#20": merged("src/web/views.py"), "acme/broken#21": merged("src/app/core.py"), "acme/app#1": node(), "acme/app#12": node({ author: who("bob") }) });
+  const run = await syncContributions(connection.db, github.client, Infinity, async (repo) => {
+    if (repo === "acme/broken") throw new Error("corrupt");
+    return mapGraph();
+  });
+  assert.deepEqual(run.warnings, ["acme/broken#21: graph unavailable: corrupt"]);
+  assert.match(github.calls[0], /files\(first: \d+\) \{ nodes \{ path \} \}/);
+  const coverage = await connection.db.select().from(mapCoverage).where(eq(mapCoverage.userId, "github|3"));
+  assert.equal(coverage.length, 10);
+  assert.ok(coverage.every((row) => row.level === "changed" && row.nodeId.startsWith("web")));
+  const [user] = await connection.db.select().from(users).where(eq(users.id, "github|3"));
+  assert.equal((user.settings.nextInArea as { repo: string }).repo, "acme/broken", "the latest merge's card");
 });
 
 test("syncContributions: a deadline in the past starts no batch", async () => {
   const github = fakeGitHub({});
   const run = await syncContributions(connection.db, github.client, Date.now() - 1);
-  assert.deepEqual(run, { checked: 0, changed: 0, missing: [], users: 0 });
+  assert.deepEqual(run, { checked: 0, changed: 0, missing: [], users: 0, warnings: [] });
   assert.equal(github.calls.length, 0);
 });

@@ -273,6 +273,27 @@ test("finishing the lesson (s10) calls deps.finished once, with the done lesson"
   assert.equal((await submitStep(post({ answer: "Next." }), other.id, "s10", plain.deps)).status, 200);
 });
 
+test("project map hook: a passed s7 marks its picks explained, a teacher question its subject explored; a failed step marks nothing", async () => {
+  const h = harness({ replies: ["What do you think it does?"] });
+  const node = (id: string, label: string, community: number, source_file: string) => ({ id, label, community, file_type: "code", source_file });
+  const graph = { nodes: [node("sess_save", "save_session()", 0, "src/flask/sessions.py"), node("app_run", "run()", 1, "src/flask/app.py"), node("cli_main", "main()", 2, "src/flask/cli.py")], links: [] };
+  const context = h.deps.context;
+  h.deps.context = async (lesson) => ({ ...(await context(lesson)), graph });
+  const marks: unknown[] = [];
+  h.deps.mapped = async (lesson, mark) => { marks.push([lesson.id, mark]); };
+  const lesson = await h.store.create({ owner: OWNER, repo_url: "https://github.com/pallets/flask", issue_number: 5, run_id: "c_1", mode: "short", path: "A", stage: "locate", answer_key: "verified" });
+  const missed = await (await submitStep(post({ answer: "src/flask/app.py\nsrc/flask/cli.py\nREADME.md" }), lesson.id, "s7", h.deps)).json();
+  assert.equal(missed.step.done, false);
+  assert.deepEqual(marks, [], "a failed step marks nothing");
+  const found = await (await submitStep(post({ answer: "src/flask/sessions.py\nsrc/flask/app.py\nsrc/flask/cli.py" }), lesson.id, "s7", h.deps)).json();
+  assert.equal(found.step.done, true);
+  assert.deepEqual(marks, [[lesson.id, { level: "explained", nodes: ["sess_save"] }]], "red herrings are not marked");
+  assert.equal((await teacherTurn(post({ message: "What does save_session do?" }), lesson.id, h.deps)).status, 200);
+  assert.deepEqual(marks.at(-1), [lesson.id, { level: "explored", nodes: ["sess_save"] }]);
+  assert.equal((await teacherTurn(post({ message: "Where do I start?" }), lesson.id, h.deps)).status, 200);
+  assert.equal(marks.length, 2, "a question about no code marks nothing");
+});
+
 test("get: pins the commit once, keeps going when GitHub fails, and returns the chat history", async () => {
   const h = harness();
   const id = await newLesson(h);

@@ -117,7 +117,7 @@ function validateEvent(e: StandingEvent): void {
   if (!Number.isSafeInteger(e.points) || e.points < 0) throw new InvalidStandingEventError(`Points must be a whole number of at least 0 (got ${e.points}).`);
 }
 
-async function assertUser(db: Db, userId: string): Promise<void> {
+export async function assertUser(db: Db, userId: string): Promise<void> {
   const [found] = await db.select({ id: users.id }).from(users).where(eq(users.id, userId)).limit(1);
   if (!found) throw new UnknownUserError(userId);
 }

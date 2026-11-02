@@ -27,7 +27,8 @@ after(() => connection.close());
 
 /** One of everything that references users, for `id`; `n` keeps unique keys apart. */
 async function seed(db: Db, id: string, login: string, n: number) {
-  await db.insert(users).values({ id, login, settings: { languages: ["Go"] } });
+  // homeProject and nextInArea: lib/record/continuity.ts keeps them in settings.
+  await db.insert(users).values({ id, login, settings: { languages: ["Go"], homeProject: `acme/r${n}`, nextInArea: { repo: `acme/r${n}`, pr: n, area: null, nodes: [], at: "2026-10-30T00:00:00Z" } } });
   const [repo] = await db.insert(repos).values({ owner: "acme", name: `r${n}` }).returning();
   const [lesson] = await db.insert(lessons).values({ userId: id, repoId: repo.id, issueNumber: n, stage: "kickoff" }).returning();
   await db.insert(lessonSteps).values({ lessonId: lesson.id, step: "s1", answer: `answer ${n}` });
@@ -54,6 +55,8 @@ test("export holds the account's rows and none of another's", async () => {
   await seed(db, OTHER, "other", 2);
   const data = await exportUserRows(db, ME);
   assert.deepEqual(data.users.map((row) => row.id), [ME]);
+  assert.equal(data.users[0].settings.homeProject, "acme/r1", "the home project and the next-in-area card go with the users row");
+  assert.ok(data.users[0].settings.nextInArea);
   for (const key of ["lessons", "contributions", "mapCoverage", "standingEvents", "alerts"] as const) {
     assert.equal(data[key].length, 1, key);
     assert.ok(data[key].every((row) => row.userId === ME), key);

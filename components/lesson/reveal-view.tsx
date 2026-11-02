@@ -171,10 +171,11 @@ export function RevealView({ lessonId, forkCi }: { lessonId: string; forkCi: boo
               context={previewChangeContext(preview, preview.diff)} copySources={[preview.diagnosis ?? "", preview.body]} onResult={onWords}
             />
           </div>
+          {/* Passing opens s10; reloading brings its docs-first draft. */}
           {lesson.path === "A" && (
             <ExplainIt
               lessonId={lessonId} files={diffFiles(preview.diff)} saved={explain} ready={Boolean(words?.ready && words.practiced)}
-              open={lesson.stage === "explain"} onLesson={setLesson}
+              open={lesson.stage === "explain"} onLesson={(l) => { setLesson(l); if (l.stage === "next") void reload(); }}
             />
           )}
         </section>

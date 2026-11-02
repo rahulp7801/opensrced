@@ -60,7 +60,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ login:
             <ul className="card mt-4 divide-y divide-border-soft">
               {p.merged.map((m) => (
                 <li key={m.url} className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-3">
-                  <a href={m.url} className="text-link font-mono text-[14px]" rel="noreferrer">{m.repo}#{m.number}</a>
+                  <a href={m.url} className="text-link min-w-0 break-all font-mono text-[14px]" rel="noreferrer">{m.repo}#{m.number}</a>
                   <span className="text-[13px] text-paper-muted">
                     merged {date(m.mergedAt)}{m.source === "imported" ? " · from their GitHub history" : " · through opensrcer"}
                   </span>

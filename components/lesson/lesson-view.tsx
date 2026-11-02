@@ -195,8 +195,9 @@ export function LessonView({ lessonId }: { lessonId: string }) {
           )}
           {!step && beforeReveal && lesson.stage !== "reveal" && lesson.stage !== "ide" && <p className="text-paper-muted">Pick a step on the left.</p>}
 
-          {/* Rapport with the maintainers, while the work is being planned. */}
-          {lesson.stage === "kickoff" && (
+          {/* Rapport with the maintainers, while the work is being planned (short
+              mode leaves kickoff the moment s4 passes, so not kickoff only). */}
+          {beforeReveal && (
             <>
               <ClaimCard lessonId={lessonId} issueUrl={`${lesson.repo_url}/issues/${lesson.issue_number}`} ready={byId.get("s4")?.done === true} />
               <PrefsCard lessonId={lessonId} repo={repo} />

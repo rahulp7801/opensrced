@@ -3,6 +3,7 @@
 // OPENSRCER_RECORD, a session, a database, or a home project.
 
 import Link from "next/link";
+import { connection } from "next/server";
 import { flagEnabled } from "@/lib/flags";
 import { homeProject } from "@/lib/record/continuity";
 import { UnknownUserError } from "@/lib/record/standing";
@@ -12,6 +13,9 @@ import { optionalDb } from "@/lib/users";
 /** The signed-in user's home project (owner/name), or null. */
 export async function currentHomeProject(): Promise<string | null> {
   if (!flagEnabled("record")) return null;
+  // Per request: sessionUserId swallows the build's "no request" error, so
+  // without this the page would be prerendered once with no home project.
+  await connection();
   const [userId, db] = await Promise.all([sessionUserId(), optionalDb()]);
   if (!userId || !db) return null;
   try {

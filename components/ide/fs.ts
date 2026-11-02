@@ -14,7 +14,7 @@ import {
   type IFileSystemProviderWithFileReadWriteCapability, type IStat,
 } from "@codingame/monaco-vscode-files-service-override";
 import { monaco } from "@codingame/monaco-editor-wrapper";
-import { directoryIndex, rawFileUrl, type EntryKind, type RepoTree } from "@/lib/ide/repo-tree";
+import { directoryIndex, rawFileUrl, type EntryKind, type RepoFile, type RepoTree } from "@/lib/ide/repo-tree";
 import { gitDiff, type FileEdit } from "@/lib/ide/diff";
 
 /** Where the repo is mounted in the workbench (file:///workspace/...). */
@@ -107,6 +107,11 @@ export class RepoFs {
 
   children(path: string): Array<[string, EntryKind]> {
     return [...(this.index.get(path) ?? [])];
+  }
+
+  /** Every file: the tree at the commit plus the contributor's new files. */
+  files(): RepoFile[] {
+    return [...this.sizes].map(([path, size]) => ({ path, size }));
   }
 
   stat(path: string): { size: number; mtime: number } {

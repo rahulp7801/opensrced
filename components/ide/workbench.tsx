@@ -19,6 +19,7 @@ import { RepoFs, WORKSPACE_ROOT, repoFileSystemProvider } from "./fs";
 import { modelPath, registerLanguageSmarts } from "./languages";
 import { workbenchStorageId } from "@/lib/ide/repo-tree";
 import { RunPanel } from "./run-panel";
+import { registerRepoSearch } from "./search";
 import { TeacherPanel, type EditorSelection, type TeacherMessage } from "./teacher-panel";
 
 export interface IdeProps {
@@ -85,6 +86,7 @@ function startWorkbench(container: HTMLElement, { repo, sha, lessonId }: IdeProp
       editor.onDidFocusEditorText(() => { lastEditor = editor; });
     });
     registerLanguageSmarts(repo, fs);
+    await registerRepoSearch(fs);
     return fs;
   })();
   return boot;

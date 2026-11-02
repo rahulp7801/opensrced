@@ -5,7 +5,9 @@ import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { del } from "@vercel/blob";
 
+import { inviteOnly } from "@/lib/access";
 import { readJson } from "@/lib/blob-store";
+import { requireSession } from "@/lib/require-session";
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { sharedFixExpired, sharedFixPath, validSharedFix } from "@/lib/shared-fix";
 
@@ -22,6 +24,11 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  // Invited accounts only, here as well as in middleware.
+  if (inviteOnly()) {
+    const denied = await requireSession();
+    if (denied) return denied;
+  }
   const { id } = await params;
   const storagePath = sharedFixPath(id);
   if (!storagePath) return json({ error: "Fix not found" }, 404);

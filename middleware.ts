@@ -113,11 +113,11 @@ const UNCONFIGURED_PUBLIC_PATHS = new Set([
 ]);
 const UNCONFIGURED_PUBLIC_PREFIXES = ["/fix/", "/api/fixes/"];
 
-// Invite-only preview (OPENSRCER_ACCESS=invite, see lib/access.ts): only these
-// stay open to everyone. The app's client shells and settings leave the public
-// list, and a signed-in account also needs an invite. The product tour stays
-// public: it is simulated, calls no API, and is how the preview is shown. Shared fix
-// links keep working so invited users can still share results.
+// Invite-only preview (the default, see lib/access.ts): only these stay open to
+// everyone. The app's client shells and settings leave the public list, and a
+// signed-in account also needs an invite. The demo stays public: it is simulated,
+// calls no API, and is how the preview is shown. Shared fix links are for invited
+// accounts only.
 const PREVIEW_PUBLIC_PATHS = new Set([
   "/",
   // The early-access form and the endpoint it posts to: for people without an invite.
@@ -138,10 +138,8 @@ const PREVIEW_PUBLIC_PATHS = new Set([
   "/api/access",
   "/api/crucible/github/webhook",
   "/api/crucible/github/install-callback",
-  "/fix",
-  "/api/fixes",
 ]);
-const PREVIEW_PUBLIC_PREFIXES = ["/fix/", "/api/fixes/"];
+const PREVIEW_PUBLIC_PREFIXES: string[] = [];
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 

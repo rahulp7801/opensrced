@@ -1,18 +1,20 @@
 // Private preview: who may use the app.
 //
-// OPENSRCER_ACCESS=invite turns the hosted product into an invite-only preview:
-// the public sees a short "coming soon" page, and every app page and API needs
-// a signed-in account listed in OPENSRCER_INVITED_GITHUB_IDS. Unset (or any
-// other value) means open, as before, so local development and the smoke
-// suites are unaffected.
+// The hosted product is an invite-only preview: the public sees the landing
+// page, the demo and the waitlist, and every app page and API needs a signed-in
+// account listed in OPENSRCER_INVITED_GITHUB_IDS. This fails closed: it is on
+// unless OPENSRCER_ACCESS is exactly "open", and a Vercel production deployment
+// is never open, whatever its settings say (a missing or mistyped variable must
+// not open the site). Local development without Auth0 (AUTH_DISABLED=1) skips
+// the gate entirely, as before.
 //
 // Invites are numeric GitHub account ids (`gh api user --jq .id`), matched
 // against the Auth0 subject `github|<id>`. Not logins: a login can be renamed
 // and then claimed by someone else; the numeric id never changes.
 
-/** True when the app is running as an invite-only preview. */
+/** True unless the app was explicitly opened (OPENSRCER_ACCESS=open), and always in production. */
 export function inviteOnly(): boolean {
-  return process.env.OPENSRCER_ACCESS === "invite";
+  return process.env.OPENSRCER_ACCESS !== "open" || process.env.VERCEL_ENV === "production";
 }
 
 /** The invited GitHub account ids, from a comma- or space-separated list.

@@ -4,6 +4,7 @@
 
 import { auth0 } from "@/lib/auth0";
 import { githubApi } from "@/lib/github-api";
+import { canUse } from "@/lib/access-server";
 
 // lib/auth-session.ts preserves the custom claim outside the public user profile.
 
@@ -15,7 +16,8 @@ export async function getGitHubTokenFromSession(): Promise<string | null> {
     await cookies();
     const session = await auth0.getSession();
     const token = session?.githubToken;
-    if (typeof token === "string" && token.length > 0) return token;
+    // An account without an invite gets no token, even if a route missed the gate.
+    if (typeof token === "string" && token.length > 0 && await canUse(session?.user?.sub)) return token;
   } catch {
     // Outside request context (e.g. background dispatcher) — fall through.
   }

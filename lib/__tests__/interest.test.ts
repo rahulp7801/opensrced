@@ -127,12 +127,12 @@ describe("isAdmin and canUse", () => {
     assert.equal(isAdmin("github|5", new Set()), false);
   });
 
-  test("open access lets everyone use the app; invite mode admits the invited list without asking storage", async () => {
+  test("explicitly open access lets everyone in; the default (invite) admits the invited list without asking storage", async () => {
     const saved = { access: process.env.OPENSRCER_ACCESS, ids: process.env.OPENSRCER_INVITED_GITHUB_IDS };
     try {
-      delete process.env.OPENSRCER_ACCESS;
+      process.env.OPENSRCER_ACCESS = "open";
       assert.equal(await canUse("github|1"), true);
-      process.env.OPENSRCER_ACCESS = "invite";
+      delete process.env.OPENSRCER_ACCESS;
       process.env.OPENSRCER_INVITED_GITHUB_IDS = "1";
       assert.equal(await canUse("github|1"), true);
     } finally {

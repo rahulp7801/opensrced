@@ -15,6 +15,7 @@ import { gh } from "@/lib/gh";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { approachForRun } from "@/lib/lesson/approach";
 import { lessonStore } from "@/lib/lesson/db-store";
+import { profileUrlFor } from "@/lib/record/profile";
 import { parseRunTarget } from "@/lib/run-target";
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { getCloudRun } from "@/lib/cloud-runs";
@@ -33,8 +34,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     const stored = cloudExecution() ? await getCloudPreview(viewerId, id) : await readPreview(join(process.cwd(), ".dispatches", id));
     if (!stored) return NextResponse.json({ error: "no preview for this run" }, { status: 404 });
     const [evidence, approach] = await Promise.all([policyEvidence(stored, d.repo_url), approachForRun(lessonStore(), viewerId, id)]);
+    const profileUrl = approach ? await profileUrlFor(viewerId) : null;
     return NextResponse.json({ ...stored.preview, ...evidence.fields, diff: stored.diff, confirmation: CONFIRMATION, publishable: !d.dry_run && (d.pr_status === "awaiting_review" || d.pr_status === "failed"),
-      ...(approach ? { approach, body_with_approach: withEvidence(stored, approach, evidence.policy).preview.body } : {}),
+      ...(approach ? { approach, body_with_approach: withEvidence(stored, approach, evidence.policy, profileUrl).preview.body } : {}),
       // A follow-up run publishes as one commit on this PR, not a new PR.
       ...(d.followup_pr ? { followup_pr: d.followup_pr } : {}) });
   } catch {

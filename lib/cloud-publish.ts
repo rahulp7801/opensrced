@@ -97,7 +97,7 @@ export async function publishCloudRun(
     const history = await listCloudRunSummaries(input.viewerId, 50);
     const policy = await liveGuards({ repoFull: repo, issue, token: input.token, login: input.author.login, preview: stored.preview,
       publishedAt: history.map((r) => r.published_at), level: await capsLevelFor(input.viewerId) });
-    published = withEvidence(stored, input.approach, policy);
+    published = withEvidence(stored, input.approach, policy, input.profileUrl);
   }
 
   // One publish per run, across function instances: the lock blob is created

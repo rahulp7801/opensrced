@@ -43,6 +43,7 @@ function deps(run: Awaited<ReturnType<ContextDeps["run"]>>): { d: ContextDeps; c
       graph: async (owner, repo) => { calls.push(`graph ${owner} ${repo}`); return null; },
       run: async (owner, id) => { calls.push(`run ${owner} ${id}`); return run; },
       practiced: async () => 2,
+      prefs: async (repo, token) => { calls.push(`prefs ${repo} ${token}`); return ["A typical merged PR changes 2 files and 40 lines (median of 30)."]; },
     },
   };
 }
@@ -57,6 +58,8 @@ test("the lesson context loads the issue, README, graph and answer key for the l
   assert.equal(ctx.practiced, 2);
   assert.ok(calls.includes("run auth0|alice c_1700000000000_bbbbbbbbbbbb"), "the run is read as the lesson's owner");
   assert.ok(calls.includes("issue pallets/flask#5 gho_x"));
+  assert.deepEqual(ctx.prefs, ["A typical merged PR changes 2 files and 40 lines (median of 30)."], "the maintainer prefs, for the teacher");
+  assert.ok(calls.includes("prefs pallets/flask gho_x"));
 });
 
 test("no answer key while the fix runs, or when it failed", async () => {

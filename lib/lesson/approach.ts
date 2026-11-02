@@ -17,8 +17,8 @@ export function clip(text: string, max = APPROACH_QUOTE_CHARS): string {
   return `${head.slice(0, head.lastIndexOf(" ") > 0 ? head.lastIndexOf(" ") : max).trimEnd()}…`;
 }
 
-/** s7's picks as saved (JSON array, or the raw lines of an older answer). */
-function picks(answer: string): string[] {
+/** A list answer as saved (s7 picks, s5 questions): a JSON array, or the raw lines of an older answer. */
+export function picks(answer: string): string[] {
   try {
     const parsed: unknown = JSON.parse(answer);
     if (Array.isArray(parsed)) return parsed.filter((p): p is string => typeof p === "string");

@@ -102,10 +102,11 @@ function safeBodyText(text: string): string {
 // the preview first. Placed above the AI-assistance section, like the
 // author's words.
 
-export function withApproach(body: string, bullets: string[] | null | undefined): string {
+export function withApproach(body: string, bullets: string[] | null | undefined, profileUrl?: string | null): string {
   if (!bullets?.length) return body;
-  // ponytail: a link to the contributor's opensrcer profile goes here once /u/<login> exists (PLAN §9.5).
-  const section = `### How I approached this\n\n${bullets.map((b) => `- ${safeBodyText(b.replace(/\s+/g, " ").trim())}`).join("\n")}`;
+  // The contributor's public profile (lib/record/profile.ts), when they opted in: their merged PRs, each linked.
+  const profile = profileUrl ? `\n\nMy other contributions, each linked to GitHub: ${profileUrl}` : "";
+  const section = `### How I approached this\n\n${bullets.map((b) => `- ${safeBodyText(b.replace(/\s+/g, " ").trim())}`).join("\n")}${profile}`;
   const marker = body.lastIndexOf(AI_SECTION);
   return marker < 0 ? `${body}\n\n${section}` : `${body.slice(0, marker)}\n\n${section}\n${body.slice(marker)}`;
 }
@@ -130,9 +131,10 @@ export function withPolicyDisclosure(body: string, policy: RepoAiPolicy | null |
 }
 
 /** The PR body as it will be sent: the approach bullets (when the author
- *  kept them) and the policy's disclosure. The preview shows the same. */
-export function withEvidence(stored: StoredPreview, approach: string[] | null | undefined, policy: RepoAiPolicy | null | undefined): StoredPreview {
-  const body = withPolicyDisclosure(withApproach(stored.preview.body, approach), policy);
+ *  kept them, with their profile link when it is public) and the policy's
+ *  disclosure. The preview shows the same. */
+export function withEvidence(stored: StoredPreview, approach: string[] | null | undefined, policy: RepoAiPolicy | null | undefined, profileUrl?: string | null): StoredPreview {
+  const body = withPolicyDisclosure(withApproach(stored.preview.body, approach, profileUrl), policy);
   return body === stored.preview.body ? stored : { ...stored, preview: { ...stored.preview, body } };
 }
 
@@ -144,6 +146,8 @@ export type PublishInput = {
   authorWords?: AuthorWords | null;
   /** "How I approached this" bullets from the run's lesson (lib/lesson/approach.ts), when the author kept them. */
   approach?: string[] | null;
+  /** The author's public profile (lib/record/profile.ts profileUrlFor), shown with the approach. */
+  profileUrl?: string | null;
   token: string | null;
   author: { login: string; id: number } | null;
   geminiKey?: string;
@@ -285,7 +289,7 @@ export async function publishDispatch(input: PublishInput, push: typeof pushPrPa
   const issue = record.issue_number ?? 0;
   const policy = await liveGuards({ repoFull, issue, token: input.token, login: input.author.login, preview: checked.preview,
     publishedAt: listAll(input.viewerId).map((r) => r.published_at), level: await capsLevelFor(input.viewerId) });
-  const stored = withEvidence(checked, input.approach, policy);
+  const stored = withEvidence(checked, input.approach, policy, input.profileUrl);
 
   patch(input.id, { pr_status: "pending" });
   forgetFinished(input.id);

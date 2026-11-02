@@ -3,7 +3,9 @@
 // fix's frozen preview as the answer key. None of it is sent to the browser.
 
 import { fetchIssue } from "../agentic-dispatcher";
+import { gh } from "../gh";
 import { githubText } from "../github-api";
+import { maintainerPrefs, MaintainerPrefsFetchError, prefsLines } from "../maintainer-prefs";
 import { getStoredGraph } from "../graph-store";
 import type { StoredPreview } from "../publish";
 import { loadOwnedRun } from "../run-change";
@@ -29,6 +31,8 @@ export type ContextDeps = {
   graph: (owner: string, repo: string) => Promise<StepContext["graph"]>;
   run: typeof loadOwnedRun;
   practiced: (owner: string, runId: string) => Promise<number>;
+  /** lib/maintainer-prefs.ts prefsLines for the repo; [] when they could not be read. */
+  prefs: (repo: string, token: string | null) => Promise<string[]>;
 };
 
 export const README_MAX_BYTES = 200_000;
@@ -42,6 +46,16 @@ export function defaultContextDeps(token: string | null): ContextDeps {
     graph: async (owner, repo) => (await getStoredGraph(owner, repo).catch(() => null))?.graph ?? null,
     run: loadOwnedRun,
     practiced: async (owner, runId) => (await readUnderstanding(owner, runId))?.practiced ?? 0,
+    // The teacher manages without them; a failed read is logged, not fatal.
+    prefs: async (repo, t) => {
+      if (!t) return [];
+      try { return prefsLines(await maintainerPrefs(gh(t), repo)); }
+      catch (error) {
+        if (!(error instanceof MaintainerPrefsFetchError)) throw error;
+        console.warn(`[lesson] ${error.message}`);
+        return [];
+      }
+    },
   };
 }
 
@@ -49,12 +63,13 @@ export function defaultContextDeps(token: string | null): ContextDeps {
  *  current status (which may have moved on since the lesson was saved). */
 export async function loadLessonContext(lesson: Lesson, deps: ContextDeps): Promise<StepContext> {
   const repo = parseRunTarget(lesson.repo_url).repo;
-  const [issue, readme, graph, found, practiced] = await Promise.all([
+  const [issue, readme, graph, found, practiced, prefs] = await Promise.all([
     deps.issue(repo, lesson.issue_number, deps.token),
     deps.readme(repo, deps.token),
     deps.graph(lesson.owner, lesson.repo_url),
     deps.run(lesson.owner, lesson.run_id),
     deps.practiced(lesson.owner, lesson.run_id),
+    deps.prefs(repo, deps.token),
   ]);
   const status = answerKeyStatus(found?.run ?? null, found?.stored ?? null);
   const stored = found?.stored;
@@ -68,5 +83,6 @@ export async function loadLessonContext(lesson: Lesson, deps: ContextDeps): Prom
       : null,
     answerKeyStatus: status,
     practiced,
+    prefs,
   };
 }

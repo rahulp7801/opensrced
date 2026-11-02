@@ -151,7 +151,9 @@ export class InvalidContributionError extends Error {
   }
 }
 
-export type PublishedPr = { userId: string; login: string; repoFull: string; prNumber: number; path: "ai" | "self"; openedAt?: Date };
+/** `lessonId`: the lesson's row uuid when the PR came out of one (the profile's
+ *  "explained in their own words" badge links to it). */
+export type PublishedPr = { userId: string; login: string; repoFull: string; prNumber: number; path: "ai" | "self"; openedAt?: Date; lessonId?: string | null };
 
 /** Record a PR opensrcer just published (state open; the sync takes it from there). Idempotent. */
 export async function recordPublished(db: Db, pr: PublishedPr): Promise<void> {
@@ -161,6 +163,6 @@ export async function recordPublished(db: Db, pr: PublishedPr): Promise<void> {
   await ensureUser(db, pr.userId, pr.login);
   const repoId = await ensureRepo(db, pr.repoFull);
   await db.insert(contributions).values({
-    userId: pr.userId, repoId, prNumber: pr.prNumber, path: pr.path, state: "open", openedAt: pr.openedAt ?? new Date(), source: "opensrcer",
+    userId: pr.userId, lessonId: pr.lessonId ?? null, repoId, prNumber: pr.prNumber, path: pr.path, state: "open", openedAt: pr.openedAt ?? new Date(), source: "opensrcer",
   }).onConflictDoNothing();
 }

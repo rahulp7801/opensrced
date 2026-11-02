@@ -89,7 +89,8 @@ const PUBLIC_PATHS = new Set([
 // Only these routes intentionally expose descendants. Keeping this separate
 // prevents a public shell such as /repos from accidentally making a future
 // server-rendered /repos/<private-data> page public too.
-const PUBLIC_PREFIXES = ["/prs/", "/fix/", "/api/fixes/"];
+// /u/<login>: opt-in public profiles, for maintainers who have no account (lib/record/profile.ts).
+const PUBLIC_PREFIXES = ["/prs/", "/fix/", "/api/fixes/", "/u/"];
 
 // When Auth0 is missing, only surfaces that are useful without an account
 // stay public. The authenticated client shells above normally render first
@@ -149,7 +150,7 @@ const PREVIEW_PUBLIC_PATHS = new Set([
   "/fix",
   "/api/fixes",
 ]);
-const PREVIEW_PUBLIC_PREFIXES = ["/fix/", "/api/fixes/"];
+const PREVIEW_PUBLIC_PREFIXES = ["/fix/", "/api/fixes/", "/u/"];
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 

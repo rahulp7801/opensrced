@@ -84,7 +84,7 @@ function startWorkbench(container: HTMLElement, { repo, sha, lessonId }: IdeProp
     monaco.editor.onDidCreateEditor((editor) => {
       editor.onDidFocusEditorText(() => { lastEditor = editor; });
     });
-    registerLanguageSmarts(repo);
+    registerLanguageSmarts(repo, fs);
     return fs;
   })();
   return boot;

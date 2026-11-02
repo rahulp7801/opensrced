@@ -1,7 +1,10 @@
 // Language smarts for the in-browser IDE (PLAN §8.5).
 //
 //   TS/JS     Monaco's TypeScript worker (the wrapper's typescriptStandalone
-//             feature, imported by workbench.tsx).
+//             feature, imported by workbench.tsx). It only sees models and
+//             extra libs, so the repo files an open file imports are handed
+//             to it as extra libs, following relative imports through the
+//             tree (lib/ide/ts-imports.ts, capped by TS_IMPORT_LIMITS).
 //   Python    Pyright in a web worker (monaco-pyright-lsp), started the first
 //             time a Python file opens. It sees one document at a time: hover,
 //             completion, signature help and errors inside the open file.
@@ -10,8 +13,10 @@
 //             providers return nothing and the language servers' own results stand.
 
 import { monaco } from "@codingame/monaco-editor-wrapper";
-import { WORKSPACE_ROOT } from "./fs";
+import * as typescript from "@codingame/monaco-vscode-standalone-typescript-language-features";
+import { WORKSPACE_ROOT, type RepoFs } from "./fs";
 import type { GraphLocation } from "@/lib/ide/graph-nav";
+import { isScriptPath, relativeImports, resolveImport, TS_IMPORT_LIMITS } from "@/lib/ide/ts-imports";
 
 /** Repo-relative path of a workbench model, or null for anything else (settings, output). */
 export function modelPath(uri: monaco.Uri): string | null {
@@ -101,7 +106,72 @@ function pyright() {
   });
 }
 
-export function registerLanguageSmarts(repo: string) {
+/** TypeScript's "bundler" module resolution (the enum here only lists Classic and NodeJs). */
+const BUNDLER_RESOLUTION = 100 as typescript.ModuleResolutionKind;
+
+function typescriptRepoFiles(fs: RepoFs) {
+  const defaults = [typescript.typescriptDefaults, typescript.javascriptDefaults];
+  for (const d of defaults) {
+    // The wrapper's defaults are for snippets (CommonJS, ES2016, no DOM). A repo
+    // is modules: extensionless and ".ts" imports, default imports of
+    // `export =` modules (node:assert), JSX, browser globals.
+    d.setCompilerOptions({
+      ...d.getCompilerOptions(),
+      target: typescript.ScriptTarget.ESNext, module: typescript.ModuleKind.ESNext, moduleResolution: BUNDLER_RESOLUTION,
+      allowImportingTsExtensions: true, allowJs: true, esModuleInterop: true, jsx: typescript.JsxEmit.Preserve,
+      lib: ["esnext", "dom", "dom.iterable"],
+    });
+    // There is no node_modules in the browser, so a package import can't
+    // resolve; like Pyright's missing imports (below), that isn't the
+    // contributor's error. Repo files resolve through the extra libs.
+    d.setDiagnosticsOptions({ ...d.getDiagnosticsOptions(), diagnosticCodesToIgnore: [2307, 2792] });
+  }
+  const decoder = new TextDecoder();
+  const added = new Set<string>();
+  const exists = (path: string) => fs.kind(path) === "file";
+  const addLib = async (path: string): Promise<string> => {
+    const text = decoder.decode(await fs.readFile(path));
+    // Keyed by the model URI, so an open model of the same file takes precedence in the worker.
+    const name = monaco.Uri.file(`${WORKSPACE_ROOT}/${path}`).toString();
+    for (const d of defaults) d.addExtraLib(text, name);
+    return text;
+  };
+  // Imports of imports too, fetched in parallel, until the cap.
+  const follow = async (from: string, source: string): Promise<void> => {
+    const targets = relativeImports(source)
+      .map((specifier) => resolveImport(from, specifier, exists))
+      .filter((target): target is string => target !== null && !added.has(target) && fs.stat(target).size <= TS_IMPORT_LIMITS.maxFileBytes);
+    await Promise.all(targets.map(async (target) => {
+      if (added.has(target) || added.size >= TS_IMPORT_LIMITS.maxFiles) return;
+      added.add(target);
+      let text: string;
+      try { text = await addLib(target); } catch { return; } // a file that won't fetch stays a missing module
+      await follow(target, text);
+    }));
+  };
+  const watch = (model: monaco.editor.ITextModel) => {
+    const path = modelPath(model.uri);
+    if (!path || !isScriptPath(path)) return;
+    void follow(path, model.getValue());
+    // New imports typed in: look again once typing pauses (only new files are fetched).
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const changes = model.onDidChangeContent(() => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { if (!model.isDisposed()) void follow(path, model.getValue()); }, 1_000);
+    });
+    // Closed: the extra lib takes over again, with what was saved.
+    model.onWillDispose(() => {
+      clearTimeout(timer);
+      changes.dispose();
+      if (added.has(path)) addLib(path).catch(() => {});
+    });
+  };
+  monaco.editor.getModels().forEach(watch);
+  monaco.editor.onDidCreateModel(watch);
+}
+
+export function registerLanguageSmarts(repo: string, fs: RepoFs) {
   graphNavigation(repo);
   pyright();
+  typescriptRepoFiles(fs);
 }

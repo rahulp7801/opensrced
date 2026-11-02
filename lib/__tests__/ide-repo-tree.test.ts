@@ -1,7 +1,7 @@
 // lib/ide/repo-tree.ts: the IDE's view of a repo at a pinned commit.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { directoryIndex, rawFileUrl, treeFiles, validSha } from "../ide/repo-tree";
+import { directoryIndex, rawFileUrl, treeFiles, validSha, workbenchStorageId } from "../ide/repo-tree";
 
 const SHA = "d086db856be187255b8ec61ef409357393020f32";
 
@@ -44,4 +44,18 @@ test("directoryIndex lists each directory's children with their kind", () => {
 
 test("rawFileUrl pins the commit and encodes each path segment", () => {
   assert.equal(rawFileUrl("pallets/flask", SHA, "docs/a b#?.md"), `https://raw.githubusercontent.com/pallets/flask/${SHA}/docs/a%20b%23%3F.md`);
+});
+
+test("workbenchStorageId differs per lesson, repo and commit, and is stable", () => {
+  const id = workbenchStorageId("l_1", "pallets/flask", SHA);
+  assert.equal(id, `ide.l_1.pallets%2Fflask.${SHA}`);
+  assert.equal(workbenchStorageId("l_1", "pallets/flask", SHA.toUpperCase()), id);
+  const others = [
+    workbenchStorageId("l_2", "pallets/flask", SHA),
+    workbenchStorageId("l_1", "pallets/click", SHA),
+    workbenchStorageId("l_1", "pallets/flask", "0".repeat(40)),
+    workbenchStorageId("ide-demo", "pallets/flask", SHA),
+  ];
+  assert.equal(new Set([id, ...others]).size, 5);
+  assert.ok(!id.includes("/"));
 });

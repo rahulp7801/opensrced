@@ -17,6 +17,7 @@ import { registerFileSystemOverlay } from "@codingame/monaco-vscode-files-servic
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RepoFs, WORKSPACE_ROOT, repoFileSystemProvider } from "./fs";
 import { modelPath, registerLanguageSmarts } from "./languages";
+import { workbenchStorageId } from "@/lib/ide/repo-tree";
 import { RunPanel } from "./run-panel";
 import { TeacherPanel, type EditorSelection, type TeacherMessage } from "./teacher-panel";
 
@@ -64,7 +65,9 @@ function startWorkbench(container: HTMLElement, { repo, sha, lessonId }: IdeProp
     // In front of the wrapper's own providers; URIs outside /workspace fall through to them.
     registerFileSystemOverlay(10, repoFileSystemProvider(fs));
     await initialize({
-      workspaceProvider: { trusted: true, workspace: { folderUri: monaco.Uri.file(WORKSPACE_ROOT) }, open: async () => false },
+      // The id scopes VS Code's workspace storage (open editors, layout, view
+      // state) to this lesson and commit; without it every lesson shared one.
+      workspaceProvider: { trusted: true, workspace: { folderUri: monaco.Uri.file(WORKSPACE_ROOT), id: workbenchStorageId(lessonId, repo, sha) }, open: async () => false },
       configurationDefaults: {
         "workbench.colorTheme": "Default Dark Modern",
         // Saving is what writes an edit to IndexedDB; auto-save means a reload never loses typing.

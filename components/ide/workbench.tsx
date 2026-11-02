@@ -36,8 +36,30 @@ const CHECKPOINT_MS = 30_000;
 let boot: Promise<RepoFs> | null = null;
 let lastEditor: monaco.editor.ICodeEditor | null = null;
 
+type WorkerEnvironment = {
+  getWorkerUrl?(moduleId: string, label: string): string | undefined;
+  getWorker?(moduleId: string, label: string): Worker | undefined;
+};
+
+/** VS Code starts each worker (TextMate, the editor worker, TypeScript...)
+ *  from a blob: URL whose script imports the worker's real URL. Next bundles
+ *  those workers as classic scripts that load their later chunks with
+ *  importScripts("/_next/static/chunks/..."), a path that doesn't resolve
+ *  against blob:, so the workers died on start and VS Code fell back to the
+ *  main thread (no TypeScript worker at all in a production build). Starting
+ *  each worker from its own URL lets those chunk paths resolve. The wrapper
+ *  set getWorkerUrl when it was imported. */
+function startWorkersFromTheirUrls() {
+  const env = (window as unknown as { MonacoEnvironment: WorkerEnvironment }).MonacoEnvironment;
+  env.getWorker = (moduleId, label) => {
+    const url = env.getWorkerUrl?.(moduleId, label);
+    return url ? new Worker(url, { name: label }) : undefined;
+  };
+}
+
 function startWorkbench(container: HTMLElement, { repo, sha, lessonId }: IdeProps): Promise<RepoFs> {
   boot ??= (async () => {
+    startWorkersFromTheirUrls();
     const fs = await RepoFs.load(repo, sha, lessonId);
     // In front of the wrapper's own providers; URIs outside /workspace fall through to them.
     registerFileSystemOverlay(10, repoFileSystemProvider(fs));

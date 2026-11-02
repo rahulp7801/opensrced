@@ -16,7 +16,7 @@ export function SiteFooter({ inviteOnly = false }: { inviteOnly?: boolean }) {
   // Plain links with a 40px tap height, so they're easy to hit on a phone.
   const link = "inline-flex min-h-10 items-center text-[14px] text-paper-dim transition-colors hover:text-paper";
   const about: [string, string, boolean][] = [
-    ["Demo", "/demo", false],
+    ["Demo", "/demo/stage", false],
     ...(inviteOnly ? [] : ([["Source", "https://github.com/rahulp7801/opensrced", true]] as [string, string, boolean][])),
     ["Privacy", "/privacy", false],
   ];

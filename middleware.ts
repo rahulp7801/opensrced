@@ -70,9 +70,8 @@ const PUBLIC_PATHS = new Set([
   // sign in. Its server-rendered organization descendants are protected.
   "/crucible",
   "/demo",
-  // The stage demo and its speaker notes: the same simulated tour, for presenting.
+  // The stage demo: the same simulated tour, for presenting.
   "/demo/stage",
-  "/demo/stage/notes",
   // The stage's repository map (components/tour/repo-map.tsx): a static snapshot of a public repo.
   "/demo/pydantic-graph.json",
   // Public shared fix viewer + the single-fix read API behind it. The
@@ -105,9 +104,8 @@ const UNCONFIGURED_PUBLIC_PATHS = new Set([
   "/demo/opengraph-image",
   "/apple-icon",
   "/demo",
-  // The stage demo and its speaker notes: the same simulated tour, for presenting.
+  // The stage demo: the same simulated tour, for presenting.
   "/demo/stage",
-  "/demo/stage/notes",
   // The stage's repository map (components/tour/repo-map.tsx): a static snapshot of a public repo.
   "/demo/pydantic-graph.json",
   "/fix",
@@ -133,9 +131,8 @@ const PREVIEW_PUBLIC_PATHS = new Set([
   "/demo/opengraph-image",
   "/apple-icon",
   "/demo",
-  // The stage demo and its speaker notes: the same simulated tour, for presenting.
+  // The stage demo: the same simulated tour, for presenting.
   "/demo/stage",
-  "/demo/stage/notes",
   // The stage's repository map (components/tour/repo-map.tsx): a static snapshot of a public repo.
   "/demo/pydantic-graph.json",
   "/api/access",

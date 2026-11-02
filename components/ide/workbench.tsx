@@ -18,7 +18,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { markExplored } from "../project-map";
 import { RepoFs, WORKSPACE_ROOT, repoFileSystemProvider } from "./fs";
 import { modelPath, registerLanguageSmarts } from "./languages";
+import { workbenchStorageId } from "@/lib/ide/repo-tree";
 import { RunPanel } from "./run-panel";
+import { registerRepoSearch } from "./search";
 import { TeacherPanel, type EditorSelection, type TeacherMessage } from "./teacher-panel";
 
 export interface IdeProps {
@@ -37,13 +39,37 @@ const CHECKPOINT_MS = 30_000;
 let boot: Promise<RepoFs> | null = null;
 let lastEditor: monaco.editor.ICodeEditor | null = null;
 
+type WorkerEnvironment = {
+  getWorkerUrl?(moduleId: string, label: string): string | undefined;
+  getWorker?(moduleId: string, label: string): Worker | undefined;
+};
+
+/** VS Code starts each worker (TextMate, the editor worker, TypeScript...)
+ *  from a blob: URL whose script imports the worker's real URL. Next bundles
+ *  those workers as classic scripts that load their later chunks with
+ *  importScripts("/_next/static/chunks/..."), a path that doesn't resolve
+ *  against blob:, so the workers died on start and VS Code fell back to the
+ *  main thread (no TypeScript worker at all in a production build). Starting
+ *  each worker from its own URL lets those chunk paths resolve. The wrapper
+ *  set getWorkerUrl when it was imported. */
+function startWorkersFromTheirUrls() {
+  const env = (window as unknown as { MonacoEnvironment: WorkerEnvironment }).MonacoEnvironment;
+  env.getWorker = (moduleId, label) => {
+    const url = env.getWorkerUrl?.(moduleId, label);
+    return url ? new Worker(url, { name: label }) : undefined;
+  };
+}
+
 function startWorkbench(container: HTMLElement, { repo, sha, lessonId }: IdeProps): Promise<RepoFs> {
   boot ??= (async () => {
+    startWorkersFromTheirUrls();
     const fs = await RepoFs.load(repo, sha, lessonId);
     // In front of the wrapper's own providers; URIs outside /workspace fall through to them.
     registerFileSystemOverlay(10, repoFileSystemProvider(fs));
     await initialize({
-      workspaceProvider: { trusted: true, workspace: { folderUri: monaco.Uri.file(WORKSPACE_ROOT) }, open: async () => false },
+      // The id scopes VS Code's workspace storage (open editors, layout, view
+      // state) to this lesson and commit; without it every lesson shared one.
+      workspaceProvider: { trusted: true, workspace: { folderUri: monaco.Uri.file(WORKSPACE_ROOT), id: workbenchStorageId(lessonId, repo, sha) }, open: async () => false },
       configurationDefaults: {
         "workbench.colorTheme": "Default Dark Modern",
         // Saving is what writes an edit to IndexedDB; auto-save means a reload never loses typing.
@@ -65,7 +91,8 @@ function startWorkbench(container: HTMLElement, { repo, sha, lessonId }: IdeProp
         if (path) markExplored(repo, path);
       });
     });
-    registerLanguageSmarts(repo);
+    registerLanguageSmarts(repo, fs);
+    await registerRepoSearch(fs);
     return fs;
   })();
   return boot;

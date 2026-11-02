@@ -50,3 +50,14 @@ export function directoryIndex(paths: string[]): Map<string, Map<string, EntryKi
 export function rawFileUrl(repo: string, sha: string, path: string): string {
   return `https://raw.githubusercontent.com/${repo}/${sha}/${path.split("/").map(encodeURIComponent).join("/")}`;
 }
+
+/** The workbench's storage scope for one lesson on one commit: VS Code keeps
+ *  open editors, layout and view state per workspace id, in an IndexedDB
+ *  database named after it. Every lesson mounts its repo at the same
+ *  /workspace folder, so without this id they all shared one. The demo page
+ *  reuses one lesson id for any repo, hence repo and commit too (the same
+ *  parts as the edits overlay key in components/ide/fs.ts). Lesson ids and
+ *  SHAs have no ".", so the parts can't run together. */
+export function workbenchStorageId(lessonId: string, repo: string, sha: string): string {
+  return `ide.${lessonId}.${encodeURIComponent(repo)}.${sha.toLowerCase()}`;
+}

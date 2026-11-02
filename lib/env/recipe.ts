@@ -78,7 +78,9 @@ export function runtimeCommand(runtimes: Record<string, string>): string | null 
  *  scratch files so `echo X=1 >> $GITHUB_ENV` does not fail the step. */
 export const CI_SHIM = [
   `export CI=true GITHUB_ACTIONS=true GITHUB_WORKSPACE="$PWD" RUNNER_TEMP=/tmp RUNNER_OS=Linux`,
-  `export GITHUB_ENV=/tmp/opensrcer-github-env GITHUB_PATH=/tmp/opensrcer-github-path GITHUB_OUTPUT=/tmp/opensrcer-github-output GITHUB_STEP_SUMMARY=/tmp/opensrcer-step-summary`,
+  // A private directory per run: fixed /tmp names let two runs on one machine empty each other's files.
+  `OPENSRCER_SHIM_DIR="$(mktemp -d)"`,
+  `export GITHUB_ENV="$OPENSRCER_SHIM_DIR/env" GITHUB_PATH="$OPENSRCER_SHIM_DIR/path" GITHUB_OUTPUT="$OPENSRCER_SHIM_DIR/output" GITHUB_STEP_SUMMARY="$OPENSRCER_SHIM_DIR/summary"`,
   `: > "$GITHUB_ENV"; : > "$GITHUB_PATH"; : > "$GITHUB_OUTPUT"`,
 ].join("\n");
 

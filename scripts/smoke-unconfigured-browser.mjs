@@ -25,19 +25,22 @@ try {
         if (/\/auth\/(login|logout)(?:\?|$)/.test(request.url())) authRequests.push(request.url());
       });
 
-      for (const path of ['/', '/demo', '/login', '/issues', '/dispatches', '/graph']) {
+      for (const path of ['/', '/demo/stage', '/login', '/issues', '/dispatches', '/graph']) {
         const response = await page.goto(base + path, { waitUntil: 'load' });
         assert.equal(response.status(), 200, `${width} ${path} must render`);
-        await page.locator('main h1').first().waitFor({ state: 'visible' });
+        // The stage demo is a full-window slide with no page heading.
+        if (path === '/demo/stage') await page.getByRole('region', { name: 'opensrcer stage demo' }).waitFor();
+        else await page.locator('main h1').first().waitFor({ state: 'visible' });
         if (['/issues', '/dispatches', '/graph'].includes(path)) {
           const location = new URL(page.url());
           assert.equal(location.pathname, '/login');
           assert.equal(location.searchParams.get('returnTo'), path);
         }
-        if (path !== '/' && path !== '/demo') {
+        if (path !== '/' && path !== '/demo/stage') {
           await page.getByRole('heading', { name: 'Sign-in is being configured', exact: true }).waitFor();
           assert.equal(await page.getByRole('link', { name: 'Continue with GitHub', exact: true }).count(), 0);
-          assert.equal(await page.getByRole('link', { name: 'Explore the demo', exact: true }).getAttribute('href'), '/demo');
+          // Either wording (invite-only preview or open), the page offers the demo.
+          assert.equal(await page.locator('main a[href="/demo/stage"]').count() > 0, true, 'sign-in offers the demo');
         }
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, `overflow ${width} ${path}`);
         const results = await new AxeBuilder({ page }).analyze();
@@ -49,9 +52,9 @@ try {
         pagesChecked++;
       }
 
-      await page.getByRole('link', { name: 'Explore the demo', exact: true }).click();
-      await page.getByRole('navigation', { name: 'Tour chapters' }).waitFor();
-      assert.equal(new URL(page.url()).pathname, '/demo', 'unavailable sign-in must offer a working demo');
+      await page.locator('main a[href="/demo/stage"]').first().click();
+      await page.getByRole('navigation', { name: 'Demo sections' }).waitFor();
+      assert.equal(new URL(page.url()).pathname, '/demo/stage', 'unavailable sign-in must offer a working demo');
       assert.deepEqual(errors, [], `client errors after demo navigation ${width}`);
       assert.deepEqual(authRequests, [], 'unavailable authentication must not trigger login/logout requests');
     } finally {

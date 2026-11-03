@@ -129,8 +129,8 @@ export function SuggestedIssues() {
         <div className="min-w-0">
           <h2 id="suggested-issues-title" className="display text-[28px] leading-none text-paper sm:text-[32px]">Suggested issues</h2>
           <p className="mt-2.5 max-w-2xl text-[16px] leading-[1.55] text-paper-muted">
-            Beginner-friendly work from active public repositories: unassigned, with no linked pull request.
-            {filteredOut > 0 && <span title="Bounty, token-farming, social-media, and follow/star tasks are excluded."> {filteredOut} low-quality result{filteredOut === 1 ? "" : "s"} hidden.</span>}
+            Beginner-friendly work from established public projects (100+ stars): unassigned, with no linked pull request.
+            {filteredOut > 0 && <span title="Bounty, token-farming and follow/star tasks, and repositories with fewer than 100 stars, are left out."> {filteredOut} low-quality result{filteredOut === 1 ? "" : "s"} hidden.</span>}
           </p>
         </div>
         <button
@@ -149,7 +149,7 @@ export function SuggestedIssues() {
 
       {partial && !loading && (
         <p role="status" className="callout mb-4 text-[14px]" data-tone="info">
-          Some GitHub searches timed out. These are the results that completed.
+          Some GitHub lookups did not finish, so this list may be incomplete or include small projects.
         </p>
       )}
 

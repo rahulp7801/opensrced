@@ -64,6 +64,42 @@ export function notReadyLabel(labels: string[]): string | null {
   return null;
 }
 
+/** Fewest stars a repository needs before its issues are suggested to a
+ *  beginner. Below it, GitHub's "good first issue" feed is mostly personal,
+ *  class and template repositories, where a first PR teaches little. */
+export const SUGGESTED_MIN_STARS = 100;
+
+/** Star counts for owner/name repositories in one GraphQL query; archived
+ *  and missing repositories map to null. Issue search can't filter by stars. */
+export async function repoStars(repos: string[], token: string, signal?: AbortSignal): Promise<Map<string, number | null>> {
+  const list = [...new Set(repos)].slice(0, 60);
+  const variables: Record<string, string> = {};
+  const fields = list.map((full, i) => {
+    const [owner, name] = full.split("/");
+    variables[`o${i}`] = owner;
+    variables[`n${i}`] = name;
+    return `r${i}: repository(owner: $o${i}, name: $n${i}) { stargazerCount isArchived }`;
+  });
+  const query = `query(${list.map((_, i) => `$o${i}: String!, $n${i}: String!`).join(", ")}) { ${fields.join(" ")} }`;
+  // Not githubGraphql: one deleted repository errors its own alias, and the rest still count.
+  const result = await githubApi<{ data?: Record<string, { stargazerCount: number; isArchived: boolean } | null> }>("/graphql", token, { query, variables }, signal);
+  if (!result.data) throw new Error("GitHub did not return repository details.");
+  const data = result.data;
+  return new Map(list.map((full, i) => {
+    const repo = data[`r${i}`];
+    return [full, repo && !repo.isArchived ? repo.stargazerCount : null] as const;
+  }));
+}
+
+/** The issues from established repositories (at least `min` stars), with
+ *  their star counts filled in. Exported for tests. */
+export function fromEstablishedRepos<T extends { repo: string; stars: number }>(issues: T[], stars: Map<string, number | null>, min = SUGGESTED_MIN_STARS): T[] {
+  return issues.flatMap((issue) => {
+    const count = stars.get(issue.repo);
+    return typeof count === "number" && count >= min ? [{ ...issue, stars: count }] : [];
+  });
+}
+
 // If a hit is within ~40 chars of a negation, drop it. Prevents "not yet
 // fixed" or "still not resolved" from reading as resolved.
 // Negations that should cancel a nearby "fixed/resolved/duplicate" hit.

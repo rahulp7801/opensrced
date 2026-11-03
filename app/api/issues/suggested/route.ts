@@ -1,5 +1,5 @@
 // GET /api/issues/suggested?languages=python,typescript&limit=20&tags=strict|broad
-// Fetches good-first-issues from popular repos matching the user's preferred languages.
+// Fetches good-first-issues from established repos (lib/issues.ts SUGGESTED_MIN_STARS) matching the user's preferred languages.
 // Uses the GitHub search API — no API key cost.
 // tags=strict (default) → only "good first issue" label
 // tags=broad → also matches "beginner", "starter", "first-timers-only", "easy"
@@ -10,6 +10,7 @@ import { NextRequest } from "next/server";
 import { requireSession } from "@/lib/require-session";
 import { resolveGitHubToken } from "@/lib/github-token";
 import { githubApi } from "@/lib/github-api";
+import { fromEstablishedRepos, repoStars } from "@/lib/issues";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -55,7 +56,8 @@ export async function GET(req: NextRequest) {
       stars: number;
     }> = [];
 
-    const perCall = Math.ceil(limit / Math.max(plan.length, 1));
+    // Five times what is shown: most of the feed is dropped below for being from small repositories.
+    const perCall = Math.min(100, Math.ceil((limit * 5) / Math.max(plan.length, 1)));
 
     let failures = 0;
     let next = 0;
@@ -124,7 +126,16 @@ export async function GET(req: NextRequest) {
     // etc. The "good first issue" feed on GitHub is heavily polluted by a
     // handful of repos doing this; without a filter, real beginner issues
     // get buried.
-    const filtered = deduped.filter((i) => !isBotEngagementIssue(i));
+    const unspammed = deduped.filter((i) => !isBotEngagementIssue(i));
+
+    // Established repositories only, with their stars. Without a token or when
+    // the lookup fails, the list is shown unfiltered and marked partial.
+    let filtered = unspammed;
+    let unranked = !token;
+    if (token) {
+      try { filtered = fromEstablishedRepos(unspammed, await repoStars(unspammed.map((i) => i.repo), token, signal)); }
+      catch { unranked = true; }
+    }
 
     // Sort: recently updated first, then by stars
     filtered.sort((a, b) => {
@@ -136,7 +147,7 @@ export async function GET(req: NextRequest) {
     return Response.json({
       issues: filtered.slice(0, limit),
       filteredOut: deduped.length - filtered.length,
-      partial: failures > 0 || next < plan.length || plan.length < queryPlan.length,
+      partial: unranked || failures > 0 || next < plan.length || plan.length < queryPlan.length,
     });
   } catch (err) {
     return Response.json(

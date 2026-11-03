@@ -192,7 +192,9 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
     id, auth0_user_id: opts.auth0UserId, repo_url: repo, issue_number: issue,
     mode: "agentic", dry_run: opts.dryRun === true, started_at: new Date().toISOString(), status: "running",
     log_path: "", sandbox_name: id.replaceAll("_", "-"), expires_at: Date.now() + TTL,
-    log: "Preparing isolated agent worker...\n", log_size: 35, tests: "not_run",
+    // The worker publishes nothing until the clone and environment setup finish (minutes on a
+    // large project), so this first line says what is happening and how long it can take.
+    log: "Starting an isolated worker: it clones the repository and installs its environment before the agent starts. Small projects take seconds; large ones (pandas, numpy) can take 3 to 5 minutes. The log continues here.\n", log_size: 0, tests: "not_run",
     ...(opts.followupPr ? { followup_pr: opts.followupPr } : {}),
   };
   run.log_size = Buffer.byteLength(run.log);

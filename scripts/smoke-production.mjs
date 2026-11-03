@@ -93,14 +93,29 @@ assert.ok([302, 303, 307].includes(callback.status), `callback error must redire
 assert.match(callback.headers.get('location') ?? '', /\/login\?error=signin$/);
 await callback.text();
 const missingFixId = '00000000-0000-4000-8000-000000000000';
+// Shared fixes follow the access mode (lib/access.ts). The invite-only preview
+// (production, and the default) keeps them from signed-out visitors: the API
+// answers 401 and the page sends you to sign in. Open mode (OPENSRCER_ACCESS=open,
+// off production only) serves them publicly. /discover is public only in open mode.
+const probe = await fetch(`${base}/discover`, { redirect: 'manual', signal: AbortSignal.timeout(15000) });
+const inviteOnly = [302, 303, 307].includes(probe.status);
+await probe.text();
 const missingFix = await fetch(`${base}/api/fixes/${missingFixId}`, { signal: AbortSignal.timeout(15000) });
-assert.equal(missingFix.status, 404);
-assert.equal(missingFix.headers.get('cache-control'), 'private, no-store');
-assert.equal(missingFix.headers.get('x-robots-tag'), 'noindex, nofollow');
+const sharedFixPage = await fetch(`${base}/fix/${missingFixId}`, { redirect: 'manual', signal: AbortSignal.timeout(15000) });
+if (inviteOnly) {
+  assert.equal(missingFix.status, 401);
+  assert.equal(missingFix.headers.get('cache-control'), 'no-store');
+  assert.ok([302, 303, 307].includes(sharedFixPage.status), `a signed-out /fix must redirect, got ${sharedFixPage.status}`);
+  assert.equal(new URL(sharedFixPage.headers.get('location') ?? '', base).pathname, '/login');
+  await sharedFixPage.text();
+} else {
+  assert.equal(missingFix.status, 404);
+  assert.equal(missingFix.headers.get('cache-control'), 'private, no-store');
+  assert.equal(missingFix.headers.get('x-robots-tag'), 'noindex, nofollow');
+  assert.equal(sharedFixPage.status, 200);
+  assert.match(await sharedFixPage.text(), /<meta name="robots" content="noindex, nofollow"/);
+}
 await missingFix.text();
-const sharedFixPage = await fetch(`${base}/fix/${missingFixId}`, { signal: AbortSignal.timeout(15000) });
-assert.equal(sharedFixPage.status, 200);
-assert.match(await sharedFixPage.text(), /<meta name="robots" content="noindex, nofollow"/);
 
 // Share card and home-screen icon must reach crawlers, not the login redirect.
 for (const path of ['/opengraph-image', '/apple-icon']) {
@@ -123,8 +138,8 @@ assert.equal(sitemap.status, 200);
 const sitemapText = await sitemap.text();
 const escapedOrigin = metadataOrigin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 assert.match(sitemapText, new RegExp(`<loc>${escapedOrigin}</loc>`));
-// The product tour is public in every mode.
-assert.match(sitemapText, new RegExp(`<loc>${escapedOrigin}/demo</loc>`));
+// The demo is public in every mode; the sitemap lists its own address, not /demo's redirect.
+assert.match(sitemapText, new RegExp(`<loc>${escapedOrigin}/demo/stage</loc>`));
 assert.doesNotMatch(sitemapText, /\/fix\//);
 
 const privateCruciblePage = await fetch(`${base}/crucible/orgs/smoke-test`, {

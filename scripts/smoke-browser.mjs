@@ -67,63 +67,35 @@ try {
     for (const path of ['/', '/demo', '/login', '/issues', '/dispatches', '/trigger', '/stats', '/graph']) {
       await page.goto(base + path, { waitUntil: 'domcontentloaded' });
       const main = page.locator('main');
-      await main.locator('h1').first().waitFor({ state: 'visible' });
+      // The stage demo is a full-window slide with no page heading.
+      if (path !== '/demo') await main.locator('h1').first().waitFor({ state: 'visible' });
       if (['/issues', '/dispatches', '/trigger', '/stats', '/graph'].includes(path)) {
         await main.getByRole('heading', { name: 'Sign in to continue', exact: true }).waitFor();
         assert.equal(await main.getByText(/HTTP 401|Retrying/).count(), 0);
       }
       if (path === '/demo') {
-        // The product tour: reduced motion means it waits for Play instead of autoplaying.
-        await page.waitForLoadState('load');
-        const tour = main.locator('section[aria-label="Product tour"]');
-        const play = tour.getByRole('button', { name: 'Play', exact: true });
-        await play.waitFor();
-        // The start screen offers the ways in; nothing plays until one is picked.
-        await tour.getByRole('button', { name: 'Watch the tour', exact: true }).waitFor();
-        await tour.getByRole('button', { name: 'Click through it yourself', exact: true }).waitFor();
-        const chapters = tour.locator('nav[aria-label="Tour chapters"] button');
-        assert.equal(await chapters.count(), 21, 'every chapter is listed');
-        const position = tour.getByRole('slider', { name: 'Tour position' });
-        await chapters.filter({ hasText: 'Rules first' }).click();
-        await tour.getByText("It reads the project's rules first").first().waitFor();
-        assert.equal(await chapters.filter({ hasText: 'Rules first' }).getAttribute('aria-current'), 'step');
-        const before = Number(await position.inputValue());
-        await play.click();
-        await tour.getByRole('button', { name: 'Pause', exact: true }).waitFor();
-        await page.waitForTimeout(1200);
-        await tour.getByRole('button', { name: 'Pause', exact: true }).click();
-        assert.ok(Number(await position.inputValue()) > before, 'playing advances the tour');
-        await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
-        await page.keyboard.press('ArrowRight');
-        await tour.getByText('The bug, the fix, the proof').first().waitFor();
-        // Click-through mode (the default): the tour stops for the visitor's click, and the app's menus navigate.
-        const stage = tour.getByRole('region', { name: 'The opensrcer app (demo)' });
-        await chapters.filter({ hasText: 'Get set up' }).click();
-        await tour.getByRole('button', { name: 'Play', exact: true }).click();
-        // The announced caption, not the in-window pill that repeats it (aria-hidden).
-        await tour.getByText('Your turn: click “Sign in with GitHub”').and(page.locator(':not([aria-hidden="true"])')).waitFor({ timeout: 15_000 });
-        const waitingAt = Number(await position.inputValue());
-        await page.waitForTimeout(600);
-        assert.equal(Number(await position.inputValue()), waitingAt, 'the tour waits for the click');
-        await stage.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click();
-        await tour.getByText('Your turn:').waitFor({ state: 'detached' });
-        await page.waitForTimeout(600);
-        assert.ok(Number(await position.inputValue()) > waitingAt, 'the click carries the tour on');
-        await chapters.filter({ hasText: 'Vet the issues' }).click();
-        await stage.getByRole('button', { name: 'Fix', exact: true }).click();
-        assert.equal(await chapters.filter({ hasText: 'Rules first' }).getAttribute('aria-current'), 'step', 'the app menus navigate');
-        await tour.getByRole('button', { name: 'Watch', exact: true }).click();
-        assert.equal(await tour.getByRole('region', { name: 'The opensrcer app (demo)' }).count(), 0, 'watch mode turns the stage back into a picture');
-        await position.fill(await position.getAttribute('max'));
-        await tour.getByRole('button', { name: 'Replay the tour', exact: true }).waitFor();
-        await tour.getByRole('button', { name: 'Watch again', exact: true }).waitFor();
-        // textContent: the transcript sits in a collapsed <details>, which innerText skips.
-        const transcript = await main.locator('details').textContent() ?? '';
-        for (const title of ['What maintainers are drowning in', 'The bug, the fix, the proof', 'A draft pull request, in your name', 'Safe by default']) {
-          assert.ok(transcript.includes(title), `the transcript covers "${title}"`);
-        }
+        // /demo is the stage demo: a way home, the waitlist, four sections to jump
+        // between, and Begin / Back / Next. Reduced motion still steps on Next.
+        await page.waitForURL('**/demo/stage');
+        const stage = page.getByRole('region', { name: 'opensrcer stage demo' });
+        assert.equal(await stage.getByRole('link', { name: 'opensrcer home' }).getAttribute('href'), '/');
+        assert.equal(await stage.getByRole('link', { name: 'Join the waitlist' }).getAttribute('href'), '/join');
+        const sections = stage.getByRole('navigation', { name: 'Demo sections' }).getByRole('button');
+        assert.equal(await sections.count(), 4, 'four demo sections');
+        await stage.getByRole('button', { name: 'Begin' }).click();
+        await stage.getByRole('button', { name: 'Next', exact: true }).waitFor();
+        await stage.getByRole('button', { name: 'Back', exact: true }).waitFor();
+        await sections.nth(2).click();
+        assert.equal(await sections.nth(2).getAttribute('aria-current'), 'step', 'a section button jumps there');
       }
-      await assertUsableControls(page, `${width} ${path}`);
+      // The stage demo's slide is the app drawn at a fraction of its size: its
+      // controls are content, and the stage's own controls are checked instead.
+      if (path === '/demo') {
+        for (const control of await page.getByRole('navigation', { name: 'Demo sections' }).getByRole('button').all()) {
+          const box = await control.boundingBox();
+          assert.ok(box.width >= 24 && box.height >= 24, `${width} demo section control is ${Math.round(box.width)}x${Math.round(box.height)}`);
+        }
+      } else await assertUsableControls(page, `${width} ${path}`);
       await assertNoSeriousAccessibilityViolations(page, `${width} ${path}`);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, `overflow ${width} ${path}`);
       assert.deepEqual(errors, [], `client errors ${path}`);
@@ -305,18 +277,18 @@ try {
   assert.equal(onboardingOrgRequests.length, 0, 'onboarding must not fetch optional organization state');
   await Promise.all([
     page.waitForResponse(response => response.url().endsWith('/api/run/agentic')),
-    page.getByRole('button', { name: 'retry', exact: true }).click(),
+    page.getByRole('button', { name: 'Try again', exact: true }).click(),
   ]);
   await page.waitForURL('**/dispatches?dispatch=test-retry');
   assert.equal(submissions.length, 1);
   assert.equal(submissions[0].dry_run, true, 'retry must preserve preview');
   assert.equal(submissions[0].issue_number, 1);
   await page.goto(base + '/dispatches?dispatch=test-active');
-  await page.getByRole('button', { name: /stop/ }).click();
-  await page.getByRole('button', { name: 'confirm kill', exact: true }).click();
+  await page.getByRole('button', { name: 'Stop this run', exact: true }).click();
+  await page.getByRole('button', { name: 'Yes, stop it', exact: true }).click();
   await page.getByRole('alert').getByText('Worker stop failed for test.', { exact: true }).waitFor();
-  await page.getByRole('button', { name: 'confirm kill', exact: true }).click();
-  await page.getByRole('button', { name: /stop/ }).waitFor();
+  await page.getByRole('button', { name: 'Yes, stop it', exact: true }).click();
+  await page.getByRole('button', { name: 'Stop this run', exact: true }).waitFor();
   assert.equal(cancelAttempts, 2, 'a failed stop remains retryable');
   for (const preview of [true, false]) {
     await page.goto(base + '/issues?repo=acme/app');

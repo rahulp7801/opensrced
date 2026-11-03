@@ -102,6 +102,8 @@ export function Onboarding({ localMode = false, inviteOnly = false }: { localMod
 
   const currentStep = STEPS.find((s) => !s.check(state)) ?? STEPS[0];
   const currentStepNumber = STEPS.findIndex((s) => s.key === currentStep.key) + 1;
+  // On the step's own page the prompt would only link back to where you are.
+  if (pathname === currentStep.href) return null;
 
   function dismiss() {
     setDismissed(true);

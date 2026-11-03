@@ -271,6 +271,19 @@ export function compiledBuildRequires(pyproject: string | null): string[] | null
   return [...requires, "ninja"];
 }
 
+/** The project's test dependency group (PEP 735 [dependency-groups]): the first of
+ *  test, tests, testing, dev that it defines, or null. pydantic keeps pytest plugins and
+ *  jsonschema in "dev"; without them the agent spends turns installing them. Exported for tests. */
+export function testDependencyGroup(pyproject: string | null): string | null {
+  if (!pyproject) return null;
+  const start = pyproject.search(/^\[dependency-groups\]\s*$/m);
+  if (start < 0) return null;
+  const rest = pyproject.slice(start + "[dependency-groups]".length);
+  const end = rest.search(/^\[/m);
+  const names = new Set([...(end < 0 ? rest : rest.slice(0, end)).matchAll(/^([A-Za-z0-9_.-]+)\s*=\s*\[/gm)].map((m) => m[1].toLowerCase()));
+  return ["test", "tests", "testing", "dev"].find((g) => names.has(g)) ?? null;
+}
+
 /** The environment recipe for a checkout: a built-in one, else detected from
  *  its lockfiles/manifests, else null (the agent sets up what it needs). */
 export function setupPlan(dir: string, repo: string): SetupPlan | null {
@@ -281,17 +294,22 @@ export function setupPlan(dir: string, repo: string): SetupPlan | null {
   const has = (f: string) => readDoc(dir, f) !== null || lockSize(dir, f) > 0;
   if (has("package.json") && has("yarn.lock")) return { commands: ["yarn install --frozen-lockfile --ignore-engines"], hashFiles: ["yarn.lock"], persistent: false, hint: "Node dependencies are installed (yarn). Run the repository's test script on the files you touch." };
   if (has("package.json") && has("package-lock.json")) return { commands: ["npm ci --no-audit --no-fund"], hashFiles: ["package-lock.json"], persistent: false, hint: "Node dependencies are installed (npm ci). Run the repository's test script on the files you touch." };
-  const compiled = compiledBuildRequires(readDoc(dir, "pyproject.toml"));
+  const pyproject = readDoc(dir, "pyproject.toml");
+  // pip installs dependency groups from 25.1 on; the venv's bundled pip may be older.
+  const group = testDependencyGroup(pyproject);
+  const withGroup = group ? ` --group ${group}` : "";
+  const pipUp = `${VENV}/bin/pip install -q -U pip`;
+  const compiled = compiledBuildRequires(pyproject);
   if (compiled) {
     const quoted = [...compiled, "pytest"].map((r) => `'${r}'`).join(" ");
     return {
-      commands: [makeVenv(), `${VENV}/bin/pip install ${quoted}`, `PATH=${VENV}/bin:$PATH ${VENV}/bin/pip install --no-build-isolation -e .`],
+      commands: [makeVenv(), pipUp, `${VENV}/bin/pip install ${quoted}`, `PATH=${VENV}/bin:$PATH ${VENV}/bin/pip install --no-build-isolation -e .${withGroup}`],
       hashFiles: ["pyproject.toml", "meson.build"], persistent: true,
       hint: `The project is installed editable in ${VENV}, built without isolation so its compiled parts rebuild on import (ninja and the build tools are in the venv). Run tests with \`PATH=${VENV}/bin:$PATH ${VENV}/bin/python -m pytest <path> -q\`.`,
     };
   }
   if (has("pyproject.toml") || has("setup.py")) {
-    return { commands: [makeVenv(), `${VENV}/bin/pip install -e . pytest`], hashFiles: ["pyproject.toml", "setup.py", "setup.cfg"], persistent: true, hint: `The project is installed editable in ${VENV}; run tests with \`${VENV}/bin/python -m pytest <path> -q\`.` };
+    return { commands: [makeVenv(), ...(group ? [pipUp] : []), `${VENV}/bin/pip install -e . pytest${withGroup}`], hashFiles: ["pyproject.toml", "setup.py", "setup.cfg"], persistent: true, hint: `The project is installed editable in ${VENV}; run tests with \`${VENV}/bin/python -m pytest <path> -q\`.` };
   }
   if (has("requirements.txt")) {
     return { commands: [makeVenv(), `${VENV}/bin/pip install -r requirements.txt pytest`], hashFiles: ["requirements.txt"], persistent: true, hint: `Requirements are installed in ${VENV}; run tests with \`${VENV}/bin/python -m pytest <path> -q\`.` };

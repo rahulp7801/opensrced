@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { compiledBuildRequires, setupPlan } from "../contrib-profile";
+import { compiledBuildRequires, setupPlan, testDependencyGroup } from "../contrib-profile";
 
 // pandas' real [build-system] (main, 2026-11): comments and a "!=" pin included.
 const PANDAS = `[build-system]
@@ -54,8 +54,8 @@ test("setupPlan: a meson-python checkout builds without isolation, with the tool
     writeFileSync(path.join(dir, "pyproject.toml"), PANDAS);
     const plan = setupPlan(dir, "pandas-dev/pandas");
     assert.ok(plan);
-    assert.match(plan.commands[1], /pip install 'meson-python>=0\.19\.0,<1' .* 'ninja' 'pytest'$/);
-    assert.match(plan.commands[2], /--no-build-isolation -e \.$/);
+    assert.match(plan.commands[2], /pip install 'meson-python>=0\.19\.0,<1' .* 'ninja' 'pytest'$/);
+    assert.match(plan.commands[3], /--no-build-isolation -e \.$/);
     assert.match(plan.hint, /PATH=/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -74,4 +74,27 @@ test("profilePromptNotes: the exact model when the host knows it, never a guess 
   const profile = { notes: [], dco: false, aiPolicy: { stance: "unknown" }, prTemplate: null, agentInstructions: null } as unknown as Parameters<typeof profilePromptNotes>[0];
   assert.match(profilePromptNotes(profile, "claude-sonnet-5"), /say exactly: opensrcer \(Claude Code\), model claude-sonnet-5\./);
   assert.match(profilePromptNotes(profile), /Do not name a model/);
+});
+
+test("testDependencyGroup: the project's test group, by preference", () => {
+  // pydantic's real groups: its test tools live in "dev".
+  const pydantic = "[dependency-groups]\ndev = [\n  'pytest',\n]\ncoverage = []\ndocs = []\nlinting = []\ntesting-extra = []\n\n[tool.ruff]\nx = 1\n";
+  assert.equal(testDependencyGroup(pydantic), "dev");
+  assert.equal(testDependencyGroup("[dependency-groups]\ndev = []\ntest = []\n"), "test");
+  assert.equal(testDependencyGroup("[dependency-groups]\ndocs = []\n"), null);
+  assert.equal(testDependencyGroup("[project]\nname = 'x'\n"), null);
+  assert.equal(testDependencyGroup(null), null);
+});
+
+test("setupPlan: a plain Python project installs its test group with an up-to-date pip", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "opensrcer-groups-"));
+  try {
+    writeFileSync(path.join(dir, "pyproject.toml"), "[project]\nname = 'x'\n[dependency-groups]\ndev = ['pytest']\n");
+    const plan = setupPlan(dir, "someone/x");
+    assert.ok(plan);
+    assert.match(plan.commands.join("\n"), /pip install -q -U pip/);
+    assert.match(plan.commands.at(-1) ?? "", /pip install -e \. pytest --group dev$/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

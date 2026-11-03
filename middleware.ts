@@ -73,9 +73,8 @@ const PUBLIC_PATHS = new Set([
   // sign in. Its server-rendered organization descendants are protected.
   "/crucible",
   "/demo",
-  // The stage demo and its speaker notes: the same simulated tour, for presenting.
+  // The stage demo: the same simulated tour, for presenting.
   "/demo/stage",
-  "/demo/stage/notes",
   // The stage's repository map (components/tour/repo-map.tsx): a static snapshot of a public repo.
   "/demo/pydantic-graph.json",
   // Public shared fix viewer + the single-fix read API behind it. The
@@ -109,9 +108,8 @@ const UNCONFIGURED_PUBLIC_PATHS = new Set([
   "/demo/opengraph-image",
   "/apple-icon",
   "/demo",
-  // The stage demo and its speaker notes: the same simulated tour, for presenting.
+  // The stage demo: the same simulated tour, for presenting.
   "/demo/stage",
-  "/demo/stage/notes",
   // The stage's repository map (components/tour/repo-map.tsx): a static snapshot of a public repo.
   "/demo/pydantic-graph.json",
   "/fix",
@@ -119,11 +117,11 @@ const UNCONFIGURED_PUBLIC_PATHS = new Set([
 ]);
 const UNCONFIGURED_PUBLIC_PREFIXES = ["/fix/", "/api/fixes/"];
 
-// Invite-only preview (OPENSRCER_ACCESS=invite, see lib/access.ts): only these
-// stay open to everyone. The app's client shells and settings leave the public
-// list, and a signed-in account also needs an invite. The product tour stays
-// public: it is simulated, calls no API, and is how the preview is shown. Shared fix
-// links keep working so invited users can still share results.
+// Invite-only preview (the default, see lib/access.ts): only these stay open to
+// everyone. The app's client shells and settings leave the public list, and a
+// signed-in account also needs an invite. The demo stays public: it is simulated,
+// calls no API, and is how the preview is shown. Shared fix links are for invited
+// accounts only.
 const PREVIEW_PUBLIC_PATHS = new Set([
   "/",
   // The early-access form and the endpoint it posts to: for people without an invite.
@@ -137,9 +135,8 @@ const PREVIEW_PUBLIC_PATHS = new Set([
   "/demo/opengraph-image",
   "/apple-icon",
   "/demo",
-  // The stage demo and its speaker notes: the same simulated tour, for presenting.
+  // The stage demo: the same simulated tour, for presenting.
   "/demo/stage",
-  "/demo/stage/notes",
   // The stage's repository map (components/tour/repo-map.tsx): a static snapshot of a public repo.
   "/demo/pydantic-graph.json",
   "/api/access",
@@ -147,10 +144,8 @@ const PREVIEW_PUBLIC_PATHS = new Set([
   "/api/cron/record",
   "/api/crucible/github/webhook",
   "/api/crucible/github/install-callback",
-  "/fix",
-  "/api/fixes",
 ]);
-const PREVIEW_PUBLIC_PREFIXES = ["/fix/", "/api/fixes/", "/u/"];
+const PREVIEW_PUBLIC_PREFIXES: string[] = [];
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 

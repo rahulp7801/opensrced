@@ -1,6 +1,7 @@
 // POST /api/interest — the public early-access form (app/join). Public on purpose:
 // it's for people without an invite. Stores name, email and GitHub username privately
 // (lib/interest.ts); nothing is granted until an admin approves at /admin/access.
+import { checkBotId } from "botid/server";
 import { InterestFullError, InterestInputError, lookupGithubId, normalizeInterest, updateRequests, upsertRequest } from "@/lib/interest";
 
 export const dynamic = "force-dynamic";
@@ -8,6 +9,9 @@ export const dynamic = "force-dynamic";
 const MAX_BODY_BYTES = 4096;
 
 export async function POST(req: Request) {
+  // Scripts that skip the page never solve the BotID challenge (instrumentation-client.ts).
+  // Said plainly, not faked as success: a person wrongly flagged must know to retry.
+  if ((await checkBotId()).isBot) return Response.json({ error: "We couldn't verify this browser. Reload the page and try again." }, { status: 403 });
   const text = await req.text();
   if (text.length > MAX_BODY_BYTES) return Response.json({ error: "That request is too large." }, { status: 413 });
   let body: Record<string, unknown>;

@@ -48,7 +48,7 @@ function SignedIn({ children }: { children: ReactNode }) {
       <p className="mt-5 text-[16px] leading-[1.6] text-paper-muted">Connect your GitHub account to browse repositories, start runs, and view your activity.</p>
       <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3">
         <GitHubSignIn returnTo={returnTo} />
-        <Link href="/demo" className="link inline-flex min-h-10 items-center text-[14px]">Try the interactive demo</Link>
+        <Link href="/demo/stage" className="link inline-flex min-h-10 items-center text-[14px]">Try the interactive demo</Link>
       </div>
     </section>
   );

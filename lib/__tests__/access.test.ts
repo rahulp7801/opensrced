@@ -13,15 +13,35 @@ function withAccess<T>(value: string | undefined, run: () => T): T {
   }
 }
 
-test("the app is open unless OPENSRCER_ACCESS is exactly 'invite'", () => {
-  for (const value of [undefined, "", "open", "Invite", "invite "]) {
+test("the app is invite-only unless OPENSRCER_ACCESS is exactly 'open' (fails closed)", () => {
+  for (const value of [undefined, "", "invite", "Open", "open ", "OPEN", "true"]) {
     withAccess(value, () => {
-      assert.equal(inviteOnly(), false, String(value));
-      assert.equal(hasAccess("github|1", new Set()), true, String(value));
-      assert.equal(hasAccess(undefined, new Set()), true, String(value));
+      assert.equal(inviteOnly(), true, String(value));
+      assert.equal(hasAccess("github|1", new Set()), false, String(value));
+      assert.equal(hasAccess(undefined, new Set()), false, String(value));
     });
   }
-  withAccess("invite", () => assert.equal(inviteOnly(), true));
+  withAccess("open", () => {
+    assert.equal(inviteOnly(), false);
+    assert.equal(hasAccess("github|1", new Set()), true);
+  });
+});
+
+test("a Vercel production deployment is never open, even with OPENSRCER_ACCESS=open", () => {
+  const previous = process.env.VERCEL_ENV;
+  try {
+    process.env.VERCEL_ENV = "production";
+    withAccess("open", () => {
+      assert.equal(inviteOnly(), true);
+      assert.equal(hasAccess("github|1", new Set()), false);
+    });
+    process.env.VERCEL_ENV = "preview";
+    withAccess("open", () => assert.equal(inviteOnly(), false));
+    withAccess(undefined, () => assert.equal(inviteOnly(), true));
+  } finally {
+    if (previous === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = previous;
+  }
 });
 
 test("invites are numeric GitHub ids, written bare or as Auth0 subjects", () => {

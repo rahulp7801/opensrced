@@ -51,7 +51,7 @@ const RESOLVED_LABELS = [
  *  React "Status: Unconfirmed"); labels arrive lowercased. "triaged", "needs tests" and
  *  "needs backport" mean the opposite or are about PRs, so they don't match. */
 const NOT_READY_LABELS: Array<[RegExp, string]> = [
-  [/\b(needs?[\s_-]*triage|triage[\s_-]*needed|untriaged|unconfirmed|needs[\s_-]*investigation)\b/, "Maintainers haven't confirmed this yet (it's waiting for triage). Pick it once they do."],
+  [/\b(needs?[\s_-]*triage|triage[\s_-]*needed|untriaged|unconfirmed|pending|needs[\s_-]*investigation)\b/, "Maintainers haven't confirmed this yet (it's waiting for triage). Pick it once they do."],
   [/\b(needs?[\s_-]*(more[\s_-]*)?info(rmation)?|info[\s_-]*needed|repro(duction)?[\s_-]*steps[\s_-]*needed|needs?[\s_-]*repro(duction)?|add a complete reproduction|simplify reproduction|not[\s_-]*reproducible|awaiting[\s_-]*author[\s_-]*response)\b/, "Waiting on more information from whoever reported it."],
   [/\b(needs?[\s_-]*(discussion|decision)|under[\s_-]*discussion|discussion)\b/, "Still being discussed: the fix isn't agreed yet."],
   [/\bblocked\b/, "Blocked on other work."],

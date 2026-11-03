@@ -27,6 +27,7 @@ export type CommandEvidence = {
 export type Regression =
   | "reproduced"       // tests fail with the source change reverted, pass with it
   | "not_reproduced"   // tests pass even without the fix
+  | "inconclusive"     // without the fix the tests never ran (import, collection or build error)
   | "no_test_change"   // the patch adds/changes no test file
   | "skipped";         // not attempted (tests failed, or no source change)
 
@@ -108,6 +109,20 @@ function evidence(kind: CommandEvidence["kind"], command: string, r: RunResult):
 
 const passed = (e: CommandEvidence) => e.exit_code === 0 && !e.timed_out;
 
+// Output that means a run broke before any test ran: it says nothing about the bug.
+const BROKE_BEFORE_TESTS = [
+  /ImportError while loading conftest/, /^E\s+(ModuleNotFoundError|ImportError)\b/m, /\bERROR collecting\b/, /\berrors? during collection\b/,
+  /\bno tests ran\b/i, /Test suite failed to run/, /Cannot find module ['"]/, /\[build failed\]/, /^error(\[E\d+\])?: could not compile/m, /\bSyntaxError\b/,
+];
+
+/** A failed fail-before run that never got to the tests: pytest's exit codes 2-5
+ *  (interrupted, internal error, usage or collection error, nothing collected), or
+ *  output showing an import, collection or build error. Exported for tests. */
+export function brokeBeforeTests(command: string, exitCode: number | null, output: string): boolean {
+  if (exitCode !== null && exitCode >= 2 && exitCode <= 5 && /\bpytest\b|\bpy\.test\b/.test(command)) return true;
+  return BROKE_BEFORE_TESTS.some((re) => re.test(output));
+}
+
 /** Re-run the declared checks in the box. `patch` is the box patch taken
  *  BEFORE verification; a different patch afterwards means a check
  *  rewrote files (an autofixing formatter), which fails the gate. */
@@ -139,7 +154,10 @@ export async function runVerification(
     const r = await runInBox(box, failBeforeScript(sourceFiles, plan.test), undefined, true);
     ev.push(evidence("fail-before", `(source change reverted) ${plan.test.join(" && ")}`, r));
     if (r.exit_code === 97 || r.exit_code === 98) regression = "skipped";
-    else regression = r.exit_code === 0 && !r.timed_out ? "not_reproduced" : "reproduced";
+    else if (r.exit_code === 0 && !r.timed_out) regression = "not_reproduced";
+    // A failure only counts if the tests ran: an import or collection error with the fix
+    // reverted (a generated file missing, say) would otherwise read as "the test catches the bug".
+    else regression = !r.timed_out && brokeBeforeTests(plan.test.join(" && "), r.exit_code, r.output) ? "inconclusive" : "reproduced";
   }
 
   const after = await boxPatch(box);
@@ -160,6 +178,7 @@ export function testOutcome(v: Verification | null): "passed" | "failed" | "not_
 const REGRESSION_TEXT: Record<Regression, string> = {
   reproduced: "With the source change reverted (test changes kept) the tests fail; with it they pass.",
   not_reproduced: "The tests also pass with the source change reverted, so they do not reproduce the bug.",
+  inconclusive: "With the source change reverted the tests could not run (an import, collection or build error), so this check could not confirm that the tests catch the bug.",
   no_test_change: "The patch adds or changes no test.",
   skipped: "Not run.",
 };

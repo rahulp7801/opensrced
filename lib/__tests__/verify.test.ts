@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { boxPatch, boxRequest, initBox, startExecBox, type ExecBox } from "../exec-box";
 import {
-  failBeforeScript, isTestPath, parseCases, parseVerificationPlan, runVerification, testOutcome, verificationMarkdown, type Verification,
+  brokeBeforeTests, failBeforeScript, isTestPath, parseCases, parseVerificationPlan, runVerification, testOutcome, verificationMarkdown, type Verification,
 } from "../verify";
 
 test("parseVerificationPlan reads the last verification block only", () => {
@@ -97,6 +97,41 @@ test("runVerification: a real fix with a regression test is verified and reprodu
     assert.equal(await boxPatch(box), patch, "the fail-before run restores the workspace exactly");
     assert.match(verificationMarkdown(v), /`node math\.test\.js` — passed/);
     assert.equal(testOutcome(v), "passed");
+  });
+});
+
+// The pandas #71278 run: pytest exit 4 with an import error when the fix was reverted.
+const PANDAS_FAIL_BEFORE = "ImportError while loading conftest '/vercel/work/pandas/conftest.py'.\npandas/__init__.py:178: in <module>\n    from pandas._version_meson import (\nE   ModuleNotFoundError: No module named 'pandas._version_meson'\n";
+
+test("brokeBeforeTests: a run that never reached the tests is not a reproduction", () => {
+  const cases: Array<[string, number | null, string, boolean]> = [
+    ["python -m pytest pandas/tests/io/pytables/test_select.py", 4, PANDAS_FAIL_BEFORE, true],
+    ["python -m pytest tests/test_x.py", 5, "no tests ran in 0.01s", true],
+    ["python -m pytest tests/test_x.py", 2, "Interrupted: 1 error during collection", true],
+    ["npx jest src/a.test.ts", 1, "FAIL src/a.test.ts\n  ● Test suite failed to run\n    Cannot find module './gen'", true],
+    ["go test ./pkg/...", 1, "FAIL\texample.com/pkg [build failed]", true],
+    ["cargo test", 101, "error[E0425]: cannot find value\nerror: could not compile `demo`", true],
+    // Real failures: the tests ran and failed.
+    ["python -m pytest tests/test_x.py", 1, "FAILED tests/test_x.py::test_add - assert 0 == 4\n1 failed in 0.02s", false],
+    ["node math.test.js", 1, "AssertionError [ERR_ASSERTION]: 0 == 4", false],
+    ["npx jest src/a.test.ts", 1, "FAIL src/a.test.ts\n  ✕ adds (3 ms)\n  Expected: 4\n  Received: 0", false],
+    ["make test", 4, "1 failed", false],
+  ];
+  for (const [command, code, output, expected] of cases) assert.equal(brokeBeforeTests(command, code, output), expected, `${command} exit ${code}`);
+});
+
+test("runVerification: a test that can't even load without the fix is inconclusive, not reproduced", async () => {
+  await withBox(BUGGY, async (box) => {
+    await boxRequest(box, "POST", "/edit", { path: "math.js", old_string: "a - b", new_string: "a + b; require('./gen')" });
+    await boxRequest(box, "POST", "/write", { path: "gen.js", content: "module.exports = 1;\n" });
+    // With math.js reverted the test still runs, but make the reverted run break before testing:
+    // the test file imports a module only the fixed source creates.
+    await boxRequest(box, "POST", "/write", { path: "math.test.js", content: "require('./math'); if (!require('fs').existsSync('gen.js') || require('fs').readFileSync('math.js', 'utf8').includes('a - b')) { console.error(\"Cannot find module './generated'\"); process.exit(1); }\n" + TEST });
+    const patch = await boxPatch(box);
+    const v = await runVerification(box, { setup: [], test: ["node math.test.js"], lint: [] }, patch);
+    assert.equal(v.status, "verified", JSON.stringify(v, null, 1));
+    assert.equal(v.regression, "inconclusive");
+    assert.match(verificationMarkdown(v), /could not confirm/);
   });
 });
 

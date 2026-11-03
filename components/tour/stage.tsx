@@ -1,7 +1,8 @@
 "use client";
 
-// The stage demo: the product in four phases, for a presenter to click through
-// and talk over. Nothing on screen but the app.
+// The stage demo: the product in four phases, to click through at your own pace.
+// It's shared as a public link, so the way home, the waitlist and the controls are
+// always on screen.
 //
 // It plays the tour's own chapters (components/tour/chapters-*.tsx) with the same
 // clock model: every scripted click is a stop that waits for the presenter, the
@@ -9,12 +10,13 @@
 // until the presenter moves on.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { ArrowRight, CornersOut } from "@phosphor-icons/react";
+import Link from "next/link";
+import { ArrowLeft, ArrowRight, CornersOut } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { FrameUrlContext, InteractContext, TimeContext, type Caption, type Chapter, type Interact } from "./kit";
 import { Doodle } from "@/components/brand/doodles";
 import { pass } from "@/components/brand/doodle-data";
-import { ArrowGlyph } from "@/components/brand/pill";
+import { Wordmark } from "@/components/brand/wordmark";
 import { pacedBy } from "./chapters";
 import { preloadRepoSnapshot } from "./repo-map";
 import { pr } from "./chapters-fix";
@@ -73,17 +75,6 @@ export function StageDemo() {
   const [waiting, setWaitingState] = useState<Waiting | null>(null);
   const [started, setStarted] = useState(false);
   const [scale, setScale] = useState(1);
-  // The presenter drives from the keyboard; the on-screen controls show
-  // only while the mouse moves (two seconds), or while one has focus.
-  const [controls, setControls] = useState(false);
-  useEffect(() => {
-    // Touch screens have no mouse to move: keep the controls on.
-    if (window.matchMedia("(hover: none)").matches) { setControls(true); return; }
-    let id = 0;
-    const show = () => { setControls(true); window.clearTimeout(id); id = window.setTimeout(() => setControls(false), 2000); };
-    window.addEventListener("mousemove", show);
-    return () => { window.removeEventListener("mousemove", show); window.clearTimeout(id); };
-  }, []);
   // The Explore stop maps a large repository; fetch its snapshot while the talk opens.
   useEffect(() => { preloadRepoSnapshot().catch(() => {}); }, []);
   const tRef = useRef(0);
@@ -263,6 +254,14 @@ export function StageDemo() {
   const View = step.chapter.View;
   return (
     <div ref={rootRef} data-stage-root="" role="region" aria-label="opensrcer stage demo" className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-ink p-2 sm:p-6">
+      {/* Always on: the way back to the site, and the way in. */}
+      <div className="relative z-[80] mx-auto mb-3 flex w-full max-w-[1400px] shrink-0 items-center justify-between gap-3">
+        <Link href="/" aria-label="opensrcer home" className="text-paper"><Wordmark className="text-[22px]" /></Link>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={toggleFullscreen} className="pill hidden sm:inline-flex [@media(hover:none)]:hidden" data-quiet><CornersOut aria-hidden size={14} weight="bold" />Full screen</button>
+          <Link href="/join" className="inline-flex min-h-9 items-center rounded-full bg-signal px-4 text-[13px] font-semibold text-white transition-opacity hover:opacity-90">Join the waitlist</Link>
+        </div>
+      </div>
       {/* A phone held upright gets a small slide; sideways it fills the screen. */}
       <p className="mb-3 hidden shrink-0 text-center text-[13px] text-paper-muted max-md:[@media(orientation:portrait)]:block">Turn your phone sideways for a bigger view.</p>
       {/* The headline sits on the app's left edge, in the display face: big type does the work. */}
@@ -289,30 +288,37 @@ export function StageDemo() {
       </div>
       <Spotlight selector={spotOn} strong={waiting?.kind === "press"} within={canvasRef} />
 
-      {/* Under the app, on its left edge: which chapter this is, and (only while the mouse
-          moves) the arrow to move on. */}
-      <div className="relative mx-auto mt-3 flex h-11 shrink-0 items-center" style={{ width: DESIGN.width * scale }}>
-        <p className="font-mono text-[13px] tracking-[0.02em] text-paper-faint">
-          {started && <><span className="text-paper">{step.phase + 1}</span> / {PHASES.length}<span className="ml-3 text-paper">{PHASES[step.phase].name}</span></>}
-        </p>
-        {/* Always there: the demo is shared as a link, and the next step after it is the waitlist. */}
-        {started && <a href="/join" className="absolute left-1/2 z-[70] inline-flex min-h-9 -translate-x-1/2 items-center rounded-full border border-border-strong px-4 text-[13px] font-medium text-paper transition-colors hover:bg-surface">Join the waitlist</a>}
-        {(waiting?.kind === "next" || waiting?.kind === "beat") && !ended && (
-          <button type="button" onClick={forward} aria-label="Next step" className={cn("absolute right-0 z-[70] grid size-11 place-items-center rounded-full bg-signal text-white transition-opacity duration-300 focus-visible:opacity-100", controls ? "opacity-100" : "opacity-0")}>
-            <ArrowRight aria-hidden size={18} weight="bold" />
-          </button>
-        )}
-      </div>
-
-      {!started && (
-        // Only before the first step: how to start, and the waitlist (it moves under the slides once started).
-        <div className="pointer-events-auto absolute inset-x-0 bottom-8 mx-auto flex w-fit max-w-[calc(100%-1rem)] flex-wrap items-center justify-center gap-2 rounded-[24px] border border-border bg-surface px-2 py-2 text-[13px] text-paper-muted">
-          <button type="button" onClick={forward} className="cta-pill" data-size="sm">Begin<span className="cta-pill-arrow"><ArrowGlyph size={13} /></span></button>
-          <button type="button" onClick={toggleFullscreen} className="pill" data-quiet><CornersOut aria-hidden size={14} weight="bold" />Full screen</button>
-          <a href="/join" className="pill" data-quiet>Join the waitlist</a>
-          <span className="px-2 font-mono text-[12px] [@media(hover:none)]:hidden">→ next · ← back · 1–4 phase · F full screen</span>
+      {/* Under the app: the four phases (click one to jump there), Back, and Next. Next makes
+          the click a step is waiting for, so it always moves the demo on. Keys: → ← 1-4 F. */}
+      <div className="relative mx-auto mt-3 flex min-h-11 shrink-0 items-center gap-2" style={{ width: DESIGN.width * scale }}>
+        <nav aria-label="Demo sections" className="flex min-w-0 items-center gap-0.5">
+          {PHASES.map((p, i) => {
+            const current = started && step.phase === i;
+            return (
+              <button key={p.name} type="button" onClick={() => toPhase(i)} aria-current={current ? "step" : undefined}
+                className={cn("inline-flex min-h-9 items-center rounded-full px-2.5 text-[13px] transition-colors sm:px-3", current ? "bg-surface font-semibold text-paper" : "text-paper-muted hover:text-paper")}>
+                <span aria-hidden className="mr-1.5 hidden font-mono text-[11px] text-paper-faint sm:inline">{i + 1}</span>{p.name}
+              </button>
+            );
+          })}
+        </nav>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {started && (
+            <button type="button" onClick={back} aria-label="Back" className="grid size-11 place-items-center rounded-full border border-border text-paper transition-colors hover:bg-surface">
+              <ArrowLeft aria-hidden size={18} weight="bold" />
+            </button>
+          )}
+          {!ended && (started ? (
+            <button type="button" onClick={forward} aria-label="Next" className="grid size-11 place-items-center rounded-full bg-signal text-white transition-opacity hover:opacity-90">
+              <ArrowRight aria-hidden size={18} weight="bold" />
+            </button>
+          ) : (
+            <button type="button" onClick={forward} className="inline-flex min-h-11 items-center gap-2 rounded-full bg-signal px-5 text-[15px] font-semibold text-white transition-opacity hover:opacity-90">
+              Begin<ArrowRight aria-hidden size={16} weight="bold" />
+            </button>
+          ))}
         </div>
-      )}
+      </div>
     </div>
   );
 }

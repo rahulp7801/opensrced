@@ -998,7 +998,7 @@ export const stageReview: Chapter = {
 export function StageTitle() {
   return (
     <div className="relative flex h-full flex-col justify-end bg-ink pb-10">
-      <Wordmark draw className="absolute left-0 top-6 text-[40px] text-paper" />
+      {/* The stage's top bar carries the wordmark (and the way home). */}
       <p className="absolute right-0 top-9 font-mono text-[14px] tracking-[0.02em] text-paper-faint">Demo · opensrced.vercel.app</p>
       <p className="text-[20px] text-paper-muted">Your first open-source contribution, guided.</p>
       <p className="display mt-4 text-[104px] leading-[0.98] tracking-[-0.025em] text-paper">

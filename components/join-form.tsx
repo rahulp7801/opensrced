@@ -35,7 +35,7 @@ export function JoinForm() {
     return (
       <div role="status" className="mt-10 max-w-[560px] rounded-2xl border border-border-soft bg-surface px-6 py-6">
         <p className="font-display text-[26px] font-[650] leading-tight text-paper [font-stretch:92%]">You&apos;re on the list{state.name ? `, ${state.name}` : ""}.</p>
-        <p className="mt-2 text-[16px] leading-[1.55] text-paper-muted">We&apos;ll email {state.email} when your access is ready. Until then, the product tour shows a full run.</p>
+        <p className="mt-2 text-[16px] leading-[1.55] text-paper-muted">We&apos;ll email {state.email} when your access is ready. Until then, the demo shows what it does.</p>
         <p className="mt-4"><Link href="/demo/stage" className="text-link text-[16px]">Watch the demo</Link></p>
       </div>
     );

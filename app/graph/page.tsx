@@ -553,11 +553,16 @@ export default function GraphPage() {
                   )}
                 </div>
                 <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden">
+                  {/* The hosted build reports no percentage while it parses: an honest
+                      "working" bar instead of one stuck at 5%. */}
                   <div
-                    className="h-full bg-signal rounded-full transition-all duration-300"
-                    style={{ width: `${pct ?? 5}%` }}
+                    className={cn("h-full bg-signal rounded-full transition-all duration-300", pct === null && "w-full animate-pulse opacity-60")}
+                    style={pct === null ? undefined : { width: `${pct}%` }}
                   />
                 </div>
+                {pct === null && (
+                  <p className="mt-2 text-[13px] text-paper-muted">Large repositories take a few minutes. You can leave this page open.</p>
+                )}
               </div>
             );
           })()}

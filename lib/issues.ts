@@ -46,6 +46,24 @@ const RESOLVED_LABELS = [
   "fixed-in-main", "fixed-in-master", "resolved-in-main", "closed-fixed",
 ];
 
+/** Labels that say an issue isn't ready for anyone to fix yet, with the reason a newcomer
+ *  sees. Projects spell these many ways (pandas "Needs Triage", VS Code "triage-needed",
+ *  React "Status: Unconfirmed"); labels arrive lowercased. "triaged", "needs tests" and
+ *  "needs backport" mean the opposite or are about PRs, so they don't match. */
+const NOT_READY_LABELS: Array<[RegExp, string]> = [
+  [/\b(needs?[\s_-]*triage|triage[\s_-]*needed|untriaged|unconfirmed|needs[\s_-]*investigation)\b/, "Maintainers haven't confirmed this yet (it's waiting for triage). Pick it once they do."],
+  [/\b(needs?[\s_-]*(more[\s_-]*)?info(rmation)?|info[\s_-]*needed|repro(duction)?[\s_-]*steps[\s_-]*needed|needs?[\s_-]*repro(duction)?|add a complete reproduction|simplify reproduction|not[\s_-]*reproducible|awaiting[\s_-]*author[\s_-]*response)\b/, "Waiting on more information from whoever reported it."],
+  [/\b(needs?[\s_-]*(discussion|decision)|under[\s_-]*discussion|discussion)\b/, "Still being discussed: the fix isn't agreed yet."],
+  [/\bblocked\b/, "Blocked on other work."],
+  [/\b(wontfix|won't fix|duplicate|invalid)\b/, "Labeled as non-actionable."],
+];
+
+/** Why an issue's labels say it isn't ready, or null. Exported for tests. */
+export function notReadyLabel(labels: string[]): string | null {
+  for (const [re, reason] of NOT_READY_LABELS) if (labels.some((l) => re.test(l))) return reason;
+  return null;
+}
+
 // If a hit is within ~40 chars of a negation, drop it. Prevents "not yet
 // fixed" or "still not resolved" from reading as resolved.
 // Negations that should cancel a nearby "fixed/resolved/duplicate" hit.
@@ -374,9 +392,9 @@ function scoreIssue(i: GhIssue): ScannedIssue {
   } else if (/\b(cannot reproduce|not reproducible|nonetype error)\b/.test(all) && bodyChars < 300) {
     solvable = false;
     reason = "Not enough repro detail for automated fix.";
-  } else if (labels.some((l) => /needs-triage|wontfix|duplicate|invalid/.test(l))) {
+  } else if (notReadyLabel(labels)) {
     solvable = false;
-    reason = "Labeled as non-actionable.";
+    reason = notReadyLabel(labels)!;
   } else if (category === "other" && bodyChars < 80) {
     solvable = false;
     reason = "Unclear scope — issue body too sparse.";

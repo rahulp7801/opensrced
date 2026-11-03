@@ -187,9 +187,11 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
   // A missing issue or a pull request number would otherwise start (and bill)
   // a VM that fails at once. Skipped without a user token: anonymous GitHub
   // calls from shared egress IPs exhaust their rate limit quickly.
-  if (!finding && opts.token) await fetchIssue(parseRunTarget(repo).repo, issue, opts.token);
+  const fetched = !finding && opts.token ? await fetchIssue(parseRunTarget(repo).repo, issue, opts.token) : null;
   const run: CloudRun = {
     id, auth0_user_id: opts.auth0UserId, repo_url: repo, issue_number: issue,
+    // The run page leads with the issue's title; without it the run reads "Issue #71278".
+    ...(fetched?.title ? { issue_title: fetched.title.slice(0, 500) } : {}),
     mode: "agentic", dry_run: opts.dryRun === true, started_at: new Date().toISOString(), status: "running",
     log_path: "", sandbox_name: id.replaceAll("_", "-"), expires_at: Date.now() + TTL,
     // The worker publishes nothing until the clone and environment setup finish (minutes on a

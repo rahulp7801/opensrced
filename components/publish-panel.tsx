@@ -3,8 +3,8 @@
 // The publish gate on the run page: the frozen preview (PR text, evidence,
 // warnings, blockers) and the only way to open a PR. Publishing needs an
 // explicit confirmation and uses exactly what is shown here. A preview-only
-// (dry) run can never publish; it offers to start the issue again as a
-// publishable run instead of leaving the reader at a dead end.
+// (dry) run can never publish: its sheet is practice, and the run page's
+// outcome offers to start the issue again as a publishable run.
 //
 // It reads as one signed document, not a form: one sheet of paper, numbered
 // parts with the numbers hanging in the margin (cobalt only on the part you
@@ -25,7 +25,7 @@ import { ChangeChat } from "./change-chat";
 import { OwnWords, type OwnWordsResult } from "./own-words";
 import { Term } from "./term";
 
-type Preview = RulesPreview & {
+export type Preview = RulesPreview & {
   title: string;
   body: string;
   files: string[];
@@ -46,33 +46,31 @@ type Preview = RulesPreview & {
   followup_pr?: string;
 };
 
-/** Added and removed lines in a unified diff (file headers excluded). */
-function diffCounts(diff: string | undefined): { add: number; del: number } | null {
-  if (!diff) return null;
-  let add = 0;
-  let del = 0;
-  for (const line of diff.split("\n")) {
-    if (line.startsWith("+++") || line.startsWith("---")) continue;
-    if (line.startsWith("+")) add++;
-    else if (line.startsWith("-")) del++;
-  }
-  return { add, del };
+/** The run's frozen preview (GET /api/dispatches/<id>/preview), or null while
+ *  loading and for runs without one. Pass null to skip fetching. */
+export function useRunPreview(dispatchId: string | null): { preview: Preview | null; error: string | null } {
+  const [state, setState] = useState<{ id: string | null; preview: Preview | null; error: string | null }>({ id: null, preview: null, error: null });
+  useEffect(() => {
+    if (!dispatchId) return;
+    const controller = new AbortController();
+    fetch(`/api/dispatches/${dispatchId}/preview`, { signal: controller.signal })
+      .then(async (r) => setState({ id: dispatchId, preview: r.ok ? await r.json() : null, error: r.ok || r.status === 404 ? null : "Could not load the preview." }))
+      .catch(() => { if (!controller.signal.aborted) setState({ id: dispatchId, preview: null, error: "Could not load the preview." }); });
+    return () => controller.abort();
+  }, [dispatchId]);
+  // A previous run's answer never shows under another run.
+  return state.id === dispatchId ? { preview: state.preview, error: state.error } : { preview: null, error: null };
 }
 
-export function PublishPanel({ dispatchId, repo, issue, dryRun = false, rerun, onPublished }: {
+export function PublishPanel({ dispatchId, preview, repo, dryRun = false, onPublished }: {
   dispatchId: string;
+  preview: Preview;
   /** The run's repository (owner/name or its GitHub URL), for "Ask about this change". */
   repo?: string;
-  /** The issue number, for the header line. */
-  issue?: number;
-  /** The run was a preview: show how to get to a publishable run. */
+  /** The run was a preview: the explanation is practice and nothing can publish. */
   dryRun?: boolean;
-  /** The issue this run was for, to start it again as a publishable run. */
-  rerun?: { repoUrl: string; issue: number };
   onPublished?: (url: string) => void;
 }) {
-  const [preview, setPreview] = useState<Preview | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [signedAt, setSignedAt] = useState<Date | null>(null);
   const [pending, setPending] = useState(false);
@@ -84,17 +82,6 @@ export function PublishPanel({ dispatchId, repo, issue, dryRun = false, rerun, o
   const onOwnWords = useCallback((r: OwnWordsResult) => setOwnWords(r), []);
   // The signature uses only what the session already has (no new requests).
   const { user } = useCurrentUser();
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch(`/api/dispatches/${dispatchId}/preview`, { signal: controller.signal })
-      .then(async (r) => (r.ok ? setPreview(await r.json()) : r.status === 404 ? null : setLoadError("Could not load the preview.")))
-      .catch(() => { if (!controller.signal.aborted) setLoadError("Could not load the preview."); });
-    return () => controller.abort();
-  }, [dispatchId]);
-
-  if (loadError) return <div role="alert" className="callout mt-6 text-[15px]" data-tone="alert">{loadError}</div>;
-  if (!preview) return null;
 
   async function publish() {
     setPending(true);
@@ -141,9 +128,6 @@ export function PublishPanel({ dispatchId, repo, issue, dryRun = false, rerun, o
       </button>
     </>
   );
-  const verified = v?.status === "verified";
-  const counts = diffCounts(preview.diff);
-  const repoName = repo?.replace(/^https?:\/\/github\.com\//, "").replace(/\/$/, "");
 
   // Footnotes: each glossary word gets a number the first time it appears,
   // in reading order, and the Notes at the end of the sheet define them.
@@ -161,41 +145,22 @@ export function PublishPanel({ dispatchId, repo, issue, dryRun = false, rerun, o
     : ["fork", "branch", "draft PR", "AI disclosure", ...(preview.signoff ? (["sign-off"] as const) : [])];
   // Number every footnoted word now, in reading order: child components
   // render after this function returns, so the Notes below would miss them.
-  note("verified");
-  if (dryRun) note("preview");
   for (const r of rules) if (r.term) note(r.term);
   if (canPublish) words.forEach(note);
 
   return (
     <section
       aria-label={dryRun ? "Preview result" : "Review before publishing"}
-      className="mt-8 w-full max-w-[720px] rounded-2xl bg-surface px-5 py-8 text-[16px] leading-[1.6] shadow-[inset_0_0_0_1px_var(--color-border-soft)] sm:px-14 sm:py-12"
+      className="w-full rounded-2xl bg-surface px-5 py-8 text-[16px] leading-[1.6] shadow-[inset_0_0_0_1px_var(--color-border-soft)] sm:px-14 sm:py-12"
     >
-      {/* The header line: what this sheet is about, in mono. */}
-      <p className="meta">
-        <span>{dryRun ? "practice" : "review"}</span>
-        <span>run {dispatchId}</span>
-        {repoName && <span>{repoName}{issue !== undefined ? `#${issue}` : ""}</span>}
-        <span>nothing posted yet</span>
+      {/* The run's outcome, verification and warnings sit above this sheet
+          (components/dispatch-list.tsx); the sheet is the review itself. */}
+      <h3 className="display text-[28px] leading-[1.05] text-paper">{dryRun ? "Practise the review" : "Review before publishing"}</h3>
+      <p className="mt-2 text-paper-muted">
+        {dryRun
+          ? "This is what a publishable run asks of you before anything is posted. Nothing here is sent anywhere."
+          : "Nothing has been posted yet. Go through each part, then publish."}
       </p>
-      <h3 className="display mt-3 text-[30px] leading-[1.05] text-paper">{dryRun ? "Preview: read the fix" : "Review before publishing"}</h3>
-      <p className="chip mt-3 whitespace-normal text-[15px]" data-tone={verified ? "ok" : "alert"}>
-        <span><Term term="verified" n={note("verified")}>Verification</Term>: {verdict}</span>
-      </p>
-      {dryRun ? (
-        <div className="mt-5 border-l-2 border-info pl-4">
-          <p className="font-semibold text-paper">This was a <Term term="preview" n={note("preview")}>preview</Term>, so it can&apos;t be published.</p>
-          <p className="mt-1.5 text-paper-dim">
-            Nothing was posted anywhere. If the fix below looks right and you want to send it to the project, run this issue again
-            as a publishable run. It starts fresh (a new run, with its own cost), then stops here for your review: nothing is posted until you confirm.
-          </p>
-          {rerun && <RerunButton {...rerun} />}
-        </div>
-      ) : (
-        <p className="mt-2 text-paper-muted">Nothing has been posted yet. Read the change and the evidence below first.</p>
-      )}
-      {preview.blockers.map((b) => <p key={b} role="alert" className="mt-4 font-medium text-alert">Blocked: {b}</p>)}
-      {preview.warnings.map((w) => <p key={w} className="mt-3 text-paper-dim">Note: {w}</p>)}
       <ChangeChat
         storageKey={`run:${dispatchId}`}
         repo={repo}
@@ -203,19 +168,19 @@ export function PublishPanel({ dispatchId, repo, issue, dryRun = false, rerun, o
         context={context}
       />
 
-      <Part n={1} current={false} title="The change" id={`gate-change-${dispatchId}`}>
+      <Part n={1} current={false} title="The pull request" id={`gate-change-${dispatchId}`}>
         <p className="text-[17px] font-semibold leading-snug text-paper">{preview.title}</p>
         <p className="meta mt-1.5">
           <span>{preview.files.length} file{preview.files.length === 1 ? "" : "s"}</span>
-          {counts && <span>+{counts.add} −{counts.del}</span>}
-          {preview.diff && <a href="#run-patch">read the diff ↓</a>}
+          {preview.diff && <a href="#run-patch">the diff is above ↑</a>}
         </p>
         {preview.cases && preview.cases.length > 0 && (
           <div className="mt-4">
             <p className="text-paper">Cases covered (the agent&apos;s list of reported variants):</p>
             <ul className="mt-1 list-disc pl-5 text-paper-dim">
               {preview.cases.map((c) => (
-                <li key={c.variant} className={c.test ? "" : "text-alert"}>{c.variant} → {c.test ?? "not covered"}</li>
+                // Test ids are one long word; let them break instead of running off a phone.
+                <li key={c.variant} className={cn("[overflow-wrap:anywhere]", c.test ? "" : "text-alert")}>{c.variant} → {c.test ?? "not covered"}</li>
               ))}
             </ul>
           </div>
@@ -314,7 +279,7 @@ export function PublishPanel({ dispatchId, repo, issue, dryRun = false, rerun, o
       )}
 
       {/* Notes: the footnoted words, defined once, readable on any screen. */}
-      <div className="mt-10 border-t border-border-soft pt-5">
+      {notes.length > 0 && <div className="mt-10 border-t border-border-soft pt-5">
         <h4 className="label-mono">Notes</h4>
         <ol className="mt-2 space-y-1.5 text-[14px] leading-[1.55] text-paper-muted">
           {notes.map((t, i) => (
@@ -324,7 +289,7 @@ export function PublishPanel({ dispatchId, repo, issue, dryRun = false, rerun, o
             </li>
           ))}
         </ol>
-      </div>
+      </div>}
     </section>
   );
 }
@@ -409,7 +374,7 @@ function ProjectRules({ rows, note }: { rows: RuleRow[]; note: (t: GlossaryTerm)
 
 /** Start the same issue as a publishable (live) run. The new run still ends at
  *  this review step; nothing is posted without the confirmation above. */
-function RerunButton({ repoUrl, issue }: { repoUrl: string; issue: number }) {
+export function RerunButton({ repoUrl, issue }: { repoUrl: string; issue: number }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   async function start() {
@@ -432,7 +397,7 @@ function RerunButton({ repoUrl, issue }: { repoUrl: string; issue: number }) {
     }
   }
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-3">
+    <div className="flex flex-wrap items-center gap-3">
       <button onClick={start} disabled={pending} className="btn-primary">
         {pending ? "Starting…" : "Run again, ready to publish"}
       </button>

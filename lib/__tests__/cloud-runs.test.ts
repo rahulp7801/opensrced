@@ -4,15 +4,20 @@ import { createRequire } from "node:module";
 
 // In-memory Blob and Sandbox stand-ins (same approach as cloud-capacity.test.ts).
 const store = new Map<string, { body: string; etag: string }>();
+const ops = { list: 0, reads: [] as string[] };
 const fakeBlob = {
   BlobPreconditionFailedError: class extends Error {},
   BlobNotFoundError: class extends Error {},
   async get(path: string) {
+    ops.reads.push(path);
     const entry = store.get(path);
     return entry ? { statusCode: 200, stream: entry.body, blob: { size: entry.body.length, etag: entry.etag } } : null;
   },
   async put(path: string, body: string) { store.set(path, { body, etag: "1" }); return { pathname: path }; },
-  async list() { return { blobs: [] }; },
+  async list({ prefix }: { prefix: string }) {
+    ops.list++;
+    return { blobs: [...store.keys()].filter((key) => key.startsWith(prefix)).sort().map((pathname) => ({ pathname })), hasMore: false };
+  },
   async del() {},
 };
 const writes: Array<{ sandbox: string; files: Array<{ path: string; content: Buffer; mode?: number }> }> = [];
@@ -210,4 +215,48 @@ test("reading a finished run stops both VMs once; an unknown run stops nothing",
   stops.length = 0;
   assert.equal(await getCloudRun("erin", "c_0000000000000_000000000000"), null);
   assert.equal(stops.length, 0);
+});
+
+test("run history lists storage once to build its index, then polls with reads only", async () => {
+  const { listCloudRunSummaries, indexRuns } = await import("../cloud-runs");
+  const { cloudRunSummary, runIndexPath, runPath, runSummaryPath } = await import("../cloud-run-state");
+  const owner = "history";
+  const done = await seed(owner, { status: "succeeded", pr_status: "none", sign_in: undefined });
+  // Expired on the clock, but its worker finished: it must not read as timed out.
+  const live = await seed(owner, { sign_in: undefined, expires_at: Date.now() - 1000 });
+  const summary = (id: string, overrides: Record<string, unknown> = {}) =>
+    cloudRunSummary({ ...JSON.parse(store.get(runPath(owner, id))!.body), ...overrides });
+  for (const id of [done, live]) store.set(runSummaryPath(owner, id), { body: JSON.stringify(summary(id)), etag: "1" });
+
+  ops.list = 0;
+  const first = await listCloudRunSummaries(owner);
+  assert.ok(ops.list > 0, "the first read builds the index from a listing");
+  assert.deepEqual(first.map((run) => run.id).sort(), [done, live].sort());
+  assert.ok(store.has(runIndexPath(owner)));
+
+  ops.list = 0;
+  store.set(runSummaryPath(owner, live), { body: JSON.stringify(summary(live, { status: "succeeded", pr_status: "none" })), etag: "2" });
+  const second = await listCloudRunSummaries(owner);
+  assert.equal(ops.list, 0, "polling never lists once the index exists");
+  assert.equal(second.find((run) => run.id === live)?.status, "succeeded", "a finished run reads as finished, not timed out");
+  assert.equal(second.find((run) => run.id === live)?.pr_failure_reason, undefined);
+  const indexed = JSON.parse(store.get(runIndexPath(owner))!.body).runs as Array<{ id: string; status: string }>;
+  assert.equal(indexed.find((run) => run.id === live)?.status, "succeeded", "the finished run is folded into the index");
+
+  ops.reads.length = 0;
+  await listCloudRunSummaries(owner);
+  assert.equal(ops.list, 0);
+  assert.ok(!ops.reads.some((path) => path.includes("run-summaries/")), "finished runs are not re-read");
+
+  // Server-side summary writes keep the index current.
+  await indexRuns(owner, [summary(done, { pr_status: "opened", pr_url: "https://github.com/acme/app/pull/9" })]);
+  assert.equal((await listCloudRunSummaries(owner)).find((run) => run.id === done)?.pr_status, "opened");
+});
+
+test("index writes never create an index, so the first history read still sees every run", async () => {
+  const { indexRuns } = await import("../cloud-runs");
+  const { cloudRunSummary, runIndexPath, runPath } = await import("../cloud-run-state");
+  const id = await seed("fresh", { sign_in: undefined });
+  await indexRuns("fresh", [cloudRunSummary(JSON.parse(store.get(runPath("fresh", id))!.body))]);
+  assert.equal(store.has(runIndexPath("fresh")), false);
 });

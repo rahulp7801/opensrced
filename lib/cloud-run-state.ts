@@ -99,6 +99,32 @@ export function cloudRunSummary(run: CloudRun): CloudRunSummary {
   } as CloudRunSummary;
 }
 
+/** Log progress goes up at most this often; status and sign-in changes at once. */
+export const WORKER_PROGRESS_MS = 10_000;
+const WORKER_STATS_MS = 60_000;
+
+/** What a worker should upload for `record` (the bodies to write, or null):
+ *  Blob writes are the scarce operation, so unchanged or merely progressing
+ *  records wait. The summary feeds history views; while a run is running it
+ *  differs only in cost stats, which refresh at most once a minute. */
+export function workerUploads(
+  record: CloudRun,
+  last: Pick<CloudRun, "status" | "sign_in">,
+  uploaded: { record: string; summary: string; recordAt: number; summaryAt: number },
+  now: number,
+): { record: string | null; summary: string | null } {
+  const body = JSON.stringify(record);
+  if (body === uploaded.record) return { record: null, summary: null };
+  const urgent = record.status !== "running" || record.status !== last.status ||
+    JSON.stringify(record.sign_in) !== JSON.stringify(last.sign_in);
+  if (!urgent && now - uploaded.recordAt < WORKER_PROGRESS_MS) return { record: null, summary: null };
+  const summary = JSON.stringify(cloudRunSummary(record));
+  const statsOnly = Boolean(uploaded.summary) &&
+    JSON.stringify({ ...JSON.parse(uploaded.summary), stats: null }) === JSON.stringify({ ...JSON.parse(summary), stats: null });
+  const summaryDue = summary !== uploaded.summary && (urgent || !statsOnly || now - uploaded.summaryAt >= WORKER_STATS_MS);
+  return { record: body, summary: summaryDue ? summary : null };
+}
+
 export function validCloudRunSummary(value: unknown, owner: string, id: string): value is CloudRunSummary {
   if (!value || typeof value !== "object" || Array.isArray(value) || "log" in value || "log_size" in value) return false;
   return validCloudRun({ ...value, log: "", log_size: 0 }, owner, id);
@@ -162,6 +188,34 @@ export function normalizeCloudRunCancellations(value: unknown): CloudRunCancella
 
 export function addCloudRunCancellation(value: unknown, cancellation: CloudRunCancellation): CloudRunCancellation[] {
   return normalizeCloudRunCancellations([cancellation, ...normalizeCloudRunCancellations(value)]);
+}
+
+/** The newest run summaries in one record, so history views poll with reads
+ *  instead of a Blob listing (listings are the scarce "advanced" operation). */
+export const RUN_INDEX_SIZE = 50;
+
+export function runIndexPath(owner: string): string {
+  return `${ownerPrefix(owner).slice(0, -"runs/".length)}run-index.json`;
+}
+
+/** The index's valid entries for this owner, newest first. */
+export function indexedRuns(value: unknown, owner: string): CloudRunSummary[] {
+  const runs = (value as { runs?: unknown } | null)?.runs;
+  if (!Array.isArray(runs)) return [];
+  const seen = new Set<string>();
+  return runs
+    .filter((run): run is CloudRunSummary => typeof run?.id === "string" && RUN_ID_RE.test(run.id) &&
+      validCloudRunSummary(run, owner, run.id) && !seen.has(run.id) && Boolean(seen.add(run.id)))
+    .sort((a, b) => b.started_at.localeCompare(a.started_at))
+    .slice(0, RUN_INDEX_SIZE);
+}
+
+/** `summaries` replace their entries in the index; undefined when there is no
+ *  index yet (the next history read builds it from storage). */
+export function withIndexedRuns(value: unknown, owner: string, summaries: CloudRunSummary[]): { version: 1; runs: CloudRunSummary[] } | undefined {
+  if (!value) return undefined;
+  const ids = new Set(summaries.map((run) => run.id));
+  return { version: 1, runs: indexedRuns({ runs: [...summaries, ...indexedRuns(value, owner).filter((run) => !ids.has(run.id))] }, owner) };
 }
 
 export function cancelledCloudRunState<T extends CloudRunSummary>(run: T, cancelledAt: string): T {

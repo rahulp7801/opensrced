@@ -9,12 +9,15 @@ export async function readJson<T>(path: string, maxBytes = 600_000): Promise<{ v
   return { value: await new Response(blob.stream).json() as T, etag: blob.blob.etag };
 }
 
-/** Retry concurrent updates against the latest value instead of losing writes. */
-export async function updateJson<T>(path: string, initial: T, update: (value: T) => T): Promise<void> {
+/** Retry concurrent updates against the latest value instead of losing writes.
+ *  `update` returning undefined leaves the record as it is (or absent). */
+export async function updateJson<T>(path: string, initial: T, update: (value: T) => T | undefined): Promise<void> {
   for (let attempt = 0; attempt < 8; attempt++) {
     const current = await readJson<T>(path);
+    const next = update(current ? current.value : initial);
+    if (next === undefined) return;
     try {
-      await put(path, JSON.stringify(update(current ? current.value : initial)), {
+      await put(path, JSON.stringify(next), {
         ...privateJsonOptions, allowOverwrite: !!current,
         ...(current ? { ifMatch: current.etag } : {}), abortSignal: AbortSignal.timeout(15_000),
       });

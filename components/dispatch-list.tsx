@@ -53,6 +53,7 @@ export function DispatchList() {
   const [detailError, setDetailError] = useState<string | null>(null);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">("unsupported");
   const logRef = useRef<HTMLPreElement>(null);
+  const detailRef = useRef<HTMLElement>(null);
   // Dispatches we have already raised a desktop notification for.
   const notifiedRef = useRef(new Set<string>());
   // Dispatches we have observed in the `running` state during this session.
@@ -294,6 +295,12 @@ export function DispatchList() {
                     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                     e.preventDefault();
                     pick(d.id);
+                    // A row far down the list leaves the run's outcome above
+                    // the screen (or, on phones, above the list): bring it back.
+                    const detailEl = detailRef.current;
+                    if (detailEl && detailEl.getBoundingClientRect().top < parseFloat(getComputedStyle(detailEl).scrollMarginTop)) {
+                      detailEl.scrollIntoView({ block: "start" });
+                    }
                   }}
                   aria-current={selected === d.id ? "true" : undefined}
                   className="block py-4 focus-visible:outline-offset-[-3px]"
@@ -329,7 +336,7 @@ export function DispatchList() {
       </aside>
 
       {/* Detail: what happened, the change, the review, then the log. */}
-      <section className="col-span-12 md:col-span-7 lg:col-span-8 max-md:order-1">
+      <section ref={detailRef} className="col-span-12 scroll-mt-28 md:col-span-7 lg:col-span-8 max-md:order-1">
         {detail ? (
           <div>
             <a href="#runs-list" className="text-link mb-4 inline-flex min-h-10 items-center text-[14px] md:hidden">All runs ({items.length}) ↓</a>

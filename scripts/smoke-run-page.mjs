@@ -73,6 +73,15 @@ try {
       if (process.env.CHECKS !== '0') await assertAccessible(page, label);
       checked++;
     }
+    // Picking a run far down the list brings its outcome back on screen.
+    const lastRow = page.locator('#runs-list li a').last();
+    await lastRow.scrollIntoViewIfNeeded();
+    await page.evaluate(() => scrollBy(0, 400));
+    await lastRow.click();
+    const title = Object.values(RUNS).at(-1).issue_title;
+    await page.getByRole('heading', { level: 2, name: title }).waitFor();
+    const headTop = await page.getByRole('heading', { level: 2, name: title }).evaluate(el => el.getBoundingClientRect().top);
+    assert.ok(headTop >= 0 && headTop < 900, `the picked run's title is on screen @${width}, top=${headTop}`);
     assert.deepEqual(errors, [], `page errors @${width}`);
     await context.close();
   }

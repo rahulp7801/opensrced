@@ -24,7 +24,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ ...stored.preview, diff: stored.diff, confirmation: CONFIRMATION, publishable: !d.dry_run && (d.pr_status === "awaiting_review" || d.pr_status === "failed"),
       // A follow-up run publishes as one commit on this PR, not a new PR.
       ...(d.followup_pr ? { followup_pr: d.followup_pr } : {}) });
-  } catch {
+  } catch (error) {
+    console.error("[runs] could not read a preview", error);
     return NextResponse.json({ error: "This preview is temporarily unavailable. Please retry." }, { status: 503 });
   }
 }

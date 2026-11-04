@@ -21,7 +21,8 @@ export async function GET() {
     try {
       const dispatches = await listCloudRunSummaries(viewerId, 20);
       return NextResponse.json({ dispatches });
-    } catch {
+    } catch (error) {
+      console.error("[runs] could not list runs", error);
       return NextResponse.json({ error: "Run history is temporarily unavailable. Please retry." }, { status: 503 });
     }
   }

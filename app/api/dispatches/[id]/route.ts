@@ -30,7 +30,8 @@ export async function GET(
       const run = await getCloudRun(viewerId, id);
       if (!run) return NextResponse.json({ error: "not found" }, { status: 404 });
       return NextResponse.json(runLogChunk(run, Number(req.nextUrl.searchParams.get("since") ?? 0)));
-    } catch {
+    } catch (error) {
+      console.error("[runs] could not read a run", error);
       return NextResponse.json({ error: "This run is temporarily unavailable. Please retry." }, { status: 503 });
     }
   }

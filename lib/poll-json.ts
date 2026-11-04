@@ -48,13 +48,26 @@ export function pollJson<T>(
       }
     } finally {
       clearTimeout(deadline);
-      if (!stopped && keepGoing && intervalMs > 0) timer = setTimeout(tick, intervalMs);
+      if (!stopped && keepGoing && intervalMs > 0) timer = setTimeout(next, intervalMs);
     }
+  }
+  // A tab left open in the background must not keep polling: every poll costs
+  // storage operations. Wait until the page is visible again, then poll at once.
+  function next() {
+    if (typeof document !== "undefined" && document.hidden) {
+      document.addEventListener("visibilitychange", onVisible);
+    } else void tick();
+  }
+  function onVisible() {
+    if (document.hidden) return;
+    document.removeEventListener("visibilitychange", onVisible);
+    if (!stopped) void tick();
   }
   void tick();
   return () => {
     stopped = true;
     clearTimeout(timer);
+    if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisible);
     controller.abort();
   };
 }

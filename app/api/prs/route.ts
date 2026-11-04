@@ -9,7 +9,8 @@ export async function GET() {
   try {
     const prs = await loadPRsFromLogs(owner);
     return NextResponse.json(prs);
-  } catch {
+  } catch (error) {
+    console.error("[prs] could not load pull requests", error);
     return NextResponse.json({ error: "Pull requests are temporarily unavailable. Please retry." }, { status: 503 });
   }
 }

@@ -157,6 +157,8 @@ test("hosted publish: the project's AI policy, read live, refuses a ban and adds
 });
 
 test("hosted publish: a failed job is recorded and can be retried", async () => {
+  // Earlier tests' PRs are in this owner's run history and count toward the daily cap.
+  store.delete((await import("../cloud-run-state")).runIndexPath(OWNER));
   const { publishCloudRun } = await import("../cloud-publish");
   const { getCloudRun } = await import("../cloud-runs");
   const id = await seed();
@@ -167,6 +169,8 @@ test("hosted publish: a failed job is recorded and can be retried", async () => 
 });
 
 test("hosted publish of an executed run hands the verified final patch and its evidence to the push VM unchanged", async () => {
+  // Earlier tests' PRs are in this owner's run history and count toward the daily cap.
+  store.delete((await import("../cloud-run-state")).runIndexPath(OWNER));
   const { publishCloudRun } = await import("../cloud-publish");
   const { runPreviewPath } = await import("../cloud-run-state");
   const id = await seed();

@@ -16,7 +16,10 @@ import {
   normalizeCloudRunCancellations,
   runCancellationIndexPath,
   runCancellationPath,
+  indexedRuns,
+  runIndexPath,
   runIsActive,
+  RUN_INDEX_SIZE,
   runPath,
   runPreviewPath,
   runPublishLockPath,
@@ -27,6 +30,7 @@ import {
   staleCloudRunIds,
   validCloudRun,
   validCloudRunSummary,
+  withIndexedRuns,
   WORKER_TIMEOUT_MS,
 } from "./cloud-run-state";
 import { cloudRunLease, cloudRunLeaseIsStarting } from "./cloud-leases";
@@ -71,8 +75,14 @@ async function stopRunSandboxes(name: string): Promise<boolean> {
   return agent && exec;
 }
 
-async function writeSummary(path: string, run: CloudRun) {
-  await put(path, JSON.stringify(cloudRunSummary(run)), { ...writeOptions, allowOverwrite: true, abortSignal: AbortSignal.timeout(15_000) });
+async function writeSummary(owner: string, run: CloudRun) {
+  await put(runSummaryPath(owner, run.id), JSON.stringify(cloudRunSummary(run)), { ...writeOptions, allowOverwrite: true, abortSignal: AbortSignal.timeout(15_000) });
+  await indexRuns(owner, [cloudRunSummary(run)]);
+}
+
+/** Record these summaries in the owner's run index (see listCloudRunSummaries). */
+export async function indexRuns(owner: string, summaries: CloudRunSummary[]): Promise<void> {
+  await updateJson<unknown>(runIndexPath(owner), null, (value) => withIndexedRuns(value, owner, summaries));
 }
 
 function summariesReadyPath(owner: string): string {
@@ -192,12 +202,16 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
   // A missing issue or a pull request number would otherwise start (and bill)
   // a VM that fails at once. Skipped without a user token: anonymous GitHub
   // calls from shared egress IPs exhaust their rate limit quickly.
-  if (!finding && opts.token) await fetchIssue(parseRunTarget(repo).repo, issue, opts.token);
+  const fetched = !finding && opts.token ? await fetchIssue(parseRunTarget(repo).repo, issue, opts.token) : null;
   const run: CloudRun = {
     id, auth0_user_id: opts.auth0UserId, repo_url: repo, issue_number: issue,
+    // The run page leads with the issue's title; without it the run reads "Issue #71278".
+    ...(fetched?.title ? { issue_title: fetched.title.slice(0, 500) } : {}),
     mode: "agentic", dry_run: opts.dryRun === true, started_at: new Date().toISOString(), status: "running",
     log_path: "", sandbox_name: id.replaceAll("_", "-"), expires_at: Date.now() + TTL,
-    log: "Preparing isolated agent worker...\n", log_size: 35, tests: "not_run",
+    // The worker publishes nothing until the clone and environment setup finish (minutes on a
+    // large project), so this first line says what is happening and how long it can take.
+    log: "Starting an isolated worker: it clones the repository and installs its environment before the agent starts. Small projects take seconds; large ones (pandas, numpy) can take 3 to 5 minutes. The log continues here.\n", log_size: 0, tests: "not_run",
     ...(opts.followupPr ? { followup_pr: opts.followupPr } : {}),
     ...(opts.hidden ? { hidden: true } : {}),
   };
@@ -205,7 +219,7 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
   const leaseKey = await reserveCapacity(path, run.expires_at);
   try {
     await writeRun(path, run);
-    await writeSummary(summaryPath, run);
+    await writeSummary(opts.auth0UserId, run);
     // A subscription run also needs Anthropic's sign-in token exchange; an
     // OpenRouter-key run needs OpenRouter.
     const baseEgress = opts.provider === "claude-subscription" ? SUBSCRIPTION_AGENT_EGRESS
@@ -256,7 +270,7 @@ export async function startCloudRun(repo: string, issue: number, opts: StartAgen
     await stopRunSandboxes(run.sandbox_name);
     const log = "Could not start the isolated worker. Please retry.\n";
     const failedRun = { ...run, status: "failed" as const, ended_at: new Date().toISOString(), log, log_size: Buffer.byteLength(log) };
-    await Promise.allSettled([writeRun(path, failedRun), writeSummary(summaryPath, failedRun)]);
+    await Promise.allSettled([writeRun(path, failedRun), writeSummary(opts.auth0UserId, failedRun)]);
     await updateJson<unknown>(leaseKey, { path, expires: 0 }, value => {
       const lease = cloudRunLease(value);
       return lease?.path === path ? { path, expires: 0 } : value;
@@ -310,51 +324,73 @@ export async function listCloudRuns(owner: string, limit = 50): Promise<CloudRun
   return runs.slice(0, cappedLimit);
 }
 
-/** Compact history for frequent dashboard polling. The first request for an
- * existing account backfills summaries from legacy full records once. */
+/** Compact history for frequent dashboard polling: one read of the owner's
+ * run index, plus a read of each run that is still in progress (its worker
+ * keeps its own summary current). Accounts without an index build it once
+ * from a Blob listing; after that, polling never lists. */
 export async function listCloudRunSummaries(owner: string, limit = 20): Promise<CloudRunSummary[]> {
   const cappedLimit = Math.max(1, Math.min(50, Math.trunc(limit)));
-  const [page, cancellationRecord] = await Promise.all([
-    list({ prefix: runSummaryPrefix(owner), limit: cappedLimit, abortSignal: AbortSignal.timeout(15_000) }),
+  const [index, cancellationRecord] = await Promise.all([
+    readJson<unknown>(runIndexPath(owner)),
     readJson<unknown>(runCancellationIndexPath(owner), 20_000),
   ]);
   const cancellations = new Map(
     normalizeCloudRunCancellations(cancellationRecord?.value).map((item) => [item.id, item.cancelled_at]),
   );
+  const current = (run: CloudRunSummary) => {
+    const cancelledAt = cancellations.get(run.id);
+    return cancelledAt ? cancelledCloudRunState(run, cancelledAt) : effectiveCloudRunState(run);
+  };
+  if (!index) {
+    const runs = await summariesFromListing(owner);
+    // Created only if absent: an index a concurrent writer made first wins.
+    await put(runIndexPath(owner), JSON.stringify({ version: 1, runs }), {
+      ...writeOptions, allowOverwrite: false, abortSignal: AbortSignal.timeout(15_000),
+    }).catch(() => {});
+    return runs.slice(0, cappedLimit).map(current);
+  }
+  const indexed = indexedRuns(index.value, owner).slice(0, cappedLimit);
+  // Unfinished by the index's account, whatever the clock says: a run that
+  // finished while nobody was looking must not read as timed out.
+  const unfinished = (run: CloudRunSummary) => run.status === "running" || run.pr_status === "pending";
+  const fresh = await Promise.all(indexed.map(async (run) => {
+    if (!unfinished(run)) return run;
+    const stored = await readJson<CloudRunSummary>(runSummaryPath(owner, run.id));
+    return stored && validCloudRunSummary(stored.value, owner, run.id) ? stored.value : run;
+  }));
+  const finished = fresh.filter((run, i) => run !== indexed[i] && !unfinished(run));
+  if (finished.length) await indexRuns(owner, finished).catch(() => {});
+  return fresh.map(current);
+}
+
+/** The newest summaries found by listing storage; used once per account to
+ * build its run index. Backfills summaries from legacy full records once. */
+async function summariesFromListing(owner: string): Promise<CloudRunSummary[]> {
+  const page = await list({ prefix: runSummaryPrefix(owner), limit: RUN_INDEX_SIZE, abortSignal: AbortSignal.timeout(15_000) });
   const summaries = (await Promise.all(page.blobs.map(async (blob) => {
     const id = /c_\d{13}_[a-f0-9]{12}/.exec(blob.pathname)?.[0];
     if (!id) return null;
     const stored = await readJson<CloudRunSummary>(blob.pathname);
-    if (!stored || !validCloudRunSummary(stored.value, owner, id)) return null;
-    const cancelledAt = cancellations.get(id);
-    return cancelledAt ? cancelledCloudRunState(stored.value, cancelledAt) : effectiveCloudRunState(stored.value);
+    return stored && validCloudRunSummary(stored.value, owner, id) ? stored.value : null;
   }))).filter((summary): summary is CloudRunSummary => summary !== null);
-  summaries.sort((a, b) => b.started_at.localeCompare(a.started_at));
 
   const marker = await readJson<{ version?: unknown }>(summariesReadyPath(owner));
-  if (marker?.value.version === 2) return summaries.slice(0, cappedLimit);
-
-  const legacy = await listCloudRuns(owner, cappedLimit);
-  const known = new Map(summaries.map((summary) => [summary.id, summary]));
-  // Version 2 also refreshes summaries written before derived activity and PR
-  // metadata existed. This is one bounded legacy read per account, not a cost
-  // paid on every Activity or Pull Requests refresh.
-  const stale = legacy.filter((run) => !known.get(run.id)?.stats);
-  const writes = await Promise.allSettled(stale.map((run) => writeSummary(runSummaryPath(owner, run.id), run)));
-  if (writes.every((result) => result.status === "fulfilled")) {
-    await put(summariesReadyPath(owner), JSON.stringify({ version: 2 }), {
-      ...writeOptions, allowOverwrite: true, abortSignal: AbortSignal.timeout(15_000),
-    }).catch(() => {});
+  if (marker?.value.version !== 2) {
+    const legacy = await listCloudRuns(owner, RUN_INDEX_SIZE);
+    const known = new Map(summaries.map((summary) => [summary.id, summary]));
+    // Version 2 also refreshes summaries written before derived activity and PR
+    // metadata existed. This is one bounded legacy read per account.
+    const stale = legacy.filter((run) => !known.get(run.id)?.stats);
+    const writes = await Promise.allSettled(stale.map((run) => writeSummary(owner, run)));
+    if (writes.every((result) => result.status === "fulfilled")) {
+      await put(summariesReadyPath(owner), JSON.stringify({ version: 2 }), {
+        ...writeOptions, allowOverwrite: true, abortSignal: AbortSignal.timeout(15_000),
+      }).catch(() => {});
+    }
+    stale.forEach((run) => known.set(run.id, cloudRunSummary(run)));
+    summaries.splice(0, summaries.length, ...known.values());
   }
-  const merged = new Map(summaries.map((summary) => [summary.id, summary]));
-  stale.forEach((run) => merged.set(run.id, cloudRunSummary(run)));
-  return [...merged.values()]
-    .map((run) => {
-      const cancelledAt = cancellations.get(run.id);
-      return cancelledAt ? cancelledCloudRunState(run, cancelledAt) : run;
-    })
-    .sort((a, b) => b.started_at.localeCompare(a.started_at))
-    .slice(0, cappedLimit);
+  return summaries.sort((a, b) => b.started_at.localeCompare(a.started_at)).slice(0, RUN_INDEX_SIZE);
 }
 
 /** A run's sign-in terminal is reachable only while the run is live and its
@@ -425,7 +461,7 @@ export async function cancelCloudRun(owner: string, id: string): Promise<boolean
     log: run.log + note, log_size: run.log_size + Buffer.byteLength(note) };
   await Promise.allSettled([
     writeRun(runPath(owner, id), cancelled),
-    writeSummary(runSummaryPath(owner, id), cancelled),
+    writeSummary(owner, cancelled),
   ]);
   if (!indexSaved) {
     await updateJson<unknown>(runCancellationIndexPath(owner), [], value =>

@@ -148,7 +148,7 @@ export function TriggerForm() {
             id="run-repository"
             value={repoUrl}
             onChange={(e) => setRepoUrl(e.target.value)}
-            placeholder="https://github.com/owner/repo or https://github.com/owner/repo/issues/123"
+            placeholder="https://github.com/owner/repo/issues/123"
             spellCheck={false}
             autoComplete="off"
             className="field bg-ink-2"

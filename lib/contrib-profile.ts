@@ -98,6 +98,8 @@ const DISCLOSE_PATTERNS = [
   new RegExp(String.raw`\b${AI}[- ]?(?:assistance|assisted|generated|tools?|usage|use)\b[^.\n]{0,80}?\b(?:must|should|need to)\s+be\s+(?:disclosed|mentioned|stated|declared|noted)`, "i"),
   new RegExp(String.raw`\b(?:if|when)\s+you\s+(?:used?|rel(?:y|ied) on)\s+(?:an?\s+)?${AI}[^.\n]{0,80}?\b(?:disclose|mention|state|declare|note|say)\b`, "i"),
   /\bAI assistance was used\b/i,
+  // pandas AGENTS.md: "The user is required to disclose your agent information (harness, model, reasoning level)".
+  /\b(?:disclose|disclosure)\b[^.\n]{0,40}?\bagent\b/i,
 ];
 
 // A project that says AI help is welcome (Pydantic: "We welcome the use of AI when
@@ -264,6 +266,40 @@ export function builtinSetup(repo: string): SetupPlan | null | undefined {
   return SETUP[key === "react/react" ? "facebook/react" : key];
 }
 
+/** The build requirements of a project with a compiled build backend (meson-python:
+ *  pandas, numpy, scipy, scikit-learn; scikit-build-core), plus ninja; null for any other
+ *  project. Their editable installs rebuild on import and need these tools again, but
+ *  pip's isolated build environment is deleted after install, so a plain
+ *  \`pip install -e .\` leaves a package that can't be imported. Only requirement strings
+ *  made of package-spec characters are kept: they go into a shell command. Exported for tests. */
+export function compiledBuildRequires(pyproject: string | null): string[] | null {
+  if (!pyproject) return null;
+  const start = pyproject.search(/^\[build-system\]\s*$/m);
+  if (start < 0) return null;
+  const rest = pyproject.slice(start + "[build-system]".length);
+  const section = rest.slice(0, rest.search(/^\[/m) < 0 ? undefined : rest.search(/^\[/m));
+  if (!/^\s*build-backend\s*=\s*["'](mesonpy|scikit_build_core\.build)["']/m.test(section)) return null;
+  const list = /^\s*requires\s*=\s*\[([\s\S]*?)\]/m.exec(section)?.[1] ?? "";
+  // Each string in its own kind of quote: a stray quote inside one can't split it.
+  const requires = [...list.replace(/#.*$/gm, "").matchAll(/"([^"]*)"|'([^']*)'/g)]
+    .map((m) => (m[1] ?? m[2]).split(";")[0].trim())
+    .filter((r) => /^[A-Za-z0-9][A-Za-z0-9_.\-\[\],<>=!~ ]*$/.test(r));
+  return [...requires, "ninja"];
+}
+
+/** The project's test dependency group (PEP 735 [dependency-groups]): the first of
+ *  test, tests, testing, dev that it defines, or null. pydantic keeps pytest plugins and
+ *  jsonschema in "dev"; without them the agent spends turns installing them. Exported for tests. */
+export function testDependencyGroup(pyproject: string | null): string | null {
+  if (!pyproject) return null;
+  const start = pyproject.search(/^\[dependency-groups\]\s*$/m);
+  if (start < 0) return null;
+  const rest = pyproject.slice(start + "[dependency-groups]".length);
+  const end = rest.search(/^\[/m);
+  const names = new Set([...(end < 0 ? rest : rest.slice(0, end)).matchAll(/^([A-Za-z0-9_.-]+)\s*=\s*\[/gm)].map((m) => m[1].toLowerCase()));
+  return ["test", "tests", "testing", "dev"].find((g) => names.has(g)) ?? null;
+}
+
 /** The environment recipe for a checkout: a built-in one, else detected from
  *  its lockfiles/manifests, else null (the agent sets up what it needs). */
 export function setupPlan(dir: string, repo: string): SetupPlan | null {
@@ -272,8 +308,22 @@ export function setupPlan(dir: string, repo: string): SetupPlan | null {
   const has = (f: string) => readDoc(dir, f) !== null || lockSize(dir, f) > 0;
   if (has("package.json") && has("yarn.lock")) return { commands: ["yarn install --frozen-lockfile --ignore-engines"], hashFiles: ["yarn.lock"], persistent: false, hint: "Node dependencies are installed (yarn). Run the repository's test script on the files you touch." };
   if (has("package.json") && has("package-lock.json")) return { commands: ["npm ci --no-audit --no-fund"], hashFiles: ["package-lock.json"], persistent: false, hint: "Node dependencies are installed (npm ci). Run the repository's test script on the files you touch." };
+  const pyproject = readDoc(dir, "pyproject.toml");
+  // pip installs dependency groups from 25.1 on; the venv's bundled pip may be older.
+  const group = testDependencyGroup(pyproject);
+  const withGroup = group ? ` --group ${group}` : "";
+  const pipUp = `${VENV}/bin/pip install -q -U pip`;
+  const compiled = compiledBuildRequires(pyproject);
+  if (compiled) {
+    const quoted = [...compiled, "pytest"].map((r) => `'${r}'`).join(" ");
+    return {
+      commands: [makeVenv(), pipUp, `${VENV}/bin/pip install ${quoted}`, `PATH=${VENV}/bin:$PATH ${VENV}/bin/pip install --no-build-isolation -e .${withGroup}`],
+      hashFiles: ["pyproject.toml", "meson.build"], persistent: true,
+      hint: `The project is installed editable in ${VENV}, built without isolation so its compiled parts rebuild on import (ninja and the build tools are in the venv). Run tests with \`PATH=${VENV}/bin:$PATH ${VENV}/bin/python -m pytest <path> -q\`.`,
+    };
+  }
   if (has("pyproject.toml") || has("setup.py")) {
-    return { commands: [makeVenv(), `${VENV}/bin/pip install -e . pytest`], hashFiles: ["pyproject.toml", "setup.py", "setup.cfg"], persistent: true, hint: `The project is installed editable in ${VENV}; run tests with \`${VENV}/bin/python -m pytest <path> -q\`.` };
+    return { commands: [makeVenv(), ...(group ? [pipUp] : []), `${VENV}/bin/pip install -e . pytest${withGroup}`], hashFiles: ["pyproject.toml", "setup.py", "setup.cfg"], persistent: true, hint: `The project is installed editable in ${VENV}; run tests with \`${VENV}/bin/python -m pytest <path> -q\`.` };
   }
   if (has("requirements.txt")) {
     return { commands: [makeVenv(), `${VENV}/bin/pip install -r requirements.txt pytest`], hashFiles: ["requirements.txt"], persistent: true, hint: `Requirements are installed in ${VENV}; run tests with \`${VENV}/bin/python -m pytest <path> -q\`.` };
@@ -373,9 +423,15 @@ export function detectProfile(dir: string, repoFull: string): ContribProfile {
 }
 
 /** Prompt section for the profile: built-in notes, the PR template and the
- *  repository's agent instructions, the latter two fenced as untrusted. */
-export function profilePromptNotes(p: ContribProfile): string {
+ *  repository's agent instructions, the latter two fenced as untrusted. `model` is
+ *  the model the run is started with, when the host knows it (API-key runs). */
+export function profilePromptNotes(p: ContribProfile, model?: string): string {
   const parts: string[] = [...p.notes.map((n) => `- ${n}`)];
+  // Templates often ask which AI tool and model wrote the change (pandas does). A guessed
+  // model in a disclosure is a false statement to the maintainers.
+  parts.push(model
+    ? `- If the PR template or this project's rules ask which AI tool or model produced the change, say exactly: opensrcer (Claude Code), model ${model}. Name no other model, version or effort setting.`
+    : "- If the PR template or this project's rules ask which AI tool or model produced the change, say: opensrcer (Claude Code). Do not name a model, version or effort setting: the host adds the exact one.");
   if (p.dco) parts.push("- This repository requires a DCO sign-off; the commit will be signed off for the user. Do not add a Signed-off-by line yourself.");
   if (p.aiPolicy.stance === "welcome") parts.push(`- This repository welcomes AI assistance on its own terms (${p.aiPolicy.source}): ${p.aiPolicy.excerpt ?? ""} The host adds a factual disclosure; the contributor must understand and explain the change.`);
   if (p.aiPolicy.stance === "disclose") parts.push(`- This repository requires disclosing AI assistance (${p.aiPolicy.source}). The host adds a factual disclosure; do not remove or contradict it.`);

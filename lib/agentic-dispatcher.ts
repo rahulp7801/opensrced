@@ -39,7 +39,7 @@ import { finalizeExec, prepareRepo, profileLogLine, setupExec, setupPromptNotes,
 import { aiBanReason, competingPrReason, discussFirstReason, issueTimeline, maintainerAiObjection, maintainerObjectionReason, openPrsFromTimeline, orgAiBanReason } from "./contrib-guard";
 import { finishRun } from "./run-finish";
 import { triageIssue } from "./triage";
-import { CLAUDE_FAST_MODEL } from "./models";
+import { CLAUDE_AGENT_MODEL, CLAUDE_FAST_MODEL } from "./models";
 import { agentLimits, execLimits } from "./limits";
 import { cloneEnv, detectProfile, profilePromptNotes, refuseIssue, type ContribProfile } from "./contrib-profile";
 import { testOutcome } from "./verify";
@@ -751,10 +751,12 @@ async function spawnDispatch(
   const useFastPath = fastPath && !guideMatters;
   if (fastPath && !useFastPath) out.write("[triage] fast path off: this repository has contribution rules the PR must follow\n");
   const issueNo = target.kind === "issue" ? target.issueNumber : 0;
+  // API-key runs start the CLI with --model CLAUDE_AGENT_MODEL (lib/agent-invocation.ts); a plan's default is unknown here.
+  const statedModel = (opts.provider ?? (opts.anthropicKey ? "anthropic-key" : "claude-subscription")) === "anthropic-key" ? CLAUDE_AGENT_MODEL : undefined;
   const basePrompt = exec && prepared.issueFormatted
-    ? buildExecPrompt(repoFull, issueNo, prepared.issueFormatted, `${setupPromptNotes(exec.setup)}\n${profilePromptNotes(exec.profile)}`, Math.floor(agentLimits("exec").timeoutMs / 60_000), exec.recipe?.recipe)
+    ? buildExecPrompt(repoFull, issueNo, prepared.issueFormatted, `${setupPromptNotes(exec.setup)}\n${profilePromptNotes(exec.profile, statedModel)}`, Math.floor(agentLimits("exec").timeoutMs / 60_000), exec.recipe?.recipe)
     : !useFastPath && fastPath && prepared.issueFormatted && profile
-      ? `${buildPrompt(repoFull, issueNo, prepared.issueFormatted)}\n\n## Notes for this repository\n\n${profilePromptNotes(profile)}`
+      ? `${buildPrompt(repoFull, issueNo, prepared.issueFormatted)}\n\n## Notes for this repository\n\n${profilePromptNotes(profile, statedModel)}`
       : prepared.prompt;
   const prompt = basePrompt + (opts.notes ? `\nUser guidance:\n${sanitizeForPrompt(opts.notes)}` : "");
 

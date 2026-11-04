@@ -14,7 +14,8 @@ export async function GET() {
   try {
     const s = await getStatsSummary(owner);
     return NextResponse.json(s);
-  } catch {
+  } catch (error) {
+    console.error("[activity] could not load activity", error);
     return NextResponse.json({ error: "Activity is temporarily unavailable." }, { status: 503 });
   }
 }

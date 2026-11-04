@@ -23,7 +23,8 @@ export async function GET() {
       // A lesson's hidden fix keeps its row but loses its PR title and has_diff.
       const dispatches = await visibleRuns(viewerId, await listCloudRunSummaries(viewerId, 20));
       return NextResponse.json({ dispatches });
-    } catch {
+    } catch (error) {
+      console.error("[runs] could not list runs", error);
       return NextResponse.json({ error: "Run history is temporarily unavailable. Please retry." }, { status: 503 });
     }
   }

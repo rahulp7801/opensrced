@@ -8,7 +8,7 @@ import { del, put } from "@vercel/blob";
 import { Sandbox } from "@vercel/sandbox";
 import { readJson, privateJsonOptions } from "./blob-store";
 import { reserveCloudSlot } from "./cloud-capacity";
-import { getCloudRun, listCloudRunSummaries } from "./cloud-runs";
+import { getCloudRun, indexRuns, listCloudRunSummaries } from "./cloud-runs";
 import { runPath, runPreviewPath, runPublishLockPath, runSummaryPath, cloudRunSummary, type CloudRun } from "./cloud-run-state";
 import { PUSH_EGRESS } from "./sandbox-egress";
 import { assertWorkerProtocol } from "./worker-protocol";
@@ -71,6 +71,7 @@ async function writeRecord(owner: string, run: CloudRun) {
     put(runPath(owner, run.id), JSON.stringify(run), options),
     put(runSummaryPath(owner, run.id), JSON.stringify(cloudRunSummary(run)), options),
   ]);
+  await indexRuns(owner, [cloudRunSummary(run)]);
 }
 
 export async function publishCloudRun(

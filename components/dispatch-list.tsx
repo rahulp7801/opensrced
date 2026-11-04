@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { StatusChip, StatusDot } from "./status-dot";
-import { IconExternal } from "./icons";
+import { StatusDot } from "./status-dot";
 import { pollJson } from "@/lib/poll-json";
 import { cn, formatRelative } from "@/lib/utils";
-import { extractFirstDiff, parseSplitHunks, type DiffRow } from "@/lib/diff-view";
+import { extractFirstDiff, parseSplitHunks, parseUnifiedRows, type DiffRow, type UnifiedKind, type UnifiedRow } from "@/lib/diff-view";
+import { copyText } from "@/lib/clipboard";
+import type { Regression } from "@/lib/verify";
 import { findGitHubPullUrl } from "@/lib/github-pull-url";
-import { PublishPanel } from "./publish-panel";
+import { PublishPanel, RerunButton, useRunPreview, type Preview } from "./publish-panel";
 import { ForkCiPanel } from "./fork-ci-panel";
 import { SignInTerminal } from "./sign-in-terminal";
 import { NextSteps } from "./next-steps";
@@ -54,6 +55,7 @@ export function DispatchList() {
   const [detailError, setDetailError] = useState<string | null>(null);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">("unsupported");
   const logRef = useRef<HTMLPreElement>(null);
+  const detailRef = useRef<HTMLElement>(null);
   // Dispatches we have already raised a desktop notification for.
   const notifiedRef = useRef(new Set<string>());
   // Dispatches we have observed in the `running` state during this session.
@@ -206,6 +208,9 @@ export function DispatchList() {
   const log = detail?.log ?? "";
   const prInfo = useMemo(() => extractPrInfo(detail?.pr_url), [detail?.pr_url]);
   const cost = useMemo(() => extractCost(log), [log]);
+  const { preview, error: previewError } = useRunPreview(detail && detail.status !== "running" && detail.has_preview ? detail.id : null);
+  // The frozen patch when there is one (what publishing would send), else the log's.
+  const diff = useMemo(() => preview?.diff || (log ? extractFirstDiff(log) : null), [preview, log]);
 
   // #10: Loading skeleton
   if (items === null) {
@@ -261,7 +266,7 @@ export function DispatchList() {
     <div className="grid grid-cols-12 gap-6">
       {pollError && <p role="status" className="col-span-12 text-[14px] text-alert">Could not refresh runs: {pollError} Retrying...</p>}
       {/* List */}
-      <aside className="col-span-12 md:col-span-5 lg:col-span-4">
+      <aside id="runs-list" className="col-span-12 scroll-mt-28 md:col-span-5 lg:col-span-4 max-md:order-2">
         <div>
           <div className="list-head mb-2 items-center">
             <div>
@@ -292,6 +297,12 @@ export function DispatchList() {
                     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                     e.preventDefault();
                     pick(d.id);
+                    // A row far down the list leaves the run's outcome above
+                    // the screen (or, on phones, above the list): bring it back.
+                    const detailEl = detailRef.current;
+                    if (detailEl && detailEl.getBoundingClientRect().top < parseFloat(getComputedStyle(detailEl).scrollMarginTop)) {
+                      detailEl.scrollIntoView({ block: "start" });
+                    }
                   }}
                   aria-current={selected === d.id ? "true" : undefined}
                   className="block py-4 focus-visible:outline-offset-[-3px]"
@@ -317,41 +328,7 @@ export function DispatchList() {
                     {/* #2: Duration display */}
                     {d.ended_at && <span>{formatDuration(d.started_at, d.ended_at)}</span>}
                     {d.status === "running" && <span className="text-paper">{formatDuration(d.started_at)}</span>}
-                    <span>
-                      {d.status === "succeeded" && d.pr_status === "tests_failed" ? (
-                        <span className="text-alert">tests failed</span>
-                      ) : d.status === "succeeded" && d.pr_status === "tests_passed" ? (
-                        <span className="text-ok">✓ verified</span>
-                      ) : d.status === "succeeded" && d.pr_status === "failed" ? (
-                        <span className="text-alert">PR failed</span>
-                      ) : d.status === "succeeded" && d.pr_status === "pending" ? (
-                        <span className="text-paper">opening PR</span>
-                      ) : d.status === "succeeded" && d.pr_status === "opened" ? (
-                        // "verified" is reserved for a suite that actually
-                        // ran and passed. An opened PR whose tests were
-                        // skipped or never run says so rather than implying
-                        // a green check it didn't earn.
-                        d.tests === "passed" ? (
-                          <span className="text-ok">✓ PR opened · verified</span>
-                        ) : (
-                          <span className="text-ok">
-                            PR opened{" "}
-                            <span
-                              className="text-paper-faint"
-                              title={
-                                d.tests === "skipped"
-                                  ? "No recognized test suite in this repo"
-                                  : "Tests were not run — see OPENSRCER_RUN_TESTS"
-                              }
-                            >
-                              · unverified
-                            </span>
-                          </span>
-                        )
-                      ) : (
-                        d.status
-                      )}
-                    </span>
+                    <span className={listStatus(d).className}>{listStatus(d).text}</span>
                   </div>
                 </a>
               </li>
@@ -360,121 +337,95 @@ export function DispatchList() {
         </div>
       </aside>
 
-      {/* Detail */}
-      <section className="col-span-12 md:col-span-7 lg:col-span-8">
+      {/* Detail: what happened, the change, the review, then the log. */}
+      <section ref={detailRef} className="col-span-12 scroll-mt-28 md:col-span-7 lg:col-span-8 max-md:order-1">
         {detail ? (
-          // The run is not a card: a header, then the review sheet, then the
-          // patch and the log as captioned figures below it.
           <div>
-            {/* Header */}
-            <div className="pb-5">
-              <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-                <div className="min-w-[12rem] flex-1">
-                  <p className="meta">
-                    {detail.repo_url ? (
-                      <a href={repoHref(detail.repo_url)} target="_blank" rel="noreferrer">{dispatchTarget(detail)}</a>
-                    ) : <span>{dispatchTarget(detail)}</span>}
-                    {detail.repo_url && detail.issue_number !== undefined && (
-                      <a href={`${repoHref(detail.repo_url)}/issues/${detail.issue_number}`} target="_blank" rel="noreferrer">
-                        issue #{detail.issue_number}<span aria-hidden>↗</span>
-                      </a>
-                    )}
-                  </p>
-                  <div className="display mt-2 text-[28px] leading-[1.05] text-paper sm:text-[32px]" style={{ fontWeight: 700 }}>
-                    {detail.issue_title ??
-                      (detail.issue_number !== undefined
-                        ? `Issue #${detail.issue_number}`
-                        : <span className="text-paper-muted">Dispatch {detail.id.slice(-8)}</span>)}
-                  </div>
-                  <p className="meta mt-2.5">
-                    <span>{formatAbsoluteOrRelative(detail.started_at)}</span>
-                    {detail.ended_at && <span>{formatDuration(detail.started_at, detail.ended_at)}</span>}
-                    {cost !== null && <span>${cost.toFixed(4)}</span>}
-                    {/* For support requests; also in the downloaded report. */}
-                    <span className="break-all">Run ID (for support): <span className="select-all">{detail.id}</span></span>
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                  <StatusChip tone={detail.status === "running" ? "signal" : detail.pr_status === "opened" ? "ok" : (detail.pr_status === "failed" || detail.pr_status === "tests_failed") ? "alert" : toneFor(detail.status)}>
-                    {detail.status === "running" ? "live" : detail.pr_status === "opened" ? "PR opened" : detail.pr_status === "tests_failed" ? "tests failed" : detail.pr_status === "awaiting_review" ? "waiting for your review" : detail.pr_status === "blocked" ? "blocked" : detail.status}
-                  </StatusChip>
-                  {detail.status === "running" && <CancelButton dispatchId={detail.id} />}
-                  <RetryButton dispatch={detail} />
-                  {detail.status !== "running" && <ExportButton dispatch={detail} />}
-                </div>
-              </div>
-            </div>
-
-            {/* Pipeline timeline */}
-            {detail.log && (
-              <div className="border-y border-border-soft py-3">
-                <PipelineTimeline log={detail.log} status={detail.status} prUrl={detail.pr_url} />
-              </div>
-            )}
+            <a href="#runs-list" className="text-link mb-4 inline-flex min-h-10 items-center text-[14px] md:hidden">All runs ({items.length}) ↓</a>
+            {/* Header: where, what, and the run's numbers. */}
+            <p className="meta">
+              {detail.repo_url ? (
+                <a href={repoHref(detail.repo_url)} target="_blank" rel="noreferrer">{dispatchTarget(detail)}</a>
+              ) : <span>{dispatchTarget(detail)}</span>}
+              {detail.repo_url && detail.issue_number !== undefined && (
+                <a href={`${repoHref(detail.repo_url)}/issues/${detail.issue_number}`} target="_blank" rel="noreferrer">
+                  issue #{detail.issue_number}<span aria-hidden>↗</span>
+                </a>
+              )}
+            </p>
+            <h2 className="display mt-2 text-[28px] leading-[1.08] text-paper sm:text-[32px]" style={{ fontWeight: 700 }}>
+              {detail.issue_title ??
+                (detail.issue_number !== undefined
+                  ? `Issue #${detail.issue_number}`
+                  : <span className="text-paper-muted">Run {detail.id.slice(-8)}</span>)}
+            </h2>
+            <p className="meta mt-2.5">
+              <span>{detail.dry_run ? "preview run" : "publishable run"}</span>
+              <span title={detail.started_at}>started {formatAbsoluteOrRelative(detail.started_at)}</span>
+              {detail.ended_at && <span>took {formatDuration(detail.started_at, detail.ended_at)}</span>}
+              {detail.status === "running" && <span>running for {formatDuration(detail.started_at)}</span>}
+              {cost !== null && <span>{formatCost(cost)}</span>}
+            </p>
 
             {detail.status === "running" && detail.sign_in?.status === "waiting" && (
               <SignInTerminal dispatchId={detail.id} />
             )}
 
-            {/* Failure banner (compact) */}
-            {(detail.pr_status === "failed" || detail.pr_status === "tests_failed") && (
-              <div className="callout mt-4 text-[15px] font-medium" data-tone="alert">
-                {detail.pr_status === "tests_failed" ? "Tests failed — PR not opened" : "Publishing failed"}
-                {detail.pr_failure_reason && <span className="ml-2 font-normal text-paper-dim">— {detail.pr_failure_reason.slice(0, 120)}</span>}
-              </div>
-            )}
-
-            {/* Publish gate: review the frozen preview, confirm, then publish. */}
-            {detail.status !== "running" && detail.has_preview && !prInfo && (
-              <PublishPanel
-                dispatchId={detail.id}
-                repo={detail.repo_url ?? undefined}
-                issue={detail.issue_number}
-                dryRun={detail.dry_run}
-                rerun={detail.dry_run && detail.repo_url && detail.issue_number ? { repoUrl: detail.repo_url, issue: detail.issue_number } : undefined}
-                // The run's poll has stopped by now, so show the new PR here directly.
-                onPublished={(url) => {
-                  setDetail((d) => (d && d.id === detail.id ? { ...d, pr_url: url, pr_status: "opened" } : d));
-                  // The Publish button just disappeared; keep keyboard and screen-reader focus on the result.
-                  setTimeout(() => document.getElementById("pr-opened")?.focus(), 0);
-                }}
-              />
-            )}
-
-            {/* PR banner */}
-            {(() => {
-              const info = prInfo;
-              if (!info) return null;
-              return (
-                <div className="callout mt-8 px-5 py-7 sm:px-8 sm:py-9" data-tone="ok">
-                  <div role="status" className="flex flex-wrap items-center gap-x-4 gap-y-4">
-                    {/* The success moment: a small hand-drawn spark beside the result. */}
-                    <span className="inline-flex items-center gap-3">
-                      <Doodle doodle={spark} draw="load" className="doodle-thin h-8 w-8 shrink-0" />
-                      <span id="pr-opened" tabIndex={-1} className="display text-[28px] leading-none text-ok outline-none sm:text-[34px]">Draft PR #{info.prNumber} opened</span>
-                    </span>
-                    <span className="flex flex-wrap items-center gap-2 sm:ml-auto">
-                      <Link href={`/prs/${info.repoFull}/${info.prNumber}`} className="btn-primary" data-size="sm">
-                        Follow it here
-                      </Link>
-                      <a href={info.url} target="_blank" rel="noreferrer" className="text-link text-[14px]">
-                        Open on GitHub
-                      </a>
-                    </span>
-                  </div>
-                  <div className="mt-6 border-t border-ok/20 pt-6"><NextSteps /></div>
+            {/* The outcome, its proof and the next action; a PR that opened replaces it. */}
+            {prInfo ? (
+              <div className="callout mt-6 px-5 py-7 sm:px-8 sm:py-9" data-tone="ok">
+                <div role="status" className="flex flex-wrap items-center gap-x-4 gap-y-4">
+                  {/* The success moment: a small hand-drawn spark beside the result. */}
+                  <span className="inline-flex items-center gap-3">
+                    <Doodle doodle={spark} draw="load" className="doodle-thin h-8 w-8 shrink-0" />
+                    <span id="pr-opened" tabIndex={-1} className="display text-[28px] leading-none text-ok outline-none sm:text-[34px]">Draft PR #{prInfo.prNumber} opened</span>
+                  </span>
+                  <span className="flex flex-wrap items-center gap-2 sm:ml-auto">
+                    <Link href={`/prs/${prInfo.repoFull}/${prInfo.prNumber}`} className="btn-primary" data-size="sm">
+                      Follow it here
+                    </Link>
+                    <a href={prInfo.url} target="_blank" rel="noreferrer" className="text-link text-[14px]">
+                      Open on GitHub
+                    </a>
+                  </span>
                 </div>
-              );
-            })()}
+                <div className="mt-6 border-t border-ok/20 pt-6"><NextSteps /></div>
+              </div>
+            ) : (
+              <RunOutcome run={detail} preview={preview} previewError={previewError} diff={diff} />
+            )}
 
             {/* The project's own CI on the published branch, in the user's fork (renders nothing when off). */}
             {prInfo && <ForkCiPanel dispatchId={detail.id} />}
 
-            {/* Diff preview */}
-            <DiffPreviewFromLog log={detail.log} prOpened={!!prInfo} prUrl={detail.pr_url} dryRun={detail.dry_run} />
+            <RunSteps log={detail.log} run={detail} preview={preview} hasPullRequest={Boolean(prInfo)} />
 
-            {/* Log */}
-            <LogViewer log={detail.log} isRunning={detail.status === "running"} logRef={logRef} onScroll={onLogScroll} />
+            {diff && <RunChange diff={diff} diagnosis={preview?.diagnosis ?? extractLogSection(detail.log, "Diagnosis|Analysis|Root cause|Problem")} />}
+
+            {/* The review sheet; publishing happens only here. */}
+            {detail.status !== "running" && preview && !prInfo && (
+              <div id="run-review" className="mt-12 scroll-mt-28">
+                <PublishPanel
+                  dispatchId={detail.id}
+                  preview={preview}
+                  repo={detail.repo_url ?? undefined}
+                  dryRun={detail.dry_run}
+                  // The run's poll has stopped by now, so show the new PR here directly.
+                  onPublished={(url) => {
+                    setDetail((d) => (d && d.id === detail.id ? { ...d, pr_url: url, pr_status: "opened" } : d));
+                    // The Publish button just disappeared; keep keyboard and screen-reader focus on the result.
+                    setTimeout(() => document.getElementById("pr-opened")?.focus(), 0);
+                  }}
+                />
+              </div>
+            )}
+
+            <LogViewer key={detail.id} log={detail.log} isRunning={detail.status === "running"} logRef={logRef} onScroll={onLogScroll} />
+
+            <p className="meta mt-6">
+              <span className="break-all">Run ID (for support): <span className="select-all">{detail.id}</span></span>
+              {detail.status !== "running" && <ExportButton dispatch={detail} />}
+            </p>
           </div>
         ) : selected && detailError ? (
           <div role="alert" className="callout p-10 text-center text-[14px]" data-tone="alert">
@@ -482,7 +433,7 @@ export function DispatchList() {
           </div>
         ) : (
           <div className="card p-10 text-center text-[14px] text-paper-muted">
-            Select a run to view its log.
+            Select a run to see what it did.
           </div>
         )}
       </section>
@@ -531,13 +482,8 @@ function RetryButton({ dispatch }: { dispatch: DispatchWithLog }) {
 
   return (
     <div className="flex items-center gap-2">
-      <button
-        onClick={retry}
-        disabled={pending}
-        className="btn-quiet"
-        data-size="sm"
-      >
-        {pending ? "retrying…" : "retry"}
+      <button onClick={retry} disabled={pending} className="btn-primary">
+        {pending ? "Starting…" : "Try again"}
       </button>
       {error && <span role="alert" className="text-[12.5px] text-alert">{error}</span>}
     </div>
@@ -575,13 +521,13 @@ function CancelButton({ dispatchId }: { dispatchId: string }) {
           data-size="sm"
           data-tone="alert"
         >
-          {pending ? "…" : "confirm kill"}
+          {pending ? "Stopping…" : "Yes, stop it"}
         </button>
         <button
           onClick={() => { setConfirming(false); setError(null); }}
           className="min-h-10 px-2 text-[13px] text-paper-muted hover:text-paper sm:min-h-8"
         >
-          cancel
+          Keep running
         </button>
         {error && <span role="alert" className="basis-full text-[12.5px] text-alert">{error}</span>}
       </span>
@@ -593,9 +539,9 @@ function CancelButton({ dispatchId }: { dispatchId: string }) {
       className="btn-quiet"
       data-size="sm"
       data-tone="alert"
-      title="Stop the opensrcer agent subprocess"
+      title="Stops the agent; nothing is posted"
     >
-      ■ stop
+      Stop this run
     </button>
   );
 }
@@ -633,12 +579,15 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
   const [search, setSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [rawMode, setRawMode] = useState(false);
+  // Open while the run is live (it is the only progress there is); a finished
+  // run's log is reference, folded under its result.
+  const [open, setOpen] = useState(isRunning);
   const searchRef = useRef<HTMLInputElement>(null);
   const clean = stripAnsi(log);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && e.key === "f" && logRef.current) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "f" && open && logRef.current) {
         e.preventDefault();
         setShowSearch(true);
         setTimeout(() => searchRef.current?.focus(), 50);
@@ -650,7 +599,7 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [showSearch, logRef]);
+  }, [showSearch, logRef, open]);
 
   const matchCount = search.length >= 2
     ? (clean.match(new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi")) ?? []).length
@@ -671,13 +620,14 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
   const tool = "inline-flex min-h-10 items-center gap-1.5 rounded-[8px] px-3 text-[13px] font-medium shadow-[inset_0_0_0_1px_var(--color-border)] transition sm:min-h-8";
   return (
     <>
-    <p className="fig mt-8">
-      <span className="fig-tag">fig. 2</span>
-      <span>agent log · {isRunning ? "streaming" : "complete"}</span>
-    </p>
-    <div className="card mt-2 overflow-hidden">
-      <div className="flex flex-wrap items-center gap-2 px-5 py-3 sm:px-6">
-        <span className="label-mono mr-auto">Agent log</span>
+    <details open={open} onToggle={(e) => setOpen(e.currentTarget.open)} className="group mt-12 border-t border-border-soft pt-4">
+    <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-baseline gap-x-3 gap-y-1 py-1">
+      <span aria-hidden className="font-mono text-paper-muted transition-transform group-open:rotate-90">›</span>
+      <span className="text-[19px] font-semibold tracking-[-0.01em] text-paper">Agent log</span>
+      <span className="text-[14px] text-paper-muted">{isRunning ? "live, as it happens" : "every step the agent took"}</span>
+    </summary>
+    <div className="card mt-3 overflow-hidden">
+      <div className="flex flex-wrap items-center justify-end gap-2 px-5 py-3 sm:px-6">
         {isRunning && !showSearch && (
           <span className="chip" data-tone="signal">streaming</span>
         )}
@@ -726,6 +676,7 @@ function LogViewer({ log, isRunning, logRef, onScroll }: { log: string; isRunnin
         {search.length >= 2 ? renderLog() : rawMode ? <AnsiLog text={log} /> : (clean || "(log empty — waiting for first write)")}
       </pre>
     </div>
+    </details>
     </>
   );
 }
@@ -784,7 +735,7 @@ function ExportButton({ dispatch }: { dispatch: DispatchWithLog }) {
   function download() {
     const repo = dispatchTarget(dispatch);
     const prInfo = extractPrInfo(dispatch.pr_url);
-    const diff = diffStats(dispatch.log);
+    const diff = diffStats(extractFirstDiff(dispatch.log));
     const costMatch = /total_cost_usd=([\d.]+)/.exec(dispatch.log);
     const cost = costMatch ? parseFloat(costMatch[1]) : null;
 
@@ -829,38 +780,181 @@ function ExportButton({ dispatch }: { dispatch: DispatchWithLog }) {
   );
 }
 
-function PipelineTimeline({ log, status, prUrl }: { log: string; status: string; prUrl?: string }) {
-  const hasPullRequest = Boolean(extractPrInfo(prUrl));
-  const phases = [
-    { label: "clone", done: log.includes("[agentic-dispatcher] repo:"), active: status === "running" && !/grep|read_file|find_definition/.test(log), failed: false },
-    { label: "explore", done: /find_definition|read_file|grep|list_files|repo_info/.test(log), active: status === "running" && /find_definition|read_file|grep/.test(log) && !/```diff/.test(log), failed: false },
-    { label: "patch", done: /```(?:diff|patch)/.test(log), active: status === "running" && /## Diagnosis/.test(log) && !/```diff/.test(log), failed: status !== "running" && !/```(?:diff|patch)/.test(log) && /exited at/.test(log) },
-    { label: "test", done: /\[crucible-tests\]/.test(log), active: /\[agentic-pr\] starting/.test(log) && !/\[crucible-tests\]/.test(log), failed: /\[crucible-tests\] status=(?:failed|error)/.test(log) },
-    { label: "PR", done: hasPullRequest, active: /\[agentic-pr\] starting/.test(log) && !hasPullRequest && !/skipped:/.test(log), failed: /\[agentic-pr\] skipped:/.test(log) },
-  ];
+// ── Outcome ─────────────────────────────────────────────────────────
+// The first thing under the title: what happened, the proof, and the one
+// next action. Everything below it (the change, the review, the log) is detail.
 
+/** What the regression check showed, in plain words. */
+const PROOF: Record<Regression, string> = {
+  reproduced: "The new test fails without the fix and passes with it, so it catches the bug.",
+  not_reproduced: "The tests also pass without the fix, so they don't show that the bug is gone.",
+  inconclusive: "With the fix taken out the tests could not run at all, so this check could not confirm that they catch the bug.",
+  no_test_change: "The fix adds or changes no test, so nothing here shows the bug is gone.",
+  skipped: "",
+};
+
+type Outcome = { tone: "ok" | "alert" | "signal" | "muted"; title: string; body: string };
+
+function outcomeOf(run: DispatchWithLog, preview: Preview | null, hasDiff: boolean): Outcome {
+  if (run.status === "running") {
+    return run.sign_in?.status === "waiting"
+      ? { tone: "signal", title: "Waiting for your Claude sign-in", body: "The run starts once you sign in below." }
+      : { tone: "signal", title: "Working on it", body: runningNote(run.log, hasDiff) };
+  }
+  if (run.status === "killed") return { tone: "alert", title: "Stopped", body: "This run was stopped before it finished. Nothing was posted." };
+  if (!preview) {
+    if (run.status === "failed" || run.pr_status === "failed" || run.pr_status === "tests_failed") {
+      return { tone: "alert", title: "This run didn't finish", body: run.pr_failure_reason ?? "It stopped before it had a fix to show. The log below shows where." };
+    }
+    if (!hasDiff) return { tone: "muted", title: "No fix this time", body: "The agent finished without changing any code. The log below says why." };
+    return run.has_preview
+      ? { tone: "muted", title: "Loading the review…", body: "" }
+      : { tone: "muted", title: "A change to read", body: "This run has no review sheet. Read the change below." };
+  }
+  if (run.pr_status === "failed" && !run.dry_run) {
+    return { tone: "alert", title: "Publishing failed", body: `${run.pr_failure_reason ?? "GitHub did not accept the pull request."} You can try again from the review below.` };
+  }
+  const v = preview.verification;
+  if (v?.status === "verified") {
+    return { tone: "ok", title: run.dry_run ? "A verified fix, ready to read" : "A verified fix, ready for your review", body: PROOF[v.regression] || `${sentence(v.reason)}.` };
+  }
+  // Failing tests are told by their reason; otherwise the regression check says it plainest.
+  const why = !preview.executed ? "No code was run to check it." : !v ? "No passing test run was observed."
+    : v.status === "failed" || !PROOF[v.regression] ? `${sentence(v.reason)}.` : PROOF[v.regression];
+  return { tone: "alert", title: "A fix that isn't verified", body: `${why.trim()} Read the change carefully before trusting it.` };
+}
+
+function sentence(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1).replace(/\.$/, "");
+}
+
+/** What a running run is doing now, from its log. */
+function runningNote(log: string, hasDiff: boolean): string {
+  if (/\[verify\]|\[crucible-tests\]/.test(log) || hasDiff) return "Checking the fix with the project's own tests.";
+  if (/\[agentic-dispatcher\] repo:/.test(log)) return "The agent is reading the code and writing a fix. This usually takes 2 to 5 minutes.";
+  if (/\[setup\] installing/.test(log)) return "Installing the project's environment. Large projects take 3 to 5 minutes.";
+  return "Starting an isolated worker and cloning the repository.";
+}
+
+function RunOutcome({ run, preview, previewError, diff }: { run: DispatchWithLog; preview: Preview | null; previewError: string | null; diff: string | null }) {
+  const outcome = outcomeOf(run, preview, Boolean(diff));
+  const stats = diff ? diffStats(diff) : null;
+  const notes = preview ? [...preview.blockers.map((b) => ({ text: `Blocked: ${b}`, alert: true })), ...preview.warnings.map((w) => ({ text: w, alert: false }))] : [];
   return (
-    // Wraps as whole steps on narrow screens; a step's mark and name never split.
-    // Phones drop the connector lines, which would otherwise start a wrapped row.
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-      {phases.map((p, i) => (
-        <div key={p.label} className="flex items-center gap-2">
-          {i > 0 && <div className={cn("w-5 h-px max-sm:hidden", p.done || p.active ? "bg-ok/50" : "bg-border")} />}
-          <span
-            className={cn(
-              "flex items-center gap-1 whitespace-nowrap font-mono text-[12.5px] leading-none",
-              p.failed ? "text-alert" :
-              p.done ? "text-ok" :
-              p.active ? "text-signal" :
-              "text-paper-muted",
-            )}
-          >
-            {p.failed ? "×" : p.done ? "✓" : p.active ? "●" : "○"} {p.label}
-          </span>
+    <section aria-labelledby={`outcome-${run.id}`} className="callout mt-6 px-5 py-5 sm:px-7 sm:py-6" data-tone={outcome.tone === "muted" ? undefined : outcome.tone}>
+      <h3 id={`outcome-${run.id}`} aria-live="polite" className="flex items-baseline gap-2.5 text-[20px] font-semibold leading-snug tracking-[-0.01em] text-paper">
+        <StatusDot tone={outcome.tone} className={cn("-translate-y-0.5", run.status === "running" && "animate-pulse-signal")} />
+        {outcome.title}
+      </h3>
+      {outcome.body && <p className="mt-1.5 max-w-[62ch] text-[15.5px] leading-[1.55] text-paper-dim">{outcome.body}</p>}
+      {stats && run.status !== "running" && (
+        <p className="meta mt-3">
+          <span>{stats.files.length} file{stats.files.length === 1 ? "" : "s"} changed</span>
+          <span className="text-ok">+{stats.additions}</span>
+          <span className="text-alert">−{stats.deletions}</span>
+        </p>
+      )}
+      {notes.length > 0 && (
+        <ul className="mt-3 space-y-1.5 text-[15px] leading-[1.5]">
+          {notes.map((n) => <li key={n.text} className={n.alert ? "font-medium text-alert" : "text-paper"}><span className="font-semibold">{n.alert ? "" : "Before you publish: "}</span>{n.text}</li>)}
+        </ul>
+      )}
+      {previewError && <p role="alert" className="mt-3 text-[15px] text-alert">{previewError}</p>}
+      <OutcomeActions run={run} preview={preview} hasDiff={Boolean(diff)} />
+    </section>
+  );
+}
+
+function OutcomeActions({ run, preview, hasDiff }: { run: DispatchWithLog; preview: Preview | null; hasDiff: boolean }) {
+  const read = hasDiff && <a href="#run-patch" className="text-link text-[14.5px]">Read the change ↓</a>;
+  if (run.status === "running") return <div className="mt-4 flex flex-wrap items-center gap-3"><CancelButton dispatchId={run.id} /></div>;
+  if (!preview) {
+    const retry = <RetryButton dispatch={run} />;
+    return <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3">{retry}{read}</div>;
+  }
+  if (run.dry_run) {
+    return (
+      <div className="mt-5 border-t border-border-soft pt-4">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+          {run.repo_url && run.issue_number !== undefined && <RerunButton repoUrl={run.repo_url} issue={run.issue_number} />}
+          {read}
         </div>
-      ))}
+        <p className="mt-2.5 max-w-[62ch] text-[14px] text-paper-muted">
+          A preview is never published. Running again starts a new run (with its own cost) that stops for your review before anything is posted.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-border-soft pt-4">
+      <a href="#run-review" className="btn-primary">{preview.publishable && preview.blockers.length === 0 ? "Review and publish ↓" : "Go to the review ↓"}</a>
+      {read}
+      <span className="text-[14px] text-paper-muted">Nothing is posted until you confirm it.</span>
     </div>
   );
+}
+
+// ── Steps ───────────────────────────────────────────────────────────
+type StepState = "done" | "active" | "failed" | "todo" | "skipped" | "waiting";
+
+const STEP_MARK: Record<StepState, { mark: string; className: string; word: string }> = {
+  done: { mark: "✓", className: "text-ok", word: "done" },
+  active: { mark: "●", className: "text-signal", word: "in progress" },
+  waiting: { mark: "●", className: "text-signal", word: "waiting for you" },
+  failed: { mark: "✕", className: "text-alert", word: "did not pass" },
+  todo: { mark: "○", className: "text-paper-muted", word: "not reached" },
+  skipped: { mark: "–", className: "text-paper-muted", word: "not in a preview" },
+};
+
+/** The run's steps, read from its log. Verification comes only from fields the
+ *  server records (the preview's verification, the run's tests): the log holds
+ *  model output, so a line in it claiming a pass proves nothing. */
+function RunSteps({ log, run, preview, hasPullRequest }: { log: string; run: DispatchWithLog; preview: Preview | null; hasPullRequest: boolean }) {
+  const running = run.status === "running";
+  const setUp = /\[setup\] status=ok|\[agentic-dispatcher\] repo:/.test(log);
+  const wrote = Boolean(preview?.diff) || Boolean(extractFirstDiff(log));
+  const read = wrote || /\[tool\] (?:grep|read_file|find_definition|list_files|repo_info)/.test(log);
+  const verify = preview?.verification?.status ?? (run.tests === "passed" ? "verified" : run.tests === "failed" ? "failed" : null);
+  const steps: Array<{ label: string; state: StepState }> = [
+    { label: "Set up", state: /\[setup\] status=failed/.test(log) ? "failed" : setUp ? "done" : running ? "active" : "todo" },
+    { label: "Read the code", state: read ? "done" : running && setUp ? "active" : "todo" },
+    { label: "Write a fix", state: wrote ? "done" : running && read ? "active" : !running && setUp ? "failed" : "todo" },
+    { label: "Check with tests", state: verify === "verified" ? "done" : verify ? "failed" : running && wrote ? "active" : "todo" },
+    { label: "Publish", state: hasPullRequest ? "done" : run.dry_run ? "skipped" : run.pr_status === "awaiting_review" ? "waiting" : "todo" },
+  ];
+  return (
+    <ol aria-label="Run steps" className="mt-5 flex flex-wrap gap-x-5 gap-y-2 border-y border-border-soft py-3 font-mono text-[12.5px] leading-none">
+      {steps.map((s) => {
+        const m = STEP_MARK[s.state];
+        return (
+          <li key={s.label} className={cn("flex items-center gap-1.5 whitespace-nowrap", m.className)}>
+            <span aria-hidden className={s.state === "active" ? "animate-pulse-signal" : undefined}>{m.mark}</span>
+            {s.label}
+            {s.state === "skipped" || s.state === "waiting" ? <span className="text-paper-muted">({m.word})</span> : <span className="sr-only">: {m.word}</span>}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function formatCost(usd: number): string {
+  return usd < 0.01 ? "under $0.01" : `$${usd.toFixed(2)}`;
+}
+
+/** The list's one-word status for a run. "verified" only when the suite ran and passed. */
+function listStatus(d: Dispatch): { text: string; className?: string } {
+  if (d.status === "running") return { text: "running", className: "text-paper" };
+  if (d.status === "killed") return { text: "stopped", className: "text-alert" };
+  if (d.pr_status === "opened") return { text: d.tests === "passed" ? "✓ PR opened · verified" : "PR opened", className: "text-ok" };
+  if (d.pr_status === "pending") return { text: "opening PR", className: "text-paper" };
+  if (d.pr_status === "tests_failed") return { text: "tests failed", className: "text-alert" };
+  if (d.status === "failed" || d.pr_status === "failed") return { text: "failed", className: "text-alert" };
+  if (d.pr_status === "awaiting_review") return { text: "ready for your review", className: "text-signal" };
+  if (d.pr_status === "blocked") return { text: "blocked", className: "text-alert" };
+  if (d.tests === "passed") return { text: "✓ verified", className: "text-ok" };
+  if (d.dry_run && d.has_preview) return { text: "preview ready", className: "text-paper" };
+  return { text: "finished" };
 }
 
 function toneFor(s: Dispatch["status"]): "ok" | "signal" | "alert" | "muted" {
@@ -912,9 +1006,8 @@ function stripAnsi(s: string) {
 
 type DiffStats = { files: string[]; additions: number; deletions: number; body: string };
 
-// The same extraction the worker applies (lib/diff-view.ts), plus counts.
-function diffStats(log: string): DiffStats | null {
-  const body = log ? extractFirstDiff(log) : null;
+/** Files and line counts of a unified diff. */
+function diffStats(body: string | null): DiffStats | null {
   if (!body) return null;
   const files = [...body.matchAll(/^\+\+\+ (?:b\/)?(\S+)/gm)].map((x) => x[1]).filter((f) => f !== "/dev/null");
   let adds = 0, dels = 0;
@@ -1027,210 +1120,111 @@ function extractLogSection(log: string, headingAlt: string): string | null {
   return re.exec(log)?.[1]?.trim() ?? null;
 }
 
-function DiffPreviewFromLog({ log, prOpened, prUrl, dryRun }: { log: string; prOpened: boolean; prUrl?: string; dryRun: boolean }) {
-  const [modalOpen, setModalOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const openerRef = useRef<HTMLButtonElement>(null);
-  const dialogRef = useRef<HTMLDivElement>(null);
+// ── The change ──────────────────────────────────────────────────────
+// The patch on the page, not behind a button: the diagnosis, then each file
+// as a unified diff (a split view does not fit a phone). Long patches fold.
 
-  // A real modal: focus moves in, Tab stays in, Escape closes, focus returns to the opener.
-  useEffect(() => {
-    if (!modalOpen) return;
-    const dialog = dialogRef.current;
-    dialog?.querySelector<HTMLElement>("button")?.focus();
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") { setModalOpen(false); return; }
-      if (event.key !== "Tab" || !dialog) return;
-      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>("a[href], button:not([disabled]), [tabindex=\"0\"]"));
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+type DiffFile = { name: string; add: number; del: number; rows: UnifiedRow[] };
+
+/** Group parseUnifiedRows (lib/diff-view.ts) into files, keeping only the
+ *  lines a reader needs: hunk headers and the lines themselves. */
+function diffFiles(body: string): DiffFile[] {
+  const files: DiffFile[] = [];
+  let current: DiffFile | null = null;
+  for (const row of parseUnifiedRows(body)) {
+    if (row.kind === "meta") {
+      // A file starts at `diff --git`, or at a `---` header with no `diff --git` before it.
+      if (row.text.startsWith("diff --git ") || (row.text.startsWith("--- ") && (!current || current.rows.length > 0))) {
+        current = { name: "", add: 0, del: 0, rows: [] };
+        files.push(current);
+      }
+      const name = /^diff --git a\/\S+ b\/(.+)$/.exec(row.text)?.[1] ?? /^\+\+\+ b\/(.+)$/.exec(row.text)?.[1] ?? (/^--- a\/(.+)$/.exec(row.text)?.[1]);
+      if (current && name && (!current.name || row.text.startsWith("+++ "))) current.name = name;
+      continue;
     }
-    window.addEventListener("keydown", onKeyDown);
-    const opener = openerRef.current;
-    return () => { window.removeEventListener("keydown", onKeyDown); opener?.focus(); };
-  }, [modalOpen]);
-
-  const diff = diffStats(log);
-  if (!diff) return null;
-
-  const diagnosis = extractLogSection(log, "Diagnosis|Analysis|Root cause|Problem");
-  const risk = extractLogSection(log, "Risk\\s*/\\s*Test|Risk / test|Risk and test|Testing|Test notes");
-  const prTitle = extractLogSection(log, "PR title|Suggested PR title|Title");
-  const prInfo = extractPrInfo(prUrl);
-
-  async function copyDiff() {
-    try {
-      await navigator.clipboard.writeText(diff!.body);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch { /* clipboard denied */ }
+    if (!current) {
+      current = { name: "patch", add: 0, del: 0, rows: [] };
+      files.push(current);
+    }
+    if (row.kind === "add") current.add++;
+    if (row.kind === "del") current.del++;
+    current.rows.push(row);
   }
-
-  return (
-    <>
-      {/* The patch, captioned as a figure; the bar opens the full review. */}
-      <p className="fig mt-10">
-        <span className="fig-tag">fig. 1</span>
-        <span>diff · {diff.files.join(", ") || "patch"}</span>
-      </p>
-      <div id="run-patch" className="card mt-2 scroll-mt-32 overflow-hidden">
-        <button
-          ref={openerRef}
-          onClick={() => setModalOpen(true)}
-          className="group w-full px-5 py-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-left hover:bg-ink-2 transition-colors sm:px-6"
-        >
-          <span className="text-[16px] text-paper font-semibold">Review patch</span>
-          <span className="text-[12.5px] text-paper-muted tabular-nums">
-            {diff.files.length} file{diff.files.length === 1 ? "" : "s"}
-          </span>
-          <span className="font-mono text-[12.5px] text-ok tabular-nums">+{diff.additions}</span>
-          <span className="font-mono text-[12.5px] text-alert tabular-nums">-{diff.deletions}</span>
-          <span className="row-cta ml-auto min-h-0 text-[14px]">
-            open review →
-          </span>
-        </button>
-      </div>
-
-      {/* Full-screen modal */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-paper/45 overflow-y-auto py-8 px-4">
-          <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Proposed patch" className="card w-full max-w-4xl overflow-hidden">
-            {/* Modal header */}
-            <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-border-soft sm:px-8">
-              <div>
-                <div className="display text-[24px] leading-tight text-paper">
-                  {prTitle?.split("\n")[0]?.replace(/^[#>*\-`\s]+/, "") || "Proposed patch"}
-                </div>
-                <div className="mt-1.5 flex items-center gap-3 text-[12.5px] text-paper-muted">
-                  <span>{diff.files.length} file{diff.files.length === 1 ? "" : "s"} changed</span>
-                  <span className="text-ok">+{diff.additions} additions</span>
-                  <span className="text-alert">-{diff.deletions} deletions</span>
-                </div>
-              </div>
-              <button
-                onClick={() => setModalOpen(false)}
-                className="grid size-10 shrink-0 place-items-center rounded-full text-[20px] text-paper-muted hover:bg-surface-2 hover:text-paper"
-                title="Close"
-                aria-label="Close patch"
-              >
-                ×
-              </button>
-            </div>
-
-            {/* Diagnosis + Risk summary */}
-            {(diagnosis || risk) && (
-              <div className="px-6 py-6 border-b border-border-soft space-y-6 sm:px-8">
-                {diagnosis && (
-                  <div>
-                    <div className="label-mono mb-2">What was found</div>
-                    <Markdown text={diagnosis} />
-                  </div>
-                )}
-                {risk && (
-                  <div>
-                    <div className="label-mono mb-2">Risk &amp; testing</div>
-                    <Markdown text={risk} />
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* File list */}
-            <div className="px-6 py-3 border-b border-border-soft bg-ink-2 flex items-center gap-2 text-[12.5px] text-paper-muted flex-wrap sm:px-8">
-              <span className="font-medium text-paper-dim">Files:</span>
-              {diff.files.map((f) => (
-                <code key={f} className="rounded-md bg-surface-2 px-1.5 py-0.5 font-mono text-[12px] text-paper-dim">{f}</code>
-              ))}
-            </div>
-
-            {/* Split diff */}
-            <SplitDiffView body={diff.body} />
-
-            {/* Actions */}
-            <div className="px-6 py-4 border-t border-border-soft flex items-center justify-between gap-4 flex-wrap sm:px-8">
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={copyDiff}
-                  className="btn-quiet"
-                  data-size="sm"
-                >
-                  {copied ? "Copied ✓" : "Copy diff"}
-                </button>
-                <CommitMsgButton
-                  title={prTitle?.split("\n")[0]?.replace(/^[#>*\-`\s]+/, "") ?? null}
-                  diagnosis={diagnosis}
-                  files={diff.files}
-                />
-                <button
-                  onClick={() => setModalOpen(false)}
-                  className="min-h-10 px-3 text-[13px] text-paper-muted hover:text-paper transition sm:min-h-9"
-                >
-                  Close
-                </button>
-              </div>
-              <div className="flex items-center gap-3">
-                {prInfo ? (
-                  <a
-                    href={prInfo.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn-primary"
-                    data-size="sm"
-                  >
-                    View PR #{prInfo.prNumber}
-                    <IconExternal />
-                  </a>
-                ) : prOpened ? null : (
-                  <span className="text-[12.5px] text-paper-muted">
-                    {dryRun ? "Preview only: no code will be pushed and no PR will open." : "Nothing is posted until you publish it from the run page."}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
+  return files;
 }
 
-function CommitMsgButton({
-  title,
-  diagnosis,
-  files,
-}: {
-  title: string | null;
-  diagnosis: string | null;
-  files: string[];
-}) {
-  const [copied, setCopied] = useState(false);
+const DIFF_ROW: Record<UnifiedKind, string> = {
+  add: "bg-ok/10 text-paper",
+  del: "bg-alert/10 text-paper",
+  hunk: "bg-info/5 text-info",
+  meta: "text-paper-faint",
+  context: "text-paper-dim",
+};
 
-  function generate() {
-    const subject = title || "fix: apply patch";
-    const body = diagnosis
-      ? `\n\n${diagnosis.split("\n").slice(0, 5).join("\n").trim()}`
-      : "";
-    const fileList = files.length > 0
-      ? `\n\nFiles: ${files.join(", ")}`
-      : "";
-    const msg = `${subject}${body}${fileList}`;
-    navigator.clipboard.writeText(msg).then(() => {
+/** Lines shown before the patch folds. */
+const FOLD_AT = 60;
+
+function RunChange({ diff, diagnosis }: { diff: string; diagnosis: string | null }) {
+  const files = useMemo(() => diffFiles(diff), [diff]);
+  const [expanded, setExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const lines = files.reduce((n, f) => n + f.rows.length, 0);
+  const folded = lines > FOLD_AT && !expanded;
+  async function copy() {
+    try {
+      await copyText(diff);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
-    }).catch(() => {});
+    } catch {
+      // Clipboard blocked: the diff is on the page to select by hand.
+    }
   }
-
   return (
-    <button
-      onClick={generate}
-      className="btn-quiet"
-      data-size="sm"
-    >
-      {copied ? "Copied ✓" : "Commit msg"}
-    </button>
+    <section id="run-patch" aria-labelledby="run-patch-title" className="mt-10 scroll-mt-28">
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <h3 id="run-patch-title" className="text-[19px] font-semibold tracking-[-0.01em] text-paper">The change</h3>
+        <p className="meta">
+          <span>{files.length} file{files.length === 1 ? "" : "s"}</span>
+          <span className="text-ok">+{files.reduce((n, f) => n + f.add, 0)}</span>
+          <span className="text-alert">−{files.reduce((n, f) => n + f.del, 0)}</span>
+        </p>
+        <button type="button" onClick={copy} className="text-link ml-auto min-h-10 text-[14px] sm:min-h-8">{copied ? "Copied" : "Copy diff"}</button>
+      </div>
+      {diagnosis && (
+        <div className="mt-3 max-w-[68ch]">
+          <p className="label-mono mb-1.5">What was wrong</p>
+          <Markdown text={diagnosis} />
+        </div>
+      )}
+      <div className="card mt-4 overflow-hidden">
+        <div className={cn("relative", folded && "max-h-[520px] overflow-hidden")}>
+          {files.map((f, fi) => (
+            <div key={`${f.name}-${fi}`} className={fi > 0 ? "border-t border-border-soft" : undefined}>
+              <div className="flex items-center gap-3 border-b border-border-soft bg-ink-2 px-4 py-2 font-mono text-[12.5px]">
+                <span className="min-w-0 truncate text-paper" title={f.name}>{f.name}</span>
+                <span className="ml-auto shrink-0 text-ok">+{f.add}</span>
+                <span className="shrink-0 text-alert">−{f.del}</span>
+              </div>
+              {/* The inner box is at least as wide as the pane, so each row's tint
+                  runs the full width even when a long line scrolls sideways. */}
+              <div tabIndex={0} role="region" aria-label={`Changes to ${f.name}`} className="overflow-x-auto py-1.5 font-mono text-[12px] leading-[1.65]">
+                <div className="w-max min-w-full">
+                  {f.rows.map((r, i) => (
+                    <div key={i} className={cn("whitespace-pre px-4", DIFF_ROW[r.kind])}>{r.text || " "}</div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+          {folded && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-24" style={{ background: "linear-gradient(to top, var(--color-surface), transparent)" }} />}
+        </div>
+        {lines > FOLD_AT && (
+          <button type="button" onClick={() => setExpanded((v) => !v)} aria-expanded={expanded} className="w-full border-t border-border-soft py-3 text-[14px] font-semibold text-paper transition-colors hover:bg-ink-2">
+            {expanded ? "Show less" : `Show the whole change (${lines} lines)`}
+          </button>
+        )}
+      </div>
+    </section>
   );
 }
 

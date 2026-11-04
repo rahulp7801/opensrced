@@ -51,7 +51,7 @@ const RESOLVED_LABELS = [
  *  React "Status: Unconfirmed"); labels arrive lowercased. "triaged", "needs tests" and
  *  "needs backport" mean the opposite or are about PRs, so they don't match. */
 const NOT_READY_LABELS: Array<[RegExp, string]> = [
-  [/\b(needs?[\s_-]*triage|triage[\s_-]*needed|untriaged|unconfirmed|needs[\s_-]*investigation)\b/, "Maintainers haven't confirmed this yet (it's waiting for triage). Pick it once they do."],
+  [/\b(needs?[\s_-]*triage|triage[\s_-]*needed|untriaged|unconfirmed|pending|needs[\s_-]*investigation)\b/, "Maintainers haven't confirmed this yet (it's waiting for triage). Pick it once they do."],
   [/\b(needs?[\s_-]*(more[\s_-]*)?info(rmation)?|info[\s_-]*needed|repro(duction)?[\s_-]*steps[\s_-]*needed|needs?[\s_-]*repro(duction)?|add a complete reproduction|simplify reproduction|not[\s_-]*reproducible|awaiting[\s_-]*author[\s_-]*response)\b/, "Waiting on more information from whoever reported it."],
   [/\b(needs?[\s_-]*(discussion|decision)|under[\s_-]*discussion|discussion)\b/, "Still being discussed: the fix isn't agreed yet."],
   [/\bblocked\b/, "Blocked on other work."],
@@ -62,6 +62,42 @@ const NOT_READY_LABELS: Array<[RegExp, string]> = [
 export function notReadyLabel(labels: string[]): string | null {
   for (const [re, reason] of NOT_READY_LABELS) if (labels.some((l) => re.test(l))) return reason;
   return null;
+}
+
+/** Fewest stars a repository needs before its issues are suggested to a
+ *  beginner. Below it, GitHub's "good first issue" feed is mostly personal,
+ *  class and template repositories, where a first PR teaches little. */
+export const SUGGESTED_MIN_STARS = 100;
+
+/** Star counts for owner/name repositories in one GraphQL query; archived
+ *  and missing repositories map to null. Issue search can't filter by stars. */
+export async function repoStars(repos: string[], token: string, signal?: AbortSignal): Promise<Map<string, number | null>> {
+  const list = [...new Set(repos)].slice(0, 60);
+  const variables: Record<string, string> = {};
+  const fields = list.map((full, i) => {
+    const [owner, name] = full.split("/");
+    variables[`o${i}`] = owner;
+    variables[`n${i}`] = name;
+    return `r${i}: repository(owner: $o${i}, name: $n${i}) { stargazerCount isArchived }`;
+  });
+  const query = `query(${list.map((_, i) => `$o${i}: String!, $n${i}: String!`).join(", ")}) { ${fields.join(" ")} }`;
+  // Not githubGraphql: one deleted repository errors its own alias, and the rest still count.
+  const result = await githubApi<{ data?: Record<string, { stargazerCount: number; isArchived: boolean } | null> }>("/graphql", token, { query, variables }, signal);
+  if (!result.data) throw new Error("GitHub did not return repository details.");
+  const data = result.data;
+  return new Map(list.map((full, i) => {
+    const repo = data[`r${i}`];
+    return [full, repo && !repo.isArchived ? repo.stargazerCount : null] as const;
+  }));
+}
+
+/** The issues from established repositories (at least `min` stars), with
+ *  their star counts filled in. Exported for tests. */
+export function fromEstablishedRepos<T extends { repo: string; stars: number }>(issues: T[], stars: Map<string, number | null>, min = SUGGESTED_MIN_STARS): T[] {
+  return issues.flatMap((issue) => {
+    const count = stars.get(issue.repo);
+    return typeof count === "number" && count >= min ? [{ ...issue, stars: count }] : [];
+  });
 }
 
 // If a hit is within ~40 chars of a negation, drop it. Prevents "not yet

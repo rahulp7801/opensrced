@@ -6,11 +6,15 @@ async function request(path) {
   return fetch(`${base}${path}`, { redirect: 'manual', signal: AbortSignal.timeout(10_000) });
 }
 
-for (const path of ['/', '/demo', '/login']) {
+for (const path of ['/', '/demo/stage', '/login']) {
   const response = await request(path);
   assert.equal(response.status, 200, `${path} should remain available`);
   assert.equal(response.headers.get('x-auth'), 'not-configured', `${path} should report missing auth`);
 }
+// /demo is the demo's old address: it forwards to the stage demo.
+const oldDemo = await request('/demo');
+assert.ok([307, 308].includes(oldDemo.status), `/demo should forward, got ${oldDemo.status}`);
+assert.equal(new URL(oldDemo.headers.get('location'), base).pathname, '/demo/stage');
 
 for (const path of ['/issues', '/dispatches', '/trigger', '/stats', '/graph', '/prs/acme/app/1']) {
   const response = await request(path);

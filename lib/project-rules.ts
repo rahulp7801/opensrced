@@ -54,7 +54,7 @@ export function projectRules(p: RulesPreview): RuleRow[] {
   const template = { id: "template", label: "PR template", term: "PR template" as const };
   if (!rules) rows.push({ ...template, status: "unknown", text: NOT_RECORDED });
   else if (!rules.pr_template) rows.push({ ...template, status: "none", text: "This project has no PR template" });
-  else if (!rules.template_headings) rows.push({ ...template, status: "check", text: "The agent was asked to fill in the project's PR template", detail: "The template has no headings to compare, so check the PR text against it yourself." });
+  else if (!rules.template_headings?.total) rows.push({ ...template, status: "check", text: "The agent was asked to fill in the project's PR template", detail: "The template has no headings to compare, so check the PR text against it yourself." });
   else if (rules.template_headings.kept === rules.template_headings.total) rows.push({ ...template, status: "done", text: "Followed the project's PR template", detail: `All ${rules.template_headings.total} of its headings are in the PR text.` });
   else rows.push({ ...template, status: "check", text: `The PR text has ${rules.template_headings.kept} of the template's ${rules.template_headings.total} headings`, detail: "Compare the PR text with the project's template before publishing." });
 

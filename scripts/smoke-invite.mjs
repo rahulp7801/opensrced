@@ -40,8 +40,10 @@ assert.match(home.text, /Pick an issue/, 'the teaser says how it works');
 for (const path of ['/nope', '/terms']) assert.equal((await request(path)).status, 404, path);
 assert.match(home.text, /Pull requests out\./);
 assert.doesNotMatch(home.text, /One place for the whole contribution/, 'the full landing page stays private');
-for (const path of ['/login', '/privacy', '/demo']) assert.equal((await request(path)).status, 200, path);
-assert.match(home.text, /href="\/demo"/, 'the teaser links to the product tour');
+for (const path of ['/login', '/privacy', '/demo/stage']) assert.equal((await request(path)).status, 200, path);
+// /demo is the demo's old address: it forwards to the stage demo.
+assert.ok(redirectsTo(await request('/demo'), '/demo/stage'), '/demo forwards to the stage demo');
+assert.match(home.text, /href="\/demo\/stage"/, 'the teaser links to the demo');
 for (const path of ['/discover', '/issues', '/dispatches', '/crucible', '/graph', '/prs/acme/app/1']) {
   const r = await request(path);
   assert.ok([302, 303, 307].includes(r.status) && new URL(r.location, base).pathname === '/login', `${path} must ask for sign-in, got ${r.status} ${r.location}`);
@@ -49,11 +51,11 @@ for (const path of ['/discover', '/issues', '/dispatches', '/crucible', '/graph'
 assert.equal((await request('/api/dispatches')).status, 401);
 assert.deepEqual(JSON.parse((await request('/api/access')).text), { inviteOnly: true, signedIn: false, invited: false });
 const sitemap = await request('/sitemap.xml');
-assert.match(sitemap.text, /\/demo</, 'the public product tour is in the sitemap');
+assert.match(sitemap.text, /\/demo\/stage</, 'the public demo is in the sitemap');
 
 // Signed in without an invite: told it is invite-only, and owns nothing.
 assert.deepEqual(JSON.parse((await request('/api/access', outsider)).text), { inviteOnly: true, signedIn: true, invited: false });
-assert.equal((await request('/demo', outsider)).status, 200, 'the product tour is public to everyone');
+assert.equal((await request('/demo/stage', outsider)).status, 200, 'the demo is public to everyone');
 for (const path of ['/discover', '/crucible', '/login']) {
   assert.ok(redirectsTo(await request(path, outsider), '/?access=invite-only'), `${path} must send an outsider to the preview page`);
 }

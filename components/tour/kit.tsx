@@ -110,7 +110,7 @@ export function Press({ at, children, className, label }: { at: number | null; c
     waiting && "cursor-pointer shadow-[0_0_0_2px_var(--color-surface),0_0_0_4px_var(--color-signal)] hover:brightness-95",
     className,
   );
-  const halo = (pressing || waiting) && <span aria-hidden className="pointer-events-none absolute inset-0 animate-ping rounded-[inherit] bg-signal/20 motion-reduce:animate-none" />;
+  const halo = (pressing || waiting) && <span aria-hidden className="pointer-events-none absolute inset-0 animate-ping rounded-[inherit] bg-signal/20 motion-reduce:hidden" />;
   return waiting && ix ? (
     <button ref={ref as Ref<HTMLButtonElement>} type="button" onClick={ix.press} aria-label={label} data-waiting="" className={cls}>{children}{halo}</button>
   ) : (

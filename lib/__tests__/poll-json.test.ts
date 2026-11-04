@@ -71,6 +71,29 @@ test("incremental log polling uses the completed response offset", async (t) => 
   assert.deepEqual(urls, ["/logs?since=0", "/logs?since=123"]);
 });
 
+test("a hidden tab stops polling until it is visible again", async (t) => {
+  const doc = Object.assign(new EventTarget(), { hidden: false });
+  (globalThis as { document?: unknown }).document = doc;
+  t.after(() => { delete (globalThis as { document?: unknown }).document; });
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async () => { calls++; return Response.json({}); });
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
+
+  const stop = pollJson("/runs", () => { doc.hidden = true; }, 1);
+  await settle();
+  assert.equal(calls, 1, "no polls while hidden");
+  doc.hidden = false;
+  doc.dispatchEvent(new Event("visibilitychange"));
+  await settle();
+  assert.ok(calls >= 2, "polling resumes when the tab is shown");
+  stop();
+  const after = calls;
+  doc.hidden = false;
+  doc.dispatchEvent(new Event("visibilitychange"));
+  await settle();
+  assert.equal(calls, after, "a stopped poll stays stopped");
+});
+
 test("polling stops when the receiver says so, and on 404; bad bodies get a readable error", async (t) => {
   let calls = 0;
   let reply: () => Response = () => Response.json({ done: true });

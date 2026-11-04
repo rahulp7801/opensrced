@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addCloudRunCancellation, cancelledCloudRunState, cloudRunSummary, dispatchStatsFromLog, effectiveCloudRunState, newCloudRunId, normalizeCloudRunCancellations, ownerPrefix, runCancellationIndexPath, runCancellationPath, runPath, runSummaryPath, runLogChunk, runIsActive, staleCloudRunIds, validCloudRun, validCloudRunSummary, type CloudRun } from "../cloud-run-state";
+import { addCloudRunCancellation, WORKER_PROGRESS_MS, workerUploads, indexedRuns, RUN_INDEX_SIZE, runIndexPath, withIndexedRuns, cancelledCloudRunState, cloudRunSummary, dispatchStatsFromLog, effectiveCloudRunState, newCloudRunId, normalizeCloudRunCancellations, ownerPrefix, runCancellationIndexPath, runCancellationPath, runPath, runSummaryPath, runLogChunk, runIsActive, staleCloudRunIds, validCloudRun, validCloudRunSummary, type CloudRun } from "../cloud-run-state";
 
 test("run storage paths are scoped to authenticated owners and reject traversal", () => {
   const id = newCloudRunId();
@@ -138,4 +138,55 @@ test("hosted run records are bound to their owner, id, sandbox, and bounded log 
     { stats: { cost_usd: null, has_diff: false, pr_title: "bad\nline" } },
     { expires_at: Number.NaN },
   ]) assert.equal(validCloudRun({ ...run, ...changed }, "alice", id), false);
+});
+
+test("the run index keeps only this owner's valid runs, newest first, without duplicates", () => {
+  const at = (ms: number) => `c_${String(1_790_000_000_000 + ms)}_${"a".repeat(12)}`;
+  const summary = (owner: string, id: string, overrides: Record<string, unknown> = {}) => ({
+    id, auth0_user_id: owner, repo_url: "https://github.com/acme/app", issue_number: 1, mode: "agentic", dry_run: true,
+    started_at: new Date(Number(id.slice(2, 15))).toISOString(), status: "succeeded", log_path: "",
+    sandbox_name: id.replaceAll("_", "-"), expires_at: Number(id.slice(2, 15)) + 60_000, ...overrides,
+  });
+  const mine = [at(1), at(3), at(2)].map((id) => summary("alice", id));
+  const value = { version: 1, runs: [...mine, summary("bob", at(4)), summary("alice", at(5), { status: "bogus" }), mine[0], null, "x"] };
+  assert.deepEqual(indexedRuns(value, "alice").map((run) => run.id), [at(3), at(2), at(1)]);
+  assert.deepEqual(indexedRuns(null, "alice"), []);
+  assert.deepEqual(indexedRuns({ runs: "nope" }, "alice"), []);
+  assert.notEqual(runIndexPath("alice"), runIndexPath("bob"));
+
+  // An update replaces the entry; there is no index to update before one exists.
+  const updated = withIndexedRuns(value, "alice", [summary("alice", at(2), { status: "failed" })] as never);
+  assert.equal(updated?.runs.find((run) => run.id === at(2))?.status, "failed");
+  assert.equal(updated?.runs.length, 3);
+  assert.equal(withIndexedRuns(null, "alice", mine as never), undefined);
+
+  const many = { runs: Array.from({ length: RUN_INDEX_SIZE + 5 }, (_, i) => summary("alice", at(10 + i))) };
+  assert.equal(indexedRuns(many, "alice").length, RUN_INDEX_SIZE);
+  assert.equal(indexedRuns(many, "alice")[0].id, at(10 + RUN_INDEX_SIZE + 4), "the newest are kept");
+});
+
+test("a worker uploads progress at most every few seconds, and status changes at once", () => {
+  const base = { id: "c_1790000000000_aaaaaaaaaaaa", status: "running", log: "a", log_size: 1, stats: { cost_usd: null, has_diff: false } } as unknown as CloudRun;
+  const none = { record: "", summary: "", recordAt: 0, summaryAt: 0 };
+  const first = workerUploads(base, base, none, 100_000);
+  assert.ok(first.record && first.summary, "the first record and summary go up");
+  const sent = { record: first.record!, summary: first.summary!, recordAt: 100_000, summaryAt: 100_000 };
+
+  assert.deepEqual(workerUploads(base, base, sent, 100_001), { record: null, summary: null }, "an unchanged record is not re-sent");
+  const more = { ...base, log: "ab", log_size: 2 };
+  assert.equal(workerUploads(more, base, sent, 100_000 + WORKER_PROGRESS_MS - 1).record, null, "progress waits");
+  const later = workerUploads(more, base, sent, 100_000 + WORKER_PROGRESS_MS);
+  assert.ok(later.record, "progress goes up once the interval passes");
+  assert.equal(later.summary, null, "the summary did not change");
+
+  const costed = { ...more, stats: { cost_usd: 0.1, has_diff: false } };
+  assert.equal(workerUploads(costed, base, sent, 100_000 + WORKER_PROGRESS_MS).summary, null, "cost stats alone wait");
+  assert.ok(workerUploads(costed, base, sent, 100_000 + 60_000).summary, "and refresh after a minute");
+
+  const finished = { ...more, status: "succeeded", stats: { cost_usd: 0.1, has_diff: true } } as CloudRun;
+  const done = workerUploads(finished, base, sent, 100_001);
+  assert.ok(done.record && done.summary, "a finished run goes up at once, summary included");
+
+  const signIn = { ...base, log: "ab", sign_in: { url: "https://claude.com/cai/oauth/authorize?x", status: "waiting" } } as unknown as CloudRun;
+  assert.ok(workerUploads(signIn, base, sent, 100_001).summary, "a sign-in link goes up at once");
 });

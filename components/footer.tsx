@@ -1,18 +1,13 @@
 import Link from "next/link";
 import { Wordmark } from "./brand/wordmark";
-
-// ponytail: each section's first page, copied from components/nav-config.tsx
-// (importing it here would pull its client-only icon library into this server
-// component). Update both if a section moves. Named by page, not by section,
-// so "Find"/"Fix"/"Ship"/"Explore" stay unique links (the smokes count them).
-const PRODUCT = [["Browse repos", "/discover"], ["New run", "/trigger"], ["Pull requests", "/prs"], ["Codebase map", "/graph"]] as const;
+import { FooterProduct } from "./footer-product";
 
 // The deployed commit, read at build (Vercel sets these); "local" elsewhere.
 const BUILD = (process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA || process.env.VERCEL_GIT_COMMIT_SHA || "local").slice(0, 7);
 
 /** A colophon, signed: what this is, where to go, who made it and with what.
  *  `inviteOnly`: during the private preview the source link is left out too. */
-export function SiteFooter({ inviteOnly = false }: { inviteOnly?: boolean }) {
+export function SiteFooter({ inviteOnly = false, localMode = false }: { inviteOnly?: boolean; localMode?: boolean }) {
   // Plain links with a 40px tap height, so they're easy to hit on a phone.
   const link = "inline-flex min-h-10 items-center text-[14px] text-paper-dim transition-colors hover:text-paper";
   const about: [string, string, boolean][] = [
@@ -31,11 +26,7 @@ export function SiteFooter({ inviteOnly = false }: { inviteOnly?: boolean }) {
           <div className="grid grid-cols-2 gap-x-14 gap-y-2">
             <nav aria-label="Product">
               <p className="font-mono text-[12px] text-paper-faint">Product</p>
-              <ul className="mt-2">
-                {PRODUCT.map(([label, href]) => (
-                  <li key={label}><Link className={link} href={href}>{label}</Link></li>
-                ))}
-              </ul>
+              <FooterProduct link={link} localMode={localMode} inviteOnly={inviteOnly} />
             </nav>
             <nav aria-label="About">
               <p className="font-mono text-[12px] text-paper-faint">About</p>

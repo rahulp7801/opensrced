@@ -87,9 +87,13 @@ jobs:
 
       # The Next build needs an AUTH0_SECRET present to import lib/api-keys.
       # A throwaway value is fine — nothing is decrypted at build time.
+      # The smokes below test the open product (OPENSRCER_ACCESS=open, honored off
+      # production only); the invite-only preview has its own job. The root layout
+      # is prerendered, so the mode is set for the build as well as the server.
       - name: Build
         run: npm run build
         env:
+          OPENSRCER_ACCESS: open
           AUTH0_SECRET: ci-build-only-not-a-real-secret
           APP_BASE_URL: http://localhost:3000
           AUTH0_DOMAIN: example.us.auth0.com
@@ -101,6 +105,7 @@ jobs:
 
       - name: Production HTTP, browser, and concurrency smoke tests
         env:
+          OPENSRCER_ACCESS: open
           AUTH0_SECRET: ci-build-only-not-a-real-secret
           APP_BASE_URL: http://localhost:3100
           AUTH0_DOMAIN: example.us.auth0.com
@@ -121,6 +126,7 @@ jobs:
           node scripts/smoke-review.mjs
           node scripts/smoke-lists.mjs
           node scripts/smoke-graph-ui.mjs
+          node scripts/smoke-run-page.mjs
 
       - name: Missing Auth0 configuration fails predictably
         run: |

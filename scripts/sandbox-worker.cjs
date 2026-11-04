@@ -4,7 +4,7 @@ const { setTimeout: delay } = require('node:timers/promises');
 const { startAgenticDispatch, startFindingDispatch, RunTargetError } = require('../.worker-build/lib/agentic-dispatcher');
 const store = require('../.worker-build/lib/dispatch-store');
 const { readLogTail } = require('../.worker-build/lib/dispatcher');
-const { cloudRunSummary, dispatchStatsFromLog, WORKER_TIMEOUT_MS } = require('../.worker-build/lib/cloud-run-state');
+const { dispatchStatsFromLog, workerUploads, WORKER_TIMEOUT_MS } = require('../.worker-build/lib/cloud-run-state');
 const { serveSignInTerminal, ptyCommand, HostedSignInError, SIGN_IN_TTY_PORT } = require('../.worker-build/lib/hosted-sign-in');
 const { claudeStatusFrom } = require('../.worker-build/lib/run-payment');
 const { childEnv } = require('../.worker-build/lib/child-env');
@@ -29,24 +29,22 @@ async function main() {
   delete process.env.OPENSRCER_UPLOAD_TOKEN;
   delete process.env.OPENSRCER_SUMMARY_UPLOAD_TOKEN;
   delete process.env.OPENSRCER_PREVIEW_UPLOAD_TOKEN;
-  let previous = '';
-  let previousSummary = '';
+  let uploaded = { record: '', summary: '', recordAt: 0, summaryAt: 0 };
   let lastRecord = run;
   async function publish(record) {
-    const body = JSON.stringify(record);
-    if (body === previous) return;
-    const summary = cloudRunSummary(record);
-    const summaryBody = JSON.stringify(summary);
+    // Every upload is a Blob write, the scarce kind of storage operation.
+    const due = workerUploads(record, lastRecord, uploaded, Date.now());
+    if (!due.record) return;
     for (let attempt = 0; ; attempt++) {
       try {
-        await put(path, body, { access: 'private', token: uploadToken, contentType: 'application/json',
+        await put(path, due.record, { access: 'private', token: uploadToken, contentType: 'application/json',
           abortSignal: AbortSignal.timeout(15000) });
-        if (summaryBody !== previousSummary) {
-          await put(summaryPath, summaryBody, { access: 'private', token: summaryUploadToken, contentType: 'application/json',
+        uploaded = { ...uploaded, record: due.record, recordAt: Date.now() };
+        if (due.summary) {
+          await put(summaryPath, due.summary, { access: 'private', token: summaryUploadToken, contentType: 'application/json',
             abortSignal: AbortSignal.timeout(15000) });
+          uploaded = { ...uploaded, summary: due.summary, summaryAt: Date.now() };
         }
-        previous = body;
-        previousSummary = summaryBody;
         lastRecord = record;
         return;
       } catch (error) {

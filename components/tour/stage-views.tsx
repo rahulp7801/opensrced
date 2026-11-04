@@ -95,12 +95,12 @@ function ScanView() {
               // Skipped issues arrive one by one after the switch to All, each with its reason.
               const at = r.reason ? skipAt(skipped++) : 0;
               return (
-                <Reveal key={r.number} at={at} className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-2.5", r.reason && "opacity-70")}>
+                <Reveal key={r.number} at={at} className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-2.5", r.reason && "bg-ink-2/60")}>
                   <div className="min-w-0">
                     <p className="font-mono text-[13px] text-paper-muted">{[`#${r.number}`, r.category, ...r.labels.filter((l) => l !== r.category), `opened ${r.opened}`].join(" · ")}</p>
                     <p className="mt-0.5 truncate text-[15px] font-medium text-paper">{r.title}</p>
                     {r.reason
-                      ? <p className="mt-0.5 font-mono text-[13px] text-paper-muted">needs review</p>
+                      ? <p className="mt-0.5 font-mono text-[13px] text-alert">skipped: needs review</p>
                       : <p className="mt-0.5 font-mono text-[13px] text-paper-muted">{[SCOPE_LABEL[r.scope!] ?? r.scope, `risk ${r.risk}`, `${r.complexity}/5`, `~${r.estimate}`].join(" · ")} · <span className="text-ok">ready</span></p>}
                   </div>
                   {r.reason ? (
@@ -230,7 +230,7 @@ function AskPanel({ turns, text = GRAPH_PANEL }: { turns: TimedTurn[]; text?: Pa
           <div key={turn.prompt} className="space-y-2">
             <Reveal at={turn.askAt + 150} className="ml-10 rounded-2xl rounded-tr-md bg-paper px-3 py-2 text-[14px] leading-[1.45] text-surface">{turn.prompt}</Reveal>
             {t < turn.answerAt ? (
-              <div className="flex w-fit items-center gap-1 rounded-2xl rounded-tl-md bg-surface-2 px-3 py-2.5" aria-label="Thinking">
+              <div className="flex w-fit items-center gap-1 rounded-2xl rounded-tl-md bg-surface-2 px-3 py-2.5" role="status" aria-label="Thinking">
                 {[0, 1, 2].map((i) => <span key={i} className="size-1.5 animate-bounce rounded-full bg-paper-muted motion-reduce:animate-none" style={{ animationDelay: `${i * 140}ms` }} />)}
               </div>
             ) : (
@@ -450,7 +450,7 @@ function RefusedView() {
           </div>
           <Reveal at={400} className="px-5 py-4 text-[15px]">
             <div className="flex items-center gap-3">
-              <span className={cn("rounded-[10px] border border-border px-3 py-1 font-medium text-paper transition-transform", t >= BAN_PRESS_AT && t < BAN_PRESS_AT + 250 && "scale-[0.96]", t >= BAN_REFUSED_AT && "opacity-40")}>Fix it (you review first)</span>
+              <span className={cn("rounded-[10px] border border-border px-3 py-1 font-medium text-paper transition-transform", t >= BAN_PRESS_AT && t < BAN_PRESS_AT + 250 && "scale-[0.96]", t >= BAN_REFUSED_AT && "border-dashed text-paper-muted line-through")}>Fix it (you review first)</span>
               {t >= BAN_PRESS_AT && t < BAN_REFUSED_AT && <span className="text-paper-muted">Reading the project&apos;s rules…</span>}
             </div>
             {t >= BAN_REFUSED_AT && <p role="alert" className="stage-settle mt-3 rounded-lg border border-alert/30 bg-alert/5 px-3 py-2.5 text-alert">{BAN_REFUSAL} {BAN_HINT}</p>}
@@ -753,7 +753,7 @@ function RulesView() {
         <ol className="border-t border-border-soft">
           <RulesStep {...RULES_FEED[0]} />
           <li data-spot="rules">
-            {RULES_FEED.filter((s) => s.rules).map((s) => <RulesStep key={s.text} {...s} />)}
+            <ol>{RULES_FEED.filter((s) => s.rules).map((s) => <RulesStep key={s.text} {...s} />)}</ol>
           </li>
           {RULES_FEED.slice(3).map((s) => <RulesStep key={s.text} {...s} />)}
         </ol>
@@ -764,7 +764,7 @@ function RulesView() {
 
 function RulesStep({ at, text, points }: { at: number; text: string; points?: string[] }) {
   return (
-    <Reveal at={at} className="flex items-start gap-3 border-b border-border-soft py-3 text-[17px] leading-snug text-paper">
+    <Reveal as="li" at={at} className="flex items-start gap-3 border-b border-border-soft py-3 text-[17px] leading-snug text-paper">
       <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-border-strong" />
       <span>
         {text}
@@ -947,7 +947,7 @@ function StageReviewView() {
                 I&apos;ve read this change and can explain it to reviewers.
               </Press>
               <span className="relative ml-auto">
-                <Press at={R.publishAt} label="Publish draft PR" className={cn("rounded-[10px] px-3 py-1 font-medium", t >= R.confirm ? "bg-paper text-ink" : "bg-paper/35 text-ink")}>
+                <Press at={R.publishAt} label="Publish draft PR" className={cn("rounded-[10px] px-3 py-1 font-medium", t >= R.confirm ? "bg-paper text-ink" : "border border-border text-paper-muted")}>
                   {t >= R.publishAt ? `Draft PR #${RUN.pr} opened` : "Publish draft PR"}
                 </Press>
               </span>
@@ -998,7 +998,7 @@ export const stageReview: Chapter = {
 export function StageTitle() {
   return (
     <div className="relative flex h-full flex-col justify-end bg-ink pb-10">
-      <Wordmark draw className="absolute left-0 top-6 text-[40px] text-paper" />
+      {/* The stage's top bar carries the wordmark (and the way home). */}
       <p className="absolute right-0 top-9 font-mono text-[14px] tracking-[0.02em] text-paper-faint">Demo · opensrced.vercel.app</p>
       <p className="text-[20px] text-paper-muted">Your first open-source contribution, guided.</p>
       <p className="display mt-4 text-[104px] leading-[0.98] tracking-[-0.025em] text-paper">

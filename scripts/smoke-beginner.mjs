@@ -84,7 +84,7 @@ const ruleVariants = {
     ['AI policy', 'Done', 'Asks contributors to disclose AI use: disclosure added'], ['Someone else\'s work', 'Done', 'No other open pull request targets this issue']] },
   'r-ban': { profile: { ...profile, aiPolicy: { stance: 'ban', source: 'AI_POLICY.md', excerpt: 'We do not accept AI-generated contributions.' } },
     blockers: ['this project does not accept AI-generated contributions (AI_POLICY.md: "We do not accept AI-generated contributions.")'], rows: [
-    ['AI policy', 'Blocked', 'Bans AI-generated contributions: publishing refused']] },
+    ['AI policy', 'Blocked', 'Bans AI-generated contributions: no code is written']] },
   'r-discuss': { rules: { ...rules, discuss_first: 'the issue is labeled "needs discussion", so maintainers have not settled on a fix yet' }, ask_first: true, rows: [
     ['Discuss first', 'Your action', 'Asks to discuss before a PR: a comment is drafted for you to post']] },
   'r-unverified': { executed: true, verification: { ...verification, status: 'unverified', reason: 'no test command was declared' }, rows: [
@@ -178,7 +178,7 @@ try {
 
     // 2. A preview is not a dead end: it says why it can't publish and offers the way forward.
     await page.goto(base + '/dispatches?dispatch=b-dry');
-    await page.getByText(/so it can't be published/).waitFor();
+    await page.getByText(/A preview is never published/).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Publish draft PR' }).count(), 0);
     await assertUsableControls(page, `${width} preview run`);
     await assertAccessible(page, `${width} preview run`);
@@ -410,6 +410,8 @@ try {
     assert.equal(await page.getByText('deep', { exact: true }).count(), 0, 'no unexplained deep chip');
     assert.equal(await page.locator('a[href="/dispatches?dispatch=b-dry"]').innerText().then(text => text.includes('b-dry')), false, 'no bare run ids on rows');
     await page.getByText('Run ID (for support):', { exact: false }).waitFor();
+    // A finished run's log is folded under its result; open it to reach its tools.
+    await page.getByText('Agent log', { exact: true }).click();
     const runLog = page.getByLabel('Run log', { exact: true });
     for (const name of ['Download report', 'Show terminal colors', 'Search log']) {
       const tool = page.getByRole('button', { name, exact: true });
@@ -417,9 +419,8 @@ try {
       const [toolBox, logBox] = [await tool.boundingBox(), await runLog.boundingBox()];
       assert.ok(toolBox.y + toolBox.height <= logBox.y + 1 || toolBox.y >= logBox.y + logBox.height, `${width}: ${name} does not cover the log`);
     }
-    const steps = await page.evaluate(() => [...document.querySelectorAll('span')]
-      .filter(el => /^[✓○●×] (clone|explore|patch|test|PR)$/.test(el.textContent.trim()))
-      .map(el => Math.round(el.getBoundingClientRect().height)));
+    const steps = await page.getByRole('list', { name: 'Run steps' }).getByRole('listitem')
+      .evaluateAll(items => items.map(el => Math.round(el.getBoundingClientRect().height)));
     assert.equal(steps.length, 5);
     assert.ok(steps.every(height => height < 30), `${width}: each run step stays on one line (${steps})`);
     await thumbSized(page.getByRole('button', { name: 'copy comment', exact: true }), 'copy comment');

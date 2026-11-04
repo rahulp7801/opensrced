@@ -13,19 +13,16 @@ import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { parseSplitHunks } from "@/lib/diff-view";
 import { previewChangeContext } from "@/lib/explain";
 import { diffFiles, hunkVerdicts } from "@/lib/lesson/reveal";
-import type { RulesPreview } from "@/lib/project-rules";
 import type { StepGrade } from "@/lib/lesson/store";
 import { cn } from "@/lib/utils";
 import { SplitDiffView } from "../dispatch-list";
 import { ForkCiPanel } from "../fork-ci-panel";
 import { OwnWords, type OwnWordsResult } from "../own-words";
-import { PublishPanel } from "../publish-panel";
+import { PublishPanel, type Preview } from "../publish-panel";
 import { DocsFirstCard, PrefsCard } from "./rapport-cards";
 import { StepCard } from "./step-card";
 import { TeacherChat } from "./teacher-chat";
 import { fetchLesson, type LessonResponse, type PublicLesson } from "./types";
-
-type Preview = RulesPreview & { title: string; body: string; files: string[]; diff?: string; diagnosis?: string };
 
 export const DIFFER_PROMPT = "Would my approach also work? What would it miss?";
 const PLAN_STEPS = ["s4", "s7", "s8"] as const;
@@ -184,7 +181,7 @@ export function RevealView({ lessonId, forkCi }: { lessonId: string; forkCi: boo
       {lesson.path === "A" && explainDone && preview && (
         <section aria-label="Publish" className="mt-10">
           <div className="mb-6 max-w-3xl"><PrefsCard lessonId={lessonId} repo={lesson.repo_url.replace("https://github.com/", "")} /></div>
-          <PublishPanel dispatchId={lesson.run_id} repo={lesson.repo_url} issue={lesson.issue_number} authorWords={words} onPublished={setPublished} />
+          <PublishPanel dispatchId={lesson.run_id} preview={preview} repo={lesson.repo_url} authorWords={words} onPublished={setPublished} />
           {published && forkCi && <ForkCiPanel dispatchId={lesson.run_id} />}
         </section>
       )}

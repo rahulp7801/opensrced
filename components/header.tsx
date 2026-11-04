@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useCanUseApp } from "@/lib/use-current-user";
 import { Nav } from "./nav";
 import { AuthChip } from "./auth-chip";
@@ -15,6 +16,7 @@ export function SiteHeader({ localMode = false, inviteOnly = false }: { localMod
   // the invite-only preview a signed-in account without an invite gets none.
   const { canUse } = useCanUseApp(localMode, inviteOnly);
   const signedIn = canUse;
+  const pathname = usePathname();
   const [helpOpen, setHelpOpen] = useState(false);
   const helpButtonRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -77,9 +79,10 @@ export function SiteHeader({ localMode = false, inviteOnly = false }: { localMod
           ) : (
             <nav aria-label="Main navigation" className="ml-auto flex items-center">
               <Link href="/demo/stage" className="text-link text-[14px]">Demo</Link>
-              <Link href="/join" className="ml-3 inline-flex min-h-9 items-center rounded-full bg-signal px-3.5 text-[14px] font-medium text-white transition-opacity hover:opacity-90 sm:ml-5">
+              {/* Not on the waitlist page itself: it would link to where you are. */}
+              {pathname !== "/join" && <Link href="/join" className="ml-3 inline-flex min-h-9 items-center rounded-full bg-signal px-3.5 text-[14px] font-medium text-white transition-opacity hover:opacity-90 sm:ml-5">
                 <span className="sm:hidden">Join</span><span className="hidden sm:inline">Join the waitlist</span>
-              </Link>
+              </Link>}
             </nav>
           )}
 

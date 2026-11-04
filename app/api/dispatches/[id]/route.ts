@@ -33,7 +33,8 @@ export async function GET(
       // A lesson's hidden fix: the log carries the diff and PR text (§7.2).
       if (await hiddenRunLocked(viewerId, run)) return NextResponse.json({ error: HIDDEN_RUN_MESSAGE }, { status: 403 });
       return NextResponse.json(runLogChunk(run, Number(req.nextUrl.searchParams.get("since") ?? 0)));
-    } catch {
+    } catch (error) {
+      console.error("[runs] could not read a run", error);
       return NextResponse.json({ error: "This run is temporarily unavailable. Please retry." }, { status: 503 });
     }
   }

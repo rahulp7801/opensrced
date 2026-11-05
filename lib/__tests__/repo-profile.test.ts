@@ -161,6 +161,22 @@ test("fetching asks once per slice and names the repository as GitHub does", asy
   assert.ok(fake.calls.every((c) => c.n === 34));
 });
 
+test("a moved repository is searched under its new name (search doesn't follow the move)", async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const moved = {
+    async graphql(_query: string, variables: Record<string, unknown>) {
+      calls.push(variables);
+      const current = variables.owner === "facebook";
+      return { repository: { nameWithOwner: "react/react" }, search: { nodes: current ? [] : [pr()], pageInfo: { hasNextPage: false, endCursor: null } } };
+    },
+  } as unknown as GitHubClient;
+  const p = await fetchRepoProfile(moved, "facebook/react", new Date("2026-11-05T12:00:00Z"));
+  assert.equal(p.repo, "react/react");
+  assert.equal(p.window.prs, COHORT_SLICES, "every slice read under the new name");
+  assert.equal(calls.length, COHORT_SLICES + 1);
+  assert.ok(calls.slice(1).every((c) => String(c.q).startsWith("repo:react/react ")));
+});
+
 test("a missing repository and a GitHub failure are named errors", async () => {
   await assert.rejects(fetchRepoProfile(client(null).client, "acme/gone"), RepoNotFoundError);
   await assert.rejects(fetchRepoProfile(client(new Error("rate limited")).client, "acme/app"), RepoProfileFetchError);

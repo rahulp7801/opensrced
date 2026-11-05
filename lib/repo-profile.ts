@@ -386,15 +386,25 @@ export async function fetchRepoProfile(client: GitHubClient, repo: string, now =
   const [owner, name] = splitRepo(repo);
   const perSlice = Math.ceil(PROFILE_SAMPLE / COHORT_SLICES);
   const prs: ProfilePr[] = [];
+  // Search doesn't follow a moved repository (facebook/react is react/react
+  // now), so the first slice runs under the name given, and if GitHub knows
+  // the repository by another name, the slices are read under that one.
   let canonical = `${owner}/${name}`;
-  for (const q of cohortQueries(owner, name, now)) {
+  for (let slice = 0; slice < COHORT_SLICES; slice++) {
+    const [o, n] = canonical.split("/");
     let data: Data;
     try {
-      data = await client.graphql<Data>(QUERY, { owner, name, q, n: perSlice, cursor: null });
+      data = await client.graphql<Data>(QUERY, { owner: o, name: n, q: cohortQueries(o, n, now)[slice], n: perSlice, cursor: null });
     } catch (error) {
       throw new RepoProfileFetchError(repo, error);
     }
     if (!data?.repository) throw new RepoNotFoundError(repo);
+    if (data.repository.nameWithOwner.toLowerCase() !== canonical.toLowerCase()) {
+      if (canonical.toLowerCase() !== `${owner}/${name}`.toLowerCase()) throw new RepoProfileFetchError(repo); // moved twice: stop
+      canonical = data.repository.nameWithOwner;
+      slice--; // read this slice again under the current name
+      continue;
+    }
     canonical = data.repository.nameWithOwner;
     // Search hits that are not PRs come back as empty objects.
     prs.push(...data.search.nodes.filter((node) => typeof node?.number === "number"));

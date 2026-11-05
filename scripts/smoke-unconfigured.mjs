@@ -45,9 +45,9 @@ for (const path of ['/api/activity', '/auth/callback', '/api/dispatches/x.js', '
 }
 
 // "Continue with GitHub" lands on the sign-in page, which says sign-in is being set up.
-const login = await request('/auth/login?returnTo=%2Fissues');
-assert.equal(login.status, 307);
-const loginTo = new URL(login.headers.get('location'), base);
+const signIn = await request('/auth/login?returnTo=%2Fissues');
+assert.equal(signIn.status, 307);
+const loginTo = new URL(signIn.headers.get('location'), base);
 assert.equal(loginTo.pathname, '/login');
 assert.equal(loginTo.searchParams.get('returnTo'), '/issues');
 

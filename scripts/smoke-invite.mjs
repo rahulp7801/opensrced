@@ -74,4 +74,20 @@ assert.equal((await request('/api/dispatches', invited)).status, 200);
 assert.equal((await request('/api/settings/keys', invited)).status, 200);
 assert.ok(redirectsTo(await request('/login', invited), '/discover'), 'an invited account goes straight to the app');
 
-console.log(JSON.stringify({ anonymous: 'teaser only', outsider: 'redirected and refused', invited: 'full app' }));
+// The harness: personal tokens, never a way around the invite.
+const bearer = (token) => ({ headers: { authorization: `Bearer ${token}` } });
+const malformed = await request('/api/harness/profile?repo=acme/app', '', bearer('not-a-token'));
+assert.equal(malformed.status, 401, 'a malformed token stops at the session gate');
+const unknownToken = await request('/api/harness/events', '', { method: 'POST', body: '{}', ...bearer(`osh_${'a'.repeat(32)}`) });
+assert.equal(unknownToken.status, 401, 'an unknown token is refused by the route');
+assert.match(unknownToken.text, /not valid/);
+assert.equal((await request('/api/me/tokens', outsider, { method: 'POST', body: JSON.stringify({ name: 'x' }) })).status, 403, 'an outsider cannot create tokens');
+const made = await request('/api/me/tokens', invited, { method: 'POST', body: JSON.stringify({ name: 'smoke' }) });
+assert.equal(made.status, 201);
+const { token, id } = JSON.parse(made.text);
+const event = await request('/api/harness/events', '', { method: 'POST', body: JSON.stringify({ type: 'pr_opened', repo: 'acme/app' }), ...bearer(token) });
+assert.equal(event.status, 204, 'an invited account\'s token records events');
+assert.equal((await request(`/api/me/tokens/${id}`, invited, { method: 'DELETE' })).status, 204);
+assert.equal((await request('/api/harness/events', '', { method: 'POST', body: JSON.stringify({ type: 'pr_opened', repo: 'acme/app' }), ...bearer(token) })).status, 401, 'a revoked token stops at once');
+
+console.log(JSON.stringify({ anonymous: 'teaser only', outsider: 'redirected and refused', invited: 'full app', harness: 'token-gated' }));

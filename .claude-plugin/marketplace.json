@@ -1,0 +1,12 @@
+{
+  "name": "opensrced",
+  "owner": { "name": "rahulp7801", "url": "https://github.com/rahulp7801" },
+  "description": "opensrcer: a contribution harness for open source.",
+  "plugins": [
+    {
+      "name": "opensrcer",
+      "source": "./harness",
+      "description": "A contribution harness for open source: each project's unwritten rules in your agent's context, and your contributions counted on opensrcer."
+    }
+  ]
+}

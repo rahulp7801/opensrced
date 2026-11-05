@@ -60,7 +60,8 @@ export function HarnessTokens() {
     <div className="space-y-6">
       <div>
         <p className="text-paper-dim">Install the plugin in Claude Code:</p>
-        <pre className="card mt-2 overflow-x-auto px-4 py-3 font-mono text-[13px] text-paper">{INSTALL.join("\n")}</pre>
+        {/* Scrolls sideways on phones, so it takes keyboard focus. */}
+        <pre tabIndex={0} role="region" aria-label="Plugin install commands" className="card mt-2 overflow-x-auto px-4 py-3 font-mono text-[13px] text-paper">{INSTALL.join("\n")}</pre>
         <p className="mt-2 text-[14px] text-paper-muted">Then create a token below and give it to the plugin as <code className="font-mono">OPENSRCER_TOKEN</code>.</p>
       </div>
 

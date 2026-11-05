@@ -6,7 +6,7 @@
 import { canUse } from "@/lib/access-server";
 import { getDb } from "@/lib/db/client";
 import { gh } from "@/lib/gh";
-import { HarnessAuthError, harnessUser } from "@/lib/harness";
+import { HarnessAuthError, harnessUser, recordEvent } from "@/lib/harness";
 import { profileFindings, repoProfile, RepoNotFoundError, storedProfile } from "@/lib/repo-profile";
 import { splitRepo } from "@/lib/ai-policy";
 
@@ -15,8 +15,9 @@ export const maxDuration = 60;
 
 export async function GET(req: Request) {
   const db = await getDb();
+  let userId: string;
   try {
-    await harnessUser(db, req.headers.get("authorization"), canUse);
+    userId = await harnessUser(db, req.headers.get("authorization"), canUse);
   } catch (error) {
     if (error instanceof HarnessAuthError) return Response.json({ error: error.message }, { status: error.status });
     throw error;
@@ -29,6 +30,8 @@ export async function GET(req: Request) {
   try {
     const profile = token ? await repoProfile(db, gh(token), `${owner}/${name}`) : await storedProfile(db, owner, name);
     if (!profile) return Response.json({ error: "No profile has been built for this repository yet. Open it on opensrcer once." }, { status: 404 });
+    // Counted for the user's stats; a failed write never costs them the profile.
+    await recordEvent(db, userId, { type: "profile_viewed", repo: profile.repo }).catch((e) => console.error("[harness/profile] event", e));
     return Response.json({ profile, findings: profileFindings(profile), page: `${new URL(req.url).origin}/repos/${profile.repo}` });
   } catch (error) {
     if (error instanceof RepoNotFoundError) return Response.json({ error: error.message }, { status: 404 });

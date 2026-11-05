@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "opensrcer": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/server.mjs"],
+      "env": {
+        "OPENSRCER_TOKEN": "${OPENSRCER_TOKEN:-}",
+        "OPENSRCER_URL": "${OPENSRCER_URL:-https://opensrced.vercel.app}"
+      }
+    }
+  }
+}

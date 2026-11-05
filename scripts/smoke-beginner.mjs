@@ -318,7 +318,7 @@ try {
     await fallbackGate.getByRole('checkbox').check();
     await fallbackGate.getByRole('button', { name: 'Publish draft PR', exact: true }).click();
     await page.getByText('Draft PR #12 opened', { exact: true }).waitFor();
-    assert.deepEqual(publishBodies.at(-1), { confirmed: true, authorExplanation: OWN_WORDS, explanationChecked: false, practiceAnswered: false }, 'marked as not automatically checked');
+    assert.deepEqual(publishBodies.at(-1), { confirmed: true, includeApproach: false, authorExplanation: OWN_WORDS, explanationChecked: false, practiceAnswered: false }, 'marked as not automatically checked');
     understandDown = false;
 
     // 5b. Each kind of project's rules, as the review screen states them.

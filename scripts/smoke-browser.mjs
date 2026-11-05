@@ -337,7 +337,8 @@ try {
   console.log('Checking settings recovery');
   await page.goto(base + '/crucible?settings_load_failure=1');
   await page.getByText('Could not load settings.', { exact: true }).waitFor();
-  assert.equal(await page.getByText('unavailable', { exact: true }).count(), 2, 'failed settings reads must leave the loading state');
+  // Anthropic, OpenRouter and Gemini each say so.
+  assert.equal(await page.getByText('unavailable', { exact: true }).count(), 3, 'failed settings reads must leave the loading state');
   const settingsSetupReadStart = setupReads.length;
   const repeatedSettingsRead = page.waitForResponse(response => new URL(response.url()).pathname === '/api/settings/keys');
   await page.goto(base + '/crucible?settings_load_failure=1&repeat=1');

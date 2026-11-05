@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "installCommand": "npm ci",
-  "buildCommand": "npm run build",
+  "buildCommand": "if [ \"$VERCEL_ENV\" = production ]; then npm run db:migrate; fi && npm run build",
   "crons": [
     { "path": "/api/cron/ingest", "schedule": "17 4 * * *" },
     { "path": "/api/cron/record", "schedule": "47 4 * * *" }

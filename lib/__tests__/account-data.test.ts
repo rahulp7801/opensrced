@@ -9,7 +9,7 @@ import { dirname, join } from "node:path";
 import { eq, sql } from "drizzle-orm";
 import { openDb, type Db, type DbConnection } from "../db/client";
 import { migrateDb } from "../db/migrate";
-import { alerts, contributions, lessonMessages, lessonSteps, lessons, mapCoverage, repos, standingEvents, users } from "../db/schema";
+import { alerts, apiTokens, contributions, harnessEvents, lessonMessages, lessonSteps, lessons, mapCoverage, repos, standingEvents, users } from "../db/schema";
 import {
   type BlobStore, deleteLocalUserData, deleteUserBlobs, deleteUserRows, exportUserRows, listUserBlobs,
   localUserRuns, localUserStats, userBlobPaths,
@@ -37,6 +37,8 @@ async function seed(db: Db, id: string, login: string, n: number) {
   await db.insert(mapCoverage).values({ userId: id, repoId: repo.id, nodeId: "file:a.py", level: "explored" });
   await db.insert(standingEvents).values({ userId: id, kind: "pr_opened", points: 1, ref: `acme/r${n}#${n}` });
   await db.insert(alerts).values({ userId: id, repoId: repo.id, issueNumber: n, reason: { why: "new" } });
+  await db.insert(apiTokens).values({ userId: id, name: `laptop ${n}`, hash: `hash-${n}` });
+  await db.insert(harnessEvents).values({ userId: id, repo: `acme/r${n}`, type: "pr_opened" });
 }
 
 const counts = async (db: Db, id: string) => {
@@ -63,11 +65,14 @@ test("export holds the account's rows and none of another's", async () => {
   }
   assert.deepEqual(data.lessonSteps.map((row) => row.answer), ["answer 1"]);
   assert.deepEqual(data.lessonMessages.map((row) => row.content), ["hello 1"]);
+  assert.deepEqual(data.harnessTokens.map((row) => row.name), ["laptop 1"]);
+  assert.ok(!JSON.stringify(data.harnessTokens).includes("hash-"), "a token's hash is never exported");
+  assert.deepEqual(data.harnessEvents.map((row) => [row.userId, row.repo]), [[ME, "acme/r1"]]);
   // Serializable as the download is.
   assert.doesNotThrow(() => JSON.stringify(data));
 
   const empty = await exportUserRows(db, "github|unknown");
-  assert.deepEqual(Object.values(empty).map((rows) => rows.length), [0, 0, 0, 0, 0, 0, 0, 0]);
+  assert.deepEqual(Object.values(empty).map((rows) => rows.length), [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 });
 
 test("delete erases the account's rows through the cascade, and only those", async () => {

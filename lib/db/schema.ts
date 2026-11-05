@@ -202,3 +202,24 @@ export const alerts = pgTable("alerts", {
   createdAt: createdAt(),
   seenAt: at(),
 }, (t) => [unique().on(t.userId, t.repoId, t.issueNumber)]);
+
+// The installable harness (harness/, lib/harness.ts): personal tokens, kept
+// only as SHA-256 hashes, and what the harness reports for stats.
+export const apiTokens = pgTable("api_tokens", {
+  id: serial().primaryKey(),
+  userId: userId(),
+  name: text().notNull(),
+  hash: text().notNull().unique(),
+  createdAt: createdAt(),
+  lastUsedAt: at(),
+  revokedAt: at(),
+}, (t) => [index().on(t.userId)]);
+
+export const harnessEvents = pgTable("harness_events", {
+  id: serial().primaryKey(),
+  userId: userId(),
+  repo: text().notNull(), // owner/name, as GitHub spells it
+  type: text().notNull(),
+  data: jsonb().$type<Record<string, unknown>>().notNull().default({}),
+  at: createdAt(),
+}, (t) => [index().on(t.userId), index().on(t.repo)]);

@@ -16,6 +16,7 @@
 
 import { hasAccess, inviteOnly } from "@/lib/access";
 import { unknownRoute } from "@/lib/app-routes";
+import { TOKEN_HEADER } from "@/lib/harness-token";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
@@ -364,6 +365,13 @@ export async function middleware(req: NextRequest) {
   if (isPublic(pathname)) return authRes;
   // No such route: let Next answer with the not-found page (lib/app-routes.ts).
   if (unknownRoute(pathname)) return authRes;
+
+  // The installable harness signs in with a personal token, not a cookie.
+  // Only /api/harness/* and only a well-formed token get past here; the route
+  // checks the token and the account's invite on every request (harnessUser in
+  // lib/harness.ts, which a test requires of every harness route). Anything
+  // else falls through to the session gate below.
+  if (pathname.startsWith("/api/harness/") && TOKEN_HEADER.test(req.headers.get("authorization") ?? "")) return authRes;
 
   const session = await auth0.getSession(req);
   if (session?.user) return await admitted(req, session.user.sub) ? authRes : notInvited(req, pathname, authRes);

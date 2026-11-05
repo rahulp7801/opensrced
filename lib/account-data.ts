@@ -20,7 +20,7 @@ import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { eq, inArray } from "drizzle-orm";
 import type { Db } from "./db/client";
-import { alerts, contributions, lessonMessages, lessonSteps, lessons, mapCoverage, standingEvents, users } from "./db/schema";
+import { alerts, apiTokens, contributions, harnessEvents, lessonMessages, lessonSteps, lessons, mapCoverage, standingEvents, users } from "./db/schema";
 import { ownerPrefix } from "./cloud-run-state";
 import { statsPath } from "./stats";
 
@@ -38,6 +38,10 @@ export async function exportUserRows(db: Db, id: string) {
     mapCoverage: await db.select().from(mapCoverage).where(eq(mapCoverage.userId, id)),
     standingEvents: await db.select().from(standingEvents).where(eq(standingEvents.userId, id)),
     alerts: await db.select().from(alerts).where(eq(alerts.userId, id)),
+    // Names and dates only: a token's hash is a credential, not the user's data.
+    harnessTokens: await db.select({ id: apiTokens.id, name: apiTokens.name, createdAt: apiTokens.createdAt, lastUsedAt: apiTokens.lastUsedAt, revokedAt: apiTokens.revokedAt })
+      .from(apiTokens).where(eq(apiTokens.userId, id)),
+    harnessEvents: await db.select().from(harnessEvents).where(eq(harnessEvents.userId, id)),
   };
 }
 

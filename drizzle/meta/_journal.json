@@ -36,6 +36,13 @@
       "when": 1793912061782,
       "tag": "0004_repo_profile",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793913841084,
+      "tag": "0005_harness",
+      "breakpoints": true
     }
   ]
 }

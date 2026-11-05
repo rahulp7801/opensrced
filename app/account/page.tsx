@@ -4,6 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ApiKeysForm } from "@/app/crucible/api-keys-form";
 import { DeleteAccount } from "@/components/delete-account";
+import { HarnessTokens } from "@/components/harness-tokens";
 import { PageHeading } from "@/components/page-heading";
 import { SettingsSection } from "@/components/settings-section";
 import { GITHUB_SCOPES } from "@/lib/auth0";
@@ -110,6 +111,15 @@ export default async function AccountPage() {
             <ProjectMaps />
           </SettingsSection>
         )}
+
+        <SettingsSection
+          id="harness-heading"
+          title="Harness"
+          description="Use opensrcer from Claude Code: each project's profile in your agent's context, and your contributions counted here."
+          note="A token can do only what your account can; revoking it, or losing your invite, stops it at once."
+        >
+          <HarnessTokens />
+        </SettingsSection>
 
         <SettingsSection id="data-heading" title="Your data" description="Download or erase what opensrcer keeps about you.">
           <div className="card flex flex-wrap items-center justify-between gap-4 px-5 py-4">

@@ -33,12 +33,15 @@ const saved = await request('/api/settings/keys', alice, {
   method: 'POST', body: JSON.stringify({ anthropic: 'test-provider-value', maxSpendUsd: 0.1 }),
 });
 assert.equal(saved.status, 200);
-// A hosted deployment offers only the user's API key: no host logins (they
-// would bill the operator's plan) and no hosted sign-in unless switched on.
+// A hosted deployment offers only the user's own keys (Anthropic, OpenRouter): no
+// host logins (they would bill the operator's plan) and no hosted sign-in unless
+// switched on. Copilot runs on the user's own GitHub sign-in.
 assert.deepEqual(await saved.json(), {
-  ok: true, anthropic: true, gemini: false, maxSpendUsd: 0.1,
-  providerOrder: ['claude-subscription', 'codex-subscription', 'anthropic-key'], keyFallback: false,
-  ready: true, offered: ['anthropic-key'], availability: {}, local: false, hostedSubscription: false,
+  ok: true, anthropic: true, gemini: false, openrouter: false, openrouterModel: 'deepseek/deepseek-v4-pro', maxSpendUsd: 0.1,
+  providerOrder: ['copilot', 'claude-subscription', 'codex-subscription', 'anthropic-key', 'openrouter-key'], keyFallback: false,
+  ready: true, offered: ['anthropic-key', 'openrouter-key'], availability: {}, local: false, hostedSubscription: false,
+  copilot: { state: 'unknown', detail: "Uses your GitHub sign-in. Plan and remaining allowance can't be checked yet." },
+  teacher: ['copilot', 'anthropic-key', 'openrouter-key'],
 });
 const keyHeader = saved.headers.getSetCookie().find(value => value.startsWith('opensrcer-keys='));
 assert.ok(keyHeader);

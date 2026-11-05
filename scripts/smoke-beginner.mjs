@@ -292,7 +292,7 @@ try {
     await publishButton.click();
     await page.getByText('Draft PR #12 opened', { exact: true }).waitFor();
     assert.equal(publishes, 1);
-    assert.deepEqual(publishBodies.at(-1), { confirmed: true, authorExplanation: OWN_WORDS, explanationChecked: true, practiceAnswered: true }, 'the explanation goes to the PR');
+    assert.deepEqual(publishBodies.at(-1), { confirmed: true, includeApproach: false, authorExplanation: OWN_WORDS, explanationChecked: true, practiceAnswered: true }, 'the explanation goes to the PR (no lesson approach on a plain run)');
     assert.equal(await page.getByRole('button', { name: 'Publish draft PR' }).count(), 0, 'no second publish button');
     await page.getByRole('heading', { name: 'What happens next', exact: true }).waitFor();
     await page.getByText(/click "Ready for review" there/).waitFor();

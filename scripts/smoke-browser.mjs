@@ -131,7 +131,7 @@ try {
   await slowAuthPage.getByRole('heading', { name: 'Sign-in check took too long', exact: true }).waitFor();
   assert.equal(
     await slowAuthPage.getByRole('link', { name: 'Sign in again', exact: true }).getAttribute('href'),
-    '/auth/login?returnTo=%2Fissues',
+    '/auth/login?connection=github&returnTo=%2Fissues',
   );
   assert.equal(await slowAuthPage.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'auth recovery must fit mobile');
   await assertNoSeriousAccessibilityViolations(slowAuthPage, 'auth timeout recovery');

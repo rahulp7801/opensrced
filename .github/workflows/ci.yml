@@ -119,14 +119,14 @@ jobs:
             if curl --fail --silent http://localhost:3100/api/health > /dev/null; then break; fi
             sleep 1
           done
-          node scripts/smoke-production.mjs
-          node scripts/smoke-session.mjs
-          node scripts/smoke-browser.mjs
-          node scripts/smoke-beginner.mjs
-          node scripts/smoke-review.mjs
-          node scripts/smoke-lists.mjs
-          node scripts/smoke-graph-ui.mjs
-          node scripts/smoke-run-page.mjs
+          # Run every smoke and fail at the end, so one run reports every failure.
+          failed=""
+          for smoke in production session browser beginner review lists graph-ui run-page; do
+            echo "::group::smoke-$smoke"
+            node "scripts/smoke-$smoke.mjs" || failed="$failed $smoke"
+            echo "::endgroup::"
+          done
+          if [ -n "$failed" ]; then echo "::error::Smoke tests failed:$failed"; exit 1; fi
 
       - name: Missing Auth0 configuration fails predictably
         run: |

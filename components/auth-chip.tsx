@@ -52,6 +52,8 @@ export function AuthChip({ localMode = false, canUse = true }: { localMode?: boo
   }
 
   if (!user) {
+    // The sign-in page is the button already; a second one would return there.
+    if (path === "/login") return null;
     return (
       <GitHubSignIn className="btn-primary ml-2 shrink-0 gap-2 rounded-[10px] px-3.5 text-[14px]">
         <span className="hidden sm:inline">Continue with GitHub</span>

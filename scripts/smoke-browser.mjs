@@ -366,7 +366,8 @@ try {
   await page.getByText('Settings saved.', { exact: true }).waitFor();
   assert.equal(await keyInput.inputValue(), '');
   assert.equal(settings.at(-1).maxSpendUsd, 0.1);
-  assert.equal(await page.getByText('Connect your AI', { exact: true }).count(), 0, 'Gemini is optional');
+  // The setup banner leaves once a key is saved (the form's own "Connect your AI" section stays).
+  assert.equal(await page.getByRole('complementary', { name: 'Provider setup' }).count(), 0, 'Gemini is optional');
   await page.getByRole('button', { name: 'Disconnect all & sign out', exact: true }).click();
   await page.getByText('Stop your active hosted runs before access is cleared', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Stop runs, disconnect, and sign out', exact: true }).click();

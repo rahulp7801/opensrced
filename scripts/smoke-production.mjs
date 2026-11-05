@@ -90,7 +90,11 @@ await crossSiteLogout.text();
 // A failed or replayed callback returns to sign-in with a message, not a raw 500.
 const callback = await fetch(base + '/auth/callback?code=forged&state=forged', { redirect: 'manual', signal: AbortSignal.timeout(15000) });
 assert.ok([302, 303, 307].includes(callback.status), `callback error must redirect, got ${callback.status}`);
-assert.match(callback.headers.get('location') ?? '', /\/login\?error=signin$/);
+// A forged or replayed state reads as an expired sign-in, returning to a page on this site only.
+const callbackTo = new URL(callback.headers.get('location') ?? '', base);
+assert.equal(callbackTo.origin + callbackTo.pathname, base + '/login');
+assert.equal(callbackTo.searchParams.get('error'), 'expired');
+assert.match(callbackTo.searchParams.get('returnTo') ?? '/', /^\/(?!\/)/, 'returnTo stays on this site');
 await callback.text();
 const missingFixId = '00000000-0000-4000-8000-000000000000';
 // Shared fixes follow the access mode (lib/access.ts). The invite-only preview

@@ -38,7 +38,11 @@ assert.equal(api.status, 401, 'anonymous API access must be refused');
 await api.text();
 const callback = await get('/auth/callback?code=forged&state=forged');
 assert.ok([302, 303, 307].includes(callback.status), `callback error must redirect, got ${callback.status}`);
-assert.match(callback.headers.get('location') ?? '', /\/login\?error=signin$/);
+// A forged state reads as an expired sign-in, returning to a page on this site only.
+const callbackTo = new URL(callback.headers.get('location') ?? '', 'https://x.invalid');
+assert.equal(callbackTo.pathname, '/login');
+assert.equal(callbackTo.searchParams.get('error'), 'expired');
+assert.match(callbackTo.searchParams.get('returnTo') ?? '/', /^\/(?!\/)/, 'returnTo stays on this site');
 await callback.text();
 
 console.log(JSON.stringify({ ok: true, base, ms: timings }));

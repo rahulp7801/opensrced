@@ -37,12 +37,19 @@ assert.equal(healthJson.deps.auth0_config, false);
 assert.ok(healthJson.missing.includes('auth0_config'));
 
 // A static-looking suffix must not route around the middleware gate.
-for (const path of ['/api/activity', '/auth/login', '/api/dispatches/x.js', '/api/dispatches/x.css']) {
+for (const path of ['/api/activity', '/auth/callback', '/api/dispatches/x.js', '/api/dispatches/x.css']) {
   const response = await request(path);
   assert.equal(response.status, 503, `${path} should fail predictably`);
   assert.match(response.headers.get('cache-control') ?? '', /no-store/);
   assert.deepEqual(await response.json(), { error: 'Authentication is not configured for this deployment.' });
 }
+
+// "Continue with GitHub" lands on the sign-in page, which says sign-in is being set up.
+const login = await request('/auth/login?returnTo=%2Fissues');
+assert.equal(login.status, 307);
+const loginTo = new URL(login.headers.get('location'), base);
+assert.equal(loginTo.pathname, '/login');
+assert.equal(loginTo.searchParams.get('returnTo'), '/issues');
 
 const profile = await request('/auth/profile');
 assert.equal(profile.status, 204);

@@ -45,6 +45,9 @@ export const repos = pgTable("repos", {
   // When lib/recs/ingest.ts last finished this repo: the next run asks GitHub
   // only for issues updated since then.
   ingestedAt: at(),
+  // lib/repo-profile.ts: the unwritten rules, measured from recent PRs.
+  profile: jsonb().$type<Record<string, unknown>>(),
+  profiledAt: at(),
 }, (t) => [unique().on(t.owner, t.name), index().on(t.catalog)]);
 
 const repoId = () => integer().notNull().references(() => repos.id, { onDelete: "cascade" });

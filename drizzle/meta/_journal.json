@@ -29,6 +29,13 @@
       "when": 1793414470457,
       "tag": "0003_lesson_store",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793912061782,
+      "tag": "0004_repo_profile",
+      "breakpoints": true
     }
   ]
 }

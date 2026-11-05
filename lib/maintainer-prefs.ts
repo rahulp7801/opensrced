@@ -60,9 +60,10 @@ export class MaintainerPrefsFetchError extends Error {
 }
 
 const BOT_LOGINS = /\[bot\]$|^(dependabot|renovate|pre-commit-ci|github-actions|allcontributors)$/i;
-const isBot = (a: Author) => !a || a.__typename === "Bot" || BOT_LOGINS.test(a.login);
+/** A bot account, or a deleted one (author null). */
+export const isBotAuthor = (a: Author) => !a || a.__typename === "Bot" || BOT_LOGINS.test(a.login);
 
-const TEST_PATH = /(^|\/)(tests?|__tests__|spec|specs|testing)\/|(^|\/)test_[^/]+$|[._-](test|spec)\.[a-z]+$|_test\.go$/i;
+export const TEST_PATH = /(^|\/)(tests?|__tests__|spec|specs|testing)\/|(^|\/)test_[^/]+$|[._-](test|spec)\.[a-z]+$|_test\.go$/i;
 /** A changelog file, or a fragment directory (towncrier, changesets, reno,
  *  CPython's Misc/NEWS.d), at the root or under docs/: a code folder that
  *  happens to be called news/ deeper down is not one. */
@@ -95,7 +96,7 @@ const shareOf = (count: number, total: number) => total ? round(count / total, 2
 
 /** The figures from the PRs (pure). */
 export function summarizePrefs(repo: string, prs: MergedPrNode[], prTemplate: boolean): MaintainerPrefs {
-  const human = prs.filter((pr) => !isBot(pr.author));
+  const human = prs.filter((pr) => !isBotAuthor(pr.author));
   const paths = human.map((pr) => (pr.files?.nodes ?? []).map((f) => f.path));
   const locations = new Map<string, number>();
   let changelog = 0;
@@ -106,7 +107,7 @@ export function summarizePrefs(repo: string, prs: MergedPrNode[], prTemplate: bo
   }
   const signedOff = human.filter((pr) => (pr.commits?.nodes ?? []).some((c) => /^Signed-off-by: .+<[^>]+>/m.test(c.commit.message))).length;
   const reviewHours = human.map((pr) => firstMaintainerResponseHours(pr.createdAt, pr.author?.login,
-    [...(pr.reviews?.nodes ?? []), ...(pr.comments?.nodes ?? [])].filter((e) => !isBot(e.author ?? null)))).filter((h): h is number => h !== null);
+    [...(pr.reviews?.nodes ?? []), ...(pr.comments?.nodes ?? [])].filter((e) => !isBotAuthor(e.author ?? null)))).filter((h): h is number => h !== null);
   return {
     repo,
     sample: human.length,

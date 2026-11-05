@@ -118,12 +118,12 @@ export function PublishPanel({ dispatchId, preview, repo, dryRun = false, onPubl
     }
   }
 
-  const v = preview.verification;
-  const verdict = !preview.executed ? "not verified (no code was run)" : !v ? "not verified" : `${v.status} — ${v.reason}`;
   const canPublish = preview.publishable && preview.blockers.length === 0;
   const rules = projectRules(preview);
   // A follow-up only adds a commit (no PR text to carry the explanation).
   const askOwnWords = (canPublish || dryRun) && !preview.followup_pr;
+  // owner/name for the repo profile link; `repo` may be the GitHub URL.
+  const repoName = /^(?:https:\/\/github\.com\/)?([\w.-]+\/[\w.-]+)$/.exec(repo ?? "")?.[1] ?? null;
   const gateOpen = !askOwnWords || Boolean(ownWords?.ready);
   const offerApproach = canPublish && !preview.followup_pr && Boolean(preview.approach?.length && preview.body_with_approach);
   const withApproach = offerApproach && keepApproach;
@@ -171,6 +171,12 @@ export function PublishPanel({ dispatchId, preview, repo, dryRun = false, onPubl
           ? "This is what a publishable run asks of you before anything is posted. Nothing here is sent anywhere."
           : "Nothing has been posted yet. Go through each part, then publish."}
       </p>
+      {repoName && (
+        <p className="mt-3 text-[15px]">
+          <a className="text-link" href={`/repos/${repoName}`} target="_blank" rel="noreferrer">How {repoName} reviews PRs</a>
+          <span className="text-paper-muted">: what gets merged there, and why PRs get closed.</span>
+        </p>
+      )}
       <ChangeChat
         storageKey={`run:${dispatchId}`}
         repo={repo}

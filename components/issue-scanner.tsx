@@ -261,6 +261,10 @@ export function IssueScanner({ lessons = false }: { lessons?: boolean }) {
                     <span className="font-semibold text-paper">{scan.total}</span> open issue{scan.total === 1 ? "" : "s"};{" "}
                     <span className="font-semibold text-paper">{scan.solvable}</span> ready for an automated attempt.
                   </p>
+                  {/* Before picking an issue: what gets merged here, and why PRs get closed. */}
+                  <p className="mt-2 text-[14px]">
+                    <a className="text-link" href={`/repos/${scan.repo}`}>How this project reviews PRs →</a>
+                  </p>
                   {scan.policy?.ai === "ban" && (
                     <p role="alert" className="callout mt-3 max-w-2xl text-[15px]" data-tone="alert">
                       This project does not accept AI-generated contributions ({scan.policy.source}). Previews still work; publishing is refused.

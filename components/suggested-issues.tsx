@@ -308,6 +308,9 @@ export function SuggestedIssues({ lessons = false, home = null }: { lessons?: bo
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-5">
+                    <a href={`/repos/${issue.repo}`} aria-label={`How ${issue.repo} reviews PRs`} className="text-link text-[14px]">
+                      Project
+                    </a>
                     <a
                       href={issue.url}
                       target="_blank"

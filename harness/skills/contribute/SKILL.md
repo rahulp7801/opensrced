@@ -34,6 +34,7 @@ After verifying, call `record_event` with `type: "verification"` and `outcome` (
 
 - Walk the user through the change: what was wrong, what changed, how the test proves it. Ask them to explain it back in their own words, and use those words in the PR description.
 - Fill in the project's PR template. Link the issue. Disclose AI assistance the way the project asks (and honestly when it doesn't ask).
+- Call `check_pr` with the draft's facts: the title and description, the changed paths and line counts (`git diff --numstat` against the upstream branch), whether the description links an issue, and whether every commit is signed off. Fix each warning, or tell the user why it doesn't apply.
 - Open the PR as a draft, and only when the user tells you to.
 
 When a PR is opened, merged or closed, call `record_event` (`pr_opened`, `pr_merged`, `pr_closed`) with its `pr_url`. That counts toward the user's record on opensrcer.

@@ -32,6 +32,26 @@ const TOOLS = [
     },
   },
   {
+    name: "check_pr",
+    description:
+      "Before opening a pull request, check the draft against how this project merges PRs: linked issue, tests, changelog entry, title style, sign-off, size, AI disclosure, and whether the issue had to be assigned or discussed first. Send the draft's facts from the local checkout (git diff --numstat, the commit messages, the PR title and description); no code is sent. Fix or explain every warning before opening the PR.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        repo: { type: "string", description: "The upstream repository as owner/name." },
+        title: { type: "string", description: "The PR title." },
+        body: { type: "string", description: "The PR description." },
+        files: { type: "array", items: { type: "string" }, description: "Repository paths the PR changes." },
+        additions: { type: "integer", minimum: 0 },
+        deletions: { type: "integer", minimum: 0 },
+        linked_issue: { type: "boolean", description: "The description links or closes an issue (e.g. \"Fixes #12\")." },
+        signed_off: { type: "boolean", description: "Every commit has a Signed-off-by line. Leave out if unknown." },
+      },
+      required: ["repo", "title", "body", "files", "additions", "deletions", "linked_issue"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "record_event",
     description:
       "Tell opensrcer what happened in this contribution, for the user's stats: a verification result (the new test fails without the fix and passes with it), or a pull request opened, merged or closed. Never include secrets or code.",
@@ -54,7 +74,7 @@ const TOOLS = [
 const INSTRUCTIONS = `opensrcer is a contribution harness. When the user works on an open-source repository they don't maintain:
 1. Call repo_profile (owner/name) before changing code, and act on it: if PRs get closed for being opened without assignment, have the user ask to be assigned first; if for "discuss first", draft an issue comment for them; if the project bans AI-generated contributions, stop and say so.
 2. Find the root cause. Write the test first and run it to see it fail; fix; run it to see it pass. Keep the change about as small as the profile says merged PRs are, and follow its conventions (title style, changelog, sign-off).
-3. The user is the author: walk them through the change, put their own explanation in the PR, disclose AI assistance as the project asks. Never post, push or open a PR unless they ask for that action.
+3. The user is the author: walk them through the change, put their own explanation in the PR, disclose AI assistance as the project asks. Before opening it, call check_pr with the draft's facts and fix or explain every warning. Never post, push or open a PR unless they ask for that action.
 4. Call record_event for a verification result and when a PR is opened, merged or closed.`;
 
 class ToolError extends Error {}
@@ -101,6 +121,19 @@ async function callTool(name, args) {
   if (name === "repo_profile") {
     const body = await api(`/api/harness/profile?repo=${encodeURIComponent(repo)}`);
     return profileText(body);
+  }
+  if (name === "check_pr") {
+    const draft = {
+      title: args.title, body: args.body, files: args.files, additions: args.additions, deletions: args.deletions,
+      linkedIssue: args.linked_issue, ...(typeof args.signed_off === "boolean" ? { signedOff: args.signed_off } : {}),
+    };
+    const result = await api("/api/harness/check", { method: "POST", body: JSON.stringify({ repo, draft }) });
+    const mark = { warn: "WARN", note: "NOTE", ok: "OK" };
+    // Example PRs back a warning or a note; a passed check needs none.
+    const lines = result.checks.map((c) => `- ${mark[c.status]}: ${c.text}${c.status !== "ok" && c.examples?.length ? ` (e.g. ${c.examples.join(", ")})` : ""}`);
+    const warnings = result.checks.filter((c) => c.status === "warn").length;
+    return [`# ${result.repo}: the draft against how this project merges PRs`, "", ...lines, "",
+      warnings ? `${warnings} warning${warnings === 1 ? "" : "s"}: fix them, or tell the user why not, before opening the PR.` : "No warnings."].join("\n");
   }
   if (name === "record_event") {
     if (!EVENT_TYPES.includes(args.type)) throw new ToolError(`type must be one of ${EVENT_TYPES.join(", ")}.`);

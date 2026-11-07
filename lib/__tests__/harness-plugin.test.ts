@@ -19,6 +19,13 @@ before(async () => {
     req.on("end", () => {
       seen.push({ method: req.method ?? "", url: req.url ?? "", auth: req.headers.authorization ?? "", body });
       if (req.headers.authorization !== `Bearer ${TOKEN}`) { res.writeHead(401, { "content-type": "application/json" }); return res.end(JSON.stringify({ error: "This harness token is not valid." })); }
+      if (req.url === "/api/harness/check") {
+        res.writeHead(200, { "content-type": "application/json" });
+        return res.end(JSON.stringify({ repo: "Acme/App", checks: [
+          { id: "tests", status: "warn", text: "90% of merged outside PRs here change tests; this draft changes none.", examples: ["https://github.com/acme/app/pull/3"] },
+          { id: "linked-issue", status: "ok", text: "The description links an issue, like most merged PRs here.", examples: [] },
+        ] }));
+      }
       if (req.url?.startsWith("/api/harness/profile")) {
         res.writeHead(200, { "content-type": "application/json" });
         return res.end(JSON.stringify({
@@ -72,7 +79,15 @@ test("the plugin server speaks MCP: initialize, tools, and calls that reach open
     assert.match((init.result as { instructions: string }).instructions, /Call repo_profile .* before changing code/);
     notify("notifications/initialized");
     const tools = (await request("tools/list")).result as { tools: Array<{ name: string }> };
-    assert.deepEqual(tools.tools.map((t) => t.name), ["repo_profile", "record_event"]);
+    assert.deepEqual(tools.tools.map((t) => t.name), ["repo_profile", "check_pr", "record_event"]);
+
+    const check = await request("tools/call", { name: "check_pr", arguments: {
+      repo: "acme/app", title: "Add fill", body: "Fixes #12", files: ["src/fill.py"], additions: 40, deletions: 2, linked_issue: true, signed_off: false } });
+    assert.match(text(check), /^# Acme\/App: the draft against how this project merges PRs/);
+    assert.ok(text(check).includes("- WARN: 90% of merged outside PRs here change tests; this draft changes none. (e.g. https://github.com/acme/app/pull/3)"));
+    assert.ok(text(check).endsWith("1 warning: fix them, or tell the user why not, before opening the PR."));
+    assert.deepEqual(JSON.parse(seen.at(-1)!.body), { repo: "acme/app", draft: {
+      title: "Add fill", body: "Fixes #12", files: ["src/fill.py"], additions: 40, deletions: 2, linkedIssue: true, signedOff: false } });
 
     const profile = await request("tools/call", { name: "repo_profile", arguments: { repo: "acme/app" } });
     assert.equal((profile.result as ToolResult).isError, undefined);

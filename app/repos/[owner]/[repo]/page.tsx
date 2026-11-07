@@ -92,7 +92,7 @@ export default function RepoProfilePage({ params }: { params: Promise<{ owner: s
           <p className="meta max-w-3xl border-t border-border-soft pt-6">
             <span>
               Counted from GitHub, with no AI writing the claims. Maintainers are the people who merged or closed others&apos; PRs.
-              PRs are read from 1–4 months ago so slow reviews count too. Refreshed daily.
+              PRs are read from 1–4 months ago (up to two years for quieter projects) so slow reviews count too. Refreshed daily.
             </span>
           </p>
         </>

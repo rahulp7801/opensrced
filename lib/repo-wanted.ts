@@ -12,7 +12,7 @@ import type { GitHubClient } from "./gh";
 import { splitRepo } from "./ai-policy";
 import { isMaintainer } from "./recs/health";
 import { isBotAuthor } from "./maintainer-prefs";
-import { COHORT_MAX_AGE_DAYS, COHORT_MIN_AGE_DAYS, EXAMPLES, MIN_SAMPLE, RepoNotFoundError, type Tally } from "./repo-profile";
+import { COHORT_MAX_AGE_DAYS, COHORT_MIN_AGE_DAYS, EXAMPLES, MIN_SAMPLE, RepoNotFoundError, windowText, type Tally } from "./repo-profile";
 
 /** Labels that invite contributions, matched case-insensitively against each
  *  label's whole name. Fixed on purpose: "hacktoberfest-accepted" marks a PR
@@ -164,7 +164,7 @@ export function wantedFindings(w: RepoWanted): Array<{ text: string; examples: s
   const c = w.closed;
   if (c.outside.of >= MIN_SAMPLE) {
     out.push({
-      text: `Of ${c.outside.of} issues labelled ${quoted(w.labels.map((l) => l.name))} that were closed 1–4 months ago${c.total > c.outside.of ? ` (the ${c.outside.of} most recently opened of ${c.total})` : ""}, ${c.outside.count} (${pct(c.outside)}) were fixed by an outside contributor's merged PR, ${c.team.count} by a maintainer's own PR, and ${c.unmerged.count} closed without a merged PR.`,
+      text: `Of ${c.outside.of} issues labelled ${quoted(w.labels.map((l) => l.name))} that were closed ${windowText(COHORT_MIN_AGE_DAYS, COHORT_MAX_AGE_DAYS)}${c.total > c.outside.of ? ` (the ${c.outside.of} most recently opened of ${c.total})` : ""}, ${c.outside.count} (${pct(c.outside)}) were fixed by an outside contributor's merged PR, ${c.team.count} by a maintainer's own PR, and ${c.unmerged.count} closed without a merged PR.`,
       examples: c.outside.examples,
     });
   }

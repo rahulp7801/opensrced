@@ -59,7 +59,10 @@ export class MaintainerPrefsFetchError extends Error {
   }
 }
 
-const BOT_LOGINS = /\[bot\]$|^(dependabot|renovate|pre-commit-ci|github-actions|allcontributors)$/i;
+// App bots end in [bot]; bots run from ordinary user accounts (earthpy's
+// pyup-bot is __typename User) end in "-bot" or "_bot". A bare "bot" suffix is
+// not enough: "abbott" and "talbot" are people.
+const BOT_LOGINS = /(\[bot\]|[-_]bot)$|^(dependabot|renovate|pre-commit-ci|github-actions|allcontributors)$/i;
 /** A bot account, or a deleted one (author null). */
 export const isBotAuthor = (a: Author) => !a || a.__typename === "Bot" || BOT_LOGINS.test(a.login);
 
@@ -77,17 +80,20 @@ export function changelogLocation(path: string): string | null {
   return CHANGELOG_FILE.test(path) ? path : null;
 }
 
-const CONVENTIONAL = /^(feat|fix|docs?|chore|refactor|test|tests|ci|build|perf|style|revert|deps)(\([^)]{1,40}\))?!?: \S/i;
-const PREFIX = /^[\w./-]{1,30}: \S/;
-const BRACKET = /^\[[^\]]{1,30}\] ?\S/;
+/** What a title in each style looks like; checked in this order. */
+export const TITLE_PATTERNS: Record<Exclude<TitleConvention, "none">, RegExp> = {
+  conventional: /^(feat|fix|docs?|chore|refactor|test|tests|ci|build|perf|style|revert|deps)(\([^)]{1,40}\))?!?: \S/i,
+  prefix: /^[\w./-]{1,30}: \S/,
+  bracket: /^\[[^\]]{1,30}\] ?\S/,
+};
 
 /** The title style most PRs share, if any reaches NORM_SHARE. */
 export function titleConvention(titles: string[]): TitleConvention {
   if (!titles.length) return "none";
   const share = (re: RegExp) => titles.filter((t) => re.test(t.trim())).length / titles.length;
-  if (share(CONVENTIONAL) >= NORM_SHARE) return "conventional";
-  if (share(PREFIX) >= NORM_SHARE) return "prefix";
-  if (share(BRACKET) >= NORM_SHARE) return "bracket";
+  for (const [style, re] of Object.entries(TITLE_PATTERNS) as Array<[Exclude<TitleConvention, "none">, RegExp]>) {
+    if (share(re) >= NORM_SHARE) return style;
+  }
   return "none";
 }
 

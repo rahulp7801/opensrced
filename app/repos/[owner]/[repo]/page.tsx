@@ -8,6 +8,7 @@ import { PageHeading } from "@/components/page-heading";
 import type { Finding, RepoProfile } from "@/lib/repo-profile";
 
 const SECTIONS: Array<{ id: Finding["section"]; title: string }> = [
+  { id: "start", title: "Before you start" },
   { id: "outcomes", title: "What happens to outside contributors' PRs" },
   { id: "closed", title: "Why PRs get closed" },
   { id: "review", title: "What reviewers ask for" },

@@ -15,7 +15,7 @@ import { eq, and, sql } from "drizzle-orm";
 import type { Db } from "./db/client";
 import { repos } from "./db/schema";
 import type { GitHubClient } from "./gh";
-import { splitRepo } from "./ai-policy";
+import { fetchAiPolicy, splitRepo, type RepoAiPolicy } from "./ai-policy";
 import { isMaintainer, median } from "./recs/health";
 import { changelogLocation, isBotAuthor, TEST_PATH, titleConvention, type TitleConvention } from "./maintainer-prefs";
 
@@ -94,6 +94,8 @@ export type RepoProfile = {
   /** What maintainers asked for in review, over PRs that got review text. */
   reviewAsks: Array<{ ask: ReviewAsk } & Tally>;
   medianFirstResponseHours: number | null;
+  /** From the contributing guide, AI policy file or PR template; null when they could not be read. */
+  aiPolicy?: RepoAiPolicy | null;
   conventions: { title: TitleConvention; changelogPath: string | null; signOffShare: number | null };
 };
 
@@ -287,7 +289,7 @@ export const REVIEW_ASK_TEXT: Record<ReviewAsk, string> = {
 };
 
 /** One readable finding with what backs it. */
-export type Finding = { section: "outcomes" | "closed" | "review" | "pace" | "conventions"; text: string; examples: string[] };
+export type Finding = { section: "start" | "outcomes" | "closed" | "review" | "pace" | "conventions"; text: string; examples: string[] };
 
 const pct = (t: Tally) => `${Math.round((t.count / t.of) * 100)}%`;
 const hoursText = (h: number) => h < 1 ? "under an hour" : h < 48 ? `about ${Math.round(h)} hours` : `about ${Math.round(h / 24)} days`;
@@ -296,6 +298,13 @@ const hoursText = (h: number) => h < 1 ? "under an hour" : h < 48 ? `about ${Mat
  *  A comparison is stated only when both sides have MIN_SAMPLE PRs. */
 export function profileFindings(p: RepoProfile): Finding[] {
   const out: Finding[] = [];
+  const ai = p.aiPolicy;
+  const quote = (x: RepoAiPolicy) => x.source ? ` (${x.source}${x.evidence ? `: "${x.evidence.slice(0, 200)}"` : ""})` : "";
+  if (ai === null) out.push({ section: "start", text: "The project's AI policy could not be read: check its contributing guide before using AI.", examples: [] });
+  else if (ai?.stance === "banned") out.push({ section: "start", text: `This project does not accept AI-generated contributions${quote(ai)}.`, examples: [] });
+  else if (ai?.stance === "disclosure-required") out.push({ section: "start", text: `The project asks contributors to disclose AI assistance${quote(ai)}.`, examples: [] });
+  else if (ai?.stance === "allowed") out.push({ section: "start", text: `AI-assisted contributions are welcome${quote(ai)}.`, examples: [] });
+  else if (ai?.stance === "unknown") out.push({ section: "start", text: "No AI policy in its contributing guide or PR template: disclose AI assistance anyway.", examples: [] });
   const o = p.outside;
   if (o.merged.of >= MIN_SAMPLE) {
     const open = o.open.count === 0 ? "" : ` and ${o.open.count} ${o.open.count === 1 ? "is" : "are"} still open`;
@@ -409,7 +418,12 @@ export async function fetchRepoProfile(client: GitHubClient, repo: string, now =
     // Search hits that are not PRs come back as empty objects.
     prs.push(...data.search.nodes.filter((node) => typeof node?.number === "number"));
   }
-  return summarizeProfile(canonical, prs, now);
+  // The policy is part of the profile, but a profile without it still helps: logged, and marked unread.
+  const aiPolicy = await fetchAiPolicy(client, canonical).catch((error: unknown) => {
+    console.warn(`[repo-profile] AI policy of ${canonical} unread:`, error instanceof Error ? error.message : error);
+    return null;
+  });
+  return { ...summarizeProfile(canonical, prs, now), aiPolicy };
 }
 
 /** The stored profile if fresh, else read from GitHub and stored on the repo's

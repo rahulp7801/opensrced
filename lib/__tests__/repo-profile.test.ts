@@ -134,15 +134,20 @@ test("the window is read in non-overlapping slices from 30 to 120 days ago", () 
   assert.ok(queries.every((q) => q.startsWith("repo:acme/app is:pr ") && q.endsWith(" sort:created-desc")));
 });
 
-/** A fake client answering each slice's search with `pages[i]`. */
-function client(pages: ProfilePr[][] | null | Error) {
+/** A fake client answering each slice's search with `pages[i]`, and the AI
+ *  policy query with `policy` as the contributing guide. `calls` holds the searches. */
+function client(pages: ProfilePr[][] | null | Error, policy?: string | Error) {
   const calls: Array<Record<string, unknown>> = [];
   return {
     calls,
     client: {
       async graphql(_query: string, variables: Record<string, unknown>) {
-        calls.push(variables);
         if (pages instanceof Error) throw pages;
+        if (variables.q === undefined) {
+          if (policy instanceof Error) throw policy;
+          return { repository: { f0: policy ? { text: policy } : null } };
+        }
+        calls.push(variables);
         if (pages === null) return { repository: null, search: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } };
         // Search can return non-PR hits as empty objects; they are dropped.
         const nodes = [...(pages[calls.length - 1] ?? []), {} as ProfilePr];
@@ -165,6 +170,7 @@ test("a moved repository is searched under its new name (search doesn't follow t
   const calls: Array<Record<string, unknown>> = [];
   const moved = {
     async graphql(_query: string, variables: Record<string, unknown>) {
+      if (variables.q === undefined) return { repository: {} }; // the AI policy read
       calls.push(variables);
       const current = variables.owner === "facebook";
       return { repository: { nameWithOwner: "react/react" }, search: { nodes: current ? [] : [pr()], pageInfo: { hasNextPage: false, endCursor: null } } };
@@ -175,6 +181,22 @@ test("a moved repository is searched under its new name (search doesn't follow t
   assert.equal(p.window.prs, COHORT_SLICES, "every slice read under the new name");
   assert.equal(calls.length, COHORT_SLICES + 1);
   assert.ok(calls.slice(1).every((c) => String(c.q).startsWith("repo:react/react ")));
+});
+
+test("the project's AI policy leads the profile, quoted; an unreadable one is said so", async () => {
+  const ban = ["## AI policy", "", "No LLMs for issues, pull requests, or comments on the bug tracker."].join("\n");
+  const banned = await fetchRepoProfile(client([[pr()], [], []], ban).client, "acme/app", new Date("2026-11-05T12:00:00Z"));
+  assert.equal(banned.aiPolicy?.stance, "banned");
+  const [first] = profileFindings(banned);
+  assert.equal(first.section, "start");
+  assert.ok(first.text.startsWith('This project does not accept AI-generated contributions (CONTRIBUTING.md: "No LLMs'), first.text);
+
+  const silent = await fetchRepoProfile(client([[pr()], [], []]).client, "acme/app");
+  assert.equal(profileFindings(silent)[0].text, "No AI policy in its contributing guide or PR template: disclose AI assistance anyway.");
+
+  const unread = await fetchRepoProfile(client([[pr()], [], []], new Error("rate limited")).client, "acme/app");
+  assert.equal(unread.aiPolicy, null);
+  assert.match(profileFindings(unread)[0].text, /could not be read/);
 });
 
 test("a missing repository and a GitHub failure are named errors", async () => {

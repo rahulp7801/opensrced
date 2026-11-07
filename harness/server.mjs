@@ -77,7 +77,7 @@ function profileText(body) {
   const p = body.profile;
   const lines = [`# ${p.repo}: how this project reviews contributions`, ""];
   if (!body.findings.length) lines.push("Too few recent pull requests to say anything reliable yet.");
-  const titles = { outcomes: "Outcomes for outside contributors", closed: "Why PRs get closed", review: "What reviewers ask for", pace: "Pace", conventions: "Conventions" };
+  const titles = { start: "Before you start", outcomes: "Outcomes for outside contributors", closed: "Why PRs get closed", review: "What reviewers ask for", pace: "Pace", conventions: "Conventions" };
   for (const [section, title] of Object.entries(titles)) {
     const items = body.findings.filter((f) => f.section === section);
     if (!items.length) continue;

@@ -4,7 +4,7 @@ import { beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { gh } from "../gh";
 import {
-  AI_POLICY_FILES, AI_POLICY_TTL_MS, AiPolicyFetchError, aiPolicyBanReason, classifyRepoAiPolicy, clearAiPolicyCache,
+  AI_POLICY_FILES, AI_POLICY_TTL_MS, AiPolicyFetchError, aiPolicyBanReason, classifyRepoAiPolicy, clearAiPolicyCache, symlinkTarget,
   fetchAiPolicy, InvalidRepoNameError, repoAiPolicy, type AiPolicyStance,
 } from "../ai-policy";
 
@@ -59,7 +59,7 @@ test("classifyRepoAiPolicy: the strictest file wins, whatever the order", () => 
 });
 
 test("AI_POLICY_FILES covers the guides in root, .github and docs, and AI policy files", () => {
-  for (const f of ["CONTRIBUTING.md", ".github/CONTRIBUTING.md", "docs/CONTRIBUTING.md", "AI_POLICY.md", "AI.md", ".github/AI_POLICY.md"]) {
+  for (const f of ["CONTRIBUTING.md", ".github/CONTRIBUTING.md", "docs/CONTRIBUTING.md", "AI_POLICY.md", "AI.md", ".github/AI_POLICY.md", "AGENTS.md"]) {
     assert.ok(AI_POLICY_FILES.includes(f), f);
   }
   assert.equal(new Set(AI_POLICY_FILES).size, AI_POLICY_FILES.length);
@@ -80,8 +80,10 @@ function fakeGitHub(files: Record<string, string> | "missing" | "error") {
     const request = JSON.parse(String(init.body)) as { query: string; variables: Record<string, unknown> };
     calls.push(request);
     if (files === "error") return new Response("{\"message\":\"Bad credentials\"}", { status: 401, headers: { "content-type": "application/json" } });
+    // Answer each aliased path the query asks for (fN: object(expression: "HEAD:<path>")).
+    const asked = [...request.query.matchAll(/f(\d+): object\(expression: "HEAD:([^"]+)"\)/g)];
     const repository = files === "missing" ? null
-      : Object.fromEntries(AI_POLICY_FILES.map((path, i) => [`f${i}`, path in files ? { text: files[path] } : null]));
+      : Object.fromEntries(asked.map(([, i, path]) => [`f${i}`, path in files ? { text: files[path] } : null]));
     return new Response(JSON.stringify({ data: { repository } }), { headers: { "content-type": "application/json" } });
   }) as unknown as typeof globalThis.fetch;
   return { client: gh(`t-${Math.random()}`, { fetch }), calls };
@@ -98,6 +100,31 @@ test("fetchAiPolicy: one GraphQL call over every policy file, classified", async
   assert.deepEqual(github.calls[0].variables, { owner: "ziglang", name: "zig" });
   for (const f of AI_POLICY_FILES) assert.ok(github.calls[0].query.includes(JSON.stringify(`HEAD:${f}`)), f);
 });
+
+test("fetchAiPolicy: a symlinked guide is followed once (GraphQL gives a symlink's target as its text)", async () => {
+  const welcome = "## AI policy\n\nWe welcome the use of AI when contributing. However, users should certify that they fully understand the code being submitted.\n";
+  const github = fakeGitHub({ "CONTRIBUTING.md": "docs/guide/contributing.md", "docs/guide/contributing.md": welcome });
+  const policy = await fetchAiPolicy(github.client, "pydantic/pydantic");
+  assert.equal(policy.stance, "allowed");
+  assert.equal(policy.source, "docs/guide/contributing.md");
+  assert.equal(github.calls.length, 2);
+  assert.ok(github.calls[1].query.includes(JSON.stringify("HEAD:docs/guide/contributing.md")));
+});
+
+const SYMLINKS: Array<[string, string, string | null]> = [
+  ["CONTRIBUTING.md", "docs/contributing.md", "docs/contributing.md"],
+  [".github/CONTRIBUTING.md", "../docs/CONTRIBUTING.md", "docs/CONTRIBUTING.md"],
+  ["docs/CONTRIBUTING.md", "./guide.rst", "docs/guide.rst"],
+  ["CONTRIBUTING.md", "../../etc/passwd.md", null],
+  ["CONTRIBUTING.md", "# Contributing\n\nSee docs/contributing.md", null],
+  ["CONTRIBUTING.md", "Please be kind.", null],
+  ["CONTRIBUTING.md", "", null],
+];
+for (const [path, text, expected] of SYMLINKS) {
+  test(`symlinkTarget(${path}, ${JSON.stringify(text.slice(0, 30))}) → ${expected}`, () => {
+    assert.equal(symlinkTarget(path, text), expected);
+  });
+}
 
 test("fetchAiPolicy: failures are named errors, never a silent unknown", async () => {
   await assert.rejects(fetchAiPolicy(fakeGitHub("missing").client, "a/b"), AiPolicyFetchError);

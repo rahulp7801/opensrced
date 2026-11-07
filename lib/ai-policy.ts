@@ -21,8 +21,16 @@ const STANCE: Record<AiStance, AiPolicyStance> = { ban: "banned", disclose: "dis
 const RANK: Record<AiPolicyStance, number> = { unknown: 0, allowed: 1, "disclosure-required": 2, banned: 3 };
 
 /** Where projects put the policy. GraphQL paths are case-sensitive; these are the spellings in use. */
-export const AI_POLICY_FILES = ["", ".github/", "docs/"].flatMap((dir) =>
-  ["CONTRIBUTING.md", "CONTRIBUTING.rst", "AI_POLICY.md", "AI-POLICY.md", "AI.md", "PULL_REQUEST_TEMPLATE.md", "pull_request_template.md"].map((file) => `${dir}${file}`));
+export const AI_POLICY_FILES = [
+  ...["", ".github/", "docs/"].flatMap((dir) =>
+    ["CONTRIBUTING.md", "CONTRIBUTING.rst", "AI_POLICY.md", "AI-POLICY.md", "AI.md", "PULL_REQUEST_TEMPLATE.md", "pull_request_template.md"].map((file) => `${dir}${file}`)),
+  // mkdocs sites keep the guide lowercase (pydantic's docs/contributing.md).
+  "docs/contributing.md",
+  // The agent instructions file, where projects increasingly put it (pandas:
+  // "The user is required to disclose your agent information"). Root only, as
+  // agents read it; the clone-based check (lib/contrib-profile.ts) reads it too.
+  "AGENTS.md",
+];
 
 /** How long a repo's policy is reused before it is read again. */
 export const AI_POLICY_TTL_MS = 6 * 60 * 60_000;
@@ -61,10 +69,23 @@ export function splitRepo(repo: string): [string, string] {
   return [owner, name];
 }
 
-/** Read the policy files from GitHub (no cache). Throws AiPolicyFetchError. */
-export async function fetchAiPolicy(client: GitHubClient, repo: string): Promise<RepoAiPolicy> {
-  const [owner, name] = splitRepo(repo);
-  const fields = AI_POLICY_FILES.map((f, i) => `f${i}: object(expression: ${JSON.stringify(`HEAD:${f}`)}) { ... on Blob { text } }`).join("\n");
+/** The path a symlink points at, resolved from its own directory, or null.
+ *  GraphQL hands back a symlink's target as its text: pydantic's root
+ *  CONTRIBUTING.md is "docs/contributing.md". Exported for tests. */
+export function symlinkTarget(path: string, text: string): string | null {
+  const target = text.trim();
+  if (target.includes("\n") || target.length > 200 || !/^[\w./-]+\.(md|rst|txt)$/i.test(target)) return null;
+  const parts = path.split("/").slice(0, -1);
+  for (const segment of target.split("/")) {
+    if (segment === "..") { if (!parts.length) return null; parts.pop(); }
+    else if (segment !== "." && segment) parts.push(segment);
+  }
+  return parts.join("/");
+}
+
+/** The text of each path that exists on the default branch. */
+async function readFiles(client: GitHubClient, repo: string, owner: string, name: string, paths: string[]): Promise<Map<string, string>> {
+  const fields = paths.map((f, i) => `f${i}: object(expression: ${JSON.stringify(`HEAD:${f}`)}) { ... on Blob { text } }`).join("\n");
   let data: { repository: Record<string, { text?: string | null } | null> | null };
   try {
     data = await client.graphql(`query AiPolicy($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${fields} } }`, { owner, name });
@@ -72,11 +93,30 @@ export async function fetchAiPolicy(client: GitHubClient, repo: string): Promise
     throw new AiPolicyFetchError(repo, error);
   }
   if (!data?.repository) throw new AiPolicyFetchError(repo);
-  const files = AI_POLICY_FILES.flatMap((path, i) => {
+  return new Map(paths.flatMap((path, i) => {
     const text = data.repository?.[`f${i}`]?.text;
-    return text ? [{ path, text }] : [];
-  });
-  return classifyRepoAiPolicy(files);
+    return text ? [[path, text] as const] : [];
+  }));
+}
+
+/** Read the policy files from GitHub (no cache), following a symlinked guide
+ *  once. Throws AiPolicyFetchError. */
+export async function fetchAiPolicy(client: GitHubClient, repo: string): Promise<RepoAiPolicy> {
+  const [owner, name] = splitRepo(repo);
+  const found = await readFiles(client, repo, owner, name, AI_POLICY_FILES);
+  const links = new Map([...found].flatMap(([path, text]) => {
+    const target = symlinkTarget(path, text);
+    return target && !found.has(target) ? [[path, target] as const] : [];
+  }));
+  if (links.size) {
+    const targets = await readFiles(client, repo, owner, name, [...new Set(links.values())]);
+    for (const [path, target] of links) {
+      found.delete(path);
+      const text = targets.get(target);
+      if (text) found.set(target, text);
+    }
+  }
+  return classifyRepoAiPolicy([...found].map(([path, text]) => ({ path, text })));
 }
 
 // ponytail: per-instance cache; move to a repos.ai_policy column once the DB is configured everywhere.

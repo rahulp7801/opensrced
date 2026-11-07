@@ -8,7 +8,7 @@
 // that it is at most a note.
 
 import { changelogLocation, TEST_PATH, TITLE_PATTERNS } from "./maintainer-prefs";
-import { engagementAdvice, MIN_SAMPLE, type RepoProfile, type Tally } from "./repo-profile";
+import { engagementAdvice, MIN_SAMPLE, prType, type RepoProfile, type Tally } from "./repo-profile";
 
 /** A norm counts as a habit at this share of merged PRs. */
 export const HABIT = 0.5;
@@ -83,8 +83,7 @@ export function checkDraft(p: RepoProfile, draft: PrDraft): Check[] {
       : `The project asks contributors to disclose AI assistance${ai.source ? ` (${ai.source})` : ""}; the description doesn't mention it.`);
   } else if (!DISCLOSES_AI.test(draft.body)) add("ai-disclosure", "note", "The description doesn't mention AI assistance. Say so if AI helped, even where the project doesn't ask.");
   const advice = engagementAdvice(p);
-  if (advice?.reason === "not_assigned") add("assigned", "warn", `${advice.count} of ${advice.of} recently closed outside PRs here were opened without being assigned to the issue. Make sure a maintainer assigned it to you.`);
-  if (advice?.reason === "discuss_first") add("discussed", "warn", `${advice.count} of ${advice.of} recently closed outside PRs here were closed because the approach wasn't agreed first. Make sure it was agreed on the issue.`);
+  if (advice) add(advice.reason === "not_assigned" ? "assigned" : "discussed", "warn", `${advice.headline} Make sure that happened before opening this PR.`);
   for (const f of (ai?.agentFiles ?? []).slice(0, 2)) add("agent-file", "note", `The project's ${f.path} has instructions for this kind of change: check the draft follows them.`);
 
   // 2. What merged PRs here have.
@@ -97,7 +96,9 @@ export function checkDraft(p: RepoProfile, draft: PrDraft): Check[] {
   }
   const touchesTests = draft.files.some((f) => TEST_PATH.test(f));
   const testsShare = share(o.testsMerged);
-  if (testsShare !== null && testsShare >= HABIT) {
+  // A docs or translation change has no tests to add (pyjanitor's docs PRs merge without them).
+  const kind = prType({ files: { nodes: draft.files.map((path) => ({ path })) }, title: draft.title });
+  if (testsShare !== null && testsShare >= HABIT && kind !== "docs" && kind !== "translation") {
     add("tests", touchesTests ? "ok" : "warn", touchesTests
       ? "The draft changes tests, like most merged PRs here."
       : `${pct(testsShare)} of merged outside PRs here change tests; this draft changes none.`, o.testsMerged.examples);
@@ -121,6 +122,11 @@ export function checkDraft(p: RepoProfile, draft: PrDraft): Check[] {
   const lines = draft.additions + draft.deletions;
   if (o.medianLinesMerged && o.merged.count >= MIN_SAMPLE && lines > SIZE_FACTOR * o.medianLinesMerged) {
     add("size", "warn", `The draft changes ${lines} lines; merged outside PRs here change a median of ${o.medianLinesMerged}. Consider splitting it.`);
+  }
+  // Silence would read as "all good" (nbQA, earthpy): say there is too little to compare with.
+  const NORMS = ["linked-issue", "tests", "changelog", "title", "sign-off", "size"];
+  if (!checks.some((c) => NORMS.includes(c.id))) {
+    add("too-little-history", "note", `Too few merged PRs here to compare this draft with (${o.merged.count} merged outside PR${o.merged.count === 1 ? "" : "s"} in the window). Read the contributing guide and a few recent merged PRs instead.`);
   }
   const order = { warn: 0, note: 1, ok: 2 } as const;
   return checks.sort((a, b) => order[a.status] - order[b.status]);

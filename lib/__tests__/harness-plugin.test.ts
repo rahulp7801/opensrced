@@ -35,7 +35,7 @@ before(async () => {
             { section: "conventions", text: "Changelog entries go in HISTORY.md.", examples: [] },
           ],
           page: "https://opensrced.example/repos/Acme/App",
-          advice: { reason: "not_assigned", count: 23, of: 32, comment: "Hi! I'd like to work on this. Could you assign it to me?" },
+          advice: { reason: "not_assigned", count: 23, of: 32, comment: "Hi! I'd like to work on this. Could you assign it to me?", headline: "23 of 32 recently closed outside PRs here were opened without being assigned to the issue. Ask to be assigned first, and wait for a yes." },
         }));
       }
       res.writeHead(204);
@@ -94,7 +94,7 @@ test("the plugin server speaks MCP: initialize, tools, and calls that reach open
     assert.match(text(profile), /^# Acme\/App: how this project reviews contributions/);
     assert.match(text(profile), /## Why PRs get closed\n- 23 of 32 closed outside PRs: opened without being assigned to the issue first\. \(e\.g\. https:\/\/github\.com\/acme\/app\/pull\/9\)/);
     assert.match(text(profile), /Full page: https:\/\/opensrced\.example\/repos\/Acme\/App$/);
-    assert.ok(text(profile).includes("## Before writing code\nThis project closes PRs from contributors who weren't assigned to the issue (23 of 32"));
+    assert.ok(text(profile).includes(["## Before writing code", "23 of 32 recently closed outside PRs here were opened without being assigned to the issue."].join("\n")));
     assert.ok(text(profile).includes(`post themselves: "Hi! I'd like to work on this. Could you assign it to me?"`));
     assert.equal(seen.at(-1)?.url, "/api/harness/profile?repo=acme%2Fapp");
     assert.equal(seen.at(-1)?.auth, `Bearer ${TOKEN}`);

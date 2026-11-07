@@ -18,7 +18,7 @@ import { eq, and, sql } from "drizzle-orm";
 import type { Db } from "./db/client";
 import { repos } from "./db/schema";
 import type { GitHubClient } from "./gh";
-import { aiStatementIn, fetchAiPolicy, splitRepo, type RepoAiPolicy, type RepoAiReading } from "./ai-policy";
+import { aiStatementIn, fetchAiPolicy, splitRepo, type ProcedureKind, type RepoAiPolicy, type RepoAiReading } from "./ai-policy";
 import { fetchWanted, wantedFindings, type RepoWanted } from "./repo-wanted";
 import { communityFindings, fetchCommunity, type RepoCommunity } from "./repo-community";
 import { isMaintainer, median } from "./recs/health";
@@ -138,7 +138,7 @@ export type RepoProfile = {
   responseHours?: { n: number; q1: number | null; median: number | null; q3: number | null };
   /** From the contributing guides, AI policy files, PR templates and agent
    *  instruction files (lib/ai-policy.ts); null when they could not be read. */
-  aiPolicy?: (RepoAiPolicy & Partial<Pick<RepoAiReading, "agentFiles" | "agentDirectives">>) | null;
+  aiPolicy?: (RepoAiPolicy & Partial<Pick<RepoAiReading, "agentFiles" | "agentDirectives" | "procedures">>) | null;
   /** What maintainers said about AI in review, which is not the written policy. */
   reviewAiStatements?: Array<{ stance: RepoAiPolicy["stance"]; excerpt: string; url: string }>;
   /** lib/repo-wanted.ts and lib/repo-community.ts; null when they could not be read. */
@@ -516,20 +516,53 @@ const PR_TYPE_TEXT: Record<PrType, string> = {
 /** What to do before writing code, when the project closes PRs for skipping
  *  it: ask to be assigned, or agree the approach first. The comment is a draft
  *  for the contributor to finish and post themselves; opensrcer never posts. */
-export type EngagementAdvice = { reason: "not_assigned" | "discuss_first"; count: number; of: number; comment: string };
+/** `count`/`of` when closed PRs show it; `written` when the project's own
+ *  guide or PR template says it (which counts however few PRs it has). */
+export type EngagementAdvice = {
+  reason: "not_assigned" | "discuss_first"; count: number; of: number; comment: string;
+  written?: { kind: ProcedureKind; path: string; text: string };
+  /** One sentence saying why and what to do, for the scanner card, the harness and check_pr. */
+  headline: string;
+};
+
+function adviceHeadline(reason: EngagementAdvice["reason"], count: number, of: number, written?: EngagementAdvice["written"]): string {
+  const todo = reason === "not_assigned" ? "Ask to be assigned first, and wait for a yes." : "Agree the approach on the issue first, and wait for a yes.";
+  if (count > 0) {
+    return reason === "not_assigned"
+      ? `${count} of ${of} recently closed outside PRs here were opened without being assigned to the issue. ${todo}`
+      : `${count} of ${of} recently closed outside PRs here were closed because the approach hadn't been agreed. ${todo}`;
+  }
+  return `The project's ${written!.path} asks for ${PROCEDURE_TEXT[written!.kind]} before a pull request. ${todo}`;
+}
 
 const ADVICE_COMMENTS: Record<EngagementAdvice["reason"], string> = {
   not_assigned: "Hi! I'd like to work on this. My plan: <one or two sentences on the fix>, with a test that reproduces the problem. Could you assign it to me?",
   discuss_first: "Hi! Before opening a pull request I'd like to check the approach: <one or two sentences on the fix>. Does that sound right, or would you prefer a different direction?",
 };
 
-/** The advice, when one of those close reasons recurs (MIN_REPEATS); assignment first. */
+/** What each written step asks for, as a phrase. */
+export const PROCEDURE_TEXT: Record<ProcedureKind, string> = {
+  approval: "a maintainer's approval",
+  assignment: "being assigned to the issue",
+  issue_first: "an issue to be opened",
+  discussion: "the change to be discussed",
+};
+
+/** The advice: from close reasons that recur (MIN_REPEATS), else from the
+ *  project's written procedure; assignment first. */
 export function engagementAdvice(p: RepoProfile): EngagementAdvice | null {
+  const written = p.aiPolicy?.procedures ?? [];
   for (const reason of ["not_assigned", "discuss_first"] as const) {
     const r = p.closeReasons.find((x) => x.reason === reason);
-    if (r && r.count >= MIN_REPEATS) return { reason, count: r.count, of: r.of, comment: ADVICE_COMMENTS[reason] };
+    const rule = written.find((w) => (w.kind === "assignment") === (reason === "not_assigned"));
+    if (r && r.count >= MIN_REPEATS) {
+      return { reason, count: r.count, of: r.of, comment: ADVICE_COMMENTS[reason], ...(rule ? { written: rule } : {}), headline: adviceHeadline(reason, r.count, r.of) };
+    }
   }
-  return null;
+  const rule = written.find((w) => w.kind === "assignment") ?? written[0];
+  if (!rule) return null;
+  const reason = rule.kind === "assignment" ? "not_assigned" : "discuss_first";
+  return { reason, count: 0, of: 0, comment: ADVICE_COMMENTS[reason], written: rule, headline: adviceHeadline(reason, 0, 0, rule) };
 }
 
 /** One readable finding with what backs it. */
@@ -567,6 +600,10 @@ export function profileFindings(p: RepoProfile): Finding[] {
   else if (ai?.stance === "disclosure-required") out.push({ section: "start", text: `The project asks contributors to disclose AI assistance${quote(ai)}.`, examples: [] });
   else if (ai?.stance === "allowed") out.push({ section: "start", text: `AI-assisted contributions are welcome${quote(ai)}.`, examples: [] });
   else if (ai?.stance === "unknown") out.push({ section: "start", text: "No AI policy in its contributing guide or PR template: disclose AI assistance anyway.", examples: [] });
+  // Written steps before a PR count however few PRs the project has (earthpy: approval first).
+  for (const r of ai?.procedures ?? []) {
+    out.push({ section: "start", text: `The project's ${r.path} asks for ${PROCEDURE_TEXT[r.kind]} before a pull request: "${r.text}"`, examples: [] });
+  }
   for (const f of (ai?.agentFiles ?? []).slice(0, 3)) {
     out.push({ section: "start", text: `The project has instructions for AI agents in ${f.path}: read and follow them before changing code.`, examples: [] });
   }

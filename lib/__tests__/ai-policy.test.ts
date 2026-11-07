@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { gh } from "../gh";
 import {
   AI_POLICY_DIRS, AI_POLICY_TTL_MS, AiPolicyFetchError, agentDirectivesIn, aiPolicyBanReason, aiStatementIn, classifyRepoAiPolicy, clearAiPolicyCache,
-  fetchAiPolicy, includeTargets, InvalidRepoNameError, policyFileRole, repoAiPolicy, symlinkTarget, type AiPolicyStance,
+  fetchAiPolicy, includeTargets, InvalidRepoNameError, policyFileRole, procedureRulesIn, repoAiPolicy, symlinkTarget, type AiPolicyStance, type ProcedureKind,
 } from "../ai-policy";
 
 // Modelled on real policies; wording shortened, structure kept.
@@ -287,6 +287,35 @@ for (const [path, text, expected] of SYMLINKS) {
     assert.equal(symlinkTarget(path, text), expected);
   });
 }
+
+const PROCEDURES: Array<[string, string, ProcedureKind[]]> = [
+  // earthpy's PR template and guide, as written.
+  ["earthpy template", "Only submit a PR after:\n- Creating an issue\n- Getting approval from one of the maintainers", ["approval"]],
+  ["earthpy guide", "To contribute, first create an issue. Once a discussion has yielded a vote of support, you are ready to submit a pull request.", ["approval", "issue_first"]],
+  ["assignment", "Please don't open a PR without being assigned to the issue.", ["assignment"]],
+  ["ask to be assigned", "Comment on the issue and wait to be assigned before you start.", ["assignment"]],
+  ["discussion", "Larger changes should be discussed in an issue before you open a pull request.", ["discussion"]],
+  ["issue first", "Please open an issue first so we can agree on the design.", ["issue_first"]],
+  // Review rules and plain prose are not pre-PR steps.
+  ["merge approval", "Every PR needs approval from two maintainers to merge.", []],
+  ["reviewers assigned", "A reviewer will be assigned automatically.", []],
+  ["plain", "Thanks for contributing! Run the tests with pytest.", []],
+];
+for (const [name, text, kinds] of PROCEDURES) {
+  test(`procedureRulesIn: ${name} → ${kinds.join(", ") || "none"}`, () => {
+    const rules = procedureRulesIn([{ path: "CONTRIBUTING.md", text }]);
+    assert.deepEqual(rules.map((r) => r.kind).sort(), [...kinds].sort());
+    for (const r of rules) assert.ok(text.replace(/\s+/g, " ").includes(r.text), "quoted from the file");
+  });
+}
+
+test("procedureRulesIn: one quote per kind, first file first", () => {
+  const rules = procedureRulesIn([
+    { path: ".github/PULL_REQUEST_TEMPLATE.md", text: "Only submit a PR after getting a maintainer's go-ahead." },
+    { path: "CONTRIBUTING.rst", text: "Only submit a PR after a vote of support on the issue." },
+  ]);
+  assert.deepEqual(rules.map((r) => [r.kind, r.path]), [["approval", ".github/PULL_REQUEST_TEMPLATE.md"]]);
+});
 
 test("fetchAiPolicy: failures are named errors, never a silent unknown", async () => {
   await assert.rejects(fetchAiPolicy(fakeGitHub("missing").client, "a/b"), AiPolicyFetchError);

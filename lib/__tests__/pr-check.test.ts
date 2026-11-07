@@ -72,6 +72,31 @@ test("norms most merged PRs don't follow, or that rest on too few PRs, are not e
   assert.equal(checkDraft(profile(), { ...GOOD, signedOff: undefined }).find((c) => c.id === "sign-off"), undefined, "unknown sign-off is not judged");
 });
 
+test("a docs-only draft isn't asked for tests (pyjanitor #750's dry run)", () => {
+  const docs = { ...GOOD, title: "[DOC] Describe the real PR docs preview", files: [".github/pull_request_template.md", "mkdocs/devguide.md", "CHANGELOG.md"] };
+  assert.equal(checkDraft(profile(), docs).find((c) => c.id === "tests"), undefined);
+  assert.equal(checkDraft(profile(), { ...GOOD, files: ["janitor/functions/fill.py", "CHANGELOG.md"] }).find((c) => c.id === "tests")?.status, "warn", "code still is");
+});
+
+test("with too little history, check_pr says so instead of returning nothing (nbQA, earthpy)", () => {
+  const quiet = summarizeProfile("acme/quiet", []);
+  quiet.aiPolicy = { stance: "allowed", source: "CONTRIBUTING.md", evidence: "AI welcome." };
+  const checks = checkDraft(quiet, GOOD);
+  const note = checks.find((c) => c.id === "too-little-history");
+  assert.equal(note?.status, "note");
+  assert.match(note.text, /^Too few merged PRs here to compare this draft with \(0 merged outside PRs in the window\)/);
+});
+
+test("a written procedure warns even without PR history (earthpy: approval before a PR)", () => {
+  const quiet = summarizeProfile("acme/quiet", []);
+  quiet.aiPolicy = { stance: "unknown", source: null, evidence: null, procedures: [
+    { kind: "approval", path: ".github/PULL_REQUEST_TEMPLATE.md", text: "Only submit a PR after getting approval from one of the maintainers." },
+  ] };
+  const warning = checkDraft(quiet, GOOD).find((c) => c.id === "discussed");
+  assert.equal(warning?.status, "warn");
+  assert.match(warning.text, /^The project's \.github\/PULL_REQUEST_TEMPLATE\.md asks for a maintainer's approval before a pull request\./);
+});
+
 const BAD_DRAFTS: Array<[string, unknown]> = [
   ["nothing", undefined],
   ["no title", { ...GOOD, title: "  " }],

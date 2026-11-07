@@ -367,6 +367,24 @@ for (const [name, reasons, expected] of ADVICE) {
   });
 }
 
+test("a written step before a PR leads the profile and gives advice without any PR history (earthpy)", () => {
+  const p = summarizeProfile("earthlab/earthpy", []);
+  p.aiPolicy = { stance: "unknown", source: null, evidence: null, procedures: [
+    { kind: "approval", path: ".github/PULL_REQUEST_TEMPLATE.md", text: "Only submit a PR after getting approval from one of the maintainers." },
+    { kind: "issue_first", path: "CONTRIBUTING.rst", text: "To contribute, first create an issue." },
+  ] };
+  const start = profileFindings(p).filter((f) => f.section === "start").map((f) => f.text);
+  assert.ok(start.includes(`The project's .github/PULL_REQUEST_TEMPLATE.md asks for a maintainer's approval before a pull request: "Only submit a PR after getting approval from one of the maintainers."`));
+  assert.ok(start.some((t) => t.startsWith("The project's CONTRIBUTING.rst asks for an issue to be opened before a pull request")));
+  const advice = engagementAdvice(p);
+  assert.deepEqual([advice?.reason, advice?.count, advice?.written?.kind], ["discuss_first", 0, "approval"]);
+  assert.match(advice!.headline, /asks for a maintainer's approval before a pull request\. Agree the approach on the issue first/);
+
+  // History, when it shows the same thing, gives the counts; assignment still comes first.
+  p.closeReasons = [{ reason: "not_assigned", count: 5, of: 8, examples: [] }];
+  assert.match(engagementAdvice(p)!.headline, /^5 of 8 recently closed outside PRs here were opened without being assigned/);
+});
+
 test("the profile surfaces agent files, text addressed to agents, AI remarks in review, invitations and community", () => {
   const p = summarizeProfile("acme/app", [pr({ maintainerSays: ["Totally ok to use your agents to do it"] })]);
   assert.equal(p.reviewAiStatements?.[0]?.stance, "allowed");

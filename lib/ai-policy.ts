@@ -30,7 +30,7 @@ export type AgentFile = { path: string; bytes: number };
 /** A passage addressed to AI agents, quoted (trimmed to ~300 chars) from `path`. */
 export type AgentDirective = { path: string; text: string };
 /** What fetchAiPolicy reads: the stance plus what the project says to agents. */
-export type RepoAiReading = RepoAiPolicy & { agentFiles: AgentFile[]; agentDirectives: AgentDirective[] };
+export type RepoAiReading = RepoAiPolicy & { agentFiles: AgentFile[]; agentDirectives: AgentDirective[]; procedures: ProcedureRule[] };
 
 const STANCE: Record<AiStance, AiPolicyStance> = { ban: "banned", disclose: "disclosure-required", welcome: "allowed", unknown: "unknown" };
 /** A ban anywhere outranks a disclosure rule, which outranks a welcome. */
@@ -120,6 +120,36 @@ function paragraphAround(text: string, index: number, matchLength: number): stri
   let from = head.lastIndexOf(". ") + 1; // 0 when the match is in the first sentence
   if (head.length - from + matchLength > DIRECTIVE_CHARS) from = head.length;
   return para.slice(from, from + DIRECTIVE_CHARS).trim();
+}
+
+/** A written step the project requires before a pull request. */
+export type ProcedureKind = "approval" | "assignment" | "issue_first" | "discussion";
+export type ProcedureRule = { kind: ProcedureKind; path: string; text: string };
+
+/** earthpy's template: "Only submit a PR after … Getting approval from one of
+ *  the maintainers"; its guide: "first create an issue … Once a discussion has
+ *  yielded a vote of support … submit a pull request". Checked in this order. */
+const PROCEDURE_PATTERNS: Array<[ProcedureKind, RegExp]> = [
+  // Approval before the PR, not to merge it ("needs approval from two maintainers to merge" is review).
+  ["approval", /\b(only (submit|open) a (pr|pull request) after|(get(ting)?|obtain(ing)?|wait(ing)? for)\b[^.\n]{0,40}\b(approval|a vote of support|the go-ahead)\b[^.\n]{0,40}\bbefore\b[^.\n]{0,30}\b(pr|pull request|submit|open)|vote of support\b[^.\n]{0,80}\b(submit|open) a (pr|pull request))/i],
+  ["assignment", /\b((ask|wait) to be assigned|(be|get|getting) assigned (to )?(the |an )?issue|assign (the issue|it) to yourself|without being assigned)\b/i],
+  ["issue_first", /\b((open|create|file) an issue (first|before)|first (open|create|file) an issue|before (opening|submitting|sending) a (pr|pull request)[^.\n]{0,60}\bissue\b)/i],
+  ["discussion", /\b(discuss(ed|ion)?\b[^.\n]{0,40}\bbefore\b[^.\n]{0,40}\b(pr|pull request|implement)|before (opening|submitting|sending) a (pr|pull request)[^.\n]{0,60}\bdiscuss)/i],
+];
+
+/** The pre-PR steps the guides and PR templates write down, one quote per
+ *  kind, in file order. Written rules count however few PRs a project has. Pure. */
+export function procedureRulesIn(files: Array<{ path: string; text: string }>): ProcedureRule[] {
+  const out: ProcedureRule[] = [];
+  for (const { path, text } of files) {
+    const body = text.slice(0, MAX_FILE_CHARS);
+    for (const [kind, re] of PROCEDURE_PATTERNS) {
+      if (out.some((r) => r.kind === kind)) continue;
+      const m = re.exec(body);
+      if (m) out.push({ kind, path, text: paragraphAround(body, m.index, m[0].length) });
+    }
+  }
+  return out;
 }
 
 /** Each passage in `files` addressed to AI agents, quoted, deduplicated, at
@@ -252,6 +282,7 @@ export async function fetchAiPolicy(client: GitHubClient, repo: string): Promise
     ...classifyRepoAiPolicy(files),
     agentFiles: files.filter((f) => roles.get(f.path) === "agent").map((f) => ({ path: f.path, bytes: new TextEncoder().encode(f.text).length })),
     agentDirectives: agentDirectivesIn(files),
+    procedures: procedureRulesIn(files.filter((f) => roles.get(f.path) !== "agent")),
   };
 }
 

@@ -5,7 +5,8 @@
 
 import { use, useEffect, useState } from "react";
 import { PageHeading } from "@/components/page-heading";
-import type { Finding, RepoProfile } from "@/lib/repo-profile";
+import type { EngagementAdvice, Finding, RepoProfile } from "@/lib/repo-profile";
+import { ClaimFirstCard } from "@/components/claim-first";
 
 const SECTIONS: Array<{ id: Finding["section"]; title: string }> = [
   { id: "start", title: "Before you start" },
@@ -16,7 +17,7 @@ const SECTIONS: Array<{ id: Finding["section"]; title: string }> = [
   { id: "conventions", title: "House conventions" },
 ];
 
-type State = { profile: RepoProfile; findings: Finding[] } | { error: string } | null;
+type State = { profile: RepoProfile; findings: Finding[]; advice: EngagementAdvice | null } | { error: string } | null;
 
 const prNumber = (url: string) => `#${url.split("/").pop()}`;
 const day = (iso: string | null) => iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
@@ -30,8 +31,8 @@ export default function RepoProfilePage({ params }: { params: Promise<{ owner: s
     setState(null);
     fetch(`/api/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/profile`, { signal: controller.signal })
       .then(async (r) => {
-        const body = await r.json().catch(() => ({})) as { profile?: RepoProfile; findings?: Finding[]; error?: string };
-        setState(r.ok && body.profile && body.findings ? { profile: body.profile, findings: body.findings } : { error: body.error ?? `Could not load the profile (${r.status}).` });
+        const body = await r.json().catch(() => ({})) as { profile?: RepoProfile; findings?: Finding[]; advice?: EngagementAdvice | null; error?: string };
+        setState(r.ok && body.profile && body.findings ? { profile: body.profile, findings: body.findings, advice: body.advice ?? null } : { error: body.error ?? `Could not load the profile (${r.status}).` });
       })
       .catch((e: Error) => { if (e.name !== "AbortError") setState({ error: "Could not reach opensrcer. Check your connection." }); });
     return () => controller.abort();
@@ -56,6 +57,8 @@ export default function RepoProfilePage({ params }: { params: Promise<{ owner: s
             <span>{state.profile.maintainers} maintainer{state.profile.maintainers === 1 ? "" : "s"} seen</span>
             <a className="text-link" href={`https://github.com/${state.profile.repo}`} target="_blank" rel="noreferrer">Open on GitHub</a>
           </p>
+
+          {state.advice && <div className="mb-10"><ClaimFirstCard advice={state.advice} /></div>}
 
           {state.findings.length === 0 && (
             <p className="callout" data-tone="info">Too few pull requests in the last four months to say anything reliable about this project yet.</p>

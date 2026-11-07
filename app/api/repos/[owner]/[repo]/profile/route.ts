@@ -7,7 +7,7 @@ import { resolveGitHubToken } from "@/lib/github-token";
 import { gh } from "@/lib/gh";
 import { sanitizeGitHubName } from "@/lib/sanitize";
 import { sessionUserId } from "@/lib/require-session";
-import { profileFindings, repoProfile, RepoNotFoundError, RepoProfileFetchError } from "@/lib/repo-profile";
+import { engagementAdvice, profileFindings, repoProfile, RepoNotFoundError, RepoProfileFetchError } from "@/lib/repo-profile";
 
 export const dynamic = "force-dynamic";
 // Three GitHub searches with nested reviews: usually 10–20 s.
@@ -23,7 +23,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ owner: 
   if (!token) return Response.json({ error: "Sign in with GitHub again to read this repository." }, { status: 401 });
   try {
     const profile = await repoProfile(await getDb(), gh(token), `${owner}/${repo}`);
-    return Response.json({ profile, findings: profileFindings(profile) }, { headers: { "Cache-Control": "private, max-age=300" } });
+    return Response.json({ profile, findings: profileFindings(profile), advice: engagementAdvice(profile) }, { headers: { "Cache-Control": "private, max-age=300" } });
   } catch (error) {
     if (error instanceof RepoNotFoundError) return Response.json({ error: error.message }, { status: 404 });
     console.error("[repos/profile]", error instanceof RepoProfileFetchError ? error.cause : error);

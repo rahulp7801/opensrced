@@ -7,6 +7,7 @@ import { cacheGet, cacheSet } from "@/lib/client-cache";
 import { IconArrow, IconChevronDown, IconSearch } from "./icons";
 import { DifficultyAndExamples, TestableTag, type IssueInsight } from "./worked-examples";
 import { StartLessonButton } from "./lesson/start-lesson";
+import { ClaimFirst } from "./claim-first";
 
 type ScopeBucket = "doc" | "leaf" | "cross-file" | "refactor" | "new-file" | "unknown";
 
@@ -265,6 +266,7 @@ export function IssueScanner({ lessons = false }: { lessons?: boolean }) {
                   <p className="mt-2 text-[14px]">
                     <a className="text-link" href={`/repos/${scan.repo}`}>How this project reviews PRs →</a>
                   </p>
+                  <ClaimFirst repo={scan.repo} />
                   {scan.policy?.ai === "ban" && (
                     <p role="alert" className="callout mt-3 max-w-2xl text-[15px]" data-tone="alert">
                       This project does not accept AI-generated contributions ({scan.policy.source}). Previews still work; publishing is refused.

@@ -7,7 +7,7 @@ import { canUse } from "@/lib/access-server";
 import { getDb } from "@/lib/db/client";
 import { gh } from "@/lib/gh";
 import { HarnessAuthError, harnessUser, recordEvent } from "@/lib/harness";
-import { profileFindings, repoProfile, RepoNotFoundError, storedProfile } from "@/lib/repo-profile";
+import { engagementAdvice, profileFindings, repoProfile, RepoNotFoundError, storedProfile } from "@/lib/repo-profile";
 import { splitRepo } from "@/lib/ai-policy";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +32,7 @@ export async function GET(req: Request) {
     if (!profile) return Response.json({ error: "No profile has been built for this repository yet. Open it on opensrcer once." }, { status: 404 });
     // Counted for the user's stats; a failed write never costs them the profile.
     await recordEvent(db, userId, { type: "profile_viewed", repo: profile.repo }).catch((e) => console.error("[harness/profile] event", e));
-    return Response.json({ profile, findings: profileFindings(profile), page: `${new URL(req.url).origin}/repos/${profile.repo}` });
+    return Response.json({ profile, findings: profileFindings(profile), advice: engagementAdvice(profile), page: `${new URL(req.url).origin}/repos/${profile.repo}` });
   } catch (error) {
     if (error instanceof RepoNotFoundError) return Response.json({ error: error.message }, { status: 404 });
     console.error("[harness/profile]", error);

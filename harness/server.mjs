@@ -85,6 +85,12 @@ function profileText(body) {
     for (const f of items) lines.push(`- ${f.text}${f.examples.length ? ` (e.g. ${f.examples.join(", ")})` : ""}`);
     lines.push("");
   }
+  if (body.advice) {
+    lines.push("## Before writing code", body.advice.reason === "not_assigned"
+      ? `This project closes PRs from contributors who weren't assigned to the issue (${body.advice.count} of ${body.advice.of} recent closed outside PRs). The user should ask to be assigned and wait for a yes.`
+      : `This project closes PRs whose approach wasn't agreed first (${body.advice.count} of ${body.advice.of} recent closed outside PRs). The user should propose the approach on the issue and wait.`,
+    `Draft for the user to finish and post themselves: "${body.advice.comment}"`, "");
+  }
   lines.push(`Measured from ${p.window.prs} PRs opened ${String(p.window.from).slice(0, 10)} to ${String(p.window.to).slice(0, 10)}. Full page: ${body.page}`);
   return lines.join("\n");
 }

@@ -4,7 +4,7 @@ import { openDb, type DbConnection } from "../db/client";
 import { migrateDb } from "../db/migrate";
 import type { GitHubClient } from "../gh";
 import {
-  closeReason, cohortQueries, COHORT_SLICES, fetchRepoProfile, maintainersOf, MIN_SAMPLE, profileFindings, repoProfile,
+  closeReason, cohortQueries, COHORT_SLICES, engagementAdvice, fetchRepoProfile, maintainersOf, MIN_SAMPLE, profileFindings, repoProfile,
   RepoNotFoundError, RepoProfileFetchError, storedProfile, summarizeProfile, type CloseReason, type ProfilePr,
 } from "../repo-profile";
 
@@ -118,6 +118,26 @@ test("findings need enough PRs, and a review request must recur before it is a n
   assert.ok(findings.some((f) => f.section === "closed" && f.text.includes("a duplicate") && f.examples.length === 3));
   assert.ok(!findings.some((f) => f.section === "review"), "asked on 2 PRs: not a norm yet");
 });
+
+const ADVICE: Array<[string, Array<[CloseReason, number]>, string | null]> = [
+  ["assignment, recurring", [["not_assigned", 23], ["duplicate", 2]], "not_assigned"],
+  ["discussion, recurring", [["discuss_first", 4]], "discuss_first"],
+  ["both: assignment comes first", [["discuss_first", 9], ["not_assigned", 3]], "not_assigned"],
+  ["below the repeat threshold", [["not_assigned", 2], ["discuss_first", 2]], null],
+  ["other reasons only", [["stale", 9], ["duplicate", 5]], null],
+];
+for (const [name, reasons, expected] of ADVICE) {
+  test(`engagement advice: ${name} → ${expected}`, () => {
+    const p = summarizeProfile("acme/app", []);
+    p.closeReasons = reasons.map(([reason, count]) => ({ reason, count, of: 32, examples: [] }));
+    const advice = engagementAdvice(p);
+    assert.equal(advice?.reason ?? null, expected);
+    if (advice) {
+      assert.equal(advice.of, 32);
+      assert.match(advice.comment, /^Hi! .*<one or two sentences on the fix>/, "a draft the contributor finishes");
+    }
+  });
+}
 
 test("an empty repository has an empty profile, not an error", () => {
   const p = summarizeProfile("acme/empty", []);

@@ -288,8 +288,27 @@ export const REVIEW_ASK_TEXT: Record<ReviewAsk, string> = {
   benchmark: "show benchmarks or check performance",
 };
 
+/** What to do before writing code, when the project closes PRs for skipping
+ *  it: ask to be assigned, or agree the approach first. The comment is a draft
+ *  for the contributor to finish and post themselves; opensrcer never posts. */
+export type EngagementAdvice = { reason: "not_assigned" | "discuss_first"; count: number; of: number; comment: string };
+
+const ADVICE_COMMENTS: Record<EngagementAdvice["reason"], string> = {
+  not_assigned: "Hi! I'd like to work on this. My plan: <one or two sentences on the fix>, with a test that reproduces the problem. Could you assign it to me?",
+  discuss_first: "Hi! Before opening a pull request I'd like to check the approach: <one or two sentences on the fix>. Does that sound right, or would you prefer a different direction?",
+};
+
+/** The advice, when one of those close reasons recurs (MIN_REPEATS); assignment first. */
+export function engagementAdvice(p: RepoProfile): EngagementAdvice | null {
+  for (const reason of ["not_assigned", "discuss_first"] as const) {
+    const r = p.closeReasons.find((x) => x.reason === reason);
+    if (r && r.count >= MIN_REPEATS) return { reason, count: r.count, of: r.of, comment: ADVICE_COMMENTS[reason] };
+  }
+  return null;
+}
+
 /** One readable finding with what backs it. */
-export type Finding = { section: "start" | "outcomes" | "closed" | "review" | "pace" | "conventions"; text: string; examples: string[] };
+export type Finding ={ section: "start" | "outcomes" | "closed" | "review" | "pace" | "conventions"; text: string; examples: string[] };
 
 const pct = (t: Tally) => `${Math.round((t.count / t.of) * 100)}%`;
 const hoursText = (h: number) => h < 1 ? "under an hour" : h < 48 ? `about ${Math.round(h)} hours` : `about ${Math.round(h / 24)} days`;

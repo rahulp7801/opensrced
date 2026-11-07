@@ -67,6 +67,8 @@ test("the plugin server speaks MCP: initialize, tools, and calls that reach open
   try {
     const init = await request("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" } });
     assert.deepEqual((init.result as { serverInfo: unknown }).serverInfo, { name: "opensrcer", version: "0.1.0" });
+    // Hosts without the plugin's skill get the workflow from the server itself.
+    assert.match((init.result as { instructions: string }).instructions, /Call repo_profile .* before changing code/);
     notify("notifications/initialized");
     const tools = (await request("tools/list")).result as { tools: Array<{ name: string }> };
     assert.deepEqual(tools.tools.map((t) => t.name), ["repo_profile", "record_event"]);

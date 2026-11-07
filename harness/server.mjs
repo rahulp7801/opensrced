@@ -49,6 +49,14 @@ const TOOLS = [
   },
 ];
 
+// Sent with `initialize`, so hosts without the plugin's skill (VS Code,
+// Codex CLI) still get the workflow. The full version: skills/contribute/SKILL.md.
+const INSTRUCTIONS = `opensrcer is a contribution harness. When the user works on an open-source repository they don't maintain:
+1. Call repo_profile (owner/name) before changing code, and act on it: if PRs get closed for being opened without assignment, have the user ask to be assigned first; if for "discuss first", draft an issue comment for them; if the project bans AI-generated contributions, stop and say so.
+2. Find the root cause. Write the test first and run it to see it fail; fix; run it to see it pass. Keep the change about as small as the profile says merged PRs are, and follow its conventions (title style, changelog, sign-off).
+3. The user is the author: walk them through the change, put their own explanation in the PR, disclose AI assistance as the project asks. Never post, push or open a PR unless they ask for that action.
+4. Call record_event for a verification result and when a PR is opened, merged or closed.`;
+
 class ToolError extends Error {}
 
 async function api(path, init = {}) {
@@ -103,7 +111,7 @@ async function handle(message) {
   const { id, method, params } = message;
   switch (method) {
     case "initialize":
-      return { protocolVersion: params?.protocolVersion ?? "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: "opensrcer", version: VERSION } };
+      return { protocolVersion: params?.protocolVersion ?? "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: "opensrcer", version: VERSION }, instructions: INSTRUCTIONS };
     case "ping":
       return {};
     case "tools/list":

@@ -33,6 +33,8 @@ export const MIN_SAMPLE = 5;
 /** A review request is stated once it recurs on this many PRs: one reviewer's
  *  one-off remark is not a norm. */
 export const MIN_REPEATS = 3;
+/** Maintainer requests quoted on the profile, one per outside PR. */
+export const MAX_VOICES = 6;
 /** Example PRs kept per finding. */
 export const EXAMPLES = 3;
 
@@ -126,7 +128,9 @@ export type RepoProfile = {
   /** Why outside PRs were closed without merging, most common first. */
   closeReasons: Array<{ reason: CloseReason } & Tally>;
   /** What maintainers asked for in review, over PRs that got review text. */
-  reviewAsks: Array<{ ask: ReviewAsk } & Tally>;
+  reviewAsks: Array<{ ask: ReviewAsk; quotes?: Array<{ text: string; url: string }> } & Tally>;
+  /** What maintainers asked outside contributors for, verbatim, any topic (MAX_VOICES, one per PR). */
+  outsideAsks?: Array<{ text: string; url: string }>;
   /** Null below MIN_SAMPLE responses. */
   medianFirstResponseHours: number | null;
   /** Hours to the first maintainer response on outside PRs that got one: n
@@ -220,7 +224,30 @@ export function askedFor(text: string, re: RegExp): boolean {
   return false;
 }
 
-const TRANSLATION_PATH = /(^|\/)(locales?|translations?|i18n|l10n)\/|\.pot?$/i;
+/** The maintainer's own sentence that asks for it, verbatim (code blocks and
+ *  quoted replies left out), or null when no readable sentence asks. Exported for tests. */
+export function quoteFor(text: string, re: RegExp): string | null {
+  return sentencesOf(text).find((s) => askedFor(s, re)) ?? null;
+}
+
+/** Readable sentences of a comment: code blocks and quoted replies left out, 20–220 characters. */
+function sentencesOf(text: string): string[] {
+  const prose = text.replace(/```[\s\S]*?```/g, " ").split("\n").filter((line) => !line.trimStart().startsWith(">")).join("\n");
+  return prose.split(/(?<=[.!?])\s+|\n+/).map((s) => s.replace(/\s+/g, " ").trim()).filter((s) => s.length >= 20 && s.length <= 220);
+}
+
+/** Asking, on any topic: stricter than REQUEST, whose "should"/"add" also
+ *  describe ("this should work now"). */
+const ASKING = /\b(please|pls|could you|can you|would you|kindly|don'?t forget|(this|it|that) needs? to)\b/i;
+/** A sentence cut off where code or a link follows ("could you run it through", "with an assert like:"). */
+const DANGLING = /(:|\b(through|with|like|at|to|in|on|of|for|the|a|an|following|below))$/i;
+
+/** The first sentence in a comment that asks the contributor for something, verbatim, or null. Exported for tests. */
+export function requestIn(text: string): string | null {
+  return sentencesOf(text).find((s) => ASKING.test(s) && !DANGLING.test(s.replace(/[\s.!?]+$/, ""))) ?? null;
+}
+
+const TRANSLATION_PATH =/(^|\/)(locales?|translations?|i18n|l10n)\/|\.pot?$/i;
 const DOCS_PATH = /(^|\/)docs?\/|\.(md|rst|adoc)$|(^|\/)(readme|contributing|authors)[^/]*$|(^|\/)mkdocs\.ya?ml$/i;
 
 /** A title that declares a docs change: "docs: …", "docs(api): …", "[DOC] …", "DOC: …". */
@@ -360,8 +387,25 @@ export function summarizeProfile(repo: string, prs: ProfilePr[], now = new Date(
   const reviewed = human.filter((pr) => maintainerText(pr, team).length > 0);
   const asks = REVIEW_ASKS.map((ask) => {
     const re = REVIEW_PATTERNS.find(([a]) => a === ask)![1];
-    return { ask, ...tally(reviewed, (pr) => maintainerText(pr, team).some((t) => askedFor(t, re))) };
+    // The maintainers' own words: one sentence per PR, outside contributors' PRs first.
+    const quotes = [...reviewed].sort((a, b) => Number(outside.includes(b)) - Number(outside.includes(a))).flatMap((pr) => {
+      const said = maintainerText(pr, team).map((t) => quoteFor(t, re)).find((q) => q !== null);
+      return said ? [{ text: said, url: pr.url }] : [];
+    }).slice(0, 2);
+    return { ask, ...tally(reviewed, (pr) => maintainerText(pr, team).some((t) => askedFor(t, re))), quotes };
   }).filter((a) => a.count > 0).sort((a, b) => b.count - a.count);
+  // What maintainers asked outside contributors for, on any topic: one
+  // sentence per PR, verbatim, newest PRs first, no repeats.
+  // Requests sharing most of their words are one request (pandas: "Once it reports LGTM, please leave a comment…" twice).
+  const words = (q: string) => new Set(q.toLowerCase().match(/[a-z0-9]+/g) ?? []);
+  const sameAsk = (a: Set<string>, b: Set<string>) => [...a].filter((w) => b.has(w)).length / new Set([...a, ...b]).size >= 0.6;
+  const seenAsks: Array<Set<string>> = [];
+  const outsideAsks = [...outside].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).flatMap((pr) => {
+    const said = maintainerText(pr, team).map(requestIn).find((q) => q !== null && !seenAsks.some((s) => sameAsk(s, words(q))));
+    if (!said) return [];
+    seenAsks.push(words(said));
+    return [{ text: said, url: pr.url }];
+  }).slice(0, MAX_VOICES);
 
   // Conventions need MIN_SAMPLE merged human PRs: one release PR is not a habit (earthpy).
   const humanMerged = human.filter((pr) => pr.state === "MERGED");
@@ -417,6 +461,7 @@ export function summarizeProfile(repo: string, prs: ProfilePr[], now = new Date(
       .map(([reason, list]) => ({ reason, count: list.length, of: closed.length, examples: list.slice(0, EXAMPLES).map((pr) => pr.url) }))
       .sort((a, b) => b.count - a.count),
     reviewAsks: asks,
+    outsideAsks,
     medianFirstResponseHours: timed ? round(median(responses), 1) : null,
     responseHours: {
       n: responses.length,
@@ -575,6 +620,14 @@ export function profileFindings(p: RepoProfile): Finding[] {
   }
   for (const a of p.reviewAsks.filter((a) => a.of >= MIN_SAMPLE && a.count >= MIN_REPEATS).slice(0, 5)) {
     out.push({ section: "review", text: `In ${pct(a)} of reviewed PRs, maintainers asked to ${REVIEW_ASK_TEXT[a.ask]}.`, examples: a.examples });
+    const said = a.quotes?.[0];
+    if (said) out.push({ section: "review", text: `In a maintainer's words: "${said.text}"`, examples: [said.url] });
+  }
+  // Any topic, verbatim: the trends a fixed list of categories misses.
+  const quoted = new Set(out.filter((f) => f.section === "review").map((f) => f.text));
+  for (const v of p.outsideAsks ?? []) {
+    const text = `Asked of an outside contributor: "${v.text}"`;
+    if (![...quoted].some((q) => q.includes(v.text))) out.push({ section: "review", text, examples: [v.url] });
   }
   // A version 1 profile has no sample size for its median: not stated.
   const r = p.responseHours;

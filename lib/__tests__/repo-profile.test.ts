@@ -4,7 +4,7 @@ import { openDb, type DbConnection } from "../db/client";
 import { migrateDb } from "../db/migrate";
 import type { GitHubClient } from "../gh";
 import {
-  askedFor, closeReason, cohortQueries, COHORT_SLICES, COHORT_WINDOWS, engagementAdvice, fetchRepoProfile, maintainersOf, MIN_SAMPLE, prType,
+  askedFor, closeReason, quoteFor, requestIn, MAX_VOICES, cohortQueries, COHORT_SLICES, COHORT_WINDOWS, engagementAdvice, fetchRepoProfile, maintainersOf, MIN_SAMPLE, prType,
   profileFindings, repoProfile, RepoNotFoundError, RepoProfileFetchError, storedProfile, summarizeProfile, windowText,
   type CloseReason, type PrType, type ProfilePr, type RepoProfile,
 } from "../repo-profile";
@@ -109,6 +109,76 @@ for (const [text, re, expected] of ASKS) {
   test(`askedFor: ${JSON.stringify(text)} → ${expected}`, () => assert.equal(askedFor(text, re), expected));
 }
 
+const CHANGELOG_RE = /\b(changelog|whats ?new|release notes?|news (entry|fragment)|towncrier|changeset)\b/i;
+const QUOTES: Array<[string, string | null]> = [
+  ["Looks good. Could you add a changelog entry in CHANGELOG.md? Then I'll merge.", "Could you add a changelog entry in CHANGELOG.md?"],
+  ["Thanks!\nPlease add a whatsnew note for this fix", "Please add a whatsnew note for this fix"],
+  ["> please add a changelog entry\n\nDone, thanks!", null],
+  ["```\nadd changelog entry here\n```\nOtherwise fine.", null],
+  ["Credited you in the changelog.", null],
+  ["Add changelog.", null],
+  [`Please add a changelog entry ${"because ".repeat(40)}`, null],
+];
+for (const [text, expected] of QUOTES) {
+  test(`quoteFor: ${JSON.stringify(text.slice(0, 40))} → ${expected === null ? "none" : "the sentence"}`, () => assert.equal(quoteFor(text, CHANGELOG_RE), expected));
+}
+
+const REQUESTS: Array<[string, string | null]> = [
+  ["Thanks for this! Could you move the helper into utils.py so both callers share it?", "Could you move the helper into utils.py so both callers share it?"],
+  ["LGTM. Please rebase on main before we merge this one.", "Please rebase on main before we merge this one."],
+  ["This needs to handle the empty-frame case as well, I think.", "This needs to handle the empty-frame case as well, I think."],
+  ["This should work now that the fix is in.", null],
+  // Real noise from pandas and scikit-learn: cut off before code or a link, or describing.
+  ["To help us get to this sooner, could you run it through\nhttps://example.com/check", null],
+  ["Could you test instead with an assert like:\n```\nassert x\n```", null],
+  ["As a user, if your performance is bad, well then you need to figure out that the root cause is likely the GIL.", null],
+  ["I added the label for you.", null],
+  ["> could you rebase?\nRebased.", null],
+  ["Thanks!", null],
+];
+for (const [text, expected] of REQUESTS) {
+  test(`requestIn: ${JSON.stringify(text.slice(0, 40))} → ${expected === null ? "none" : "the sentence"}`, () => assert.equal(requestIn(text), expected));
+}
+
+test("what maintainers asked outside contributors for: verbatim, one per PR, no repeats, capped", () => {
+  const prs = [
+    pr({ maintainerSays: ["Could you move the helper into utils.py?"], createdAt: "2026-09-02T00:00:00Z" }),
+    pr({ maintainerSays: ["Please rebase on main before we merge this one."], createdAt: "2026-09-03T00:00:00Z" }),
+    pr({ maintainerSays: ["Please rebase on main before we merge this one."], createdAt: "2026-09-01T00:00:00Z" }),
+    pr({ login: "maint", authorAssociation: "MEMBER", reviewSays: ["Could you look at this?"] }), // a maintainer's own PR
+    ...[
+      "Can you add a docstring to the new helper?", "Please split the refactor into its own PR.", "Could you run the benchmarks before and after?",
+      "Please keep the public signature unchanged.", "Can you rename the variable to match the module?", "Would you mind adding a whatsnew note?",
+      "Please drop the unrelated formatting changes.", "Could you link the issue in the description?",
+    ].map((said) => pr({ maintainerSays: [said], createdAt: "2026-08-01T00:00:00Z" })),
+  ];
+  const p = summarizeProfile("acme/app", prs);
+  assert.equal(p.outsideAsks?.length, MAX_VOICES);
+  assert.deepEqual(p.outsideAsks?.slice(0, 2).map((a) => a.text), ["Please rebase on main before we merge this one.", "Could you move the helper into utils.py?"]);
+  assert.equal(p.outsideAsks?.filter((a) => a.text.startsWith("Please rebase")).length, 1, "the same words once");
+  const nearDupes = summarizeProfile("acme/app", [
+    pr({ maintainerSays: ["Once it reports `LGTM` or `NITS ONLY`, please leave a comment so we know."], createdAt: "2026-09-02T00:00:00Z" }),
+    pr({ maintainerSays: ["Once it reports LGTM, please leave a comment so we know it's ready."], createdAt: "2026-09-01T00:00:00Z" }),
+  ]);
+  assert.equal(nearDupes.outsideAsks?.length, 1, "requests that open the same way are one");
+  assert.ok(profileFindings(p).some((f) => f.text === 'Asked of an outside contributor: "Could you move the helper into utils.py?"' && f.examples.length === 1));
+});
+
+test("each recurring review ask carries a maintainer's own sentence, from an outside PR first", () => {
+  const prs = [
+    pr({ login: "maint", authorAssociation: "MEMBER", reviewSays: ["Please add a changelog entry for the maintainers' record."] }),
+    // A maintainer's comment on their own PR doesn't count, so these 6 are the reviewed PRs.
+    ...Array.from({ length: 6 }, (_, i) => pr({ reviewSays: [`Nice. Could you add a changelog entry, number ${i}?`] })),
+  ];
+  const p = summarizeProfile("acme/app", prs);
+  const asks = p.reviewAsks.find((a) => a.ask === "changelog")!;
+  assert.equal(asks.quotes?.length, 2);
+  assert.equal(asks.quotes?.[0].text, "Could you add a changelog entry, number 0?");
+  const said = profileFindings(p).find((f) => f.text.startsWith("In a maintainer's words:"));
+  assert.equal(said?.text, 'In a maintainer\'s words: "Could you add a changelog entry, number 0?"');
+  assert.equal(said?.examples.length, 1);
+});
+
 test("review asks: mentions and quoted text don't count, and a request must recur", () => {
   const prs = [
     ...Array.from({ length: 3 }, () => pr({ reviewSays: ["Thanks! Credited you in the changelog."] })),
@@ -117,7 +187,7 @@ test("review asks: mentions and quoted text don't count, and a request must recu
   ];
   const p = summarizeProfile("acme/app", prs);
   assert.deepEqual(p.reviewAsks.map((a) => [a.ask, a.count]), [["changelog", 1]]);
-  assert.ok(!profileFindings(p).some((f) => f.section === "review"), "one request is not a norm");
+  assert.ok(!profileFindings(p).some((f) => f.text.startsWith("In ") && f.text.includes("of reviewed PRs")), "one request is not a norm (it may be quoted, never counted)");
 });
 
 const TYPES: Array<[string[], PrType | null, string?]> = [
@@ -199,7 +269,7 @@ test("findings need enough PRs, and a review request must recur before it is a n
   assert.equal(outcome?.examples.length, 3);
   assert.ok(findings.some((f) => f.text === "100% of merged outside PRs touched tests, against 0% of closed ones."));
   assert.ok(findings.some((f) => f.section === "closed" && f.text.includes("a duplicate") && f.examples.length === 3));
-  assert.ok(!findings.some((f) => f.section === "review"), "asked on 2 PRs: not a norm yet");
+  assert.ok(!findings.some((f) => f.text.includes("of reviewed PRs")), "asked on 2 PRs: not a norm yet (quoted, never counted)");
 });
 
 test("response time: two values (nbQA: 7 minutes and 84 days) are not a median; enough values give the spread", () => {

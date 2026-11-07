@@ -15,7 +15,7 @@ The person you are helping is the contributor. The pull request goes out in thei
    - The project bans AI-generated contributions: stop, and tell the user plainly. Do not work around it.
    - PRs get closed for being opened **without being assigned**: the user should ask to be assigned on the issue first. Draft that comment for them; they post it.
    - PRs get closed with **"discuss first"**: draft a short issue comment proposing the approach; they post it and wait.
-   - Many PRs are closed as **duplicates**: search open PRs for the issue number first.
+   - Many PRs are closed as **duplicates**: search open PRs for the issue number first (`gh pr list --repo owner/name --search "N"`). A number search also matches unrelated PRs, so open the hits and check that each one actually works on this issue before calling it taken.
    - Outside PRs rarely get merged at all: tell the user, so they can choose a better project or issue.
 
    - The project's guide or PR template writes down a step before any PR (a maintainer's approval, being assigned, an issue or discussion first): that counts even when the project has few PRs to measure. Draft the comment; the user posts it and waits.
@@ -28,7 +28,8 @@ Never post comments, push, or open PRs yourself unless the user explicitly asks 
 - Find the root cause, and say where it is (file and function) before fixing it.
 - **Write the test first and run it to see it fail.** Then fix, and run it again to see it pass. A test that already passed before the fix proves nothing. If the project's tests can't run here, say so instead of claiming the fix is tested.
 - Keep the change about as small as the profile says merged PRs are. Don't refactor or reformat around it.
-- Follow the conventions the profile lists: PR title style, changelog location (add the entry), sign-off (`git commit -s`), and anything reviewers routinely ask for.
+- Set up the environment the way the project documents it (pixi, conda, hatch, tox, uv). If that tool can't be installed here, use a plain virtualenv with the project's declared dependencies, and tell the user the tests ran outside the project's own environment.
+- Follow the conventions the profile lists: PR title style, changelog location (add the entry), sign-off (`git commit -s`), and anything reviewers routinely ask for. When the profile names no changelog, look for CHANGELOG, HISTORY or NEWS files (root and `docs/`) and copy the format of the latest entry.
 - Run the project's own formatter and linters (pre-commit, if it has one).
 
 After verifying, call `record_event` with `type: "verification"` and `outcome` (`verified`, `failed`, or `inconclusive`).

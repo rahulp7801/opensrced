@@ -165,7 +165,8 @@ function client(pages: ProfilePr[][] | null | Error, policy?: string | Error) {
         if (pages instanceof Error) throw pages;
         if (variables.q === undefined) {
           if (policy instanceof Error) throw policy;
-          return { repository: { f0: policy ? { text: policy } : null } };
+          // lib/ai-policy.ts: d0 lists the root, then f0 reads CONTRIBUTING.md.
+          return { repository: { d0: { entries: [{ name: "CONTRIBUTING.md", type: "blob", mode: 33188 }] }, f0: policy ? { text: policy } : null } };
         }
         calls.push(variables);
         if (pages === null) return { repository: null, search: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } };

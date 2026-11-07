@@ -41,8 +41,9 @@ const followupPr = { state: "open", author: "alice" };
 globalThis.fetch = (async (url: string | URL) => {
   const href = String(url);
   const path = new URL(href).pathname;
-  // The AI-policy read (lib/ai-policy.ts): one GraphQL call; f0 is the root CONTRIBUTING.md.
-  const body = path === "/graphql" ? { data: { repository: { f0: contributing === null ? null : { text: contributing } } } }
+  // The AI-policy read (lib/ai-policy.ts): d0 lists the root (CONTRIBUTING.md), then f0 is its text.
+  const body = path === "/graphql" ? { data: { repository: {
+    d0: { entries: [{ name: "CONTRIBUTING.md", type: "blob", mode: 33188 }] }, f0: contributing === null ? null : { text: contributing } } } }
     : href.includes("/timeline") ? timeline
     : path.endsWith("/pulls/12") ? { state: followupPr.state, merged: false, mergeable_state: "clean", user: { login: followupPr.author }, body: "Fixes #7",
       head: { sha: "c".repeat(40), ref: "opensrcer/issue-7-x", repo: { full_name: "alice/app" } }, base: { ref: "main" } }

@@ -43,6 +43,24 @@ const label = (name: string, open: number): WantedLabelNode =>
   ({ name, issues: { totalCount: open, nodes: Array.from({ length: Math.min(open, 3) }, (_, i) => ({ url: `https://github.com/acme/app/issues/${name.length}${i}` })) } });
 const input = (o: Partial<WantedInput> = {}): WantedInput => ({ openIssues: 50, labels: [label("good first issue", 7)], closed: [], pinned: [], ...o });
 
+test("invitation labels say how many issues are actually free, and how old the newest is (pyjanitor)", () => {
+  const open = (n: number, createdAt: string, assigned: number, prs: number) =>
+    ({ url: `https://github.com/acme/app/issues/${n}`, createdAt, assignees: { totalCount: assigned }, closedByPullRequestsReferences: { totalCount: prs } });
+  const gfi: WantedLabelNode = { name: "good first issue", issues: { totalCount: 7, nodes: [
+    open(708, "2020-02-01T00:00:00Z", 0, 1), // has a PR
+    open(732, "2020-03-01T00:00:00Z", 1, 0), // assigned
+    open(750, "2020-01-15T00:00:00Z", 0, 0), // free
+  ] } };
+  const w = summarizeWanted("acme/app", input({ labels: [gfi] }), NOW);
+  const [finding] = wantedFindings(w).filter((f) => f.text.includes("good first issue"));
+  assert.equal(finding.text, '7 of 50 open issues are labelled "good first issue". 1 of the newest 3 is free (nobody assigned, no open PR); the newest was opened March 2020.');
+  assert.equal(finding.examples[0], "https://github.com/acme/app/issues/750", "the free one first");
+
+  const allTaken: WantedLabelNode = { name: "help wanted", issues: { totalCount: 2, nodes: [open(1, "2026-01-01T00:00:00Z", 1, 0), open(2, "2025-06-01T00:00:00Z", 0, 1)] } };
+  assert.equal(wantedFindings(summarizeWanted("acme/app", input({ labels: [allTaken] }), NOW))[0].text,
+    '2 of 50 open issues are labelled "help wanted". None is free: each is assigned or already has an open PR; the newest was opened January 2026.');
+});
+
 test("closed invited issues are sorted by who fixed them: outsiders, the team, or no merged PR", () => {
   const closed = [
     ...Array.from({ length: 4 }, () => issue({ closer: prBy("newcomer") })),

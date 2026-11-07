@@ -47,7 +47,15 @@ export type WantedIssue = {
   /** The ClosedEvent: who closed it, and the PR or commit that did, if any. */
   timelineItems: { nodes: Array<{ actor?: Author; closer?: (Partial<WantedPr> & { __typename?: string }) | null }> } | null;
 };
-export type WantedLabelNode = { name: string; issues: { totalCount: number; nodes: Array<{ url: string }> } };
+/** An open issue under an invitation label: free when nobody is assigned and no open PR closes it. */
+export type WantedOpenIssue = {
+  url: string; createdAt?: string;
+  assignees?: { totalCount: number } | null;
+  closedByPullRequestsReferences?: { totalCount: number } | null;
+};
+export type WantedLabelNode = { name: string; issues: { totalCount: number; nodes: WantedOpenIssue[] } };
+/** Open issues read per label to tell free ones from taken ones. */
+export const LABEL_ISSUES_READ = 20;
 
 export type RepoWanted = {
   version: 1;
@@ -55,7 +63,9 @@ export type RepoWanted = {
   computedAt: string;
   openIssues: number;
   /** Each invitation label: open issues carrying it, of all open issues, most used first. */
-  labels: Array<{ name: string } & Tally>;
+  /** `free`/`read`: of the newest `read` open issues, how many nobody is
+   *  assigned to and no open PR closes; `newest`: the newest one's creation. */
+  labels: Array<{ name: string; free?: number; read?: number; newest?: string | null } & Tally>;
   /** Invited issues closed in the window (closed dates, both ends included). */
   closed: {
     /** How many the search matched; the tallies are over the WANTED_SAMPLE newest opened. */
@@ -136,7 +146,20 @@ export function summarizeWanted(repo: string, input: WantedInput, now = new Date
     computedAt: now.toISOString(),
     openIssues: input.openIssues,
     labels: input.labels
-      .map((l) => ({ name: l.name, count: l.issues.totalCount, of: input.openIssues, examples: l.issues.nodes.slice(0, EXAMPLES).map((i) => i.url) }))
+      .map((l) => {
+        // pyjanitor: 7 "good first issue", all from 2019–20, several assigned or with a PR already.
+        // Only issues read with their assignees and linked PRs can be called free or taken.
+        const known = l.issues.nodes.filter((i) => i.createdAt !== undefined && i.assignees !== undefined && i.closedByPullRequestsReferences !== undefined);
+        const isFree = (i: WantedOpenIssue) => !(i.assignees?.totalCount) && !(i.closedByPullRequestsReferences?.totalCount);
+        const free = known.filter(isFree);
+        const rest = l.issues.nodes.filter((i) => !free.includes(i));
+        const dates = known.map((i) => i.createdAt!).sort();
+        return {
+          name: l.name, count: l.issues.totalCount, of: input.openIssues,
+          examples: [...free, ...rest].slice(0, EXAMPLES).map((i) => i.url),
+          free: free.length, read: known.length, newest: dates.at(-1) ?? null,
+        };
+      })
       .sort((a, b) => b.count - a.count),
     closed: { total: Math.max(input.closedTotal ?? 0, of), from: day(now, COHORT_MAX_AGE_DAYS), to: day(now, COHORT_MIN_AGE_DAYS), outside: tally(outside), team: tally(mine), unmerged: tally(unmerged) },
     pinned: input.pinned,
@@ -159,7 +182,15 @@ export function wantedFindings(w: RepoWanted): Array<{ text: string; examples: s
     out.push({ text: `The project has the label${one ? "" : "s"} ${quoted(w.labels.map((l) => l.name), "and")}, but no open issue carries ${one ? "it" : "them"} now.`, examples: [] });
   }
   for (const l of used) {
-    out.push({ text: `${l.count} of ${l.of} open issues ${l.count === 1 ? "is" : "are"} labelled "${l.name}".`, examples: l.examples });
+    let state = "";
+    if (l.read !== undefined && l.free !== undefined && l.read > 0) {
+      const of = l.read < l.count ? ` of the newest ${l.read}` : "";
+      const newest = l.newest ? `; the newest was opened ${new Date(l.newest).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" })}` : "";
+      state = l.free === 0
+        ? ` None${of} is free: each is assigned or already has an open PR${newest}.`
+        : ` ${l.free}${of} ${l.free === 1 ? "is" : "are"} free (nobody assigned, no open PR)${newest}.`;
+    }
+    out.push({ text: `${l.count} of ${l.of} open issues ${l.count === 1 ? "is" : "are"} labelled "${l.name}".${state}`, examples: l.examples });
   }
   const c = w.closed;
   if (c.outside.of >= MIN_SAMPLE) {
@@ -194,7 +225,7 @@ type RepoData = {
 function labelsQuery(count: number): string {
   const vars = Array.from({ length: count }, (_, i) => `, $l${i}: String!`).join("");
   const fields = Array.from({ length: count }, (_, i) =>
-    `l${i}: label(name: $l${i}) { name issues(states: OPEN, first: ${EXAMPLES}, orderBy: { field: CREATED_AT, direction: DESC }) { totalCount nodes { url } } }`).join("\n    ");
+    `l${i}: label(name: $l${i}) { name issues(states: OPEN, first: ${LABEL_ISSUES_READ}, orderBy: { field: CREATED_AT, direction: DESC }) { totalCount nodes { url createdAt assignees { totalCount } closedByPullRequestsReferences(first: 1, includeClosedPrs: false) { totalCount } } } }`).join("\n    ");
   return `query RepoWantedCounts($owner: String!, $name: String!${vars}) {\n  repository(owner: $owner, name: $name) {\n    ${fields}\n  }\n}`;
 }
 

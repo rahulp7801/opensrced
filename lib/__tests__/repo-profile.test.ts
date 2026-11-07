@@ -455,15 +455,16 @@ type Merge = Pick<ProfilePr, "url" | "mergedAt" | "authorAssociation" | "author"
 /** A fake client answering the i-th PR search with `pages[i]` (or pages(i, n)),
  *  the last-merge search with `merges`, and the AI policy query with `policy`
  *  as the contributing guide. `calls` holds the PR searches, `mergeCalls` the other. */
-function client(pages: Page[] | ((i: number, n: number) => Page) | null | Error, policy?: string | Error, opts: { repository?: Record<string, unknown>; merges?: Merge[] } = {}) {
+function client(pages: Page[] | ((i: number, n: number) => Page) | null | Error, policy?: string | Error, opts: { repository?: Record<string, unknown>; merges?: Merge[]; readme?: string } = {}) {
   const calls: Array<Record<string, unknown>> = [];
   const mergeCalls: Array<Record<string, unknown>> = [];
   return {
     calls,
     mergeCalls,
     client: {
-      async graphql(_query: string, variables: Record<string, unknown>) {
+      async graphql(query: string, variables: Record<string, unknown>) {
         if (pages instanceof Error) throw pages;
+        if (query.includes("RepoReadme")) return { repository: { md: opts.readme ? { text: opts.readme } : null, rst: null } };
         if (variables.q === undefined) {
           if (policy instanceof Error) throw policy;
           // lib/ai-policy.ts: d0 lists the root, then f0 reads CONTRIBUTING.md.
@@ -543,6 +544,35 @@ for (const [name, repository, expected] of STATUS) {
     else assert.ok(!profileFindings(p).some((f) => f.text.startsWith("This repository")));
   });
 }
+
+// movingpandas' homepage is movingpandas.org; the README is what names Codeberg.
+const README_STATUS: Array<[string, string | undefined, string]> = [
+  ["a Codeberg badge link, not the badge image host",
+    "[![Issue Tracker](https://img.shields.io/badge/Issue_tracker-Codeberg-blue.svg)](https://codeberg.org/movingpandas/movingpandas/issues)\n<img src=\"https://get-it-on.codeberg.org/get-it-on-blue-on-white.png\">",
+    "This repository doesn't accept pull requests on GitHub; it points to https://codeberg.org/movingpandas/movingpandas instead."],
+  ["a bare host, which is no new home", "Hosted on https://codeberg.org", "This repository doesn't accept pull requests on GitHub."],
+  ["no README", undefined, "This repository doesn't accept pull requests on GitHub."],
+];
+for (const [name, readme, expected] of README_STATUS) {
+  test(`a repository closed to PRs reads its README for where it went: ${name}`, async () => {
+    const repository = { hasPullRequestsEnabled: false, homepageUrl: "http://movingpandas.org" };
+    const p = await fetchRepoProfile(client([], undefined, { repository, readme }).client, "acme/app", NOW);
+    assert.equal(profileFindings(p)[0].text, expected);
+  });
+}
+
+test("a repository open to PRs doesn't read its README for a new home", async () => {
+  let readmeAsked = false;
+  const fake = client([[pr()]], undefined, { repository: { hasPullRequestsEnabled: true }, readme: "https://codeberg.org/acme/app" });
+  const graphql = fake.client.graphql.bind(fake.client);
+  (fake.client as unknown as { graphql: typeof graphql }).graphql = ((q: string, v: Record<string, unknown>) => {
+    if (q.includes("RepoReadme")) readmeAsked = true;
+    return graphql(q, v);
+  }) as typeof graphql;
+  const p = await fetchRepoProfile(fake.client, "acme/app", NOW);
+  assert.equal(readmeAsked, false);
+  assert.equal(p.status?.elsewhere, null);
+});
 
 test("no outside merge in the window: the last one is looked up, leaving out maintainers and bots", async () => {
   const merge = (login: string, mergedAt: string, number: number, extra: Partial<Merge> = {}): Merge =>

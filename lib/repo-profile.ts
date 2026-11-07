@@ -754,7 +754,26 @@ type Search = { issueCount?: number; nodes: ProfilePr[]; pageInfo: { hasNextPage
 type Data = { repository: RepoNode | null; search: Search };
 type MergeNode = Pick<ProfilePr, "url" | "mergedAt" | "authorAssociation" | "author" | "mergedBy">;
 
-const ELSEWHERE = /https?:\/\/(?:[\w-]+\.)*(?:codeberg\.org|gitlab\.com|sr\.ht)(?:\/\S*)?/i;
+// A forge link down to owner/repo; bare hosts and badge subdomains
+// (get-it-on.codeberg.org) are not a project's new home.
+const ELSEWHERE = /https?:\/\/(?:codeberg\.org|gitlab\.com|(?:git\.)?sr\.ht)(?:\/[\w.~-]+){1,2}/i;
+
+const README_QUERY = `query RepoReadme($owner: String!, $name: String!) {
+  repository(owner: $owner, name: $name) {
+    md: object(expression: "HEAD:README.md") { ... on Blob { text } }
+    rst: object(expression: "HEAD:README.rst") { ... on Blob { text } }
+  }
+}`;
+
+/** The first forge link in the README: a project that left GitHub usually
+ *  says where it went there (movingpandas: Codeberg). */
+async function readmeElsewhere(client: GitHubClient, repo: string): Promise<string | null> {
+  const [owner, name] = repo.split("/");
+  type Blob = { text?: string } | null;
+  const data = await client.graphql<{ repository: { md: Blob; rst: Blob } | null }>(README_QUERY, { owner, name });
+  const text = data?.repository?.md?.text ?? data?.repository?.rst?.text ?? "";
+  return ELSEWHERE.exec(text)?.[0] ?? null;
+}
 
 function statusOf(r: RepoNode): RepoStatus {
   return {
@@ -827,17 +846,20 @@ export async function fetchRepoProfile(client: GitHubClient, repo: string, now =
     if (humans(wider.prs) > best) [read, best] = [wider, humans(wider.prs)];
   }
   const profile = summarizeProfile(canonical, read.prs, now, read.window);
-  profile.status = status ?? undefined;
-  // No outside merge in the window: when was the last one? One small search.
-  if (profile.outside.merged.count === 0 && status?.pullRequestsEnabled !== false) {
-    profile.lastOutsideMerge = await lastOutsideMerge(client, repo, canonical, maintainersOf(read.prs));
-  }
   // The policy, the invitations and the community are part of the profile, but
   // a profile without one still helps: each failure is logged and marked unread (null).
   const unread = (what: string) => (error: unknown) => {
     console.warn(`[repo-profile] ${what} of ${canonical} unread:`, error instanceof Error ? error.message : error);
     return null;
   };
+  if (status && !status.elsewhere && (!status.pullRequestsEnabled || status.archived)) {
+    status.elsewhere = await readmeElsewhere(client, canonical).catch(unread("README"));
+  }
+  profile.status = status ?? undefined;
+  // No outside merge in the window: when was the last one? One small search.
+  if (profile.outside.merged.count === 0 && status?.pullRequestsEnabled !== false) {
+    profile.lastOutsideMerge = await lastOutsideMerge(client, repo, canonical, maintainersOf(read.prs));
+  }
   const [o, n] = canonical.split("/");
   const [aiPolicy, wanted, community] = await Promise.all([
     fetchAiPolicy(client, canonical).catch(unread("AI policy")),

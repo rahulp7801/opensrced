@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { gh } from "../gh";
 import { InvalidRepoNameError } from "../ai-policy";
 import {
-  changelogLocation, clearMaintainerPrefsCache, fetchMaintainerPrefs, maintainerPrefs, MaintainerPrefsFetchError, prefsLines,
+  changelogLocation, clearMaintainerPrefsCache, fetchMaintainerPrefs, isBotAuthor, maintainerPrefs, MaintainerPrefsFetchError, prefsLines,
   PREFS_SAMPLE, PREFS_TTL_MS, summarizePrefs, titleConvention, type MergedPrNode,
 } from "../maintainer-prefs";
 
@@ -42,6 +42,22 @@ test("titleConvention: the style most titles share, or none below the norm", () 
   assert.equal(titleConvention(["Fix a", "Add b", "fix: c"]), "none");
   assert.equal(titleConvention([]), "none");
 });
+
+const BOTS: Array<[{ login: string; __typename?: string } | null, boolean]> = [
+  [{ login: "dependabot[bot]", __typename: "Bot" }, true],
+  [{ login: "pre-commit-ci[bot]" }, true],
+  [{ login: "pyup-bot", __typename: "User" }, true], // earthpy: a bot on a user account
+  [{ login: "deploy_bot", __typename: "User" }, true],
+  [{ login: "renovate", __typename: "User" }, true],
+  [null, true], // a deleted account
+  [{ login: "abbott", __typename: "User" }, false],
+  [{ login: "talbot", __typename: "User" }, false],
+  [{ login: "botanist", __typename: "User" }, false],
+  [{ login: "bot-fan", __typename: "User" }, false],
+];
+for (const [author, expected] of BOTS) {
+  test(`isBotAuthor(${author?.login ?? "null"}) → ${expected}`, () => assert.equal(isBotAuthor(author), expected));
+}
 
 test("summarizePrefs: medians, shares, the commonest changelog location; bots are left out", () => {
   const prs = [

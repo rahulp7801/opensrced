@@ -10,16 +10,19 @@ import { ClaimFirstCard } from "@/components/claim-first";
 
 const SECTIONS: Array<{ id: Finding["section"]; title: string }> = [
   { id: "start", title: "Before you start" },
+  { id: "wanted", title: "What maintainers are asking for" },
   { id: "outcomes", title: "What happens to outside contributors' PRs" },
   { id: "closed", title: "Why PRs get closed" },
   { id: "review", title: "What reviewers ask for" },
   { id: "pace", title: "How fast things move" },
+  { id: "community", title: "Where the project talks" },
   { id: "conventions", title: "House conventions" },
 ];
 
 type State = { profile: RepoProfile; findings: Finding[]; advice: EngagementAdvice | null } | { error: string } | null;
 
-const prNumber = (url: string) => `#${url.split("/").pop()}`;
+// PRs, issues and discussions show their number; a Discussions category its name.
+const prNumber = (url: string) => url.includes("/discussions/categories/") ? url.split("/").pop()!.replace(/-/g, " ") : `#${url.split("/").pop()}`;
 const day = (iso: string | null) => iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
 
 export default function RepoProfilePage({ params }: { params: Promise<{ owner: string; repo: string }> }) {

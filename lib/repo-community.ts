@@ -9,7 +9,7 @@
 // and the rest are linked, never read (their terms forbid scraping, and the
 // people there didn't consent to it).
 
-import { AI_POLICY_FILES, splitRepo, symlinkTarget } from "./ai-policy";
+import { splitRepo, symlinkTarget } from "./ai-policy";
 import type { GitHubClient } from "./gh";
 import { isBotAuthor } from "./maintainer-prefs";
 import { isMaintainer, median } from "./recs/health";
@@ -29,10 +29,12 @@ export const DISCUSSION_SAMPLE = 50;
 const DISCUSSION_PAGE = 100;
 const MAX_FILE_CHARS = 200_000;
 
-/** Files read for links. The contributing guides are the ones lib/ai-policy.ts reads. */
+/** Files read for links: the README, the usual contributing guide spellings
+ *  (lib/ai-policy.ts finds guides by listing; links live in these), and SUPPORT. */
 export const COMMUNITY_FILES = [
   "README.md", "README.rst", "README",
-  ...AI_POLICY_FILES.filter((path) => /contributing/i.test(path)),
+  ...["", ".github/", "docs/"].flatMap((dir) => ["CONTRIBUTING.md", "CONTRIBUTING.rst"].map((file) => `${dir}${file}`)),
+  "docs/contributing.md", "docs/contributing.rst",
   "SUPPORT.md", ".github/SUPPORT.md", "docs/SUPPORT.md",
 ];
 

@@ -18,7 +18,9 @@ import { eq, and, sql } from "drizzle-orm";
 import type { Db } from "./db/client";
 import { repos } from "./db/schema";
 import type { GitHubClient } from "./gh";
-import { fetchAiPolicy, splitRepo, type RepoAiPolicy } from "./ai-policy";
+import { aiStatementIn, fetchAiPolicy, splitRepo, type RepoAiPolicy, type RepoAiReading } from "./ai-policy";
+import { fetchWanted, wantedFindings, type RepoWanted } from "./repo-wanted";
+import { communityFindings, fetchCommunity, type RepoCommunity } from "./repo-community";
 import { isMaintainer, median } from "./recs/health";
 import { changelogLocation, isBotAuthor, TEST_PATH, TITLE_PATTERNS, titleConvention, type TitleConvention } from "./maintainer-prefs";
 
@@ -130,8 +132,14 @@ export type RepoProfile = {
   /** Hours to the first maintainer response on outside PRs that got one: n
    *  measurements, and quartiles once n reaches MIN_SAMPLE. */
   responseHours?: { n: number; q1: number | null; median: number | null; q3: number | null };
-  /** From the contributing guide, AI policy file or PR template; null when they could not be read. */
-  aiPolicy?: RepoAiPolicy | null;
+  /** From the contributing guides, AI policy files, PR templates and agent
+   *  instruction files (lib/ai-policy.ts); null when they could not be read. */
+  aiPolicy?: (RepoAiPolicy & Partial<Pick<RepoAiReading, "agentFiles" | "agentDirectives">>) | null;
+  /** What maintainers said about AI in review, which is not the written policy. */
+  reviewAiStatements?: Array<{ stance: RepoAiPolicy["stance"]; excerpt: string; url: string }>;
+  /** lib/repo-wanted.ts and lib/repo-community.ts; null when they could not be read. */
+  wanted?: RepoWanted | null;
+  community?: RepoCommunity | null;
   /** Each needs MIN_SAMPLE merged human PRs (`merged`). The title style is
    *  measured on merged outside PRs when there are MIN_SAMPLE of them. */
   conventions: {
@@ -376,9 +384,16 @@ export function summarizeProfile(repo: string, prs: ProfilePr[], now = new Date(
   const days = merged.map((pr) => pr.mergedAt ? (Date.parse(pr.mergedAt) - Date.parse(pr.createdAt)) / 86_400_000 : NaN).filter(Number.isFinite);
   const created = prs.map((pr) => pr.createdAt).sort();
   const types = outside.map((pr) => [pr, prType(pr)] as const);
+  // pyjanitor #1714: "Totally ok to use your agents". Said in review, so
+  // reported as that, never as the project's policy.
+  const reviewAiStatements = human.flatMap((pr) => maintainerText(pr, team).flatMap((text) => {
+    const found = aiStatementIn(text);
+    return found && found.stance !== "unknown" ? [{ stance: found.stance, excerpt: found.excerpt.slice(0, 200), url: pr.url }] : [];
+  })).slice(0, EXAMPLES);
 
   return {
     version: 2,
+    reviewAiStatements,
     repo,
     computedAt: now.toISOString(),
     window: { from: created[0] ?? null, to: created.at(-1) ?? null, prs: prs.length, minDays: window.minDays, maxDays: window.maxDays, opened: Math.max(window.opened ?? 0, prs.length) },
@@ -473,7 +488,7 @@ export function engagementAdvice(p: RepoProfile): EngagementAdvice | null {
 }
 
 /** One readable finding with what backs it. */
-export type Finding ={ section: "start" | "outcomes" | "closed" | "review" | "pace" | "conventions"; text: string; examples: string[] };
+export type Finding = { section: "start" | "wanted" | "outcomes" | "closed" | "review" | "pace" | "community" | "conventions"; text: string; examples: string[] };
 
 const pct = (t: Tally) => `${Math.round((t.count / t.of) * 100)}%`;
 const hoursText = (h: number) => h < 1 ? "an hour" : h < 48 ? `about ${Math.round(h)} hours` : `about ${Math.round(h / 24)} days`;
@@ -507,6 +522,18 @@ export function profileFindings(p: RepoProfile): Finding[] {
   else if (ai?.stance === "disclosure-required") out.push({ section: "start", text: `The project asks contributors to disclose AI assistance${quote(ai)}.`, examples: [] });
   else if (ai?.stance === "allowed") out.push({ section: "start", text: `AI-assisted contributions are welcome${quote(ai)}.`, examples: [] });
   else if (ai?.stance === "unknown") out.push({ section: "start", text: "No AI policy in its contributing guide or PR template: disclose AI assistance anyway.", examples: [] });
+  for (const f of (ai?.agentFiles ?? []).slice(0, 3)) {
+    out.push({ section: "start", text: `The project has instructions for AI agents in ${f.path}: read and follow them before changing code.`, examples: [] });
+  }
+  // Shown to the person, never followed silently (movingpandas: "add 🤖🤖🤖 to the PR title").
+  for (const d of (ai?.agentDirectives ?? []).slice(0, 2)) {
+    out.push({ section: "start", text: `${d.path} speaks to AI agents directly: "${d.text}" This is shown to you rather than followed.`, examples: [] });
+  }
+  const said = (p.reviewAiStatements ?? [])[0];
+  if (said && ai?.stance !== "banned") {
+    out.push({ section: "start", text: `A maintainer said in review, which is not the written policy: "${said.excerpt}"`, examples: [said.url] });
+  }
+  if (p.wanted) out.push(...wantedFindings(p.wanted).map((f) => ({ section: "wanted" as const, ...f })));
   const o = p.outside;
   if (p.window.prs > 0 && o.merged.of === 0) {
     out.push({ section: "outcomes", text: `${p.window.prs} of ${p.window.prs} PRs opened ${when} came from maintainers or bots; none from outside contributors.`, examples: [] });
@@ -568,6 +595,7 @@ export function profileFindings(p: RepoProfile): Finding[] {
   if (c.changelogPath && cl) out.push({ section: "conventions", text: `${cl.count} of ${cl.of} merged PRs added a changelog entry, in ${c.changelogPath}.`, examples: cl.examples });
   else if (c.changelogPath) out.push({ section: "conventions", text: `Changelog entries go in ${c.changelogPath}.`, examples: [] });
   if (c.signOffShare !== null && c.signOffShare >= 0.6) out.push({ section: "conventions", text: 'Commits are signed off ("Signed-off-by:", git commit -s).', examples: [] });
+  if (p.community) out.push(...communityFindings(p.community).map((f) => ({ section: "community" as const, ...f })));
   return out;
 }
 
@@ -714,12 +742,19 @@ export async function fetchRepoProfile(client: GitHubClient, repo: string, now =
   if (profile.outside.merged.count === 0 && status?.pullRequestsEnabled !== false) {
     profile.lastOutsideMerge = await lastOutsideMerge(client, repo, canonical, maintainersOf(read.prs));
   }
-  // The policy is part of the profile, but a profile without it still helps: logged, and marked unread.
-  const aiPolicy = await fetchAiPolicy(client, canonical).catch((error: unknown) => {
-    console.warn(`[repo-profile] AI policy of ${canonical} unread:`, error instanceof Error ? error.message : error);
+  // The policy, the invitations and the community are part of the profile, but
+  // a profile without one still helps: each failure is logged and marked unread (null).
+  const unread = (what: string) => (error: unknown) => {
+    console.warn(`[repo-profile] ${what} of ${canonical} unread:`, error instanceof Error ? error.message : error);
     return null;
-  });
-  return { ...profile, aiPolicy };
+  };
+  const [o, n] = canonical.split("/");
+  const [aiPolicy, wanted, community] = await Promise.all([
+    fetchAiPolicy(client, canonical).catch(unread("AI policy")),
+    fetchWanted(client, o, n, now).catch(unread("invitations")),
+    fetchCommunity(client, o, n, now, maintainersOf(read.prs)).catch(unread("community")),
+  ]);
+  return { ...profile, aiPolicy, wanted, community };
 }
 
 /** The newest merge of an outside PR among the most recently updated merged

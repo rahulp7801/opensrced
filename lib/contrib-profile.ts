@@ -108,6 +108,9 @@ const WELCOME_PATTERNS = [
   new RegExp(String.raw`\bwe\s+(?:welcome|accept|allow|encourage)\s+(?:the\s+use\s+of\s+)?${AI}`, "i"),
   new RegExp(String.raw`\b${AI}[- ]?(?:assisted|generated)?\s+(?:contributions?|pull requests?|PRs?|code)\s+(?:are|is)\s+(?:welcome|allowed|accepted|fine|ok(?:ay)?)\b`, "i"),
   new RegExp(String.raw`\b(?:you|contributors?)\s+(?:may|can|are\s+(?:welcome|free)\s+to)\s+use\s+${AI}`, "i"),
+  // pyjanitor maintainer (#1714): "Totally ok to use your agents to do it". "agents"
+  // only counts after "your"/"coding"/"AI", so "user agents" or "agent classes" do not.
+  new RegExp(String.raw`\b(?:ok(?:ay)?|fine|welcome|free|allowed)\s+to\s+use\s+(?:(?:an?\s+|your\s+(?:own\s+)?)?${AI}|(?:your\s+(?:own\s+)?|coding\s+)+agents?)\b`, "i"),
 ];
 
 /** Ban outranks a disclosure requirement, which outranks a welcome (several files may say different things). */

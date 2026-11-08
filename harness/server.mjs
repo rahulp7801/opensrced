@@ -112,7 +112,7 @@ const TOOLS = [
       "Send the user's answer to a lesson step. Steps a model must judge come back with a rubric: judge the answer strictly as the rubric says, then call lesson_answer again with grader_reply (the rubric's JSON only). After an answer given in the lesson panel, call it with lesson, step and grader_reply only.",
     inputSchema: object({
       ...lessonArg, ...stepArg,
-      answer: { description: "The user's answer in their own words: text; for explain-it, {files: {path: sentence}, test}. Leave out when grading an answer given in the panel." },
+      answer: { type: ["string", "object"], description: "The user's answer in their own words: text; for explain-it, {files: {path: sentence}, test}. Leave out when grading an answer given in the panel." },
       grader_reply: { type: "string", description: "Your verdict as the rubric's JSON, e.g. {\"users\":true,\"purpose\":true,\"parts\":2,\"feedback\":\"…\"}." },
     }, ["lesson", "step"]),
   },
@@ -353,7 +353,11 @@ async function lessonTool(name, id, args) {
   const post = (action, body, query = "") => api(`/api/harness/lessons/${id}/${action}${query}`, { method: "POST", body: JSON.stringify(body) });
   if (name === "lesson_answer") {
     const pendingKey = `${id}:${args.step}`;
-    const answer = args.answer ?? (args.grader_reply !== undefined ? pendingAnswers.get(pendingKey) : undefined);
+    let answer = args.answer ?? (args.grader_reply !== undefined ? pendingAnswers.get(pendingKey) : undefined);
+    // Agents often send explain-it's object as a JSON string (a real run did, twice).
+    if (args.step === "explain-it" && typeof answer === "string") {
+      try { answer = JSON.parse(answer); } catch (error) { if (!(error instanceof SyntaxError)) throw error; throw new ToolError("explain-it's answer is an object, not text: {\"files\": {\"path\": \"one sentence\"}, \"test\": \"why the test proves it\"}"); }
+    }
     if (answer === undefined) throw new ToolError("Send the user's answer (or, after an answer given in the panel, your grader_reply).");
     let body;
     try { body = await post("answer", { step: args.step, answer, ...(args.grader_reply !== undefined ? { grader_reply: args.grader_reply } : {}) }); }
@@ -463,7 +467,10 @@ async function handle(message) {
     case "tools/call":
       try {
         const out = await callTool(params?.name, params?.arguments ?? {});
-        return typeof out === "string" ? { content: [{ type: "text", text: out }] } : { content: [{ type: "text", text: out.text }], structuredContent: out.structuredContent };
+        if (typeof out === "string" || !uiHost) return { content: [{ type: "text", text: typeof out === "string" ? out : out.text }] };
+        // Hosts may give the model structuredContent in place of the text (Claude
+        // Code 2.1 does), so the text's instructions, rubrics among them, ride along.
+        return { content: [{ type: "text", text: out.text }], structuredContent: { ...out.structuredContent, message: out.text } };
       } catch (error) {
         if (error instanceof ToolError) return { content: [{ type: "text", text: error.message }], isError: true };
         throw error;

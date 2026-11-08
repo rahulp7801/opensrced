@@ -289,6 +289,9 @@ test("a lesson over stdio: graphify's map of the checkout goes up, rubrics come 
     const rubric = await request("tools/call", { name: "lesson_answer", arguments: { lesson: LESSON_ID, step: "s1", answer: "It cleans data." } });
     assert.match(text(rubric), /^Grade the user's s1 answer yourself/);
     assert.match(text(rubric), /RUBRIC:\nJudge it/);
+    // Claude Code hands the model structuredContent instead of the text when both
+    // come back (a real run never saw the rubric), so a host without a panel gets text only.
+    assert.equal((rubric.result as { structuredContent?: unknown }).structuredContent, undefined);
     // A verdict in the wrong shape is refused, and the refusal says which shape (a real agent got s4's keys wrong).
     const wrong = await request("tools/call", { name: "lesson_answer", arguments: { lesson: LESSON_ID, step: "s1", grader_reply: "looks fine" } });
     assert.equal((wrong.result as ToolResult).isError, true);
@@ -296,6 +299,10 @@ test("a lesson over stdio: graphify's map of the checkout goes up, rubrics come 
     const graded = await request("tools/call", { name: "lesson_answer", arguments: { lesson: LESSON_ID, step: "s1", grader_reply: '{"users":true}' } });
     assert.match(text(graded), /^s1: Passed: Clear\./);
     assert.deepEqual(JSON.parse(seen.at(-1)!.body), { step: "s1", answer: "It cleans data.", grader_reply: '{"users":true}' }, "the panel's answer is reused, not retyped");
+    // explain-it's object sent as a JSON string (a real agent did) goes up as the object.
+    const explain = { files: { "app/fill.py": "It fills the gaps with value." }, test: "It fails before and passes after." };
+    await request("tools/call", { name: "lesson_answer", arguments: { lesson: LESSON_ID, step: "explain-it", answer: JSON.stringify(explain) } });
+    assert.deepEqual(JSON.parse(seen.at(-1)!.body), { step: "explain-it", answer: explain });
 
     // The key must not be written in the user's own checkout.
     const own = await request("tools/call", { name: "lesson_key", arguments: { lesson: LESSON_ID, key_dir: dir, verified: true } });
@@ -326,6 +333,10 @@ test("the panel's map is graphify's viewer, with the user's picks and the reveal
     assert.ok(html.includes('"app_core":"explored"'), "a starting point the user picked");
     assert.ok(html.includes('"app_fill":"changed"'), "a file the revealed fix changed");
     assert.ok(marked >= 2);
+    // With a panel, structuredContent carries the text too, in case the host's model reads only that.
+    const rubric = (await request("tools/call", { name: "lesson_answer", arguments: { lesson: LESSON_ID, step: "s1", answer: "It cleans data." } })).result as { structuredContent: { needs_grading: boolean; message: string } };
+    assert.equal(rubric.structuredContent.needs_grading, true);
+    assert.match(rubric.structuredContent.message, /RUBRIC:\nJudge it/);
   } finally {
     child.kill();
   }
@@ -335,7 +346,8 @@ const BAD_LESSON_CALLS: Array<[string, Record<string, unknown>, RegExp]> = [
   ["a malformed lesson id", { name: "lesson_show", arguments: { lesson: "../../x" } }, /lesson must be a lesson id/],
   ["an unknown step", { name: "lesson_hint", arguments: { lesson: LESSON_ID, step: "s99" } }, /step must be one of/],
   ["a checkout of another project", { name: "lesson_start", arguments: { repo: "other/thing", issue: 1, dir: process.cwd() } }, /doesn't look like a clone of other\/thing|not a git checkout/],
-  ["a grade with no answer to grade", { name: "lesson_answer", arguments: { lesson: LESSON_ID, step: "s4", grader_reply: "{}" } }, /Send the user's answer/],
+  ["explain-it as prose", { name: "lesson_answer", arguments: { lesson: LESSON_ID, step: "explain-it", answer: "it lowercases" } }, /explain-it's answer is an object/],
+  ["a grade with no answer to grade",{ name: "lesson_answer", arguments: { lesson: LESSON_ID, step: "s4", grader_reply: "{}" } }, /Send the user's answer/],
 ];
 for (const [name, params, message] of BAD_LESSON_CALLS) {
   test(`the plugin server answers ${name} with a tool error, sending nothing`, async () => {

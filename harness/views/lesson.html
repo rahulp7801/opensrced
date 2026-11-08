@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>opensrcer lesson</title>
+<style>
+  :root {
+    --bg: var(--color-background-primary, #ffffff); --bg2: var(--color-background-secondary, #f4f4f5);
+    --fg: var(--color-text-primary, #18181b); --muted: var(--color-text-secondary, #52525b);
+    --line: var(--color-border-primary, #d4d4d8); --accent: #2563eb; --ok: #15803d; --warn: #b45309; --bad: #b91c1c; --gold: #ca8a04; --gold-text: #92400e;
+    color-scheme: light dark;
+  }
+  :root[data-theme="dark"] {
+    --bg: var(--color-background-primary, #18181b); --bg2: var(--color-background-secondary, #27272a);
+    --fg: var(--color-text-primary, #f4f4f5); --muted: var(--color-text-secondary, #a1a1aa);
+    --line: var(--color-border-primary, #3f3f46); --accent: #60a5fa; --ok: #4ade80; --warn: #fbbf24; --bad: #f87171; --gold: #facc15; --gold-text: #facc15;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 12px; background: var(--bg); color: var(--fg); font: 14px/1.45 var(--font-sans, system-ui, sans-serif); }
+  h1 { font-size: 15px; margin: 0 0 6px; }
+  .muted { color: var(--muted); }
+  .stages { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; padding: 0; list-style: none; }
+  .stages li { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--bg2); color: var(--muted); }
+  .stages li.now { background: var(--accent); color: #fff; }
+  .stages li.past { color: var(--ok); }
+  .tabs { display: flex; gap: 6px; margin: 10px 0; }
+  button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg2); color: var(--fg); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button[aria-selected="true"] { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: .55; cursor: default; }
+  button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .card { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 8px 0; }
+  .card h2 { font-size: 14px; margin: 0 0 4px; display: flex; gap: 8px; align-items: baseline; }
+  .badge { font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 4px; }
+  .badge.ok { color: var(--ok); } .badge.no { color: var(--bad); } .badge.wait { color: var(--warn); }
+  textarea, input[type=text] { width: 100%; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+  textarea { min-height: 84px; resize: vertical; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 6px 0 2px; }
+  .row { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+  .feedback { margin: 6px 0 0; padding: 6px 8px; border-radius: 6px; background: var(--bg2); white-space: pre-wrap; }
+  .hint { margin: 6px 0 0; padding: 6px 8px; border-left: 3px solid var(--warn); background: var(--bg2); white-space: pre-wrap; }
+  pre { background: var(--bg2); padding: 8px; border-radius: 6px; overflow-x: auto; font-size: 12px; max-height: 360px; }
+  .error { color: var(--bad); }
+  svg { width: 100%; height: auto; display: block; }
+  svg text { fill: var(--fg); font-size: 11px; }
+  .files { columns: 2 220px; font-size: 12px; padding-left: 18px; }
+  .files li.pick { color: var(--accent); font-weight: 600; } .files li.key { color: var(--gold-text); font-weight: 600; }
+  .legend { font-size: 12px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .legend span::before { content: "●"; margin-right: 4px; }
+  .legend .l-pick::before { color: var(--accent); } .legend .l-key::before { color: var(--gold); }
+</style>
+</head>
+<body>
+<main id="app" aria-live="polite"><p class="muted">Loading the lesson…</p></main>
+<script>
+"use strict";
+// The MCP Apps view protocol (SEP-1865), as the official App class speaks it:
+// JSON-RPC 2.0 over postMessage to the host, no envelope.
+const PROTOCOL = "2026-01-26";
+let nextId = 1;
+const pending = new Map();
+function post(message) { window.parent.postMessage({ jsonrpc: "2.0", ...message }, "*"); }
+function request(method, params) {
+  const id = nextId++;
+  post({ id, method, params });
+  return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+}
+const notify = (method, params) => post(params === undefined ? { method } : { method, params });
+const callTool = async (name, args) => {
+  const result = await request("tools/call", { name, arguments: args });
+  if (result?.isError) throw new Error(result.content?.[0]?.text || "The tool failed.");
+  return result;
+};
+
+const handlers = {
+  "ui/notifications/tool-input": (p) => { if (p?.arguments?.lesson) state.id = p.arguments.lesson; },
+  "ui/notifications/tool-result": (p) => {
+    const s = p?.structuredContent;
+    // The result is a snapshot from when the tool ran; read the lesson as it is now.
+    if (s?.lesson?.id) { state.id = s.lesson.id; apply(s); refresh(); }
+    else if (state.id) refresh();
+  },
+  "ui/notifications/host-context-changed": (p) => theme(p),
+  "ui/notifications/tool-cancelled": () => {},
+};
+window.addEventListener("message", (event) => {
+  if (event.source !== window.parent) return;
+  const m = event.data;
+  if (!m || m.jsonrpc !== "2.0") return;
+  if (m.id !== undefined && !m.method) {
+    const p = pending.get(m.id);
+    if (!p) return;
+    pending.delete(m.id);
+    m.error ? p.reject(new Error(m.error.message)) : p.resolve(m.result);
+    return;
+  }
+  if (m.method === "ui/resource-teardown" || m.method === "ping") { post({ id: m.id, result: {} }); return; }
+  handlers[m.method]?.(m.params);
+  if (m.id !== undefined && !handlers[m.method]) post({ id: m.id, error: { code: -32601, message: `Method not found: ${m.method}` } });
+});
+
+function theme(ctx) {
+  if (ctx?.theme) document.documentElement.dataset.theme = ctx.theme;
+  for (const [k, v] of Object.entries(ctx?.styles?.variables ?? {})) if (k.startsWith("--") && typeof v === "string") document.documentElement.style.setProperty(k, v);
+}
+
+// ── State ──────────────────────────────────────────────────────────────
+const STAGES = ["kickoff", "locate", "predict", "ide", "reveal", "explain", "next", "done"];
+const STAGE_LABEL = { kickoff: "Understand", locate: "Locate", predict: "Predict", ide: "Write it", reveal: "Reveal", explain: "Explain", next: "Next", done: "Done" };
+const state = { id: null, lesson: null, key: null, graph: null, hints: {}, drafts: {}, waiting: null, tab: "steps", error: "", busy: false };
+/** A saved answer as the user wrote it: list answers (s7) are stored as JSON. */
+function answerText(answer) {
+  if (!answer || answer[0] !== "[") return answer ?? "";
+  try { const list = JSON.parse(answer); return Array.isArray(list) ? list.join("\n") : answer; } catch { return answer; }
+}
+
+function apply(s) {
+  state.lesson = s.lesson;
+  state.key = s.key ?? state.key;
+  if (s.graph) state.graph = s.graph;
+  if (state.waiting) {
+    const step = s.lesson.steps.find((x) => x.id === state.waiting.step);
+    if (step && (step.done || (step.grade && step.grade.feedback !== state.waiting.before))) state.waiting = null;
+  }
+  render();
+}
+async function refresh() {
+  if (!state.id) return;
+  try { apply((await callTool("lesson_state", { lesson: state.id })).structuredContent); }
+  catch (e) { state.error = e.message; render(); }
+}
+// While the agent grades an answer, check back every few seconds (3 minutes at most).
+let poll = null;
+function waitForGrade(step) {
+  const before = state.lesson.steps.find((x) => x.id === step)?.grade?.feedback ?? null;
+  state.waiting = { step, before, until: Date.now() + 180_000 };
+  clearInterval(poll);
+  poll = setInterval(() => {
+    if (!state.waiting || Date.now() > state.waiting.until) { clearInterval(poll); if (state.waiting) { state.waiting = null; render(); } return; }
+    refresh();
+  }, 4000);
+}
+
+// ── Actions ────────────────────────────────────────────────────────────
+async function act(fn) {
+  if (state.busy) return;
+  state.busy = true; state.error = ""; render();
+  try { await fn(); } catch (e) { state.error = e.message; }
+  state.busy = false; render();
+}
+const submit = (step, answer) => act(async () => {
+  const result = await callTool("lesson_answer", { lesson: state.id, step: step.id, answer });
+  const s = result.structuredContent;
+  if (s?.needs_grading) {
+    waitForGrade(step.id);
+    await request("ui/message", { role: "user", content: { type: "text", text: `I answered "${step.title}" (${step.id}) in the lesson panel. Please grade it: call lesson_answer for lesson ${state.id}, step ${step.id}, with your grader_reply.` } }).catch(() => {
+      state.error = "Ask your agent to grade this step; this host didn't pass the message on.";
+    });
+  }
+  if (s?.lesson) apply(s);
+});
+const hint = (step) => act(async () => {
+  const s = (await callTool("lesson_hint", { lesson: state.id, step: step.id })).structuredContent;
+  (state.hints[step.id] ??= []).push(s.text);
+});
+const reveal = (giveUp) => act(async () => { apply((await callTool("lesson_reveal", { lesson: state.id, give_up: giveUp })).structuredContent); });
+const loadGraph = () => act(async () => { state.graph = (await callTool("lesson_graph", { lesson: state.id })).structuredContent; });
+
+// ── Rendering (text only: every string from the repo goes in as textContent) ──
+function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
+    else if (v === true) node.setAttribute(k, "");
+    else if (v !== false && v != null) node.setAttribute(k, String(v));
+  }
+  for (const c of children.flat()) if (c != null && c !== false) node.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  return node;
+}
+const OPEN_IN = { kickoff: ["kickoff"], locate: ["kickoff", "locate"], predict: ["kickoff", "predict"], ide: ["kickoff"], reveal: [], explain: ["explain"], next: ["next"], done: [] };
+const STEP_STAGE = { s1: "kickoff", s2: "kickoff", s3: "kickoff", s4: "kickoff", s5: "kickoff", s6: "kickoff", s7: "locate", s8: "predict", "explain-it": "explain", s10: "next" };
+const canSubmit = (stage, id) => (OPEN_IN[stage] ?? []).includes(STEP_STAGE[id]);
+
+function stepCard(step) {
+  const L = state.lesson;
+  const open = canSubmit(L.stage, step.id) && !state.busy;
+  const waiting = state.waiting?.step === step.id;
+  const status = step.done ? el("span", { class: "badge ok" }, "done") : waiting ? el("span", { class: "badge wait" }, "your agent is checking…")
+    : step.grade ? el("span", { class: "badge no" }, "not yet") : null;
+  const required = L.required.includes(step.id) ? null : el("span", { class: "muted", style: "font-size:12px" }, "optional");
+  const body = [el("h2", {}, step.title, status, required), el("p", { class: "muted", style: "margin:0" }, step.question)];
+  let read;
+  if (step.id === "explain-it") {
+    const files = state.key ? [...new Set([...state.key.diff.matchAll(/^\+\+\+ b\/(\S+)/gm)].map((m) => m[1]))] : [];
+    let saved = {};
+    try { saved = JSON.parse(step.answer || "{}"); } catch { saved = {}; }
+    saved = state.drafts[step.id] ?? saved;
+    const inputs = files.map((f) => { const i = el("input", { type: "text", "aria-label": `What the change does in ${f}`, disabled: !open }); i.value = saved.files?.[f] ?? ""; return [f, i]; });
+    const test = el("textarea", { "aria-label": "Why the test proves the fix", disabled: !open }); test.value = saved.test ?? "";
+    body.push(...inputs.flatMap(([f, i]) => [el("label", {}, f), i]), el("label", {}, "Why the test proves the fix"), test);
+    read = () => ({ files: Object.fromEntries(inputs.map(([f, i]) => [f, i.value])), test: test.value });
+    for (const input of [...inputs.map(([, i]) => i), test]) input.addEventListener("input", () => { state.drafts[step.id] = read(); });
+  } else {
+    // What they typed survives redraws: an answer waiting for its grade isn't saved yet.
+    const box = el("textarea", { "aria-label": step.title, disabled: !open }); box.value = state.drafts[step.id] ?? answerText(step.answer);
+    box.addEventListener("input", () => { state.drafts[step.id] = box.value; });
+    body.push(box);
+    read = () => box.value;
+  }
+  if (step.grade?.feedback) body.push(el("p", { class: "feedback" }, step.grade.feedback));
+  for (const h of state.hints[step.id] ?? []) body.push(el("p", { class: "hint" }, h));
+  if (open) body.push(el("div", { class: "row" },
+    el("button", { class: "primary", onclick: () => submit(step, read()) }, step.done ? "Submit again" : "Submit"),
+    step.hint_level < step.max_hint_level ? el("button", { onclick: () => hint(step) }, "Hint") : null));
+  return el("section", { class: "card", "aria-label": step.title }, body);
+}
+
+function stepsView() {
+  const L = state.lesson;
+  const out = [];
+  if (L.answer_key === "pending" && ["kickoff", "locate"].includes(L.stage) && L.path === "A") {
+    out.push(el("p", { class: "muted" }, "Your agent is preparing the fix in the background; steps that need it are graded once it's ready."));
+  }
+  const order = ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "explain-it", "s10"];
+  // Done, open now, or still ahead on the lesson's path (shown, not editable).
+  const steps = [...L.steps].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id))
+    .filter((s) => s.done || canSubmit(L.stage, s.id) || L.required.includes(s.id));
+  out.push(...steps.map(stepCard));
+  if (L.stage === "reveal" || (!L.revealed && ["kickoff", "locate", "predict", "ide"].includes(L.stage))) {
+    out.push(el("div", { class: "row" },
+      L.stage === "reveal" ? el("button", { class: "primary", onclick: () => reveal(false), disabled: state.busy }, "Show the fix") : null,
+      L.stage !== "reveal" ? el("button", { onclick: () => reveal(true), disabled: state.busy }, "Give up and see the fix") : null));
+  }
+  if (state.key) out.push(el("section", { class: "card", "aria-label": "The fix" }, el("h2", {}, "The fix: ", state.key.title || ""),
+    state.key.diagnosis ? el("p", {}, state.key.diagnosis) : null, el("pre", {}, state.key.diff)));
+  if (L.stage === "done") out.push(el("p", {}, "Lesson done. Your agent can help you open the pull request when you're ready."));
+  return out;
+}
+
+function mapView() {
+  const g = state.graph;
+  if (!g) { loadGraph(); return [el("p", { class: "muted" }, "Loading the map…")]; }
+  const picks = new Set((g.highlight?.picks ?? []).map((p) => p.toLowerCase()));
+  const keyFiles = new Set(g.highlight?.key ?? []);
+  const hot = (m) => ({ pick: m.files.some((f) => picks.has(f.toLowerCase())), key: m.files.some((f) => keyFiles.has(f)) });
+  const W = 640, H = 420, cx = W / 2, cy = H / 2, R = 160;
+  const pos = new Map(g.modules.map((m, i) => { const a = (2 * Math.PI * i) / Math.max(1, g.modules.length) - Math.PI / 2; return [m.id, [cx + R * Math.cos(a), cy + R * Math.sin(a)]]; }));
+  const max = Math.max(1, ...g.modules.map((m) => m.size));
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("role", "group");
+  svg.setAttribute("aria-label", `Map of ${g.modules.length} parts of the code and the imports between them`);
+  const ns = (tag, attrs) => { const n = document.createElementNS("http://www.w3.org/2000/svg", tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, String(v)); return n; };
+  const maxW = Math.max(1, ...g.edges.map((e) => e.weight));
+  for (const e of g.edges) {
+    const [x1, y1] = pos.get(e.a), [x2, y2] = pos.get(e.b);
+    svg.append(ns("line", { x1, y1, x2, y2, stroke: "currentColor", "stroke-opacity": 0.25, "stroke-width": 1 + 4 * (e.weight / maxW) }));
+  }
+  for (const m of g.modules) {
+    const [x, y] = pos.get(m.id); const r = 6 + 22 * Math.sqrt(m.size / max); const h = hot(m);
+    const c = ns("circle", { cx: x, cy: y, r, fill: h.key ? "var(--gold)" : h.pick ? "var(--accent)" : "var(--bg2)", stroke: "var(--line)", tabindex: 0, role: "button", "aria-label": `${m.name}: ${m.size} files` });
+    c.addEventListener("click", () => { state.module = m.id; render(); });
+    c.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { state.module = m.id; render(); } });
+    const t = ns("text", { x, y: y + r + 12, "text-anchor": "middle" }); t.textContent = m.name;
+    svg.append(c, t);
+  }
+  const chosen = g.modules.find((m) => m.id === state.module) ?? g.modules[0];
+  return [
+    el("p", { class: "muted" }, `${g.files} source files. Click a part to see its files.`),
+    el("div", { class: "legend" }, el("span", { class: "l-pick" }, "your starting points"), state.key ? el("span", { class: "l-key" }, "changed by the fix") : null),
+    svg,
+    chosen ? el("section", { class: "card", "aria-label": chosen.name }, el("h2", {}, chosen.name, el("span", { class: "muted" }, `${chosen.size} files`)),
+      el("ul", { class: "files" }, chosen.files.map((f) => el("li", { class: keyFiles.has(f) ? "key" : picks.has(f.toLowerCase()) ? "pick" : "" }, f)))) : null,
+    g.packages.length ? el("p", { class: "muted" }, "Most imported packages: ", g.packages.map((p) => p.name).join(", ")) : null,
+  ];
+}
+
+function render() {
+  const app = document.getElementById("app");
+  const L = state.lesson;
+  if (!L) { app.replaceChildren(el("p", { class: state.error ? "error" : "muted" }, state.error || "Loading the lesson…")); return; }
+  const repo = L.repo_url.replace("https://github.com/", "");
+  const at = STAGES.indexOf(L.stage);
+  app.replaceChildren(
+    el("h1", {}, `${repo} #${L.issue_number}`, el("span", { class: "muted" }, L.path === "B" ? " · you write the fix" : " · the fix is revealed after you predict it")),
+    el("ol", { class: "stages", "aria-label": "Lesson stages" }, STAGES.filter((s) => s !== "ide" || L.path === "B").map((s, i) => el("li", { class: s === L.stage ? "now" : STAGES.indexOf(s) < at ? "past" : "", "aria-current": s === L.stage ? "step" : false }, STAGE_LABEL[s]))),
+    el("div", { class: "tabs", role: "tablist" },
+      el("button", { role: "tab", "aria-selected": state.tab === "steps", onclick: () => { state.tab = "steps"; render(); } }, "Steps"),
+      el("button", { role: "tab", "aria-selected": state.tab === "map", onclick: () => { state.tab = "map"; render(); } }, "Map")),
+    ...(state.error ? [el("p", { class: "error", role: "alert" }, state.error)] : []),
+    ...(state.tab === "map" ? mapView() : stepsView()),
+  );
+}
+
+new ResizeObserver(() => notify("ui/notifications/size-changed", { width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight })).observe(document.body);
+
+(async () => {
+  try {
+    const init = await request("ui/initialize", { appInfo: { name: "opensrcer-lesson", version: "0.2.0" }, appCapabilities: { availableDisplayModes: ["inline"] }, protocolVersion: PROTOCOL });
+    theme(init?.hostContext);
+    notify("ui/notifications/initialized");
+  } catch (e) { state.error = `The host refused the panel: ${e.message}`; render(); }
+})();
+</script>
+</body>
+</html>

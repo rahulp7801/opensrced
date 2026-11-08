@@ -5,6 +5,8 @@ description: Use when the user wants to contribute to an open-source repository 
 
 # Contributing to an open-source project
 
+If they want to learn the codebase or write the fix themselves, use the `learn` skill (an opensrcer lesson) instead of fixing it for them.
+
 The person you are helping is the contributor. The pull request goes out in their name, so they must understand and be able to defend every line of it. Your job is to make the change fit how this project actually works, not just to make it compile.
 
 ## 1. Learn the project before touching code

@@ -9,12 +9,15 @@
 /** Environment variables; a plain object in tests. */
 export type Env = Record<string, string | undefined>;
 
-export type TeacherProvider = "copilot" | "anthropic-key" | "openrouter-key";
+/** harness: the contributor's own coding agent grades and teaches (lib/harness-lessons.ts). */
+export type TeacherProvider = "copilot" | "anthropic-key" | "openrouter-key" | "harness";
 
 export const DEFAULT_TURNS: Record<TeacherProvider, number> = {
   copilot: 15,
   "anthropic-key": 60,
   "openrouter-key": 60,
+  // Their own agent, their own allowance: the budget only stops a runaway loop.
+  harness: 500,
 };
 
 /** At or below this many turns left, the teacher goes dense. */

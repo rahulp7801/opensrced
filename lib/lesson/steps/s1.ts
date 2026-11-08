@@ -15,7 +15,8 @@ export function topModules(ctx: StepContext, limit = 8): string[] {
   if (!ctx.graph) return [];
   const names = buildModuleMap(ctx.graph);
   const sizes = new Map<number, number>();
-  for (const n of ctx.graph.nodes) sizes.set(n.community, (sizes.get(n.community) ?? 0) + 1);
+  // Only the project's own code counts: external packages are not its parts.
+  for (const n of ctx.graph.nodes) if (n.source_file) sizes.set(n.community, (sizes.get(n.community) ?? 0) + 1);
   return [...sizes.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([c]) => names.get(c) ?? `module ${c}`);
 }
 

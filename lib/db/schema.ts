@@ -223,3 +223,19 @@ export const harnessEvents = pgTable("harness_events", {
   data: jsonb().$type<Record<string, unknown>>().notNull().default({}),
   at: createdAt(),
 }, (t) => [index().on(t.userId), index().on(t.repo)]);
+
+/** What a lesson run from the harness (lib/harness-lessons.ts) is graded
+ *  against. The contributor's agent sends it from their checkout: no hidden
+ *  cloud run, no server-side GitHub reads. The key stays here until the reveal. */
+export const harnessLessonContext = pgTable("harness_lesson_context", {
+  lessonId: uuid().primaryKey().references(() => lessons.id, { onDelete: "cascade" }),
+  issueTitle: text().notNull(),
+  issueBody: text().notNull(),
+  readme: text().notNull(),
+  graph: jsonb(), // lib/graph.ts GraphData, built locally by the plugin
+  keyDiff: text(),
+  keyDiagnosis: text(),
+  keyTitle: text(),
+  keyVerified: boolean(), // the key's new test failed before the fix and passes with it
+  updatedAt: createdAt(),
+});

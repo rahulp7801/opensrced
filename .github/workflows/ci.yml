@@ -121,7 +121,7 @@ jobs:
           done
           # Run every smoke and fail at the end, so one run reports every failure.
           failed=""
-          for smoke in production session browser beginner review lists graph-ui run-page; do
+          for smoke in production session browser beginner review lists graph-ui run-page harness-lesson; do
             echo "::group::smoke-$smoke"
             node "scripts/smoke-$smoke.mjs" || failed="$failed $smoke"
             echo "::endgroup::"

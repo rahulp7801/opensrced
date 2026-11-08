@@ -132,7 +132,7 @@ export type ProcedureRule = { kind: ProcedureKind; path: string; text: string };
 const PROCEDURE_PATTERNS: Array<[ProcedureKind, RegExp]> = [
   // Approval before the PR, not to merge it ("needs approval from two maintainers to merge" is review).
   ["approval", /\b(only (submit|open) a (pr|pull request) after|(get(ting)?|obtain(ing)?|wait(ing)? for)\b[^.\n]{0,40}\b(approval|a vote of support|the go-ahead)\b[^.\n]{0,40}\bbefore\b[^.\n]{0,30}\b(pr|pull request|submit|open)|vote of support\b[^.\n]{0,80}\b(submit|open) a (pr|pull request))/i],
-  ["assignment", /\b((ask|wait) to be assigned|(be|get|getting) assigned (to )?(the |an )?issue|assign (the issue|it) to yourself|without being assigned)\b/i],
+  ["assignment", /\b((ask|wait) to be assigned|(be|get|getting) assigned (to )?(the |an )?issue|assign (the issue|it) to yourself|assign yourself( to)? (it|the issue|an issue)|without being assigned)\b/i],
   ["issue_first", /\b((open|create|file) an issue (first|before)|first (open|create|file) an issue|before (opening|submitting|sending) a (pr|pull request)[^.\n]{0,60}\bissue\b)/i],
   ["discussion", /\b(discuss(ed|ion)?\b[^.\n]{0,40}\bbefore\b[^.\n]{0,40}\b(pr|pull request|implement)|before (opening|submitting|sending) a (pr|pull request)[^.\n]{0,60}\bdiscuss)/i],
 ];

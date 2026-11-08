@@ -294,6 +294,8 @@ const PROCEDURES: Array<[string, string, ProcedureKind[]]> = [
   ["earthpy guide", "To contribute, first create an issue. Once a discussion has yielded a vote of support, you are ready to submit a pull request.", ["approval", "issue_first"]],
   ["assignment", "Please don't open a PR without being assigned to the issue.", ["assignment"]],
   ["ask to be assigned", "Comment on the issue and wait to be assigned before you start.", ["assignment"]],
+  // pyOpenSci/pyos-package-template's guide, as written.
+  ["assign yourself", "When you decide to work on such\nan issue, please assign yourself to it and add a comment that you'll be working on that,\ntoo.", ["assignment"]],
   ["discussion", "Larger changes should be discussed in an issue before you open a pull request.", ["discussion"]],
   ["issue first", "Please open an issue first so we can agree on the design.", ["issue_first"]],
   // Review rules and plain prose are not pre-PR steps.

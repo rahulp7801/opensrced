@@ -121,7 +121,9 @@ export function checkDraft(p: RepoProfile, draft: PrDraft): Check[] {
   }
   const lines = draft.additions + draft.deletions;
   if (o.medianLinesMerged && o.merged.count >= MIN_SAMPLE && lines > SIZE_FACTOR * o.medianLinesMerged) {
-    add("size", "warn", `The draft changes ${lines} lines; merged outside PRs here change a median of ${o.medianLinesMerged}. Consider splitting it.`);
+    // ponytail: the draft sends only totals, so test lines can't be split out; say so instead.
+    const tests = touchesTests ? " Test lines count too: if most of the size is the test, say so in the description." : "";
+    add("size", "warn", `The draft changes ${lines} lines; the ${o.merged.count} merged outside PRs here change a median of ${o.medianLinesMerged}. Consider splitting it.${tests}`);
   }
   // Silence would read as "all good" (nbQA, earthpy): say there is too little to compare with.
   const NORMS = ["linked-issue", "tests", "changelog", "title", "sign-off", "size"];

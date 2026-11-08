@@ -10,7 +10,7 @@ The person you are helping is the contributor. The pull request goes out in thei
 ## 1. Learn the project before touching code
 
 1. Call the `repo_profile` tool (opensrcer MCP server) with the repository as `owner/name`. It reports what really gets merged there, why PRs get closed, what reviewers keep asking for, and the house conventions, each measured from the project's own recent PRs with links.
-2. Read the project's CONTRIBUTING file, its pull request template, and any AI policy (AGENTS.md, CONTRIBUTING, the README).
+2. Read the project's CONTRIBUTING file, its pull request template, and any AI policy (AGENTS.md, CONTRIBUTING, the README). Then read the issue itself and its comments: issues often carry their own instructions ("comment with the lines you'll take", "link with *Part of #N*, not *Fixes*", because several people share one issue), and those beat the general guide.
 3. Act on what you found **before** writing code:
    - The project bans AI-generated contributions: stop, and tell the user plainly. Do not work around it.
    - PRs get closed for being opened **without being assigned**: the user should ask to be assigned on the issue first. Draft that comment for them; they post it.
@@ -37,7 +37,8 @@ After verifying, call `record_event` with `type: "verification"` and `outcome` (
 ## 3. Hand it to the contributor
 
 - Walk the user through the change: what was wrong, what changed, how the test proves it. Ask them to explain it back in their own words, and use those words in the PR description.
-- Fill in the project's PR template. Link the issue. Disclose AI assistance the way the project asks (and honestly when it doesn't ask).
+- A translation you wrote needs a native speaker's eyes: unless the user speaks the language, say so in the PR and ask for a review of the wording.
+- Fill in the project's PR template. Link the issue (the way the issue asks). Disclose AI assistance the way the project asks (and honestly when it doesn't ask).
 - Call `check_pr` with the draft's facts: the title and description, the changed paths and line counts (`git diff --numstat` against the upstream branch), whether the description links an issue, and whether every commit is signed off. Fix each warning, or tell the user why it doesn't apply.
 - Open the PR as a draft, and only when the user tells you to.
 

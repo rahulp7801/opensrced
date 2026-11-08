@@ -19,6 +19,10 @@ before(async () => {
     req.on("end", () => {
       seen.push({ method: req.method ?? "", url: req.url ?? "", auth: req.headers.authorization ?? "", body });
       if (req.headers.authorization !== `Bearer ${TOKEN}`) { res.writeHead(401, { "content-type": "application/json" }); return res.end(JSON.stringify({ error: "This harness token is not valid." })); }
+      if (req.url === "/api/harness/check" && JSON.parse(body).repo === "acme/quiet") {
+        res.writeHead(200, { "content-type": "application/json" });
+        return res.end(JSON.stringify({ repo: "Acme/Quiet", checks: [] }));
+      }
       if (req.url === "/api/harness/check") {
         res.writeHead(200, { "content-type": "application/json" });
         return res.end(JSON.stringify({ repo: "Acme/App", checks: [
@@ -109,6 +113,17 @@ test("the plugin server speaks MCP: initialize, tools, and calls that reach open
 
     const unknown = await request("nope");
     assert.equal((unknown.error as { code: number }).code, -32601);
+  } finally {
+    child.kill();
+  }
+});
+
+test("check_pr with nothing to compare says so instead of printing a bare pass", async () => {
+  const { child, request } = start(TOKEN);
+  try {
+    const r = await request("tools/call", { name: "check_pr", arguments: { repo: "acme/quiet", title: "Fix", body: "", files: ["a.py"], additions: 1, deletions: 0, linked_issue: false } });
+    assert.ok(text(r).includes("- NOTE: Nothing here applied to this draft, so it was not compared with anything."));
+    assert.ok(text(r).endsWith("No warnings."));
   } finally {
     child.kill();
   }

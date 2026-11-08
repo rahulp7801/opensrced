@@ -35,7 +35,8 @@ const MISSES: Array<[string, Partial<PrDraft>, string, RegExp]> = [
   ["no changelog entry", { files: ["janitor/functions/fill.py", "tests/test_fill.py"] }, "changelog", /7 of 10 merged PRs here added a changelog entry, in CHANGELOG\.md/],
   ["the wrong title style", { title: "Add a fill method" }, "title", /a tag in brackets/],
   ["unsigned commits", { signedOff: false }, "sign-off", /git commit -s/],
-  ["a draft far larger than usual", { additions: 400, deletions: 20 }, "size", /changes 420 lines; merged outside PRs here change a median of 30/],
+  ["a draft far larger than usual", { additions: 400, deletions: 20 }, "size", /changes 420 lines; the \d+ merged outside PRs here change a median of 30\. Consider splitting it\. Test lines count too/],
+  ["a large draft without tests", { additions: 400, deletions: 20, files: ["janitor/functions/fill.py"] }, "size", /Consider splitting it\.$/],
 ];
 for (const [name, change, id, text] of MISSES) {
   test(`a draft with ${name} gets a warning that says why`, () => {

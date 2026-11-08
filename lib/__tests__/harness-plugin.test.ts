@@ -7,7 +7,8 @@ import { createServer, type Server } from "node:http";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
+import { gunzipSync } from "node:zlib";
 import { createInterface } from "node:readline";
 
 const TOKEN = `osh_${"t".repeat(32)}`;
@@ -49,6 +50,11 @@ before(async () => {
       }
       const lessonRoute = /^\/api\/harness\/lessons(?:\/(l_[0-9a-f-]+)(?:\/(\w+))?)?/.exec(req.url ?? "");
       if (req.url === "/repos/acme/app/issues/12") return reply(res, { title: "fill ignores value", body: "fill(df, 0) leaves NaN." });
+      if (lessonRoute?.[2] === "answer" && JSON.parse(body).grader_reply === "looks fine") {
+        // As lib/lesson/api.ts answers a verdict the step's parseGrade can't read.
+        res.writeHead(502, { "content-type": "application/json" });
+        return res.end(JSON.stringify({ error: "The grader did not return a usable answer. Please retry." }));
+      }
       if (lessonRoute) return reply(res, lessonApi(req.method ?? "", lessonRoute[1], lessonRoute[2], body));
       res.writeHead(204);
       res.end();
@@ -80,7 +86,7 @@ function lessonApi(method: string, id: string | undefined, action: string | unde
   const body = raw ? JSON.parse(raw) : {};
   if (!id) return { lesson: lessonBase("kickoff") };
   if (action === "answer") return body.grader_reply === undefined
-    ? { needs_grading: true, step: body.step, rubric: { system: "Judge it. {\"users\":true}", user: "<contributor-answer>…</contributor-answer>" } }
+    ? { needs_grading: true, step: body.step, rubric: { system: "Judge it.\nReply with only this JSON:\n{\"users\":true}", user: "<contributor-answer>…</contributor-answer>" } }
     : { step: { id: body.step, done: true, grade: { passed: true, feedback: "Clear." } }, lesson: lessonBase("kickoff") };
   if (action === "key") return { lesson: lessonBase("kickoff", "verified") };
   if (action === "reveal") return { lesson: lessonBase("explain", "verified") };
@@ -206,6 +212,14 @@ test("without a token the tools say how to get one; with a bad one, opensrcer's 
   }
 });
 
+// The code map is graphify's, as on the site: these tests run it for real
+// (CI installs requirements-graph.txt), and say so when it isn't installed.
+const GRAPH_PYTHON = process.env.OPENSRCER_GRAPH_PYTHON || "python";
+const graphifyMissing = spawnSync(GRAPH_PYTHON, ["-I", "-m", "graphify", "--help"], { encoding: "utf8" }).status === 0
+  ? false : `graphify isn't installed in ${GRAPH_PYTHON} (pip install -r requirements-graph.txt, or set OPENSRCER_GRAPH_PYTHON)`;
+// CI installs it, so there a skip would hide a broken setup.
+if (graphifyMissing && process.env.CI) throw new Error(graphifyMissing);
+
 const UI_CAPS = { extensions: { "io.modelcontextprotocol/ui": { mimeTypes: ["text/html;profile=mcp-app"] } } };
 
 test("a host that renders MCP Apps gets the lesson panel: UI metadata, the panel-only tools and the view", async () => {
@@ -252,7 +266,7 @@ function fixture() {
   return { dir, key };
 }
 
-test("a lesson over stdio: the checkout's map goes up, rubrics come back, the key is read from its own worktree", async () => {
+test("a lesson over stdio: graphify's map of the checkout goes up, rubrics come back, the key is read from its own worktree", { skip: graphifyMissing }, async () => {
   const { dir, key } = fixture();
   const { child, request } = start(TOKEN);
   try {
@@ -262,9 +276,12 @@ test("a lesson over stdio: the checkout's map goes up, rubrics come back, the ke
     const created = JSON.parse(seen.at(-1)!.body);
     assert.equal(seen.at(-1)!.url, "/api/harness/lessons");
     assert.deepEqual([created.issue_title, created.readme.trim()], ["fill ignores value", "acme/app cleans data frames."]);
-    assert.ok(created.graph.nodes.some((n: { id: string }) => n.id === "app/fill.py::fill"));
-    assert.ok(created.graph.links.some((l: { source: string; target: string }) => l.source === "app/core.py" && l.target === "app/fill.py"));
-    assert.ok(created.graph.nodes.some((n: { id: string }) => n.id === "ext:pandas"));
+    // graphify's graph.json, compacted and gzipped (the server unpacks it: lib/harness-lessons.ts).
+    const graph = JSON.parse(gunzipSync(Buffer.from(created.graph_gz, "base64")).toString("utf8")) as { nodes: Array<{ id: string; label: string; source_file: string }>; links: Array<{ source: string; target: string; relation: string }> };
+    assert.ok(graph.nodes.some((n) => n.label === "fill()" && n.source_file === "app/fill.py"), "functions are nodes");
+    assert.ok(graph.links.some((l) => l.source === "app_core" && l.target === "app_fill" && l.relation === "imports_from"), "imports are links");
+    assert.ok(graph.nodes.some((n) => n.label === "pandas" && !n.source_file), "packages are nodes outside the repository");
+    assert.match(text(started), /Code map \(graphify, commit [0-9a-f]{7}\): \d+ nodes in \d+ communities\./);
     assert.match(text(started), /Ask the user, one at a time/, "without a panel, the agent asks in chat");
     assert.match(text(started), /Prepare the hidden fix now \(lesson_key\)/);
 
@@ -272,6 +289,10 @@ test("a lesson over stdio: the checkout's map goes up, rubrics come back, the ke
     const rubric = await request("tools/call", { name: "lesson_answer", arguments: { lesson: LESSON_ID, step: "s1", answer: "It cleans data." } });
     assert.match(text(rubric), /^Grade the user's s1 answer yourself/);
     assert.match(text(rubric), /RUBRIC:\nJudge it/);
+    // A verdict in the wrong shape is refused, and the refusal says which shape (a real agent got s4's keys wrong).
+    const wrong = await request("tools/call", { name: "lesson_answer", arguments: { lesson: LESSON_ID, step: "s1", grader_reply: "looks fine" } });
+    assert.equal((wrong.result as ToolResult).isError, true);
+    assert.equal(text(wrong), "That verdict isn't the rubric's JSON. Reply with only this object, with these exact keys: {\"users\":true}");
     const graded = await request("tools/call", { name: "lesson_answer", arguments: { lesson: LESSON_ID, step: "s1", grader_reply: '{"users":true}' } });
     assert.match(text(graded), /^s1: Passed: Clear\./);
     assert.deepEqual(JSON.parse(seen.at(-1)!.body), { step: "s1", answer: "It cleans data.", grader_reply: '{"users":true}' }, "the panel's answer is reused, not retyped");
@@ -293,15 +314,18 @@ test("a lesson over stdio: the checkout's map goes up, rubrics come back, the ke
   }
 });
 
-test("the panel's map comes from the local checkout, with the user's picks and the revealed fix marked", async () => {
+test("the panel's map is graphify's viewer, with the user's picks and the revealed fix coloured", { skip: graphifyMissing }, async () => {
   const { dir } = fixture();
   const { child, request } = start(TOKEN);
   try {
     await request("initialize", { protocolVersion: "2025-06-18", capabilities: UI_CAPS, clientInfo: { name: "vscode", version: "1" } });
     await request("tools/call", { name: "lesson_start", arguments: { repo: "acme/app", issue: 12, dir } });
-    const map = (await request("tools/call", { name: "lesson_graph", arguments: { lesson: LESSON_ID } })).result as { structuredContent: { modules: Array<{ name: string; files: string[] }>; highlight: { picks: string[]; key: string[] } } };
-    assert.deepEqual(map.structuredContent.modules.map((m) => m.name), ["app"]);
-    assert.deepEqual(map.structuredContent.highlight, { picks: ["app/fill.py", "app/core.py"], key: ["app/fill.py"] });
+    const map = (await request("tools/call", { name: "lesson_graph", arguments: { lesson: LESSON_ID } })).result as { structuredContent: { html: string; marked: number } };
+    const { html, marked } = map.structuredContent;
+    assert.match(html, /vis-network@9\.1\.6/, "graphify's own viewer");
+    assert.ok(html.includes('"app_core":"explored"'), "a starting point the user picked");
+    assert.ok(html.includes('"app_fill":"changed"'), "a file the revealed fix changed");
+    assert.ok(marked >= 2);
   } finally {
     child.kill();
   }
@@ -327,3 +351,21 @@ for (const [name, params, message] of BAD_LESSON_CALLS) {
     }
   });
 }
+
+test("without graphify, starting a lesson says how to install it instead of drawing something else", async () => {
+  const { dir } = fixture();
+  const child = spawn(process.execPath, [join(process.cwd(), "harness", "server.mjs")], {
+    env: { ...process.env, OPENSRCER_URL: base, OPENSRCER_TOKEN: TOKEN, GITHUB_API_URL: base, OPENSRCER_HOME: home, OPENSRCER_GRAPH_PYTHON: "no-such-python-here" },
+  });
+  const lines = createInterface({ input: child.stdout });
+  try {
+    const reply = new Promise<string>((resolve) => lines.once("line", resolve));
+    child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "lesson_start", arguments: { repo: "acme/app", issue: 12, dir } } }) + "\n");
+    const r = JSON.parse(await reply) as { result: ToolResult };
+    assert.equal(r.result.isError, true);
+    assert.match(r.result.content[0].text, /needs Python with graphify.*pip install graphifyy==0\.9\.73/);
+    assert.ok(!seen.some((x) => x.url === "/api/harness/lessons" && x.auth === `Bearer ${TOKEN}` && x.body.includes("no-such")), "no lesson was created");
+  } finally {
+    child.kill();
+  }
+});

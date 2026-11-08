@@ -232,7 +232,7 @@ export const harnessLessonContext = pgTable("harness_lesson_context", {
   issueTitle: text().notNull(),
   issueBody: text().notNull(),
   readme: text().notNull(),
-  graph: jsonb(), // lib/graph.ts GraphData, built locally by the plugin
+  graphGz: text(), // lib/graph.ts GraphData from graphify on the checkout, gzipped JSON in base64 (~10x smaller)
   keyDiff: text(),
   keyDiagnosis: text(),
   keyTitle: text(),

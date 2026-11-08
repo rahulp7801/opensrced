@@ -1,208 +1,146 @@
-// A code graph from a local checkout, in lib/graph.ts's GraphData shape, so
-// the lesson steps on the server (s1's main parts, s3's most-imported
-// libraries, s7's distance to the fix) read it like the site's graphify graph.
+// The code graph: graphify on the local checkout, built the way the site
+// builds it (lib/graph-worker.ts): a disposable clone of the commit, source
+// links removed, `python -I -m graphify update .`. Its graph.json is what the
+// lesson's steps are graded against; its graph.html is the map in the panel,
+// recoloured by the lesson (as lib/graph-html.ts withMapOverlay does on the site).
 //
-// Nodes: one per source file, one per function or class defined in it, one
-// per external package. Links: file -contains-> definition, file -imports->
-// file or package. Python and JavaScript/TypeScript imports are resolved;
-// other languages get files and definitions only.
-// ponytail: regexes, not parsers; good enough to find modules and imports,
-// swap in tree-sitter if a lesson ever needs call edges.
+// Python comes from OPENSRCER_GRAPH_PYTHON (the site's setting), else
+// `python`; graphify is the version the site pins in requirements-graph.txt.
 
-import { execFileSync } from "node:child_process";
-import { readFileSync, statSync } from "node:fs";
-import { join, posix } from "node:path";
+import { execFile } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { isAbsolute, join, relative, resolve } from "node:path";
+import { promisify } from "node:util";
 
-export const MAX_FILES = 4_000;
-export const MAX_FILE_BYTES = 300_000;
-const MAX_DEFS_PER_FILE = 200;
+const run = promisify(execFile);
+export const GRAPHIFY_INSTALL = "pip install graphifyy==0.9.73";
+const TIMEOUT_MS = 15 * 60_000;
 
-const PY = /\.py$/;
-const JS = /\.(?:[cm]?jsx?|tsx?)$/;
-const OTHER = /\.(?:go|rs|java|kt|rb|php|cs|swift|scala|c|cc|cpp|h|hpp)$/;
-const JS_EXTS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
+export class GraphifyError extends Error {}
 
-// Common standard-library modules: imported everywhere, never "a library the project leans on".
-const PY_STDLIB = new Set(("abc argparse ast asyncio base64 bisect builtins calendar collections concurrent contextlib copy csv dataclasses datetime decimal difflib "
-  + "enum errno functools gc getpass glob gzip hashlib heapq hmac html http importlib inspect io ipaddress itertools json keyword logging math mimetypes "
-  + "multiprocessing numbers operator os pathlib pickle platform pprint queue random re shlex shutil signal socket sqlite3 ssl stat statistics string "
-  + "struct subprocess sys tempfile textwrap threading time timeit tokenize traceback types typing unicodedata unittest urllib uuid warnings weakref "
-  + "xml zipfile zlib __future__ typing_extensions").split(" "));
-const NODE_BUILTINS = new Set("assert buffer child_process cluster crypto dgram dns events fs http http2 https module net os path perf_hooks process querystring readline stream string_decoder timers tls tty url util v8 vm worker_threads zlib".split(" "));
-
-const DEF_PATTERNS = {
-  py: /^[ \t]*(?:async[ \t]+)?(?:def|class)[ \t]+([A-Za-z_]\w*)/gm,
-  js: /^[ \t]*(?:export[ \t]+)?(?:default[ \t]+)?(?:async[ \t]+)?(?:function\*?[ \t]+([A-Za-z_$][\w$]*)|class[ \t]+([A-Za-z_$][\w$]*)|(?:const|let|var)[ \t]+([A-Za-z_$][\w$]*)[ \t]*=[ \t]*(?:async[ \t]*)?(?:function|\([^)]*\)[ \t]*=>|[A-Za-z_$][\w$]*[ \t]*=>))/gm,
-  other: /^[ \t]*(?:pub(?:\([^)]*\))?[ \t]+)?(?:func|fn|def|class|struct|interface|enum|trait)[ \t]+(?:\([^)]*\)[ \t]*)?([A-Za-z_]\w*)/gm,
-};
-
-/** The group a file belongs to: its first two folders when it is that deep
- *  (earthpy/tests apart from earthpy), else its folder. Pure. */
-export function groupOf(path) {
-  const parts = path.split("/");
-  if (parts.length === 1) return "(root)";
-  return parts.length > 2 ? `${parts[0]}/${parts[1]}` : parts[0];
+/** Only the fields the lesson reads (lib/graph-worker.ts compactGraph):
+ *  graphify's provenance fields roughly double the size. Pure. */
+export function compactGraph(raw) {
+  return {
+    nodes: raw.nodes.map(({ id, label, community, file_type, source_file, source_location, norm_label }) => ({ id, label, community, file_type, source_file: source_file ?? "", source_location, norm_label })),
+    links: (raw.links ?? raw.edges ?? []).map(({ source, target, relation, confidence, confidence_score, source_file, source_location, weight }) => ({ source, target, relation, confidence, confidence_score, source_file: source_file ?? "", source_location, weight })),
+  };
 }
 
-/** The definitions in one file's text, with their line numbers. Pure. */
-export function definitionsIn(path, text) {
-  const re = PY.test(path) ? DEF_PATTERNS.py : JS.test(path) ? DEF_PATTERNS.js : DEF_PATTERNS.other;
-  const out = [];
-  const seen = new Set();
-  for (const m of text.matchAll(re)) {
-    const name = m.slice(1).find(Boolean);
-    if (!name || seen.has(name)) continue;
-    seen.add(name);
-    out.push({ name, line: text.slice(0, m.index).split("\n").length });
-    if (out.length >= MAX_DEFS_PER_FILE) break;
+/** graphify's graph of `top` at its HEAD commit: {graph, html, sha, cached}.
+ *  Cached under `cacheRoot/<sha>`. Throws GraphifyError with what to do. */
+export async function graphify(top, cacheRoot, python = process.env.OPENSRCER_GRAPH_PYTHON || "python") {
+  const sha = (await run("git", ["-C", top, "rev-parse", "HEAD"], { encoding: "utf8" })).stdout.trim();
+  const cache = join(cacheRoot, sha);
+  if (existsSync(join(cache, "graph.json")) && existsSync(join(cache, "graph.html"))) {
+    return { graph: JSON.parse(readFileSync(join(cache, "graph.json"), "utf8")), html: readFileSync(join(cache, "graph.html"), "utf8"), sha, cached: true };
   }
-  return out;
-}
-
-/** The module specifiers a file imports. Pure. */
-export function importsIn(path, text) {
-  if (PY.test(path)) {
-    const out = [];
-    for (const m of text.matchAll(/^[ \t]*import[ \t]+([\w., \t]+)/gm)) for (const part of m[1].split(",")) out.push(part.trim().split(/\s+/)[0]);
-    for (const m of text.matchAll(/^[ \t]*from[ \t]+(\.*[\w.]*)[ \t]+import[ \t]+\(?([\w, \t*]+)/gm)) {
-      // "from . import x" names submodules; "from a import b" may too.
-      const names = m[2].split(",").map((s) => s.trim().split(/\s+/)[0]).filter((s) => s && s !== "*");
-      out.push(m[1], ...names.map((n) => (m[1].endsWith(".") ? m[1] + n : `${m[1]}.${n}`)));
+  const root = mkdtempSync(join(tmpdir(), "opensrcer-graph-"));
+  const source = join(root, "repo");
+  const output = join(root, "output");
+  try {
+    // The commit, not the working tree: the map shows the project as it is upstream.
+    await run("git", ["clone", "-q", "--shared", top, source], { timeout: 120_000 });
+    // Never let repository links point the parser at files outside the clone.
+    const { stdout } = await run("git", ["-C", source, "ls-files", "--stage", "-z"], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+    for (const entry of stdout.split("\0")) {
+      if (!entry.startsWith("120000 ")) continue;
+      const target = resolve(source, entry.slice(entry.indexOf("\t") + 1));
+      const rel = relative(source, target);
+      if (!rel || rel.startsWith("..") || isAbsolute(rel)) throw new GraphifyError("The checkout has a link that points outside it; refusing to map it.");
+      rmSync(target, { force: true });
     }
-    return out.filter(Boolean);
-  }
-  if (JS.test(path)) {
-    const out = [];
-    for (const m of text.matchAll(/(?:^|[\s;])(?:import|export)\b[^'"`;]*?from[ \t]*['"]([^'"]+)['"]|(?:^|[\s;])import[ \t]*['"]([^'"]+)['"]|\b(?:require|import)\(\s*['"]([^'"]+)['"]\s*\)/gm)) {
-      out.push(m[1] ?? m[2] ?? m[3]);
-    }
-    return out;
-  }
-  return [];
-}
-
-/** A package name from an import: "pandas.core" → "pandas", "@scope/pkg/x" → "@scope/pkg". Null for builtins. Pure. */
-export function externalPackage(path, spec) {
-  if (PY.test(path)) {
-    const top = spec.replace(/^\.+/, "").split(".")[0];
-    return top && !PY_STDLIB.has(top) ? top : null;
-  }
-  if (spec.startsWith("node:")) return null;
-  const name = spec.startsWith("@") ? spec.split("/").slice(0, 2).join("/") : spec.split("/")[0];
-  return NODE_BUILTINS.has(name) ? null : name;
-}
-
-/** Python module name → file, for every .py file (with and without a src/ prefix). */
-function pythonModules(files) {
-  const modules = new Map();
-  for (const f of files.filter((p) => PY.test(p))) {
-    const mod = f.replace(/\.py$/, "").replace(/\/__init__$/, "").split("/").join(".");
-    modules.set(mod, f);
-    if (mod.startsWith("src.")) modules.set(mod.slice(4), f);
-  }
-  return modules;
-}
-
-/** The repository file an import points at, or null for a package. Pure. */
-export function resolveImport(from, spec, files, pyModules) {
-  if (PY.test(from)) {
-    let mod = spec;
-    if (spec.startsWith(".")) {
-      const dots = spec.match(/^\.+/)[0].length;
-      const pkg = from.split("/").slice(0, -1);
-      const base = pkg.slice(0, pkg.length - (dots - 1));
-      mod = [...base, ...spec.slice(dots).split(".").filter(Boolean)].join(".");
-    }
-    // Longest prefix that is a module: "app.fill.fill" → app/fill.py.
-    const parts = mod.split(".");
-    for (let i = parts.length; i > 0; i--) {
-      const hit = pyModules.get(parts.slice(0, i).join("."));
-      if (hit) return hit;
-    }
-    return null;
-  }
-  if (JS.test(from)) {
-    let base = null;
-    if (spec.startsWith(".")) base = posix.normalize(posix.join(posix.dirname(from), spec));
-    else if (spec.startsWith("@/") || spec.startsWith("~/")) base = spec.slice(2);
-    if (base === null) return null;
-    const candidates = [base, ...JS_EXTS.map((e) => base + e), ...JS_EXTS.map((e) => `${base}/index${e}`), base.replace(/\.js$/, ".ts"), base.replace(/\.js$/, ".tsx")];
-    for (const root of ["", "src/"]) for (const c of candidates) if (files.has(root + c)) return root + c;
-  }
-  return null;
-}
-
-const link = (source, target, relation, file) => ({ source, target, relation, confidence: "EXTRACTED", confidence_score: 1, source_file: file });
-
-/** The graph of `dir`'s tracked source files. Throws when `dir` isn't a git checkout. */
-export function buildGraph(dir) {
-  const listed = execFileSync("git", ["-C", dir, "ls-files", "-z"], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }).split("\0").filter(Boolean);
-  const sources = listed.filter((p) => PY.test(p) || JS.test(p) || OTHER.test(p)).filter((p) => !/(^|\/)(node_modules|vendor|dist|build|\.git)\//.test(p) && !/\.min\.js$/.test(p)).slice(0, MAX_FILES);
-  const fileSet = new Set(sources);
-  const pyModules = pythonModules(sources);
-  const groups = new Map();
-  const community = (key) => { if (!groups.has(key)) groups.set(key, groups.size); return groups.get(key); };
-  const nodes = [];
-  const links = [];
-  const external = new Map();
-  for (const file of sources) {
-    let text;
     try {
-      if (statSync(join(dir, file)).size > MAX_FILE_BYTES) continue;
-      text = readFileSync(join(dir, file), "utf8");
-    } catch { continue; } // deleted or unreadable since ls-files: skip it
-    const c = community(groupOf(file));
-    nodes.push({ id: file, label: posix.basename(file), community: c, file_type: "code", source_file: file });
-    for (const d of definitionsIn(file, text)) {
-      nodes.push({ id: `${file}::${d.name}`, label: d.name, community: c, file_type: "code", source_file: file, source_location: `L${d.line}` });
-      links.push(link(file, `${file}::${d.name}`, "contains", file));
+      // -I: a repository's own graphify.py can't shadow the installed package.
+      await run(python, ["-I", "-m", "graphify", "update", "."], { cwd: source, env: { ...process.env, GRAPHIFY_OUT: output }, timeout: TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024, windowsHide: true });
+    } catch (error) {
+      const said = `${error.stderr ?? ""}${error.stdout ?? ""}`;
+      if (error.code === "ENOENT") throw new GraphifyError(`The code map needs Python with graphify, and "${python}" wasn't found. Install it (${GRAPHIFY_INSTALL}) and set OPENSRCER_GRAPH_PYTHON to that Python.`);
+      if (/No module named graphify/.test(said)) throw new GraphifyError(`The code map needs graphify in "${python}": ${GRAPHIFY_INSTALL} (or set OPENSRCER_GRAPH_PYTHON to a Python that has it).`);
+      if (error.killed) throw new GraphifyError("graphify took longer than 15 minutes on this checkout.");
+      throw new GraphifyError(`graphify failed: ${said.trim().split("\n").slice(-3).join(" ").slice(0, 400)}`);
     }
-    const targets = new Set();
-    for (const spec of importsIn(file, text)) {
-      const hit = resolveImport(file, spec, fileSet, pyModules);
-      if (hit && hit !== file) { targets.add(hit); continue; }
-      if (hit) continue;
-      // A relative import that didn't resolve is still inside the repository, not a package.
-      if (spec.startsWith(".") || spec.startsWith("@/") || spec.startsWith("~/")) continue;
-      const pkg = externalPackage(file, spec);
-      if (!pkg) continue;
-      if (!external.has(pkg)) external.set(pkg, `ext:${pkg}`);
-      targets.add(external.get(pkg));
-    }
-    for (const t of targets) links.push(link(file, t, "imports", file));
+    const graph = compactGraph(JSON.parse(readFileSync(join(output, "graph.json"), "utf8")));
+    const html = readFileSync(join(output, "graph.html"), "utf8");
+    mkdirSync(cache, { recursive: true });
+    writeFileSync(join(cache, "graph.json"), JSON.stringify(graph));
+    writeFileSync(join(cache, "graph.html"), html);
+    return { graph, html, sha, cached: false };
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
-  // One group per package: lumped together, the packages would outnumber any
-  // real part of the project in s1's "main parts".
-  for (const [pkg, id] of external) nodes.push({ id, label: pkg, community: community(`(package) ${pkg}`), file_type: "external", source_file: "" });
-  // Imports of files that were skipped (too large) point nowhere: drop them.
-  const ids = new Set(nodes.map((n) => n.id));
-  return { nodes, links: links.filter((l) => ids.has(l.target)) };
 }
 
-/** What the lesson view draws: one box per group with its files, and how
- *  many imports run between groups. Small enough to send to the view, never
- *  to the model. Pure. */
-export function graphSummary(graph, highlight = {}) {
-  const names = new Map();
-  for (const n of graph.nodes) if (!names.has(n.community) && n.file_type !== "external") names.set(n.community, groupOf(n.source_file || n.id));
-  const files = graph.nodes.filter((n) => n.file_type !== "external" && !n.id.includes("::"));
-  const degree = new Map();
-  for (const l of graph.links) if (l.relation === "imports") for (const id of [l.source, l.target]) degree.set(id, (degree.get(id) ?? 0) + 1);
-  const modules = [...names.entries()].map(([id, name]) => {
-    const own = files.filter((f) => f.community === id).sort((a, b) => (degree.get(b.id) ?? 0) - (degree.get(a.id) ?? 0));
-    return { id, name, size: own.length, files: own.slice(0, 40).map((f) => f.id) };
-  }).filter((m) => m.size > 0).sort((a, b) => b.size - a.size).slice(0, 40);
-  const shown = new Set(modules.map((m) => m.id));
-  const groupOfNode = new Map(graph.nodes.map((n) => [n.id, n.community]));
-  const weights = new Map();
-  for (const l of graph.links) {
-    if (l.relation !== "imports") continue;
-    const a = groupOfNode.get(l.source), b = groupOfNode.get(l.target);
-    if (a === b || !shown.has(a) || !shown.has(b)) continue;
-    const key = a < b ? `${a}|${b}` : `${b}|${a}`;
-    weights.set(key, (weights.get(key) ?? 0) + 1);
+const norm = (s) => s.trim().replace(/\\/g, "/").replace(/^\.?\//, "").replace(/\(\)$/, "").replace(/^`|`$/g, "").toLowerCase();
+
+/** What the panel colours: nodes the fix touches ("changed", as
+ *  lib/graph-impact.ts touchedNodeIds reads a diff) and the nodes the user
+ *  picked as starting points ("explored"). Pure. */
+export function overlayLevels(graph, picks, keyDiff) {
+  const levels = new Map();
+  for (const pick of picks.map(norm).filter(Boolean)) {
+    const isFile = pick.includes("/") || /\.[a-z0-9]{1,6}$/i.test(pick);
+    for (const n of graph.nodes) {
+      const file = norm(n.source_file || "");
+      if (isFile ? file && (file === pick || file.endsWith(`/${pick}`)) : norm(n.label) === pick) levels.set(n.id, "explored");
+    }
   }
-  const edges = [...weights.entries()].map(([key, weight]) => { const [a, b] = key.split("|").map(Number); return { a, b, weight }; });
-  const packages = [...degree.entries()].filter(([id]) => id.startsWith("ext:")).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([id, n]) => ({ name: id.slice(4), imports: n }));
-  return { modules, edges, packages, files: files.length, highlight };
+  if (keyDiff) {
+    const files = [...keyDiff.matchAll(/^\+\+\+ (?:b\/)?(\S+)/gm)].map((m) => norm(m[1]));
+    const symbols = new Set([...keyDiff.matchAll(/^[+-]\s*(?:def|function|fn|func|class|struct|pub\s+fn|async\s+def|const|let|var)\s+(\w+)/gm)].map((m) => m[1].toLowerCase()));
+    for (const n of graph.nodes) {
+      const file = norm(n.source_file || "");
+      if ((file && files.some((f) => file.includes(f) || f.includes(file))) || symbols.has(norm(n.label))) levels.set(n.id, "changed");
+    }
+  }
+  return levels;
+}
+
+export const MAP_COLORS = { unseen: "#4b4b4b", explored: "#4E79A7", changed: "#EDC948" };
+const MAP_LABELS = { unseen: "not looked at", explored: "your starting points", changed: "changed by the fix" };
+
+/** graphify's viz recoloured by the lesson, with a legend. HTML without
+ *  graphify's node DataSet comes back unchanged. Node ids come from the
+ *  repository, so the JSON is escaped against closing the script tag. Pure. */
+export function withOverlay(html, levels) {
+  const end = html.lastIndexOf("</body>");
+  if (end < 0) return html;
+  // graphify's viewer is readable and its legend checkboxes have names, whatever the lesson colours.
+  const access = `<style>#stats, .empty { color: #a0a0b8 !important; }</style>
+<script>
+(() => {
+  const name = () => document.querySelectorAll("input[type=checkbox]:not([aria-label])").forEach((cb) => {
+    const text = (cb.closest("label, .legend-item") ?? cb.parentElement)?.textContent?.trim();
+    cb.setAttribute("aria-label", text || "Show this group");
+  });
+  name();
+  new MutationObserver(name).observe(document.body, { childList: true, subtree: true });
+})();
+</script>
+`;
+  if (!html.includes("nodesDS") || levels.size === 0) return html.slice(0, end) + access + html.slice(end);
+  const data = JSON.stringify({ colors: MAP_COLORS, labels: MAP_LABELS, levels: Object.fromEntries(levels) }).replace(/</g, "\\u003c");
+  const script = `${access}<script>
+(() => {
+  if (typeof nodesDS === "undefined") return; // vis-network didn't load: nothing to recolour
+  const { colors, labels, levels } = ${data};
+  const paint = (c) => ({ background: c, border: c, highlight: { background: "#ffffff", border: c } });
+  nodesDS.update(nodesDS.getIds().map((id) => ({ id, color: paint(colors[levels[id]] ?? colors.unseen) })));
+  const legend = document.createElement("div");
+  legend.setAttribute("role", "note");
+  legend.style.cssText = "position:fixed;left:12px;bottom:12px;padding:8px 10px;background:rgba(13,13,13,.85);color:#ddd;font:12px sans-serif;border-radius:6px;z-index:10";
+  for (const [level, c] of Object.entries(colors)) {
+    const item = document.createElement("span");
+    item.style.cssText = "margin-right:12px;white-space:nowrap";
+    const dot = document.createElement("span");
+    dot.style.cssText = "display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;background:" + c;
+    item.append(dot, labels[level]);
+    legend.append(item);
+  }
+  document.body.append(legend);
+})();
+</script>
+`;
+  return html.slice(0, end) + script + html.slice(end);
 }

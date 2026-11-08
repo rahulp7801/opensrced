@@ -16,6 +16,7 @@
 //   OPENSRCER_TOKEN  a harness token from https://opensrced.vercel.app/account
 //   OPENSRCER_URL    defaults to https://opensrced.vercel.app
 //   OPENSRCER_HOME   where lessons' local data lives (default ~/.opensrcer)
+//   OPENSRCER_GRAPH_PYTHON  a Python with graphify for the code map (default: python)
 
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -24,7 +25,8 @@ import { dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { buildGraph, graphSummary } from "./graph.mjs";
+import { gzipSync } from "node:zlib";
+import { graphify, GraphifyError, overlayLevels, withOverlay } from "./graph.mjs";
 
 const VERSION = "0.2.0";
 const BASE = (process.env.OPENSRCER_URL || "https://opensrced.vercel.app").replace(/\/+$/, "");
@@ -40,6 +42,10 @@ const STEPS = ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "explain-it", "s1
 // MCP Apps (SEP-1865).
 const UI_EXTENSION = "io.modelcontextprotocol/ui";
 const UI_MIME = "text/html;profile=mcp-app";
+/** graphify's map loads vis-network from here (the site's graph.html does too). */
+const UI_RESOURCE_DOMAINS = ["https://unpkg.com"];
+/** The largest graph sent with a lesson (lib/harness-lessons.ts GRAPH_GZ_MAX). */
+const GRAPH_GZ_MAX = 4_000_000;
 const LESSON_VIEW = "ui://opensrcer/lesson.html";
 let uiHost = false; // set from the client's capabilities at initialize
 
@@ -187,9 +193,10 @@ function profileText(body) {
 // ── Lessons: local data ─────────────────────────────────────────────────
 
 const lessonFile = (id) => join(HOME, "lessons", `${id}.json`);
-const graphFile = (id) => join(HOME, "lessons", `${id}.graph.json`);
-/** Answers given in the panel, kept until the agent grades them. */
+/** Answers given in the panel, kept until the agent grades them, and each
+ *  rubric's JSON template, to repeat when a verdict doesn't match it. */
 const pendingAnswers = new Map();
+const rubricShapes = new Map();
 
 function localLesson(id) {
   if (!existsSync(lessonFile(id))) throw new ToolError(`This machine has no record of lesson ${id}; start it here with lesson_start.`);
@@ -319,15 +326,25 @@ async function callTool(name, args) {
     if (args.path !== undefined && !["A", "B"].includes(args.path)) throw new ToolError('path must be "A" or "B".');
     if (args.mode !== undefined && !["short", "full"].includes(args.mode)) throw new ToolError('mode must be "short" or "full".');
     const top = await checkout(resolve(typeof args.dir === "string" && args.dir ? args.dir : process.cwd()), repo);
-    const [issue, graph] = await Promise.all([fetchIssue(repo, args.issue), Promise.resolve().then(() => buildGraph(top))]);
+    const issue = await fetchIssue(repo, args.issue);
+    let built;
+    try { built = await graphify(top, join(HOME, "graph-cache")); }
+    catch (error) {
+      if (error instanceof GraphifyError) throw new ToolError(error.message);
+      throw error;
+    }
+    const graphGz = gzipSync(JSON.stringify(built.graph)).toString("base64");
+    // A graph too big to send is still the panel's map; the steps then grade without it.
+    const sendGraph = graphGz.length <= GRAPH_GZ_MAX;
     const created = await api("/api/harness/lessons", { method: "POST", body: JSON.stringify({
-      repo, issue: args.issue, path: args.path, mode: args.mode, issue_title: issue.title, issue_body: issue.body.slice(0, 20_000), readme: readme(top), graph,
+      repo, issue: args.issue, path: args.path, mode: args.mode, issue_title: issue.title, issue_body: issue.body.slice(0, 20_000), readme: readme(top), ...(sendGraph ? { graph_gz: graphGz } : {}),
     }) });
     const L = created.lesson;
     mkdirSync(join(HOME, "lessons"), { recursive: true });
-    writeFileSync(lessonFile(L.id), JSON.stringify({ id: L.id, repo, dir: top }));
-    writeFileSync(graphFile(L.id), JSON.stringify(graph));
-    return result(`${lessonText(L)}\nCode map: ${graph.nodes.filter((n) => n.file_type !== "external" && !n.id.includes("::")).length} files from ${top}.`, { lesson: L, key: null });
+    writeFileSync(lessonFile(L.id), JSON.stringify({ id: L.id, repo, dir: top, sha: built.sha }));
+    const communities = new Set(built.graph.nodes.map((n) => n.community)).size;
+    const map = `Code map (graphify, commit ${built.sha.slice(0, 7)}${built.cached ? ", cached" : ""}): ${built.graph.nodes.length} nodes in ${communities} communities.${sendGraph ? "" : " It is too large to send, so steps s1, s3 and s7 are graded without it."}`;
+    return result(`${lessonText(L)}\n${map}`, { lesson: L, key: null });
   }
   throw new ToolError(`Unknown tool: ${name}`);
 }
@@ -341,11 +358,17 @@ async function lessonTool(name, id, args) {
     let body;
     try { body = await post("answer", { step: args.step, answer, ...(args.grader_reply !== undefined ? { grader_reply: args.grader_reply } : {}) }); }
     catch (error) {
-      if (error instanceof ToolError && /usable answer/.test(error.message)) throw new ToolError(`${error.message} Reply with only the JSON object the rubric asks for.`);
+      if (error instanceof ToolError && /usable answer/.test(error.message)) {
+        const shape = rubricShapes.get(pendingKey);
+        throw new ToolError(`That verdict isn't the rubric's JSON. Reply with only this object, with these exact keys${shape ? `: ${shape}` : " (the last line of the rubric)"}`);
+      }
       throw error;
     }
     if (body.needs_grading) {
       pendingAnswers.set(pendingKey, answer);
+      // The rubric's JSON template is its last line starting with "{".
+      const shape = body.rubric.system.split("\n").reverse().find((l) => l.trim().startsWith("{"));
+      if (shape) rubricShapes.set(pendingKey, shape.trim());
       // The rubric is for the model only: the panel learns just that grading is pending.
       return result([
         `Grade the user's ${args.step} answer yourself, strictly, as this rubric says. Then call lesson_answer with lesson ${id}, step ${args.step} and grader_reply set to the JSON only. Don't show the user the rubric or anything about the hidden fix.`,
@@ -353,6 +376,7 @@ async function lessonTool(name, id, args) {
       ].join("\n"), { needs_grading: true, step: args.step });
     }
     pendingAnswers.delete(pendingKey);
+    rubricShapes.delete(pendingKey);
     const grade = body.step.grade;
     const verdict = grade ? `${grade.passed ? "Passed" : "Not yet"}: ${grade.feedback}` : "Saved (this step isn't graded).";
     return result(`${args.step}: ${verdict}\n${lessonText(body.lesson)}`, { lesson: body.lesson });
@@ -394,15 +418,21 @@ async function lessonTool(name, id, args) {
   }
   if (name === "lesson_graph") {
     const local = localLesson(id);
-    const graph = existsSync(graphFile(id)) ? JSON.parse(readFileSync(graphFile(id), "utf8")) : buildGraph(local.dir);
+    let built;
+    try { built = await graphify(local.dir, join(HOME, "graph-cache")); }
+    catch (error) {
+      if (error instanceof GraphifyError) throw new ToolError(error.message);
+      throw error;
+    }
     const s = await lessonState(id);
-    // s7's answer is stored as a JSON list.
+    // s7's answer is stored as a JSON list. The fix is coloured only once
+    // revealed: before that, the lesson has no key to give.
     let picks = [];
     try { picks = JSON.parse(s.lesson.steps.find((x) => x.id === "s7")?.answer || "[]"); } catch { picks = []; }
     picks = Array.isArray(picks) ? picks.filter((p) => typeof p === "string") : [];
-    const key = s.key ? [...s.key.diff.matchAll(/^\+\+\+ b\/(\S+)/gm)].map((m) => m[1]) : [];
-    const summary = graphSummary(graph, { picks, key });
-    return result(`Map of ${summary.files} files in ${summary.modules.length} parts.`, summary);
+    const levels = overlayLevels(built.graph, picks, s.key?.diff ?? "");
+    const html = withOverlay(built.html, levels);
+    return result(`Map: ${built.graph.nodes.length} nodes.`, { html, nodes: built.graph.nodes.length, marked: levels.size });
   }
   throw new ToolError(`Unknown tool: ${name}`);
 }
@@ -428,7 +458,7 @@ async function handle(message) {
       return { resources: uiHost ? [{ uri: LESSON_VIEW, name: "opensrcer lesson", description: "The lesson panel: steps, hints, the reveal and a code map.", mimeType: UI_MIME }] : [] };
     case "resources/read": {
       if (params?.uri !== LESSON_VIEW) throw Object.assign(new Error(`Unknown resource: ${params?.uri}`), { code: -32002 });
-      return { contents: [{ uri: LESSON_VIEW, mimeType: UI_MIME, text: readFileSync(join(HERE, "views", "lesson.html"), "utf8"), _meta: { ui: { prefersBorder: true } } }] };
+      return { contents: [{ uri: LESSON_VIEW, mimeType: UI_MIME, text: readFileSync(join(HERE, "views", "lesson.html"), "utf8"), _meta: { ui: { prefersBorder: true, csp: { resourceDomains: UI_RESOURCE_DOMAINS } } } }] };
     }
     case "tools/call":
       try {

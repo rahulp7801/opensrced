@@ -1,5 +1,5 @@
 {
-  "id": "fa4dce9c-281f-42f9-b2c6-d0a21904ed02",
+  "id": "c240d4c6-33b0-4de1-97aa-7049553c8952",
   "prevId": "93acf669-1f29-4930-b037-d5867ccd0dc4",
   "version": "7",
   "dialect": "postgresql",
@@ -655,9 +655,9 @@
           "primaryKey": false,
           "notNull": true
         },
-        "graph": {
-          "name": "graph",
-          "type": "jsonb",
+        "graph_gz": {
+          "name": "graph_gz",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },

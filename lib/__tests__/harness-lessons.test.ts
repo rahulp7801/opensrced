@@ -8,8 +8,12 @@ import { migrateDb } from "../db/migrate";
 import { createToken } from "../harness";
 import {
   answerHarnessStep, createHarnessLesson, getHarnessLesson, harnessHint, harnessOwnDiff, harnessReveal, parseGraph, setHarnessKey,
-  HarnessLessonInputError,
+  HarnessLessonInputError, unpackGraphGz,
 } from "../harness-lessons";
+import { gzipSync } from "node:zlib";
+
+/** A graph as the plugin sends it: JSON, gzipped, in base64. */
+const gz = (graph: unknown) => gzipSync(JSON.stringify(graph)).toString("base64");
 import { DbLessonStore } from "../lesson/db-store";
 
 process.env.OPENSRCER_LESSONS = "1";
@@ -49,7 +53,7 @@ const read = async (res: Response) => ({ status: res.status, body: await res.jso
 
 async function start(user = "github|1", extra: Record<string, unknown> = {}) {
   const res = await read(await createHarnessLesson(post({
-    repo: "acme/app", issue: 12, issue_title: "fill ignores value", issue_body: "Calling fill(df, 0) leaves NaN.", readme: "acme/app cleans data frames.", graph: GRAPH, ...extra,
+    repo: "acme/app", issue: 12, issue_title: "fill ignores value", issue_body: "Calling fill(df, 0) leaves NaN.", readme: "acme/app cleans data frames.", graph_gz: gz(GRAPH), ...extra,
   }), connection.db, user));
   return res;
 }
@@ -123,8 +127,9 @@ test("path B: the contributor's own diff from their checkout leads to the reveal
 
 const BAD_CREATES: Array<[string, Record<string, unknown>, RegExp]> = [
   ["no issue title", { issue_title: "  " }, /issue_title is required/],
-  ["a graph link to a missing node", { graph: { nodes: GRAPH.nodes, links: [{ source: "app/fill.py", target: "nowhere", relation: "imports" }] } }, /link needs a source and target/],
-  ["a graph without links", { graph: { nodes: [] } }, /nodes and links arrays/],
+  ["a graph link to a missing node", { graph_gz: gz({ nodes: GRAPH.nodes, links: [{ source: "app/fill.py", target: "nowhere", relation: "imports" }] }) }, /link needs a source and target/],
+  ["a graph without links", { graph_gz: gz({ nodes: [] }) }, /nodes and links arrays/],
+  ["a graph that isn't gzip", { graph_gz: Buffer.from("{}").toString("base64") }, /gzipped graph JSON in base64/],
   ["a bad issue number", { issue: 0 }, /issue_number must be a positive whole number/],
 ];
 for (const [name, extra, message] of BAD_CREATES) {
@@ -162,9 +167,9 @@ test("answers are checked before anything is graded or saved", async () => {
   }
 });
 
-test("parseGraph accepts none, and refuses anything that isn't nodes and links", () => {
-  assert.equal(parseGraph(undefined), null);
-  assert.equal(parseGraph(GRAPH)?.nodes.length, 5);
+test("the graph unpacks from gzip, and anything that isn't nodes and links is refused", () => {
+  assert.equal(unpackGraphGz(gz(GRAPH)).nodes.length, 5);
+  assert.throws(() => parseGraph(undefined), HarnessLessonInputError);
   assert.throws(() => parseGraph([]), HarnessLessonInputError);
   assert.throws(() => parseGraph({ nodes: [{ id: 1 }], links: [] }), HarnessLessonInputError);
 });

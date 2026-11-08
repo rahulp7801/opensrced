@@ -6,13 +6,15 @@
 //   the real plugin server (harness/server.mjs) over stdio, as a host runs it
 //     ↑ MCP Apps (postMessage)
 //   the real lesson panel (harness/views/lesson.html) in Chromium, inside a
-//   minimal host page that sandboxes it under the spec's default CSP
+//   minimal host page that sandboxes it under the spec's default CSP plus
+//   the domains the resource declares, with graphify's real map in its Map tab
 //
 // This script plays the host and the agent: it starts the lesson, writes the
 // hidden fix in a separate worktree, and when the panel asks for a grade it
 // answers with a verdict, as the contributor's agent would after reading
-// the rubric. Run after `npm test` (it needs .test-build) and
-// `npx playwright install chromium`. SMOKE_SHOTS=<dir> saves screenshots.
+// the rubric. Run after `npm test` (it needs .test-build), with graphify
+// installed (requirements-graph.txt; OPENSRCER_GRAPH_PYTHON picks the Python)
+// and `npx playwright install chromium`. SMOKE_SHOTS=<dir> saves screenshots.
 
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
@@ -118,7 +120,11 @@ const view = (await mcp("resources/read", { uri: "ui://opensrcer/lesson.html" })
 assert.equal(view.mimeType, "text/html;profile=mcp-app");
 
 // ── The host page: the panel in a sandboxed iframe under the default CSP ──
-const CSP = "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' data:; connect-src 'none';";
+// The spec's default CSP, widened only by the domains the resource declares
+// (graphify's viewer loads vis-network from unpkg), as a host must.
+const domains = (view._meta?.ui?.csp?.resourceDomains ?? []).join(" ");
+assert.equal(domains, "https://unpkg.com");
+const CSP = `default-src 'none'; script-src 'self' 'unsafe-inline' ${domains}; style-src 'self' 'unsafe-inline' ${domains}; img-src 'self' data: ${domains}; font-src ${domains}; media-src 'self' data:; connect-src 'none';`;
 const HOST = `<!doctype html><html><head><meta charset="utf-8"><title>host</title></head><body style="margin:0;background:#fff">
 <iframe id="view" title="opensrcer lesson" sandbox="allow-scripts" style="width:720px;height:900px;border:0"></iframe>
 <script>
@@ -219,13 +225,14 @@ try {
   await next.getByRole("button", { name: "Submit" }).click();
   await panel.getByText("Lesson done.").waitFor();
 
-  // The map: parts of the code, the user's picks and the fix marked.
+  // The map: graphify's own viewer, recoloured by the lesson (the site's overlay).
   await panel.getByRole("tab", { name: "Map" }).click();
-  await panel.getByRole("group", { name: /Map of \d+ parts/ }).waitFor();
-  await panel.getByText("changed by the fix").waitFor();
-  await panel.getByRole("button", { name: /^app: \d+ files$/ }).click();
-  await panel.locator(".files li.key", { hasText: "app/fill.py" }).waitFor();
-  await panel.locator(".files li.pick", { hasText: "app/core.py" }).waitFor();
+  const map = panel.frameLocator('iframe[title="Code map from graphify"]');
+  await map.getByText("your starting points").waitFor({ timeout: 60_000 });
+  await map.getByText("changed by the fix").waitFor();
+  const colours = await map.locator("body").evaluate(() => Object.fromEntries(nodesDS.get().map((n) => [n.id, n.color?.background])));
+  assert.equal(colours.app_core, "#4E79A7", "a starting point the user picked is blue");
+  assert.equal(colours.app_fill, "#EDC948", "a file the fix changed is yellow");
   if (shots) await page.screenshot({ path: join(shots, "3-map.png"), fullPage: true });
 
   const axe = await new AxeBuilder({ page }).include("#view").analyze();

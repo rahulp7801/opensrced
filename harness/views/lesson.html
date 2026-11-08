@@ -42,17 +42,12 @@
   .hint { margin: 6px 0 0; padding: 6px 8px; border-left: 3px solid var(--warn); background: var(--bg2); white-space: pre-wrap; }
   pre { background: var(--bg2); padding: 8px; border-radius: 6px; overflow-x: auto; font-size: 12px; max-height: 360px; }
   .error { color: var(--bad); }
-  svg { width: 100%; height: auto; display: block; }
-  svg text { fill: var(--fg); font-size: 11px; }
-  .files { columns: 2 220px; font-size: 12px; padding-left: 18px; }
-  .files li.pick { color: var(--accent); font-weight: 600; } .files li.key { color: var(--gold-text); font-weight: 600; }
-  .legend { font-size: 12px; display: flex; gap: 12px; flex-wrap: wrap; }
-  .legend span::before { content: "●"; margin-right: 4px; }
-  .legend .l-pick::before { color: var(--accent); } .legend .l-key::before { color: var(--gold); }
+  .map { display: block; width: 100%; height: 560px; border: 1px solid var(--line); border-radius: 8px; background: #0d0d0d; }
 </style>
 </head>
 <body>
 <main id="app" aria-live="polite"><p class="muted">Loading the lesson…</p></main>
+<div id="map" hidden></div>
 <script>
 "use strict";
 // The MCP Apps view protocol (SEP-1865), as the official App class speaks it:
@@ -116,9 +111,11 @@ function answerText(answer) {
 }
 
 function apply(s) {
+  // The map's colours follow the starting points (s7) and the revealed fix: reload it when either changes.
+  const marks = (x) => `${x.lesson.steps.find((st) => st.id === "s7")?.answer ?? ""}|${Boolean(x.key)}`;
+  if (state.lesson && marks({ lesson: state.lesson, key: state.key }) !== marks({ lesson: s.lesson, key: s.key ?? state.key })) state.graph = null;
   state.lesson = s.lesson;
   state.key = s.key ?? state.key;
-  if (s.graph) state.graph = s.graph;
   if (state.waiting) {
     const step = s.lesson.steps.find((x) => x.id === state.waiting.step);
     if (step && (step.done || (step.grade && step.grade.feedback !== state.waiting.before))) state.waiting = null;
@@ -165,7 +162,12 @@ const hint = (step) => act(async () => {
   (state.hints[step.id] ??= []).push(s.text);
 });
 const reveal = (giveUp) => act(async () => { apply((await callTool("lesson_reveal", { lesson: state.id, give_up: giveUp })).structuredContent); });
-const loadGraph = () => act(async () => { state.graph = (await callTool("lesson_graph", { lesson: state.id })).structuredContent; });
+const loadGraph = () => act(async () => {
+  try {
+    state.graph = (await callTool("lesson_graph", { lesson: state.id })).structuredContent;
+    state.graphVersion = (state.graphVersion ?? 0) + 1;
+  } catch (e) { state.graphFailed = e.message; } // shown in the Map tab; not retried on every redraw
+});
 
 // ── Rendering (text only: every string from the repo goes in as textContent) ──
 function el(tag, attrs = {}, ...children) {
@@ -239,40 +241,23 @@ function stepsView() {
 }
 
 function mapView() {
-  const g = state.graph;
-  if (!g) { loadGraph(); return [el("p", { class: "muted" }, "Loading the map…")]; }
-  const picks = new Set((g.highlight?.picks ?? []).map((p) => p.toLowerCase()));
-  const keyFiles = new Set(g.highlight?.key ?? []);
-  const hot = (m) => ({ pick: m.files.some((f) => picks.has(f.toLowerCase())), key: m.files.some((f) => keyFiles.has(f)) });
-  const W = 640, H = 420, cx = W / 2, cy = H / 2, R = 160;
-  const pos = new Map(g.modules.map((m, i) => { const a = (2 * Math.PI * i) / Math.max(1, g.modules.length) - Math.PI / 2; return [m.id, [cx + R * Math.cos(a), cy + R * Math.sin(a)]]; }));
-  const max = Math.max(1, ...g.modules.map((m) => m.size));
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("role", "group");
-  svg.setAttribute("aria-label", `Map of ${g.modules.length} parts of the code and the imports between them`);
-  const ns = (tag, attrs) => { const n = document.createElementNS("http://www.w3.org/2000/svg", tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, String(v)); return n; };
-  const maxW = Math.max(1, ...g.edges.map((e) => e.weight));
-  for (const e of g.edges) {
-    const [x1, y1] = pos.get(e.a), [x2, y2] = pos.get(e.b);
-    svg.append(ns("line", { x1, y1, x2, y2, stroke: "currentColor", "stroke-opacity": 0.25, "stroke-width": 1 + 4 * (e.weight / maxW) }));
-  }
-  for (const m of g.modules) {
-    const [x, y] = pos.get(m.id); const r = 6 + 22 * Math.sqrt(m.size / max); const h = hot(m);
-    const c = ns("circle", { cx: x, cy: y, r, fill: h.key ? "var(--gold)" : h.pick ? "var(--accent)" : "var(--bg2)", stroke: "var(--line)", tabindex: 0, role: "button", "aria-label": `${m.name}: ${m.size} files` });
-    c.addEventListener("click", () => { state.module = m.id; render(); });
-    c.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { state.module = m.id; render(); } });
-    const t = ns("text", { x, y: y + r + 12, "text-anchor": "middle" }); t.textContent = m.name;
-    svg.append(c, t);
-  }
-  const chosen = g.modules.find((m) => m.id === state.module) ?? g.modules[0];
-  return [
-    el("p", { class: "muted" }, `${g.files} source files. Click a part to see its files.`),
-    el("div", { class: "legend" }, el("span", { class: "l-pick" }, "your starting points"), state.key ? el("span", { class: "l-key" }, "changed by the fix") : null),
-    svg,
-    chosen ? el("section", { class: "card", "aria-label": chosen.name }, el("h2", {}, chosen.name, el("span", { class: "muted" }, `${chosen.size} files`)),
-      el("ul", { class: "files" }, chosen.files.map((f) => el("li", { class: keyFiles.has(f) ? "key" : picks.has(f.toLowerCase()) ? "pick" : "" }, f)))) : null,
-    g.packages.length ? el("p", { class: "muted" }, "Most imported packages: ", g.packages.map((p) => p.name).join(", ")) : null,
-  ];
+  if (state.graph) return [el("p", { class: "muted" }, `graphify's map of the code: ${state.graph.nodes} nodes. Drag to move, scroll to zoom, click a node for its links. Your starting points are blue${state.key ? " and what the fix changed is yellow" : ""}.`)];
+  if (state.graphFailed) return [el("p", { class: "error", role: "alert" }, state.graphFailed)];
+  loadGraph();
+  return [el("p", { class: "muted" }, "Loading graphify's map of the code…")];
+}
+
+/** graphify's own viewer in a nested sandboxed frame. It lives outside #app so
+ *  redraws (polls while a grade is pending) don't reload a large layout; it
+ *  reloads only when the graph's colours change. */
+function showMap() {
+  const box = document.getElementById("map");
+  box.hidden = state.tab !== "map" || !state.graph;
+  if (box.hidden || box.dataset.version === String(state.graphVersion)) return;
+  const frame = el("iframe", { title: "Code map from graphify", sandbox: "allow-scripts", class: "map" });
+  frame.srcdoc = state.graph.html;
+  box.replaceChildren(frame);
+  box.dataset.version = String(state.graphVersion);
 }
 
 function render() {
@@ -290,6 +275,7 @@ function render() {
     ...(state.error ? [el("p", { class: "error", role: "alert" }, state.error)] : []),
     ...(state.tab === "map" ? mapView() : stepsView()),
   );
+  showMap();
 }
 
 new ResizeObserver(() => notify("ui/notifications/size-changed", { width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight })).observe(document.body);

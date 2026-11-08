@@ -48,6 +48,16 @@ jobs:
 
       - run: npm ci
 
+      # The harness's code map is graphify's (harness/graph.mjs): its tests
+      # and the lesson smoke run it for real, from the same locked runtime.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements-graph.txt
+      - name: Install the graph runtime
+        run: python -m pip install -r requirements-graph.txt
+
       # The gate covers what ships. Dev-only tooling is reported separately:
       # GHSA-vfj7-8cjw-p6xm marks every published `braces` (via
       # eslint-config-next -> fast-glob -> micromatch) with no patched release,

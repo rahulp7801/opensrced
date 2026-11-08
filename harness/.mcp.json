@@ -2,10 +2,13 @@
   "mcpServers": {
     "opensrcer": {
       "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/server.mjs"],
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/server.mjs"
+      ],
       "env": {
         "OPENSRCER_TOKEN": "${OPENSRCER_TOKEN:-}",
-        "OPENSRCER_URL": "${OPENSRCER_URL:-https://opensrced.vercel.app}"
+        "OPENSRCER_URL": "${OPENSRCER_URL:-https://opensrced.vercel.app}",
+        "OPENSRCER_GRAPH_PYTHON": "${OPENSRCER_GRAPH_PYTHON:-python}"
       }
     }
   }

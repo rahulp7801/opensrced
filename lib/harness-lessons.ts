@@ -13,6 +13,7 @@
 // Lesson rows are the site's (lessons, lesson_steps), so the site can show
 // progress; the extra context lives in harness_lesson_context.
 
+import { gunzipSync } from "node:zlib";
 import { eq } from "drizzle-orm";
 import type { Db } from "./db/client";
 import { harnessLessonContext, lessons } from "./db/schema";
@@ -36,12 +37,15 @@ export const HARNESS_RUN = "harness";
 export const ISSUE_TITLE_MAX = 500;
 export const ISSUE_BODY_MAX = 20_000;
 export const README_MAX = 200_000;
-export const GRAPH_MAX_BYTES = 3_000_000;
-export const GRAPH_MAX_NODES = 20_000;
+/** The graph arrives as graphify's graph.json (compacted), gzipped, in base64:
+ *  pyjanitor's 4 MB is 0.4 MB that way. These caps bound a function's memory. */
+export const GRAPH_GZ_MAX = 4_000_000;
+export const GRAPH_MAX_BYTES = 64_000_000;
+export const GRAPH_MAX_NODES = 250_000;
 export const DIAGNOSIS_MAX = 4_000;
 export const KEY_TITLE_MAX = 300;
 /** Lesson creation carries the graph, so it may be large. */
-const CREATE_BODY_MAX = GRAPH_MAX_BYTES + README_MAX + ISSUE_BODY_MAX + 10_000;
+const CREATE_BODY_MAX = GRAPH_GZ_MAX + README_MAX + ISSUE_BODY_MAX + 10_000;
 
 export class HarnessLessonInputError extends Error {
   constructor(message: string) {
@@ -59,10 +63,18 @@ function text(value: unknown, name: string, max: number, required = true): strin
   return value;
 }
 
+/** graph_gz (gzipped JSON in base64) as a graph. Throws HarnessLessonInputError. */
+export function unpackGraphGz(gz: string): GraphData {
+  let raw: unknown;
+  try { raw = JSON.parse(gunzipSync(Buffer.from(gz, "base64"), { maxOutputLength: GRAPH_MAX_BYTES }).toString("utf8")); }
+  catch { throw new HarnessLessonInputError(`graph_gz must be gzipped graph JSON in base64, under ${GRAPH_MAX_BYTES} bytes unpacked.`); }
+  return parseGraph(raw);
+}
+
 /** A code graph from the plugin, checked before it is stored or traversed.
  *  Throws HarnessLessonInputError. Pure. */
-export function parseGraph(raw: unknown): GraphData | null {
-  if (raw === undefined || raw === null) return null;
+export function parseGraph(raw: unknown): GraphData {
+  if (raw === undefined || raw === null) throw new HarnessLessonInputError("graph must be an object with nodes and links.");
   if (typeof raw !== "object" || Array.isArray(raw)) throw new HarnessLessonInputError("graph must be an object with nodes and links.");
   const { nodes, links } = raw as { nodes?: unknown; links?: unknown };
   if (!Array.isArray(nodes) || !Array.isArray(links)) throw new HarnessLessonInputError("graph must have nodes and links arrays.");
@@ -98,7 +110,7 @@ export function contextOf(lesson: Lesson, row: ContextRow): StepContext {
     repo: lesson.repo_url.replace(/^https:\/\/github\.com\//, ""),
     issue: { number: lesson.issue_number, title: row.issueTitle, body: row.issueBody },
     readme: row.readme,
-    graph: (row.graph as GraphData | null) ?? null,
+    graph: row.graphGz ? unpackGraphGz(row.graphGz) : null,
     answerKey: row.keyDiff ? { diff: row.keyDiff, diagnosis: row.keyDiagnosis ?? "", cases: [], title: row.keyTitle ?? "" } : null,
     answerKeyStatus: status,
     // ponytail: the site's two practice review questions come from /api/understand,
@@ -156,18 +168,21 @@ const relay = (body: unknown) => new Request("http://harness.local/", { method: 
 
 // ── POST /api/harness/lessons ─────────────────────────────────────────────
 
-/** {repo, issue, mode?, path?, issue_title, issue_body, readme, graph?}. */
+/** {repo, issue, mode?, path?, issue_title, issue_body, readme, graph_gz?}:
+ *  graph_gz is graphify's graph.json of the checkout, gzipped, in base64. */
 export async function createHarnessLesson(req: Request, db: Db, userId: string): Promise<Response> {
   if (!lessonsEnabled()) return json({ error: LESSONS_DISABLED }, 404);
   const body = await readJsonBody<Record<string, unknown>>(req, CREATE_BODY_MAX);
   if (!body) return json({ error: `Send a JSON object under ${CREATE_BODY_MAX} bytes.` }, 400);
-  let context: { issueTitle: string; issueBody: string; readme: string; graph: GraphData | null };
+  let context: { issueTitle: string; issueBody: string; readme: string; graphGz: string | null };
   try {
+    const graphGz = body.graph_gz === undefined ? null : text(body.graph_gz, "graph_gz", GRAPH_GZ_MAX);
+    if (graphGz !== null) unpackGraphGz(graphGz); // checked now, unpacked again when a step needs it
     context = {
       issueTitle: text(body.issue_title, "issue_title", ISSUE_TITLE_MAX),
       issueBody: text(body.issue_body ?? "", "issue_body", ISSUE_BODY_MAX),
       readme: text(body.readme ?? "", "readme", README_MAX),
-      graph: parseGraph(body.graph),
+      graphGz,
     };
     if (!context.issueTitle.trim()) throw new HarnessLessonInputError("issue_title is required.");
   } catch (error) {

@@ -3,7 +3,7 @@ CREATE TABLE "harness_lesson_context" (
 	"issue_title" text NOT NULL,
 	"issue_body" text NOT NULL,
 	"readme" text NOT NULL,
-	"graph" jsonb,
+	"graph_gz" text,
 	"key_diff" text,
 	"key_diagnosis" text,
 	"key_title" text,

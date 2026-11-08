@@ -9,6 +9,14 @@ The website is only needed once, to sign in and make a token; your lessons and c
 
 ## Install
 
+Lessons draw their code map with [graphify](https://pypi.org/project/graphifyy/), the same graph the site uses. Install it once (Python 3.10+):
+
+```sh
+pip install graphifyy==0.9.73
+```
+
+If it lives in a virtualenv, set `OPENSRCER_GRAPH_PYTHON` to that Python (e.g. `~/.venvs/graph/bin/python`).
+
 ### Claude Code
 
 ```
@@ -80,7 +88,7 @@ Ask your agent to help you contribute to a repository, or to teach you an issue.
 ## What it sends
 
 - **Profiles and PR checks:** the repository name, and the draft's facts (title, description, changed paths, line counts). No code.
-- **Lessons:** the issue's title and text, the project's README, a map of the checkout's files, imports and function names (not their code), your answers, and the fix's diff from your agent's hidden worktree (or, on path B, your own change). They are stored with the lesson on your account.
+- **Lessons:** the issue's title and text, the project's README, graphify's graph of the checkout (files, functions, classes and how they connect; not their code), your answers, and the fix's diff from your agent's hidden worktree (or, on path B, your own change). They are stored with the lesson on your account.
 - **Never:** prompts, secrets, or anything outside the checkout you point it at.
 
-The code map stays on your machine for the panel (`~/.opensrcer/lessons`). Your agent grades your answers, so the grades are as strict as the rubric it's given. A token can do only what your account can, and stops working the moment you revoke it or lose access.
+graphify runs on your machine, on a throwaway copy of the commit; its viewer stays there (`~/.opensrcer/graph-cache`) for the panel. Your agent grades your answers, so the grades are as strict as the rubric it's given. A token can do only what your account can, and stops working the moment you revoke it or lose access.

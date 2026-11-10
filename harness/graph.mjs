@@ -79,13 +79,20 @@ const norm = (s) => s.trim().replace(/\\/g, "/").replace(/^\.?\//, "").replace(/
 /** What the panel colours: nodes the fix touches ("changed", as
  *  lib/graph-impact.ts touchedNodeIds reads a diff) and the nodes the user
  *  picked as starting points ("explored"). Pure. */
+const CODE_EXT = /\.(?:py|pyi|js|mjs|cjs|jsx|ts|tsx|go|rs|java|kt|rb|php|c|h|cc|cpp|hpp|cs|swift|scala|sh|md|rst|toml|ya?ml|json|cfg|ini|txt|html|css)$/i;
+
 export function overlayLevels(graph, picks, keyDiff) {
   const levels = new Map();
   for (const pick of picks.map(norm).filter(Boolean)) {
-    const isFile = pick.includes("/") || /\.[a-z0-9]{1,6}$/i.test(pick);
+    // As lib/lesson/steps/s7.ts pickNodes: a path or a real file extension is a file;
+    // "Serializer.loads" is a method, matched by graphify's qualified id (…_serializer_loads).
+    const isFile = pick.includes("/") || CODE_EXT.test(pick);
+    const suffix = pick.includes(".") && !isFile ? `_${pick.split(".").join("_")}` : null;
     for (const n of graph.nodes) {
       const file = norm(n.source_file || "");
-      if (isFile ? file && (file === pick || file.endsWith(`/${pick}`)) : norm(n.label) === pick) levels.set(n.id, "explored");
+      const label = norm(n.label).replace(/^\./, "");
+      const hit = isFile ? file && (file === pick || file.endsWith(`/${pick}`)) : suffix ? n.id.toLowerCase().endsWith(suffix) : label === pick;
+      if (hit) levels.set(n.id, "explored");
     }
   }
   if (keyDiff) {

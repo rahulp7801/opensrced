@@ -76,3 +76,19 @@ test("s7 needs three different picks", () => {
   assert.deepEqual(s7.parseAnswer("I'd read README.md; then Flask.wsgi_app; and full_dispatch_request()"), ["README.md", "Flask.wsgi_app", "full_dispatch_request()"]);
   for (const bad of ["a\nb", "a\na\na", 7, Array(9).fill(0).map((_, i) => `p${i}`)]) assert.throws(() => s7.parseAnswer(bad), StepInputError);
 });
+
+test("a Class.method pick resolves through graphify's qualified ids, not as a file named '.method'", async () => {
+  const { pickNodes } = await import("../lesson/steps/s7");
+  // graphify labels methods ".loads()" (no class) and qualifies them only in the id.
+  const graph = {
+    nodes: [
+      { id: "src_pkg_serializer_serializer_loads", label: ".loads()", community: 0, file_type: "code", source_file: "src/pkg/serializer.py" },
+      { id: "src_pkg_serializer_pdataserializer_loads", label: ".loads()", community: 0, file_type: "code", source_file: "src/pkg/serializer.py" },
+      { id: "src_pkg_timed_timedserializer_loads", label: ".loads()", community: 1, file_type: "code", source_file: "src/pkg/timed.py" },
+    ],
+    links: [],
+  };
+  assert.deepEqual(pickNodes(graph, "serializer.loads"), ["src_pkg_serializer_serializer_loads"], "not PDataSerializer.loads");
+  assert.deepEqual(pickNodes(graph, "timedserializer.loads()"), ["src_pkg_timed_timedserializer_loads"]);
+  assert.equal(pickNodes(graph, "serializer.py").length, 2, "a real extension is still a file");
+});

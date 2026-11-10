@@ -37,7 +37,8 @@ export function picksIn(line: string): string[] {
 }
 
 const norm = (s: string) => s.trim().replace(/\\/g, "/").replace(/^\.?\//, "").replace(/\(\)$/, "").replace(/^`|`$/g, "").toLowerCase();
-const looksLikeFile = (pick: string) => pick.includes("/") || /\.[a-z0-9]{1,6}$/i.test(pick);
+// A path, or a name with a real file extension: "Serializer.loads" is a method, not a ".loads" file.
+const looksLikeFile = (pick: string) => pick.includes("/") || new RegExp(`^${CODE_FILE.source}$`, "i").test(pick);
 const sameFile = (a: string, b: string) => a === b || a.endsWith(`/${b}`) || b.endsWith(`/${a}`);
 
 /** The graph nodes a pick names: every node in a picked file, or the node a
@@ -45,6 +46,14 @@ const sameFile = (a: string, b: string) => a === b || a.endsWith(`/${b}`) || b.e
 export function pickNodes(graph: GraphData, pick: string): string[] {
   if (looksLikeFile(pick)) {
     return graph.nodes.filter((n) => n.source_file && sameFile(norm(n.source_file), pick)).map((n) => n.id);
+  }
+  // "Serializer.loads": graphify labels methods ".loads()" (no class), but its
+  // ids end in the qualified name (…_serializer_serializer_loads), so match those.
+  const parts = pick.replace(/\(\)$/, "").split(".").filter(Boolean);
+  if (parts.length >= 2) {
+    const suffix = `_${parts.join("_")}`.toLowerCase();
+    const qualified = graph.nodes.filter((n) => n.id.toLowerCase().endsWith(suffix)).map((n) => n.id);
+    if (qualified.length) return qualified;
   }
   const node = pick.length >= 3 ? findNode(graph, pick) : null;
   return node ? [node.id] : [];

@@ -25,8 +25,8 @@ import { dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { gzipSync } from "node:zlib";
-import { graphify, GraphifyError, overlayLevels, withOverlay } from "./graph.mjs";
+import { gunzipSync, gzipSync } from "node:zlib";
+import { graphify, GraphifyError, GraphifyMissing, GRAPHIFY_INSTALL, overlayLevels, withOverlay } from "./graph.mjs";
 
 const VERSION = "0.2.0";
 const BASE = (process.env.OPENSRCER_URL || "https://opensrced.vercel.app").replace(/\/+$/, "");
@@ -262,6 +262,38 @@ async function diffOf(dir, { stage }) {
   return diff;
 }
 
+// ── Lessons: the code map ──────────────────────────────────────────────
+
+/** graphify's map of the checkout: built here when graphify is installed,
+ *  else the same graphify map of the upstream repository from opensrcer
+ *  (POST /api/harness/graph), so a user needs nothing but Node. There is
+ *  no lesson without a map: when neither works, this throws. */
+async function codeMap(top, repo) {
+  try { return { ...(await graphify(top, join(HOME, "graph-cache"))), remote: false }; }
+  catch (error) {
+    if (error instanceof GraphifyMissing) return remoteMap(repo);
+    if (error instanceof GraphifyError) throw new ToolError(error.message);
+    throw error;
+  }
+}
+
+async function remoteMap(repo) {
+  if (!TOKEN) throw new ToolError(`No opensrcer token. Create one at ${BASE}/account (Harness), then set it and restart your editor.`);
+  let res;
+  try {
+    // A first build of a repository takes up to ~4 minutes; later ones are served from the shared store.
+    res = await fetch(`${BASE}/api/harness/graph`, { method: "POST", headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" }, body: JSON.stringify({ repo }), signal: AbortSignal.timeout(300_000) });
+  } catch (error) {
+    throw new ToolError(`Could not get the code map from ${BASE}: ${error instanceof Error ? error.message : error}. Or install graphify locally: ${GRAPHIFY_INSTALL}`);
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ToolError(`${typeof body.error === "string" ? body.error : `opensrcer answered ${res.status} for the code map.`} Or install graphify locally: ${GRAPHIFY_INSTALL}`);
+  }
+  const stored = JSON.parse(gunzipSync(Buffer.from(await res.arrayBuffer()), { maxOutputLength: 160_000_000 }).toString("utf8"));
+  return { graph: stored.graph, html: stored.html, sha: String(stored.revision ?? ""), cached: false, remote: true };
+}
+
 // ── Lessons: text for the model (short: the panel shows the rest) ───────
 
 const STAGE_TEXT = { kickoff: "understanding the project and the issue", locate: "finding where to look", predict: "predicting the change", ide: "writing the fix (path B)", reveal: "ready to reveal the fix", explain: "explaining the fix", next: "next steps", done: "done" };
@@ -328,12 +360,7 @@ async function callTool(name, args) {
     if (args.mode !== undefined && !["short", "full"].includes(args.mode)) throw new ToolError('mode must be "short" or "full".');
     const top = await checkout(resolve(typeof args.dir === "string" && args.dir ? args.dir : process.cwd()), repo);
     const issue = await fetchIssue(repo, args.issue);
-    let built;
-    try { built = await graphify(top, join(HOME, "graph-cache")); }
-    catch (error) {
-      if (error instanceof GraphifyError) throw new ToolError(error.message);
-      throw error;
-    }
+    const built = await codeMap(top, repo);
     const graphGz = gzipSync(JSON.stringify(built.graph)).toString("base64");
     // A graph too big to send is still the panel's map; the steps then grade without it.
     const sendGraph = graphGz.length <= GRAPH_GZ_MAX;
@@ -344,7 +371,7 @@ async function callTool(name, args) {
     mkdirSync(join(HOME, "lessons"), { recursive: true });
     writeFileSync(lessonFile(L.id), JSON.stringify({ id: L.id, repo, dir: top, sha: built.sha }));
     const communities = new Set(built.graph.nodes.map((n) => n.community)).size;
-    const map = `Code map (graphify, commit ${built.sha.slice(0, 7)}${built.cached ? ", cached" : ""}): ${built.graph.nodes.length} nodes in ${communities} communities.${sendGraph ? "" : " It is too large to send, so steps s1, s3 and s7 are graded without it."}`;
+    const map = `Code map (graphify${built.remote ? " on opensrcer, upstream" : ""}, commit ${built.sha.slice(0, 7)}${built.cached ? ", cached" : ""}): ${built.graph.nodes.length} nodes in ${communities} communities.${sendGraph ? "" : " It is too large to send, so steps s1, s3 and s7 are graded without it."}`;
     return result(`${lessonText(L)}\n${map}`, { lesson: L, key: null });
   }
   throw new ToolError(`Unknown tool: ${name}`);
@@ -423,12 +450,7 @@ async function lessonTool(name, id, args) {
   }
   if (name === "lesson_graph") {
     const local = localLesson(id);
-    let built;
-    try { built = await graphify(local.dir, join(HOME, "graph-cache")); }
-    catch (error) {
-      if (error instanceof GraphifyError) throw new ToolError(error.message);
-      throw error;
-    }
+    const built = await codeMap(local.dir, local.repo);
     const s = await lessonState(id);
     // s7's answer is stored as a JSON list. The fix is coloured only once
     // revealed: before that, the lesson has no key to give.

@@ -18,6 +18,8 @@ export const GRAPHIFY_INSTALL = "pip install graphifyy==0.9.73";
 const TIMEOUT_MS = 15 * 60_000;
 
 export class GraphifyError extends Error {}
+/** graphify (or Python) isn't installed here: the map can come from opensrcer instead. */
+export class GraphifyMissing extends GraphifyError {}
 
 /** Only the fields the lesson reads (lib/graph-worker.ts compactGraph):
  *  graphify's provenance fields roughly double the size. Pure. */
@@ -56,8 +58,8 @@ export async function graphify(top, cacheRoot, python = process.env.OPENSRCER_GR
       await run(python, ["-I", "-m", "graphify", "update", "."], { cwd: source, env: { ...process.env, GRAPHIFY_OUT: output }, timeout: TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024, windowsHide: true });
     } catch (error) {
       const said = `${error.stderr ?? ""}${error.stdout ?? ""}`;
-      if (error.code === "ENOENT") throw new GraphifyError(`The code map needs Python with graphify, and "${python}" wasn't found. Install it (${GRAPHIFY_INSTALL}) and set OPENSRCER_GRAPH_PYTHON to that Python.`);
-      if (/No module named graphify/.test(said)) throw new GraphifyError(`The code map needs graphify in "${python}": ${GRAPHIFY_INSTALL} (or set OPENSRCER_GRAPH_PYTHON to a Python that has it).`);
+      if (error.code === "ENOENT" || /Python was not found/.test(said)) throw new GraphifyMissing(`The code map needs Python with graphify, and "${python}" wasn't found. Install it (${GRAPHIFY_INSTALL}) and set OPENSRCER_GRAPH_PYTHON to that Python.`);
+      if (/No module named graphify/.test(said)) throw new GraphifyMissing(`The code map needs graphify in "${python}": ${GRAPHIFY_INSTALL} (or set OPENSRCER_GRAPH_PYTHON to a Python that has it).`);
       if (error.killed) throw new GraphifyError("graphify took longer than 15 minutes on this checkout.");
       throw new GraphifyError(`graphify failed: ${said.trim().split("\n").slice(-3).join(" ").slice(0, 400)}`);
     }

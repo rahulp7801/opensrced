@@ -8,7 +8,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
-import { gunzipSync } from "node:zlib";
+import { gunzipSync, gzipSync } from "node:zlib";
 import { createInterface } from "node:readline";
 
 const TOKEN = `osh_${"t".repeat(32)}`;
@@ -16,6 +16,9 @@ const home = mkdtempSync(join(tmpdir(), "opensrcer-home-"));
 const seen: Array<{ method: string; url: string; auth: string; body: string }> = [];
 let stub: Server;
 let base = "";
+/** The stub's /api/harness/graph: a map, or the 413 a too-large one gets. */
+let graphReply: "map" | "too-large" = "map";
+const REMOTE_SHA = "a".repeat(40);
 
 before(async () => {
   stub = createServer((req, res) => {
@@ -47,6 +50,11 @@ before(async () => {
           page: "https://opensrced.example/repos/Acme/App",
           advice: { reason: "not_assigned", count: 23, of: 32, comment: "Hi! I'd like to work on this. Could you assign it to me?", headline: "23 of 32 recently closed outside PRs here were opened without being assigned to the issue. Ask to be assigned first, and wait for a yes." },
         }));
+      }
+      if (req.url === "/api/harness/graph") {
+        if (graphReply === "too-large") { res.writeHead(413, { "content-type": "application/json" }); return res.end(JSON.stringify({ error: "acme/app's code map is too large to send (9 MB)." })); }
+        res.writeHead(200, { "content-type": "application/gzip" });
+        return res.end(gzipSync(JSON.stringify({ graph: { nodes: [{ id: "fill", label: "fill()", community: 0, file_type: "code", source_file: "app/fill.py" }], links: [] }, html: "<html><body>graphify map</body></html>", revision: REMOTE_SHA, created_at: "" })));
       }
       const lessonRoute = /^\/api\/harness\/lessons(?:\/(l_[0-9a-f-]+)(?:\/(\w+))?)?/.exec(req.url ?? "");
       if (req.url === "/repos/acme/app/issues/12") return reply(res, { title: "fill ignores value", body: "fill(df, 0) leaves NaN." });
@@ -364,20 +372,35 @@ for (const [name, params, message] of BAD_LESSON_CALLS) {
   });
 }
 
-test("without graphify, starting a lesson says how to install it instead of drawing something else", async () => {
+test("without graphify, the lesson gets graphify's map from opensrcer; when that fails too, no lesson starts", async () => {
   const { dir } = fixture();
   const child = spawn(process.execPath, [join(process.cwd(), "harness", "server.mjs")], {
     env: { ...process.env, OPENSRCER_URL: base, OPENSRCER_TOKEN: TOKEN, GITHUB_API_URL: base, OPENSRCER_HOME: home, OPENSRCER_GRAPH_PYTHON: "no-such-python-here" },
   });
   const lines = createInterface({ input: child.stdout });
-  try {
+  const call = async (id: number) => {
     const reply = new Promise<string>((resolve) => lines.once("line", resolve));
-    child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "lesson_start", arguments: { repo: "acme/app", issue: 12, dir } } }) + "\n");
-    const r = JSON.parse(await reply) as { result: ToolResult };
-    assert.equal(r.result.isError, true);
-    assert.match(r.result.content[0].text, /needs Python with graphify.*pip install graphifyy==0\.9\.73/);
-    assert.ok(!seen.some((x) => x.url === "/api/harness/lessons" && x.auth === `Bearer ${TOKEN}` && x.body.includes("no-such")), "no lesson was created");
+    child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id, method: "tools/call", params: { name: "lesson_start", arguments: { repo: "acme/app", issue: 12, dir } } }) + "\n");
+    return (JSON.parse(await reply) as { result: ToolResult }).result;
+  };
+  try {
+    let before = seen.length;
+    const ok = await call(1);
+    assert.notEqual(ok.isError, true);
+    assert.match(ok.content[0].text, /Code map \(graphify on opensrcer, upstream, commit aaaaaaa\): 1 nodes/);
+    const created = seen.slice(before).filter((x) => x.url === "/api/harness/lessons");
+    assert.equal(created.length, 1, "the lesson was created");
+    const sent = JSON.parse(gunzipSync(Buffer.from(JSON.parse(created[0].body).graph_gz, "base64")).toString("utf8"));
+    assert.equal(sent.nodes[0].id, "fill", "the remote graph is the one the lesson is graded against");
+
+    graphReply = "too-large";
+    before = seen.length;
+    const failed = await call(2);
+    assert.equal(failed.isError, true);
+    assert.match(failed.content[0].text, /too large to send.*pip install graphifyy==0\.9\.73/);
+    assert.ok(!seen.slice(before).some((x) => x.url === "/api/harness/lessons"), "no lesson without a map");
   } finally {
+    graphReply = "map";
     child.kill();
   }
 });

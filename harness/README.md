@@ -9,7 +9,7 @@ The website is only needed once, to sign in and make a token; your lessons and c
 
 ## Install
 
-Lessons draw their code map with [graphify](https://pypi.org/project/graphifyy/), the same graph the site uses. Install it once (Python 3.10+):
+Lessons draw their code map with [graphify](https://pypi.org/project/graphifyy/), the same graph the site uses. Nothing to install: without graphify on your machine, the map of the project's upstream commit comes from opensrcer (a big project's first map takes a few minutes; after that it's shared). To map your own checkout locally instead, install it (Python 3.10+):
 
 ```sh
 pip install graphifyy==0.9.73

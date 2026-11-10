@@ -70,6 +70,7 @@ Ask your agent to help you contribute to a repository, or to teach you an issue.
 
 | Tool | What it does |
 |---|---|
+| `setup_check` | Whether it all works here (token, access, git, code map, GitHub), with the fix for each problem. In Claude Code: `/opensrcer:setup` |
 | `repo_profile` | The project's measured norms: `{ "repo": "pandas-dev/pandas" }` |
 | `check_pr` | The draft PR against those norms, before you open it |
 | `lesson_start` | A lesson on an issue: `{ "repo": "earthlab/earthpy", "issue": 953, "dir": "/path/to/your/clone" }` |

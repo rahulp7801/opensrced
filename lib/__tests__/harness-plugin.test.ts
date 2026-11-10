@@ -13,6 +13,8 @@ import { createInterface } from "node:readline";
 import { pathToFileURL } from "node:url";
 
 const TOKEN = `osh_${"t".repeat(32)}`;
+/** A valid token whose account has no access (not invited, or its class link was turned off). */
+const OUTSIDER = `osh_${"o".repeat(32)}`;
 const home = mkdtempSync(join(tmpdir(), "opensrcer-home-"));
 const seen: Array<{ method: string; url: string; auth: string; body: string }> = [];
 let stub: Server;
@@ -27,6 +29,11 @@ before(async () => {
     req.on("data", (c) => { body += c; });
     req.on("end", () => {
       seen.push({ method: req.method ?? "", url: req.url ?? "", auth: req.headers.authorization ?? "", body });
+      if (req.url === "/api/harness/me" && req.headers.authorization === `Bearer ${OUTSIDER}`) {
+        res.writeHead(403, { "content-type": "application/json" });
+        return res.end(JSON.stringify({ error: "This GitHub account doesn't have access to opensrcer yet. In a class? Open the class link from your instructor and press Join. Otherwise, request access at /join." }));
+      }
+      if (req.url === "/api/harness/me" && req.headers.authorization === `Bearer ${TOKEN}`) return reply(res, { login: "ada", today: { lessons: { used: 2, limit: 20 }, new_maps: { used: 0, limit: 5 } } });
       // /repos/… stands in for GitHub's API, which never sees the opensrcer token.
       if (!req.url?.startsWith("/repos/") && req.headers.authorization !== `Bearer ${TOKEN}`) { res.writeHead(401, { "content-type": "application/json" }); return res.end(JSON.stringify({ error: "This harness token is not valid." })); }
       if (req.url === "/api/harness/check" && JSON.parse(body).repo === "acme/quiet") {
@@ -136,7 +143,7 @@ test("the plugin server speaks MCP: initialize, tools, and calls that reach open
     assert.match((init.result as { instructions: string }).instructions, /Call repo_profile .* before changing code/);
     notify("notifications/initialized");
     const tools = (await request("tools/list")).result as { tools: Array<{ name: string }> };
-    assert.deepEqual(tools.tools.map((t) => t.name), ["repo_profile", "check_pr", "record_event", "lesson_start", "lesson_answer", "lesson_hint", "lesson_key", "lesson_reveal", "lesson_submit_own", "lesson_show"]);
+    assert.deepEqual(tools.tools.map((t) => t.name), ["setup_check", "repo_profile", "check_pr", "record_event", "lesson_start", "lesson_answer", "lesson_hint", "lesson_key", "lesson_reveal", "lesson_submit_own", "lesson_show"]);
     assert.ok(tools.tools.every((t) => !("_meta" in t)), "a host without MCP Apps gets no UI metadata");
 
     const check = await request("tools/call", { name: "check_pr", arguments: {
@@ -437,4 +444,28 @@ test("the pane's map: graphify's biggest clusters plus every one the lesson touc
   assert.deepEqual([map.changed, map.explored], [["pkg/url_safe.py"], ["pkg/big59.py"]]);
   assert.ok(map.edges.length <= 80);
   assert.ok(map.svg.startsWith("<svg ") && map.svg.length < 131_072, "within the pane's SVG limit");
+});
+
+test("setup_check: everything that works, and each problem with its fix", async () => {
+  const run = async (token: string) => {
+    const child = spawn(process.execPath, [join(process.cwd(), "harness", "server.mjs")], { env: { ...process.env, OPENSRCER_URL: base, OPENSRCER_TOKEN: token, OPENSRCER_GRAPH_PYTHON: "no-such-python-here" } });
+    const lines = createInterface({ input: child.stdout });
+    try {
+      const reply = new Promise<string>((resolve) => lines.once("line", resolve));
+      child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "setup_check", arguments: {} } }) + "\n");
+      return (JSON.parse(await reply) as { result: ToolResult }).result.content[0]!.text;
+    } finally {
+      child.kill();
+    }
+  };
+  const good = await run(TOKEN);
+  assert.match(good, /OK: Signed in to opensrcer as @ada\./);
+  assert.match(good, /OK: Today: 2 of 20 lessons, 0 of 5 new code maps/);
+  assert.match(good, /OK: Code maps: opensrcer draws them for you/);
+  assert.match(good, /All set\./);
+  const outsider = await run(OUTSIDER);
+  assert.match(outsider, /FIX: This GitHub account doesn't have access .* open the class link .* request access at http:\/\/127\.0\.0\.1:\d+\/join\./i);
+  assert.match(outsider, /1 thing to fix\./);
+  assert.match(await run(`osh_${"z".repeat(32)}`), /FIX: The token isn't valid any more\. Create a new one at .*\/account/);
+  assert.match(await run(""), /FIX: No opensrcer token\..*\/plugin configure opensrcer@opensrced/);
 });

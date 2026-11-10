@@ -88,7 +88,7 @@ export async function harnessUser(
   const [row] = await db.select({ id: apiTokens.id, userId: apiTokens.userId }).from(apiTokens)
     .where(and(eq(apiTokens.hash, hashToken(authorization.slice("Bearer ".length))), isNull(apiTokens.revokedAt))).limit(1);
   if (!row) throw new HarnessAuthError(401, "This harness token is not valid. Create a new one on your Account page.");
-  if (!await canUse(row.userId)) throw new HarnessAuthError(403, "opensrcer is invite-only and this account is not invited.");
+  if (!await canUse(row.userId)) throw new HarnessAuthError(403, "This GitHub account doesn't have access to opensrcer yet. In a class? Open the class link from your instructor and press Join. Otherwise, request access at /join.");
   await db.update(apiTokens).set({ lastUsedAt: now }).where(eq(apiTokens.id, row.id));
   return row.userId;
 }

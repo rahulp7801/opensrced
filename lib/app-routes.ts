@@ -4,7 +4,7 @@
 // lib/__tests__/app-routes.test.ts keeps this in step with the folders in app/.
 
 /** Folders under app/. */
-export const APP_FOLDERS = ["account", "admin", "api", "crucible", "demo", "discover", "dispatches", "explore", "fix", "graph", "issues", "join", "learn", "login", "privacy", "prs", "repos", "stats", "trigger", "u", "welcome"] as const;
+export const APP_FOLDERS = ["account", "admin", "api", "class", "crucible", "demo", "discover", "dispatches", "explore", "fix", "graph", "issues", "join", "learn", "login", "privacy", "prs", "repos", "stats", "trigger", "u", "welcome"] as const;
 
 /** Routes the Auth0 SDK serves from the middleware (/auth/*, and /me/*, /my-org/* it refuses). */
 const SDK_SEGMENTS = ["auth", "me", "my-org"];

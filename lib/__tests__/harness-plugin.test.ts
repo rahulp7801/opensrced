@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { createInterface } from "node:readline";
+import { pathToFileURL } from "node:url";
 
 const TOKEN = `osh_${"t".repeat(32)}`;
 const home = mkdtempSync(join(tmpdir(), "opensrcer-home-"));
@@ -417,4 +418,23 @@ test("without graphify, the lesson gets graphify's map from opensrcer; when that
     graphReply = "map";
     child.kill();
   }
+});
+
+// The pane's map (harness/graph.mjs lessonMapData), on a graph too big to draw node by node.
+type MapData = { communities: Array<{ label: string; level: string; count: number }>; edges: unknown[]; explored: string[]; changed: string[]; svg: string };
+test("the pane's map: graphify's biggest clusters plus every one the lesson touched, named for the file that coloured it", async () => {
+  // Compiled tests run as CommonJS; the plugin's module is ESM.
+  const { lessonMapData } = await (new Function("p", "return import(p)") as (p: string) => Promise<{ lessonMapData: (g: unknown, l: Map<string, string>, t: string) => MapData }>)(pathToFileURL(join(process.cwd(), "harness", "graph.mjs")).href);
+  const nodes: Array<{ id: string; label: string; community: number; source_file: string }> = [];
+  for (let c = 0; c < 60; c++) for (let i = 0; i < 60 - c; i++) nodes.push({ id: `${c}-${i}`, label: `f${i}`, community: c, source_file: `pkg/big${c}.py` });
+  // The fix's file lives in the biggest cluster, which is named for another file.
+  nodes.push({ id: "fix", label: "loads", community: 0, source_file: "pkg/url_safe.py" });
+  const links = nodes.slice(1).map((n, i) => ({ source: nodes[i]!.id, target: n.id }));
+  const map = lessonMapData({ nodes, links }, new Map([["fix", "changed"], ["59-0", "explored"]]), "acme/app #12");
+  assert.equal(map.communities.length, 37, "36 biggest, plus the small one the user picked");
+  assert.deepEqual([map.communities[0]!.label, map.communities[0]!.level], ["pkg/url_safe.py", "changed"]);
+  assert.ok(map.communities.some((c) => c.label === "pkg/big59.py" && c.level === "explored"));
+  assert.deepEqual([map.changed, map.explored], [["pkg/url_safe.py"], ["pkg/big59.py"]]);
+  assert.ok(map.edges.length <= 80);
+  assert.ok(map.svg.startsWith("<svg ") && map.svg.length < 131_072, "within the pane's SVG limit");
 });

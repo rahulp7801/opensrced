@@ -59,10 +59,10 @@ export function HarnessTokens() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-paper-dim">Install the plugin in Claude Code:</p>
+        <p className="text-paper-dim">Create a token below, then install the plugin in Claude Code. The install asks for the token:</p>
         {/* Scrolls sideways on phones, so it takes keyboard focus. */}
         <pre tabIndex={0} role="region" aria-label="Plugin install commands" className="card mt-2 overflow-x-auto px-4 py-3 font-mono text-[13px] text-paper">{INSTALL.join("\n")}</pre>
-        <p className="mt-2 text-[14px] text-paper-muted">Then create a token below and give it to the plugin as <code className="font-mono">OPENSRCER_TOKEN</code>.</p>
+        <p className="mt-2 text-[14px] text-paper-muted">To change the token later, run <code className="font-mono">/plugin configure opensrcer@opensrced</code>. Other editors (VS Code with Copilot, Codex) take it as <code className="font-mono">OPENSRCER_TOKEN</code>: see the plugin&apos;s README.</p>
       </div>
 
       {fresh && (
@@ -75,8 +75,7 @@ export function HarnessTokens() {
             </button>
           </div>
           <p className="mt-3 text-[14px] text-paper-muted">
-            Add it to <code className="font-mono">~/.claude/settings.json</code> as{" "}
-            <code className="font-mono">{`"env": { "OPENSRCER_TOKEN": "…" }`}</code>, then restart Claude Code.
+            Paste it when the plugin install asks for it (or run <code className="font-mono">/plugin configure opensrcer@opensrced</code>), then restart Claude Code.
           </p>
         </div>
       )}

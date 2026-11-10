@@ -200,14 +200,17 @@ export function lessonMapData(graph, levels, title) {
   for (const node of graph.nodes) {
     const id = node.community ?? -1;
     let g = groups.get(id);
-    if (!g) groups.set(id, (g = { community: id, count: 0, folders: new Map(), level: "unseen" }));
+    if (!g) groups.set(id, (g = { community: id, count: 0, folders: new Map(), touched: { explored: new Map(), changed: new Map() }, level: "unseen" }));
     g.count++;
     nodeGroup.set(node.id, id);
     const folder = fileLabel(node.source_file);
     if (folder) g.folders.set(folder, (g.folders.get(folder) ?? 0) + 1);
     const level = levels.get(node.id);
     if (level === "changed" || (level === "explored" && g.level === "unseen")) g.level = level;
-    if (level && node.source_file) files[level].add(norm(node.source_file));
+    if (level && node.source_file) {
+      files[level].add(norm(node.source_file));
+      g.touched[level].set(folder, (g.touched[level].get(folder) ?? 0) + 1);
+    }
   }
   const ranked = [...groups.values()].sort((a, b) => b.count - a.count);
   // The biggest communities, and every one the lesson touches.
@@ -224,7 +227,8 @@ export function lessonMapData(graph, levels, title) {
   const pos = layout(kept.length, edges);
   const biggest = kept[0]?.count ?? 1;
   const communities = kept.map((g, i) => ({
-    label: [...g.folders].sort((x, y) => y[1] - x[1])[0]?.[0] || `group ${g.community}`,
+    // A coloured cluster is named for the file that coloured it, not its biggest one.
+    label: [...(g.level === "unseen" ? g.folders : g.touched[g.level])].sort((x, y) => y[1] - x[1])[0]?.[0] || `group ${g.community}`,
     count: g.count,
     level: g.level,
     x: pos[i].x,

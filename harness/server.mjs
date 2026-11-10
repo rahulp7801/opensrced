@@ -158,8 +158,10 @@ If the user wants to learn (or to write the fix themselves), use lesson_start in
 
 class ToolError extends Error {}
 
+const NO_TOKEN = `No opensrcer token. Create one at ${BASE}/account (Harness). In Claude Code, run /plugin configure opensrcer@opensrced and paste it; elsewhere, set OPENSRCER_TOKEN. Then restart your editor.`;
+
 async function api(path, init = {}) {
-  if (!TOKEN) throw new ToolError(`No opensrcer token. Create one at ${BASE}/account (Harness), then set OPENSRCER_TOKEN and restart your editor.`);
+  if (!TOKEN) throw new ToolError(NO_TOKEN);
   let res;
   try {
     res = await fetch(BASE + path, { ...init, headers: { authorization: `Bearer ${TOKEN}`, ...(init.body ? { "content-type": "application/json" } : {}) }, signal: AbortSignal.timeout(60_000) });
@@ -280,7 +282,7 @@ async function codeMap(top, repo) {
 }
 
 async function remoteMap(repo) {
-  if (!TOKEN) throw new ToolError(`No opensrcer token. Create one at ${BASE}/account (Harness), then set it and restart your editor.`);
+  if (!TOKEN) throw new ToolError(NO_TOKEN);
   let res;
   try {
     // A first build of a repository takes up to ~4 minutes; later ones are served from the shared store.

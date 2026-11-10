@@ -328,24 +328,21 @@ async function callTool(name, args) {
     if (args.mode !== undefined && !["short", "full"].includes(args.mode)) throw new ToolError('mode must be "short" or "full".');
     const top = await checkout(resolve(typeof args.dir === "string" && args.dir ? args.dir : process.cwd()), repo);
     const issue = await fetchIssue(repo, args.issue);
-    // ponytail: no graphify (or it failed) = a lesson without the map, said out loud; never a substitute map.
-    let built = null;
-    let noMap = "";
+    let built;
     try { built = await graphify(top, join(HOME, "graph-cache")); }
     catch (error) {
-      if (!(error instanceof GraphifyError)) throw error;
-      noMap = `No code map: ${error.message} Steps s1, s3 and s7 are graded without it.`;
+      if (error instanceof GraphifyError) throw new ToolError(error.message);
+      throw error;
     }
-    const graphGz = built ? gzipSync(JSON.stringify(built.graph)).toString("base64") : "";
+    const graphGz = gzipSync(JSON.stringify(built.graph)).toString("base64");
     // A graph too big to send is still the panel's map; the steps then grade without it.
-    const sendGraph = built !== null && graphGz.length <= GRAPH_GZ_MAX;
+    const sendGraph = graphGz.length <= GRAPH_GZ_MAX;
     const created = await api("/api/harness/lessons", { method: "POST", body: JSON.stringify({
       repo, issue: args.issue, path: args.path, mode: args.mode, issue_title: issue.title, issue_body: issue.body.slice(0, 20_000), readme: readme(top), ...(sendGraph ? { graph_gz: graphGz } : {}),
     }) });
     const L = created.lesson;
     mkdirSync(join(HOME, "lessons"), { recursive: true });
-    writeFileSync(lessonFile(L.id), JSON.stringify({ id: L.id, repo, dir: top }));
-    if (!built) return result(`${lessonText(L)}\n${noMap}`, { lesson: L, key: null });
+    writeFileSync(lessonFile(L.id), JSON.stringify({ id: L.id, repo, dir: top, sha: built.sha }));
     const communities = new Set(built.graph.nodes.map((n) => n.community)).size;
     const map = `Code map (graphify, commit ${built.sha.slice(0, 7)}${built.cached ? ", cached" : ""}): ${built.graph.nodes.length} nodes in ${communities} communities.${sendGraph ? "" : " It is too large to send, so steps s1, s3 and s7 are graded without it."}`;
     return result(`${lessonText(L)}\n${map}`, { lesson: L, key: null });

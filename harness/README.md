@@ -9,7 +9,7 @@ The website is only needed once, to sign in and make a token; your lessons and c
 
 ## Install
 
-Optional: lessons draw their code map with [graphify](https://pypi.org/project/graphifyy/), the same graph the site uses. Without it a lesson still runs, just without the map. To get the map, install it once (Python 3.10+):
+Lessons draw their code map with [graphify](https://pypi.org/project/graphifyy/), the same graph the site uses. Install it once (Python 3.10+):
 
 ```sh
 pip install graphifyy==0.9.73

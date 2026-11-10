@@ -128,6 +128,8 @@ const PREVIEW_PUBLIC_PATHS = new Set([
   // The early-access form and the endpoint it posts to: for people without an invite.
   "/join",
   "/api/interest",
+  // Joining a class through its invite link (lib/classes.ts): the route itself needs a session.
+  "/api/class/join",
   "/login",
   "/privacy",
   "/robots.txt",
@@ -146,7 +148,8 @@ const PREVIEW_PUBLIC_PATHS = new Set([
   "/api/crucible/github/webhook",
   "/api/crucible/github/install-callback",
 ]);
-const PREVIEW_PUBLIC_PREFIXES: string[] = [];
+// A class invite page (/class/<code>): it shows the class and a sign-in or join button.
+const PREVIEW_PUBLIC_PREFIXES: string[] = ["/class/"];
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
@@ -194,13 +197,15 @@ function isPublic(pathname: string): boolean {
 // live in Blob storage, which can't load on the edge. /api/access (Node) answers for them,
 // about the caller only; each answer is reused for 30 seconds per account.
 const APPROVAL_TTL_MS = 30_000;
+// A "no" is kept briefly: a student who just joined a class must get in on their next click.
+const DENIAL_TTL_MS = 3_000;
 const approvals = new Map<string, { at: number; ok: boolean }>();
 
 /** Whether a signed-in account may use the app: invited, or approved from the admin page. */
 async function admitted(req: NextRequest, sub: string): Promise<boolean> {
   if (hasAccess(sub)) return true;
   const hit = approvals.get(sub);
-  if (hit && Date.now() - hit.at < APPROVAL_TTL_MS) return hit.ok;
+  if (hit && Date.now() - hit.at < (hit.ok ? APPROVAL_TTL_MS : DENIAL_TTL_MS)) return hit.ok;
   let ok = false;
   try {
     const res = await fetch(new URL("/api/access", req.url), { headers: { cookie: req.headers.get("cookie") ?? "" }, cache: "no-store", signal: AbortSignal.timeout(5_000) });

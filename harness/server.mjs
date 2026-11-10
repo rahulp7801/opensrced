@@ -222,23 +222,31 @@ async function checkout(dir, repo) {
   return top;
 }
 
-/** The issue's title and body: through the user's own gh sign-in, else the
- *  REST API (GITHUB_API_URL for GitHub Enterprise, as in GitHub Actions). */
+/** The issue's title and body as the user reads GitHub: their own gh sign-in,
+ *  else GITHUB_TOKEN/GH_TOKEN (GITHUB_API_URL for GitHub Enterprise, as in
+ *  GitHub Actions). null when neither is there: opensrcer then reads it with
+ *  its own token, since GitHub's anonymous limit is per IP and a classroom
+ *  shares one. */
 async function fetchIssue(repo, number) {
   let issue = null;
   const apiBase = process.env.GITHUB_API_URL?.replace(/\/+$/, "");
-  try {
-    if (apiBase) throw new Error("use the configured API");
-    issue = JSON.parse((await run("gh", ["api", `repos/${repo}/issues/${number}`], { encoding: "utf8", maxBuffer: 8 * 1024 * 1024 })).stdout);
-  } catch {
-    const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+  if (!apiBase) {
+    try { issue = JSON.parse((await run("gh", ["api", `repos/${repo}/issues/${number}`], { encoding: "utf8", maxBuffer: 8 * 1024 * 1024 })).stdout); }
+    catch (error) {
+      // gh answered: the issue isn't there (or isn't readable). Say so rather than ask opensrcer.
+      if (/HTTP 404|Not Found/.test(`${error.stderr ?? ""}`)) throw new ToolError(`${repo} has no issue #${number}.`);
+    }
+  }
+  if (!issue && (token || apiBase)) {
     const res = await fetch(`${apiBase || "https://api.github.com"}/repos/${repo}/issues/${number}`, {
       headers: { accept: "application/vnd.github+json", "user-agent": "opensrcer-harness", ...(token ? { authorization: `Bearer ${token}` } : {}) },
       signal: AbortSignal.timeout(20_000),
     }).catch(() => null);
     if (res?.ok) issue = await res.json();
-    else throw new ToolError(`Couldn't read issue #${number} of ${repo} from GitHub${res ? ` (${res.status})` : ""}. Sign in with gh, or set GITHUB_TOKEN.`);
+    else if (res?.status === 404) throw new ToolError(`${repo} has no issue #${number}.`);
   }
+  if (!issue) return null;
   if (issue.pull_request) throw new ToolError(`#${number} is a pull request, not an issue.`);
   return { title: String(issue.title ?? ""), body: String(issue.body ?? "") };
 }
@@ -415,7 +423,7 @@ async function callTool(name, args) {
     // A graph too big to send is still the panel's map; the steps then grade without it.
     const sendGraph = graphGz.length <= GRAPH_GZ_MAX;
     const created = await api("/api/harness/lessons", { method: "POST", body: JSON.stringify({
-      repo, issue: args.issue, path: args.path, mode: args.mode, issue_title: issue.title, issue_body: issue.body.slice(0, 20_000), readme: readme(top), ...(sendGraph ? { graph_gz: graphGz } : {}),
+      repo, issue: args.issue, path: args.path, mode: args.mode, ...(issue ? { issue_title: issue.title, issue_body: issue.body.slice(0, 20_000) } : {}), readme: readme(top), ...(sendGraph ? { graph_gz: graphGz } : {}),
     }) });
     const L = created.lesson;
     mkdirSync(join(HOME, "lessons"), { recursive: true });

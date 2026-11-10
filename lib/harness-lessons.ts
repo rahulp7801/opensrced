@@ -21,6 +21,8 @@ import type { GraphData } from "./graph";
 import { MAX_DIFF_BYTES } from "./ide/lesson-api";
 import { assertUnderDailyLimit, DailyLimitError } from "./harness";
 import { readJsonBody } from "./request-body";
+import { gh } from "./gh";
+import { splitRepo } from "./ai-policy";
 import {
   createLesson, getLesson, lessonsEnabled, LESSONS_DISABLED, nextHint, publicLesson, revealLesson, saveIdeDiff,
   submitStep, updateLesson, type LessonDeps,
@@ -171,7 +173,30 @@ const relay = (body: unknown) => new Request("http://harness.local/", { method: 
 
 /** {repo, issue, mode?, path?, issue_title, issue_body, readme, graph_gz?}:
  *  graph_gz is graphify's graph.json of the checkout, gzipped, in base64. */
-export async function createHarnessLesson(req: Request, db: Db, userId: string): Promise<Response> {
+/** An issue's title and text. The plugin sends them when it can read GitHub
+ *  as the user (gh, GITHUB_TOKEN); otherwise the site reads them with its own
+ *  token, so a classroom behind one IP never meets GitHub's anonymous limit. */
+export type IssueReader = (repo: string, issue: number) => Promise<{ title: string; body: string }>;
+/** The site couldn't read the issue: no token of its own, no such issue, or a pull request. */
+export class IssueUnavailableError extends Error {}
+
+export const readIssueWithServerToken: IssueReader = async (repo, issue) => {
+  const token = process.env.OPENSRCER_INGEST_GITHUB_TOKEN;
+  if (!token) throw new IssueUnavailableError("opensrcer can't read GitHub issues itself here. Sign in with gh (gh auth login), or set GITHUB_TOKEN, and start the lesson again.");
+  const [owner, name] = repo.split("/");
+  let data: { title?: string | null; body?: string | null; pull_request?: unknown };
+  try {
+    data = (await gh(token).request("GET /repos/{owner}/{repo}/issues/{issue_number}", { owner, repo: name, issue_number: issue })).data;
+  } catch (error) {
+    const status = (error as { status?: number }).status;
+    if (status === 404 || status === 410) throw new IssueUnavailableError(`${repo} has no issue #${issue}.`);
+    throw error;
+  }
+  if (data.pull_request) throw new IssueUnavailableError(`#${issue} is a pull request, not an issue.`);
+  return { title: data.title ?? "", body: data.body ?? "" };
+};
+
+export async function createHarnessLesson(req: Request, db: Db, userId: string, readIssue: IssueReader = readIssueWithServerToken): Promise<Response> {
   if (!lessonsEnabled()) return json({ error: LESSONS_DISABLED }, 404);
   const body = await readJsonBody<Record<string, unknown>>(req, CREATE_BODY_MAX);
   if (!body) return json({ error: `Send a JSON object under ${CREATE_BODY_MAX} bytes.` }, 400);
@@ -180,12 +205,13 @@ export async function createHarnessLesson(req: Request, db: Db, userId: string):
     const graphGz = body.graph_gz === undefined ? null : text(body.graph_gz, "graph_gz", GRAPH_GZ_MAX);
     if (graphGz !== null) unpackGraphGz(graphGz); // checked now, unpacked again when a step needs it
     context = {
-      issueTitle: text(body.issue_title, "issue_title", ISSUE_TITLE_MAX),
+      // Absent: the site reads the issue below, once the request is otherwise valid.
+      issueTitle: body.issue_title === undefined ? "" : text(body.issue_title, "issue_title", ISSUE_TITLE_MAX),
       issueBody: text(body.issue_body ?? "", "issue_body", ISSUE_BODY_MAX),
       readme: text(body.readme ?? "", "readme", README_MAX),
       graphGz,
     };
-    if (!context.issueTitle.trim()) throw new HarnessLessonInputError("issue_title is required.");
+    if (body.issue_title !== undefined && !context.issueTitle.trim()) throw new HarnessLessonInputError("issue_title is required.");
   } catch (error) {
     if (error instanceof HarnessLessonInputError) return json({ error: error.message }, 400);
     throw error;
@@ -197,6 +223,19 @@ export async function createHarnessLesson(req: Request, db: Db, userId: string):
     throw error;
   }
   const repo = typeof body.repo === "string" ? body.repo : "";
+  if (body.issue_title === undefined) {
+    let target: string;
+    try { target = splitRepo(repo).join("/"); } catch { return json({ error: "repo must be owner/name." }, 400); }
+    if (!Number.isSafeInteger(body.issue) || (body.issue as number) < 1) return json({ error: "issue must be the issue's number." }, 400);
+    try {
+      const issue = await readIssue(target, body.issue as number);
+      context = { ...context, issueTitle: issue.title.slice(0, ISSUE_TITLE_MAX) || `Issue #${body.issue}`, issueBody: issue.body.slice(0, ISSUE_BODY_MAX) };
+    } catch (error) {
+      if (error instanceof IssueUnavailableError) return json({ error: error.message }, 422);
+      console.error("[harness/lessons] issue", error);
+      return json({ error: "GitHub didn't answer in time. Try again in a minute." }, 503);
+    }
+  }
   const created = await createLesson(relay({ repo_url: `https://github.com/${repo}`, issue_number: body.issue, mode: body.mode, path: body.path }), harnessDeps(db, userId));
   if (created.status !== 201) return created;
   const { lesson } = (await created.json()) as { lesson: { id: string } };

@@ -50,6 +50,13 @@
       "when": 1794124795769,
       "tag": "0006_harness_lessons",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794349997240,
+      "tag": "0007_class_invites",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,7 @@ import { isAdmin } from "@/lib/access-server";
 import { authDisabled } from "@/lib/require-session";
 import { PageHeading } from "@/components/page-heading";
 import { AdminAccess } from "@/components/admin-access";
+import { AdminClasses } from "@/components/admin-classes";
 
 export const metadata: Metadata = { title: "Access requests", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -24,6 +25,14 @@ export default async function AdminAccessPage() {
         description="People who asked for early access at /join. Approving lets that GitHub account sign in, within about a minute."
       />
       <AdminAccess />
+      <div className="mt-14">
+        <PageHeading
+          path="admin / classes"
+          title={<>Class links</>}
+          description="One link per class. Students who sign in with GitHub through it get access, until the seats run out or it closes; turning it off ends their access."
+        />
+        <AdminClasses />
+      </div>
     </div>
   );
 }

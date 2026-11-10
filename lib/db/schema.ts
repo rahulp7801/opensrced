@@ -239,3 +239,21 @@ export const harnessLessonContext = pgTable("harness_lesson_context", {
   keyVerified: boolean(), // the key's new test failed before the fix and passes with it
   updatedAt: createdAt(),
 });
+
+/** A class invite (lib/classes.ts): one link an instructor shares, admitting
+ *  whoever signs in through it while it has uses left and hasn't expired. */
+export const classInvites = pgTable("class_invites", {
+  code: text().primaryKey(),
+  name: text().notNull(), // e.g. "CS 101, Fall 2026": shown to students on the join page
+  maxUses: integer().notNull(),
+  expiresAt: at().notNull(), // last day to join; members keep access until the invite is revoked
+  createdBy: text().notNull(), // the admin's Auth0 subject
+  createdAt: createdAt(),
+  revokedAt: at(), // revoking ends every member's access through this invite
+});
+
+export const classMembers = pgTable("class_members", {
+  code: text().notNull().references(() => classInvites.code, { onDelete: "cascade" }),
+  userId: userId(),
+  joinedAt: createdAt(),
+}, (t) => [primaryKey({ columns: [t.code, t.userId] }), index().on(t.userId)]);

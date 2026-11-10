@@ -8,7 +8,7 @@ import { migrateDb } from "../db/migrate";
 import { createToken } from "../harness";
 import {
   answerHarnessStep, createHarnessLesson, getHarnessLesson, harnessHint, harnessOwnDiff, harnessReveal, parseGraph, setHarnessKey,
-  HarnessLessonInputError, unpackGraphGz,
+  HarnessLessonInputError, IssueUnavailableError, unpackGraphGz,
 } from "../harness-lessons";
 import { gzipSync } from "node:zlib";
 import { eq } from "drizzle-orm";
@@ -194,4 +194,31 @@ test("past the account's daily lesson limit, a new lesson is refused with 429 an
     if (before === undefined) delete process.env.OPENSRCER_HARNESS_LESSONS_PER_DAY;
     else process.env.OPENSRCER_HARNESS_LESSONS_PER_DAY = before;
   }
+});
+
+test("without the issue's text, the site reads it itself; an issue it can't read says why and stores nothing", async () => {
+  await createToken(connection.db, "github|92", "erin", "laptop");
+  const asked: Array<[string, number]> = [];
+  const reader = async (repo: string, issue: number) => { asked.push([repo, issue]); return { title: "fill ignores value", body: "Calling fill(df, 0) leaves NaN." }; };
+  const make = (body: Record<string, unknown>, read = reader) => createHarnessLesson(post({ repo: "acme/app", issue: 12, readme: "acme/app cleans data frames.", graph_gz: gz(GRAPH), ...body }), connection.db, "github|92", read).then(read_);
+  const read_ = (res: Response) => read(res);
+
+  const made = await make({});
+  assert.equal(made.status, 201);
+  assert.deepEqual(asked, [["acme/app", 12]]);
+  const lesson = await read(await getHarnessLesson(made.body.lesson.id, connection.db, "github|92"));
+  assert.equal(lesson.status, 200);
+
+  asked.length = 0;
+  assert.equal((await make({ issue_title: "Sent by the plugin", issue_body: "x" })).status, 201);
+  assert.deepEqual(asked, [], "a plugin that sends the issue isn't second-guessed");
+
+  const before = (await connection.db.select().from(lessons).where(eq(lessons.userId, "github|92"))).length;
+  const refused = await make({}, async () => { throw new IssueUnavailableError("acme/app has no issue #12."); });
+  assert.deepEqual([refused.status, refused.body.error], [422, "acme/app has no issue #12."]);
+  const down = await make({}, async () => { throw new Error("socket hang up"); });
+  assert.equal(down.status, 503);
+  assert.equal((await make({ repo: "not a repo" })).status, 400);
+  assert.equal((await make({ issue: 0 })).status, 400);
+  assert.equal((await connection.db.select().from(lessons).where(eq(lessons.userId, "github|92"))).length, before, "nothing stored for the refusals");
 });

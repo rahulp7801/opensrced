@@ -68,5 +68,11 @@ test("s7 grades without a model and explains each pick", () => {
 test("s7 needs three different picks", () => {
   assert.deepEqual(s7.parseAnswer("- a.py\n2. b()\nc, d"), ["a.py", "b()", "c", "d"]);
   assert.deepEqual(s7.parseAnswer(["a", "b", "c"]), ["a", "b", "c"]);
+  // The student's own words, as the agent passes them on (a real run did): the files and names in them.
+  assert.deepEqual(
+    s7.parseAnswer("My starting points: src/itsdangerous/serializer.py (Serializer.loads), src/itsdangerous/url_safe.py, and src/itsdangerous/timed.py to see how the timed one handles max_age."),
+    ["src/itsdangerous/serializer.py", "Serializer.loads", "src/itsdangerous/url_safe.py", "src/itsdangerous/timed.py"],
+  );
+  assert.deepEqual(s7.parseAnswer("I'd read README.md; then Flask.wsgi_app; and full_dispatch_request()"), ["README.md", "Flask.wsgi_app", "full_dispatch_request()"]);
   for (const bad of ["a\nb", "a\na\na", 7, Array(9).fill(0).map((_, i) => `p${i}`)]) assert.throws(() => s7.parseAnswer(bad), StepInputError);
 });

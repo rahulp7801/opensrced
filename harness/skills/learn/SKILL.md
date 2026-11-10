@@ -9,7 +9,7 @@ The user wants to understand this project and this issue well enough to fix it a
 
 ## Start
 
-1. Call `repo_profile` for the repository, as the contribute skill says, and act on what it says first (assignment, discussion, AI policy).
+1. Call `repo_profile` for the repository, as the contribute skill says, and act on what it says first (assignment, discussion, AI policy). Call `read_issue` for the issue and its comments: it works without gh, so never send the student to `gh` or the browser for it; quote what they need.
 2. Call `lesson_start` with the repository, the issue number and `dir`, the absolute path of their local clone. Ask which path they want if they haven't said:
    - **A** (default): you write the fix out of sight; they predict it, then you reveal it and they explain it.
    - **B**: they write the fix themselves in their editor.
@@ -18,7 +18,7 @@ The user wants to understand this project and this issue well enough to fix it a
 
 Right after `lesson_start`, while the user answers the first questions:
 
-1. Create a separate worktree **outside** their checkout, e.g. `git -C <their clone> worktree add <their clone>-opensrcer-key`. Never change their checkout, and never show them this worktree, its diff, or the names of the files it touches before the reveal.
+1. Create a separate worktree **outside** their checkout, detached (their branch is already checked out there): `git -C <their clone> worktree add --detach <their clone>-opensrcer-key`. Never change their checkout, and never show them this worktree, its diff, or the names of the files it touches before the reveal.
 2. In that worktree, find the root cause, write a test that fails, fix it, and run the test again to see it pass.
 3. Call `lesson_key` with `key_dir` (that worktree), a title, a short diagnosis and `verified` (true only if the new test failed before the fix and passes after). Steps s7 and s8 are graded against this key, so store it before s7.
 

@@ -18,6 +18,24 @@ export type PickResult = { pick: string; verdict: PickVerdict; hops: number | nu
 export const CLOSE_HOPS = 2;
 export const S7_MIN_PICKS = 3;
 
+// A code file: a path ending in a source or docs extension.
+const CODE_FILE = /(?:[\w.-]+\/)*[\w-][\w.-]*\.(?:py|pyi|js|mjs|cjs|jsx|ts|tsx|go|rs|java|kt|rb|php|c|h|cc|cpp|hpp|cs|swift|scala|sh|md|rst|toml|ya?ml|json|cfg|ini|txt|html|css)\b/gi;
+// A dotted name like Serializer.loads, or a call like loads().
+const DOTTED = /\b[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+(?:\(\))?|\b[A-Za-z_]\w*\(\)/g;
+
+/** The picks in one line of the answer. The student's own words reach here
+ *  as they wrote them ("My starting points: serializer.py (Serializer.loads)
+ *  and timed.py to see ..."), so a line naming files or dotted names gives
+ *  those; anything else is taken as it is. Pure; exported for tests. */
+export function picksIn(line: string): string[] {
+  const text = line.replace(/^and\s+/i, "").trim();
+  if (!text) return [];
+  const files = text.match(CODE_FILE) ?? [];
+  const rest = files.reduce((t, f) => t.replace(f, " "), text);
+  const names = (rest.match(DOTTED) ?? []).filter((n) => !/^(?:e\.g|i\.e|etc)\b/i.test(n));
+  return files.length || names.length ? [...files, ...names] : [text];
+}
+
 const norm = (s: string) => s.trim().replace(/\\/g, "/").replace(/^\.?\//, "").replace(/\(\)$/, "").replace(/^`|`$/g, "").toLowerCase();
 const looksLikeFile = (pick: string) => pick.includes("/") || /\.[a-z0-9]{1,6}$/i.test(pick);
 const sameFile = (a: string, b: string) => a === b || a.endsWith(`/${b}`) || b.endsWith(`/${a}`);
@@ -67,7 +85,7 @@ export const s7: StepDef<string[]> = {
   needs: ["graph", "answerKey"],
   parseAnswer(raw) {
     if (typeof raw !== "string" && !Array.isArray(raw)) throw new StepInputError("List your picks, one per line.");
-    const lines = (Array.isArray(raw) ? raw : raw.split(/\r?\n|,/)).map((p) => (typeof p === "string" ? p.replace(/^[-*\d.)\s]+/, "").trim() : "")).filter(Boolean);
+    const lines = (Array.isArray(raw) ? raw : raw.split(/\r?\n|,|;/)).flatMap((p) => (typeof p === "string" ? picksIn(p.replace(/^[-*\d.)\s]+/, "").trim()) : []));
     const picks = [...new Set(lines)];
     if (picks.length < S7_MIN_PICKS) throw new StepInputError(`Pick at least ${S7_MIN_PICKS} different files or functions.`);
     if (picks.length > 8 || picks.some((p) => p.length > 200)) throw new StepInputError("Keep it to at most 8 picks.");

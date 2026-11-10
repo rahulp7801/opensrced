@@ -14,7 +14,8 @@ const INSTALL = [
 ];
 const when = (iso: string | null) => iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "never";
 
-export function HarnessTokens() {
+/** `vscode`: show the one-command VS Code install (only once opensrcer-mcp is published to npm). */
+export function HarnessTokens({ vscode = false }: { vscode?: boolean }) {
   const [tokens, setTokens] = useState<Token[] | null>(null);
   const [name, setName] = useState("");
   const [fresh, setFresh] = useState<string | null>(null);
@@ -59,10 +60,18 @@ export function HarnessTokens() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-paper-dim">Create a token below, then install the plugin in Claude Code. The install asks for the token:</p>
+        <p className="text-paper-dim">Create a token below, then install the plugin. It asks for the token. In Claude Code:</p>
         {/* Scrolls sideways on phones, so it takes keyboard focus. */}
         <pre tabIndex={0} role="region" aria-label="Plugin install commands" className="card mt-2 overflow-x-auto px-4 py-3 font-mono text-[13px] text-paper">{INSTALL.join("\n")}</pre>
-        <p className="mt-2 text-[14px] text-paper-muted">To change the token later, run <code className="font-mono">/plugin configure opensrcer@opensrced</code>. Other editors (VS Code with Copilot, Codex) take it as <code className="font-mono">OPENSRCER_TOKEN</code>: see the plugin&apos;s README.</p>
+        <p className="mt-2 text-[14px] text-paper-muted">To change the token later, run <code className="font-mono">/plugin configure opensrcer@opensrced</code>.</p>
+        {vscode && (
+          <>
+            <p className="mt-4 text-paper-dim">In VS Code with GitHub Copilot, run this once in any terminal (it needs Node 20 or newer):</p>
+            <pre tabIndex={0} role="region" aria-label="VS Code install command" className="card mt-2 overflow-x-auto px-4 py-3 font-mono text-[13px] text-paper">npx -y opensrcer-mcp install</pre>
+            <p className="mt-2 text-[14px] text-paper-muted">Then open Copilot Chat in Agent mode. VS Code asks for the token the first time opensrcer starts.</p>
+          </>
+        )}
+        <p className="mt-3 text-[14px] text-paper-muted">Something not working? Ask your agent to &ldquo;check my opensrcer setup&rdquo; (in Claude Code: /opensrcer:setup).</p>
       </div>
 
       {fresh && (

@@ -1,0 +1,13 @@
+{
+  "name": "opensrcer-mcp",
+  "version": "0.3.0",
+  "description": "opensrcer's contribution harness as an MCP server: each open-source project's unwritten rules in your agent's context, and lessons that teach you the issue.",
+  "license": "MIT",
+  "homepage": "https://opensrced.vercel.app",
+  "repository": { "type": "git", "url": "git+https://github.com/rahulp7801/opensrced.git", "directory": "harness" },
+  "type": "module",
+  "bin": { "opensrcer-mcp": "server.mjs" },
+  "files": ["server.mjs", "graph.mjs", "install.mjs", "views/lesson.html", "README.md"],
+  "engines": { "node": ">=20" },
+  "keywords": ["mcp", "open-source", "contributing", "learning", "copilot"]
+}

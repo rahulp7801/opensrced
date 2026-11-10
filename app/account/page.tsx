@@ -115,10 +115,11 @@ export default async function AccountPage() {
         <SettingsSection
           id="harness-heading"
           title="Harness"
-          description="Use opensrcer from Claude Code: each project's profile in your agent's context, and your contributions counted here."
+          description="Use opensrcer from Claude Code or VS Code: each project's profile in your agent's context, lessons that teach you an issue, and your contributions counted here."
           note="A token can do only what your account can; revoking it, or losing your invite, stops it at once."
         >
-          <HarnessTokens />
+          {/* OPENSRCER_VSCODE_INSTALL=1 once opensrcer-mcp is on npm (harness/package.json). */}
+          <HarnessTokens vscode={process.env.OPENSRCER_VSCODE_INSTALL === "1"} />
         </SettingsSection>
 
         <SettingsSection id="data-heading" title="Your data" description="Download or erase what opensrcer keeps about you.">

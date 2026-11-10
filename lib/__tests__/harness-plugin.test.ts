@@ -469,3 +469,47 @@ test("setup_check: everything that works, and each problem with its fix", async 
   assert.match(await run(`osh_${"z".repeat(32)}`), /FIX: The token isn't valid any more\. Create a new one at .*\/account/);
   assert.match(await run(""), /FIX: No opensrcer token\..*\/plugin configure opensrcer@opensrced/);
 });
+
+// `npx -y opensrcer-mcp install` (harness/install.mjs): VS Code set up in one step.
+type Installer = { install: (dir: string) => [number, string]; vscodeUserDir: (env: Record<string, string>, platform: string, home: string) => string };
+const installer = () => (new Function("p", "return import(p)") as (p: string) => Promise<Installer>)(pathToFileURL(join(process.cwd(), "harness", "install.mjs")).href);
+
+test("the VS Code installer adds opensrcer beside what's there, backs it up, and never rewrites a file it can't parse", async () => {
+  const { install } = await installer();
+  const root = mkdtempSync(join(tmpdir(), "opensrcer-vscode-"));
+  const dir = (name: string) => { const d = join(root, name); mkdirSync(d, { recursive: true }); return d; };
+
+  const fresh = dir("fresh");
+  assert.equal(install(fresh)[0], 0);
+  const made = JSON.parse(readFileSync(join(fresh, "mcp.json"), "utf8"));
+  assert.deepEqual(made.servers.opensrcer, { type: "stdio", command: "npx", args: ["-y", "opensrcer-mcp@latest"], env: { OPENSRCER_TOKEN: "${input:opensrcer-token}" } });
+  assert.equal(made.inputs[0].password, true, "the token is a password prompt, never stored in the file");
+
+  const existing = dir("existing");
+  const before = { servers: { other: { type: "stdio", command: "x" } }, inputs: [{ type: "promptString", id: "k", description: "k" }], extra: 1 };
+  writeFileSync(join(existing, "mcp.json"), JSON.stringify(before));
+  assert.equal(install(existing)[0], 0);
+  assert.equal(install(existing)[0], 0, "running it twice is fine");
+  const merged = JSON.parse(readFileSync(join(existing, "mcp.json"), "utf8"));
+  assert.deepEqual([Object.keys(merged.servers), merged.inputs.map((i: { id: string }) => i.id), merged.extra], [["other", "opensrcer"], ["k", "opensrcer-token"], 1]);
+  assert.ok(readFileSync(join(existing, "mcp.json.bak"), "utf8").includes('"other"'), "the original is backed up");
+
+  for (const [name, text] of [["comments", '{\n  // mine\n  "servers": {}\n}'], ["array", "[]"]] as const) {
+    const d = dir(name);
+    writeFileSync(join(d, "mcp.json"), text);
+    const [code, message] = install(d);
+    assert.equal(code, 1);
+    assert.match(message, /left as it is.*MCP: Open User Configuration/s);
+    assert.equal(readFileSync(join(d, "mcp.json"), "utf8"), text, "untouched");
+  }
+  const [code, message] = install(join(root, "no-vscode"));
+  assert.deepEqual([code, /Install VS Code/.test(message)], [1, true]);
+});
+
+test("the installer finds VS Code's settings on each OS", async () => {
+  const { vscodeUserDir } = await installer();
+  assert.equal(vscodeUserDir({ APPDATA: "C:/Users/a/AppData/Roaming" }, "win32", "C:/Users/a").replaceAll(String.fromCharCode(92), "/"), "C:/Users/a/AppData/Roaming/Code/User");
+  assert.equal(vscodeUserDir({}, "darwin", "/Users/a").replaceAll(String.fromCharCode(92), "/"), "/Users/a/Library/Application Support/Code/User");
+  assert.equal(vscodeUserDir({}, "linux", "/home/a").replaceAll(String.fromCharCode(92), "/"), "/home/a/.config/Code/User");
+  assert.equal(vscodeUserDir({ XDG_CONFIG_HOME: "/x" }, "linux", "/home/a").replaceAll(String.fromCharCode(92), "/"), "/x/Code/User");
+});

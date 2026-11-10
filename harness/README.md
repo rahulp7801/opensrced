@@ -26,43 +26,36 @@ If it lives in a virtualenv, set `OPENSRCER_GRAPH_PYTHON` to that Python (e.g. `
 
 The install asks for your token: sign in at https://opensrced.vercel.app, open **Account → Harness**, create one and paste it. (From a shell: `claude plugin install opensrcer@opensrced --config opensrcer_token=osh_…`; to change it later, `/plugin configure opensrcer@opensrced`.) Then restart Claude Code.
 
-### VS Code with GitHub Copilot, Codex, other agents
+### VS Code with GitHub Copilot
 
-The harness is a dependency-free MCP server (Node 20+). Get it:
+Run this once in any terminal (Node 20 or newer):
 
 ```sh
-git clone --depth 1 https://github.com/rahulp7801/opensrced ~/.opensrcer/src
+npx -y opensrcer-mcp install
 ```
 
-Set `OPENSRCER_TOKEN` in your environment (a token from Account → Harness), then add the server with the absolute path to `~/.opensrcer/src/harness/server.mjs`:
+It adds opensrcer to VS Code's MCP settings (keeping anything already there, with a backup). Open Copilot Chat in Agent mode: the first time opensrcer starts, VS Code asks for your token (from **Account → Harness**) and stores it securely. Then ask Copilot to "check my opensrcer setup".
 
-**VS Code** — run **MCP: Open User Configuration** and add:
+### Codex, Copilot CLI, other agents
+
+The harness is a dependency-free MCP server (Node 20+): `npx -y opensrcer-mcp`. Set `OPENSRCER_TOKEN` in your environment (a token from Account → Harness). Without npm, clone it instead (`git clone --depth 1 https://github.com/rahulp7801/opensrced ~/.opensrcer/src`) and run `node ~/.opensrcer/src/harness/server.mjs`.
+
+**GitHub Copilot CLI**: in `~/.copilot/mcp-config.json`:
 
 ```json
-{
-  "servers": {
-    "opensrcer": {
-      "type": "stdio",
-      "command": "node",
-      "args": ["/home/you/.opensrcer/src/harness/server.mjs"],
-      "env": { "OPENSRCER_TOKEN": "${env:OPENSRCER_TOKEN}" }
-    }
-  }
-}
+{ "mcpServers": { "opensrcer": { "type": "local", "command": "npx", "args": ["-y", "opensrcer-mcp@latest"], "env": { "OPENSRCER_TOKEN": "${OPENSRCER_TOKEN}" }, "tools": ["*"] } } }
 ```
 
-**GitHub Copilot CLI** — `~/.copilot/mcp-config.json`, the same entry under `"mcpServers"`.
-
-**Codex CLI** — `~/.codex/config.toml`:
+**Codex CLI**: in `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.opensrcer]
-command = "node"
-args = ["/home/you/.opensrcer/src/harness/server.mjs"]
+command = "npx"
+args = ["-y", "opensrcer-mcp@latest"]
 env_vars = ["OPENSRCER_TOKEN"]
 ```
 
-The server sends these agents the workflow itself (`skills/` has the full versions for Claude Code). Update with `git -C ~/.opensrcer/src pull`.
+The server sends these agents the workflow itself (`skills/` has the full versions for Claude Code). These two setups haven't been tested yet; Claude Code and VS Code are the tested ones. If yours doesn't start, check your agent's MCP docs for its config format.
 
 ## Use
 

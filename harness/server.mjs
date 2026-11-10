@@ -614,6 +614,14 @@ async function handle(message) {
   }
 }
 
+// `npx -y opensrcer-mcp install`: set VS Code up instead of serving MCP (install.mjs).
+if (process.argv[2] === "install") {
+  const { install } = await import("./install.mjs");
+  const [code, message] = install();
+  console.log(message);
+  process.exit(code);
+}
+
 const send = (payload) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...payload }) + "\n");
 
 createInterface({ input: process.stdin }).on("line", async (line) => {

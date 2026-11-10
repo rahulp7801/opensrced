@@ -41,16 +41,17 @@ const STEPS = [
 // Key-required pages already show the persistent ApiKeyGate. Keeping onboarding
 // off them avoids two banners with two buttons for the same settings page.
 // /welcome and /account carry the provider settings themselves.
-const HIDDEN_ON = ["/crucible", "/login", "/", "/trigger", "/explore", "/welcome", "/account"];
+const HIDDEN_ON = ["/crucible", "/login", "/", "/trigger", "/explore", "/welcome", "/account", "/class"];
 
 export function Onboarding({ localMode = false, inviteOnly = false }: { localMode?: boolean; inviteOnly?: boolean }) {
   // `user` here means "may use the app": an account without a preview invite gets no setup prompts.
-  const { canUse } = useCanUseApp(localMode, inviteOnly);
+  // A student in a class uses the plugin with their own editor's AI: the hosted-run setup (paying for runs) isn't theirs.
+  const { canUse, student } = useCanUseApp(localMode, inviteOnly);
   const user = canUse;
   const pathname = usePathname();
   const [state, setState] = useState<OnboardingState | null>(null);
   const [dismissed, setDismissed] = useState(false);
-  const hidden = HIDDEN_ON.some((path) => pathname === path || pathname.startsWith(path + "/"));
+  const hidden = student || HIDDEN_ON.some((path) => pathname === path || pathname.startsWith(path + "/"));
 
   useEffect(() => {
     if (hidden || (!user && !localMode)) return;

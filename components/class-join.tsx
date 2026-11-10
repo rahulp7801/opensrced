@@ -1,12 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 /** The join button on a class invite page (app/class/[code]): posts the code,
- *  then reloads the page, which now shows the next steps. */
+ *  then reloads the page, which now shows the next steps (and a header that knows). */
 export function ClassJoin({ code, name }: { code: string; name: string }) {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,7 +18,8 @@ export function ClassJoin({ code, name }: { code: string; name: string }) {
         setError(typeof body.error === "string" ? body.error : "Couldn't join just now. Try again in a moment.");
         return;
       }
-      router.refresh();
+      // A full reload, not router.refresh(): the header's cached "not invited yet" must go too.
+      window.location.reload();
     } catch {
       setError("Couldn't reach opensrcer. Check your connection and try again.");
     } finally {

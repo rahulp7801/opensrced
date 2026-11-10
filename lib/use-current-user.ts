@@ -12,7 +12,8 @@ export function useCurrentUser(localMode = false) {
  *  an invite; the server answers that at /api/access, asked only in that mode. */
 export function useCanUseApp(localMode = false, inviteOnly = false) {
   const { user, isLoading } = useCurrentUser(localMode);
-  const { data } = useSwrFetch<{ invited: boolean }>(inviteOnly && user && !localMode ? "/api/access" : null);
+  const { data } = useSwrFetch<{ invited: boolean; student?: boolean }>(inviteOnly && user && !localMode ? "/api/access" : null);
   const canUse = localMode || (Boolean(user) && (!inviteOnly || data?.invited === true));
-  return { user, isLoading, canUse };
+  // `student`: in a class, so using the plugin rather than the site's hosted runs.
+  return { user, isLoading, canUse, student: data?.student === true };
 }

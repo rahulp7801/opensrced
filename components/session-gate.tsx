@@ -8,7 +8,8 @@ import { GitHubSignIn } from "./github-sign-in";
 
 export function SessionGate({ children, allowAnonymous = false }: { children: ReactNode; allowAnonymous?: boolean }) {
   const path = usePathname();
-  if (allowAnonymous || ["/", "/login", "/join", "/demo", "/privacy"].includes(path) || path.startsWith("/fix/") || path.startsWith("/demo/")) return children;
+  // /class/<code> handles its own signed-out state: it shows the class and its own sign-in button.
+  if (allowAnonymous || ["/", "/login", "/join", "/demo", "/privacy"].includes(path) || path.startsWith("/fix/") || path.startsWith("/demo/") || path.startsWith("/class/")) return children;
   return <Suspense fallback={<p className="p-8 text-[14px] text-paper-muted">Checking sign-in...</p>}><SignedIn>{children}</SignedIn></Suspense>;
 }
 

@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 /** Vercel caps a function's response at 4.5 MB. */
-export const GRAPH_REPLY_MAX = 4_400_000;
+const GRAPH_REPLY_MAX = 4_400_000;
 
 export async function POST(req: Request) {
   const db = await getDb();

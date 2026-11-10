@@ -7,9 +7,9 @@
 // someone's invite revokes their harness too.
 
 import { createHash, randomBytes } from "node:crypto";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import type { Db } from "./db/client";
-import { apiTokens, harnessEvents } from "./db/schema";
+import { apiTokens, harnessEvents, lessons } from "./db/schema";
 import { ensureUser } from "./users";
 import { splitRepo } from "./ai-policy";
 
@@ -105,4 +105,59 @@ export async function recordEvent(db: Db, userId: string, input: unknown): Promi
   if (!data || typeof data !== "object" || Array.isArray(data)) throw new HarnessInputError("data must be an object.");
   if (Buffer.byteLength(JSON.stringify(data)) > MAX_EVENT_BYTES) throw new HarnessInputError(`data must be under ${MAX_EVENT_BYTES} bytes.`);
   await db.insert(harnessEvents).values({ userId, repo, type: e.type, data: data as Record<string, unknown> });
+}
+
+// ── Daily limits per account ─────────────────────────────────────────────
+// What a harness user can spend of the site's compute and storage in a
+// rolling 24 hours: lessons (each stores its issue, README and code graph)
+// and code maps built in the graph sandbox (a map served from the shared
+// store is free). Counted from rows the site writes anyway, so no counter
+// table. Tune with the environment variables below.
+
+export const DAILY_LIMITS = {
+  lessons: { env: "OPENSRCER_HARNESS_LESSONS_PER_DAY", fallback: 20, one: "lesson", many: "lessons" },
+  graph_builds: { env: "OPENSRCER_HARNESS_GRAPH_BUILDS_PER_DAY", fallback: 5, one: "new code map", many: "new code maps" },
+} as const;
+export type DailyKind = keyof typeof DAILY_LIMITS;
+/** Written by the site alone (not in EVENT_TYPES, so a client can't post it). */
+export const GRAPH_BUILT = "graph_built";
+const DAY_MS = 24 * 60 * 60_000;
+
+export class DailyLimitError extends Error {
+  readonly status = 429;
+}
+/** A limit variable that is set but isn't a whole number of at least 1. */
+export class DailyLimitConfigError extends Error {}
+
+/** The account's limit for `kind`: its environment variable, else the default. */
+export function dailyLimit(kind: DailyKind, env: Record<string, string | undefined> = process.env): number {
+  const { env: name, fallback } = DAILY_LIMITS[kind];
+  const raw = env[name]?.trim();
+  if (raw === undefined || raw === "") return fallback;
+  // A typo must not lift the limit or close the harness quietly: refuse it loudly.
+  if (!/^\d+$/.test(raw) || Number(raw) < 1) throw new DailyLimitConfigError(`${name} must be a whole number of at least 1, not "${raw}".`);
+  return Number(raw);
+}
+
+/** How many of `kind` the account used in the 24 hours before `now`. */
+export async function dailyUsage(db: Db, userId: string, kind: DailyKind, now: Date = new Date()): Promise<number> {
+  const since = new Date(now.getTime() - DAY_MS);
+  const [row] = kind === "lessons"
+    ? await db.select({ n: count() }).from(lessons).where(and(eq(lessons.userId, userId), gte(lessons.startedAt, since)))
+    : await db.select({ n: count() }).from(harnessEvents).where(and(eq(harnessEvents.userId, userId), eq(harnessEvents.type, GRAPH_BUILT), gte(harnessEvents.at, since)));
+  return Number(row?.n ?? 0);
+}
+
+/** Throws DailyLimitError when the account has used its limit for `kind`. */
+export async function assertUnderDailyLimit(db: Db, userId: string, kind: DailyKind, now: Date = new Date(), env: Record<string, string | undefined> = process.env): Promise<void> {
+  const limit = dailyLimit(kind, env);
+  if (await dailyUsage(db, userId, kind, now) >= limit) {
+    const { one, many } = DAILY_LIMITS[kind];
+    throw new DailyLimitError(`You've started ${limit} ${limit === 1 ? one : many} in the last 24 hours, the most an account can for now. Try again later.`);
+  }
+}
+
+/** Counts a code map built for this account (lib/harness.ts graph_builds). */
+export async function recordGraphBuild(db: Db, userId: string, repo: string): Promise<void> {
+  await db.insert(harnessEvents).values({ userId, repo: splitRepo(repo).join("/"), type: GRAPH_BUILT, data: {} });
 }

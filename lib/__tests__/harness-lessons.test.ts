@@ -11,6 +11,8 @@ import {
   HarnessLessonInputError, unpackGraphGz,
 } from "../harness-lessons";
 import { gzipSync } from "node:zlib";
+import { eq } from "drizzle-orm";
+import { lessons } from "../db/schema";
 
 /** A graph as the plugin sends it: JSON, gzipped, in base64. */
 const gz = (graph: unknown) => gzipSync(JSON.stringify(graph)).toString("base64");
@@ -172,4 +174,24 @@ test("the graph unpacks from gzip, and anything that isn't nodes and links is re
   assert.throws(() => parseGraph(undefined), HarnessLessonInputError);
   assert.throws(() => parseGraph([]), HarnessLessonInputError);
   assert.throws(() => parseGraph({ nodes: [{ id: 1 }], links: [] }), HarnessLessonInputError);
+});
+
+test("past the account's daily lesson limit, a new lesson is refused with 429 and nothing is stored", async () => {
+  await createToken(connection.db, "github|90", "carol", "laptop");
+  await createToken(connection.db, "github|91", "dave", "laptop");
+  const before = process.env.OPENSRCER_HARNESS_LESSONS_PER_DAY;
+  process.env.OPENSRCER_HARNESS_LESSONS_PER_DAY = "2";
+  try {
+    assert.equal((await start("github|90")).status, 201);
+    assert.equal((await start("github|90")).status, 201);
+    const refused = await start("github|90");
+    assert.equal(refused.status, 429);
+    assert.match(refused.body.error, /2 lessons in the last 24 hours/);
+    const rows = await connection.db.select().from(lessons).where(eq(lessons.userId, "github|90"));
+    assert.equal(rows.length, 2, "the refused lesson left no row");
+    assert.equal((await start("github|91")).status, 201, "another account is unaffected");
+  } finally {
+    if (before === undefined) delete process.env.OPENSRCER_HARNESS_LESSONS_PER_DAY;
+    else process.env.OPENSRCER_HARNESS_LESSONS_PER_DAY = before;
+  }
 });

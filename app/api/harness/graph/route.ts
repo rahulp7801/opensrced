@@ -6,7 +6,7 @@
 
 import { canUse } from "@/lib/access-server";
 import { getDb } from "@/lib/db/client";
-import { HarnessAuthError, harnessUser } from "@/lib/harness";
+import { assertUnderDailyLimit, DailyLimitError, HarnessAuthError, harnessUser, recordGraphBuild } from "@/lib/harness";
 import { splitRepo } from "@/lib/ai-policy";
 import { cloudExecution } from "@/lib/cloud-run-state";
 import { buildCloudGraph } from "@/lib/cloud-graph";
@@ -46,7 +46,11 @@ export async function POST(req: Request) {
     return Response.json({ error: "Graph storage is unavailable. Try again later, or install graphify locally." }, { status: 503 });
   }
   if (!graph) {
-    // ponytail: the shared store and 2 build slots are the only spend limits; add a per-account daily cap if usage grows.
+    // Only a build costs the sandbox: it counts against the account's day (lib/harness.ts DAILY_LIMITS).
+    try { await assertUnderDailyLimit(db, userId, "graph_builds"); } catch (error) {
+      if (error instanceof DailyLimitError) return Response.json({ error: `${error.message} Or install graphify locally to map it on your machine.` }, { status: 429 });
+      throw error;
+    }
     let release: () => void | Promise<void>;
     try { release = cloudExecution() ? await reserveCloudSlot("graph", 2, 5.5 * 60_000, userId) : reserveSlot("graph", 2); }
     catch (error) {
@@ -55,6 +59,8 @@ export async function POST(req: Request) {
     }
     const signal = AbortSignal.any([req.signal, AbortSignal.timeout(260_000)]);
     try {
+      // Counted before it runs: a build that fails or times out spent the sandbox too.
+      await recordGraphBuild(db, userId, repo);
       // No token: only a public repository clones, so only public graphs reach the shared store.
       graph = cloudExecution() ? await buildCloudGraph(repo, null, signal, () => {}, release) : await buildGraphWorker(repo, null, signal);
       await saveStoredGraph(userId, repo, graph, "public");

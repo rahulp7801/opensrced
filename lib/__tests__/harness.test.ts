@@ -5,10 +5,13 @@ import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { openDb, type DbConnection } from "../db/client";
 import { migrateDb } from "../db/migrate";
-import { apiTokens, harnessEvents } from "../db/schema";
+import { apiTokens, harnessEvents, lessons } from "../db/schema";
+import { ensureRepo } from "../record/standing";
+import { ensureUser } from "../users";
 import {
-  createToken, harnessUser, HarnessAuthError, HarnessInputError, hashToken, listTokens, MAX_EVENT_BYTES, MAX_TOKENS,
-  recordEvent, revokeToken, TOKEN_HEADER, TokenLimitError, TokenNotFoundError,
+  assertUnderDailyLimit, createToken, DAILY_LIMITS, dailyLimit, DailyLimitConfigError, DailyLimitError, dailyUsage, GRAPH_BUILT,
+  harnessUser, HarnessAuthError, HarnessInputError, hashToken, listTokens, MAX_EVENT_BYTES, MAX_TOKENS,
+  recordEvent, recordGraphBuild, revokeToken, TOKEN_HEADER, TokenLimitError, TokenNotFoundError,
 } from "../harness";
 
 let connection: DbConnection;
@@ -125,4 +128,51 @@ test("every /api/harness route checks the token and the invite before anything e
       }
     }
   }
+});
+
+// ── Daily limits ─────────────────────────────────────────────────────────
+
+for (const [raw, expected] of [[undefined, "default"], ["", "default"], [" 7 ", 7], ["1", 1]] as const) {
+  test(`a daily limit of ${JSON.stringify(raw)} is ${expected}`, () => {
+    for (const kind of ["lessons", "graph_builds"] as const) {
+      const env = { [DAILY_LIMITS[kind].env]: raw };
+      assert.equal(dailyLimit(kind, env), expected === "default" ? DAILY_LIMITS[kind].fallback : expected);
+    }
+  });
+}
+
+for (const raw of ["0", "-3", "2.5", "lots", "1e3"]) {
+  test(`a daily limit of "${raw}" is refused, never read as no limit`, () => {
+    assert.throws(() => dailyLimit("lessons", { OPENSRCER_HARNESS_LESSONS_PER_DAY: raw }), DailyLimitConfigError);
+  });
+}
+
+test("lessons count per account over the last 24 hours, and the limit refuses the next one", async () => {
+  const db = connection.db;
+  const now = new Date("2026-11-10T12:00:00Z");
+  await ensureUser(db, "github|70", "limit-a");
+  await ensureUser(db, "github|71", "limit-b");
+  const repoId = await ensureRepo(db, "acme/limits");
+  const lesson = (userId: string, hoursAgo: number) => ({ userId, repoId, issueNumber: 1, stage: "kickoff", startedAt: new Date(now.getTime() - hoursAgo * 3_600_000) });
+  await db.insert(lessons).values([lesson("github|70", 1), lesson("github|70", 23), lesson("github|70", 25), lesson("github|71", 1)]);
+  assert.equal(await dailyUsage(db, "github|70", "lessons", now), 2, "the one 25 hours ago is outside the window");
+  assert.equal(await dailyUsage(db, "github|71", "lessons", now), 1, "another account's lessons don't count");
+  const env = { OPENSRCER_HARNESS_LESSONS_PER_DAY: "3" };
+  await assertUnderDailyLimit(db, "github|70", "lessons", now, env);
+  await db.insert(lessons).values(lesson("github|70", 0));
+  await assert.rejects(assertUnderDailyLimit(db, "github|70", "lessons", now, env), (e: unknown) => e instanceof DailyLimitError && e.status === 429 && /3 lessons in the last 24 hours/.test(e.message));
+  await assertUnderDailyLimit(db, "github|71", "lessons", now, env);
+});
+
+test("map builds count only the site's own graph_built events, which a client can't post", async () => {
+  const db = connection.db;
+  await ensureUser(db, "github|72", "limit-c");
+  await recordGraphBuild(db, "github|72", "acme/app");
+  await recordEvent(db, "github|72", { type: "profile_viewed", repo: "acme/app" });
+  assert.equal(await dailyUsage(db, "github|72", "graph_builds"), 1);
+  await assert.rejects(recordEvent(db, "github|72", { type: GRAPH_BUILT, repo: "acme/app" }), HarnessInputError);
+  const env = { OPENSRCER_HARNESS_GRAPH_BUILDS_PER_DAY: "1" };
+  await assert.rejects(assertUnderDailyLimit(db, "github|72", "graph_builds", new Date(), env), /1 new code map in the last 24 hours/);
+  const [row] = await db.select().from(harnessEvents).where(eq(harnessEvents.type, GRAPH_BUILT));
+  assert.equal(row?.repo, "acme/app");
 });

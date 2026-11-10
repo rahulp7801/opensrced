@@ -19,6 +19,7 @@ import type { Db } from "./db/client";
 import { harnessLessonContext, lessons } from "./db/schema";
 import type { GraphData } from "./graph";
 import { MAX_DIFF_BYTES } from "./ide/lesson-api";
+import { assertUnderDailyLimit, DailyLimitError } from "./harness";
 import { readJsonBody } from "./request-body";
 import {
   createLesson, getLesson, lessonsEnabled, LESSONS_DISABLED, nextHint, publicLesson, revealLesson, saveIdeDiff,
@@ -187,6 +188,12 @@ export async function createHarnessLesson(req: Request, db: Db, userId: string):
     if (!context.issueTitle.trim()) throw new HarnessLessonInputError("issue_title is required.");
   } catch (error) {
     if (error instanceof HarnessLessonInputError) return json({ error: error.message }, 400);
+    throw error;
+  }
+  try {
+    await assertUnderDailyLimit(db, userId, "lessons");
+  } catch (error) {
+    if (error instanceof DailyLimitError) return json({ error: error.message }, 429);
     throw error;
   }
   const repo = typeof body.repo === "string" ? body.repo : "";

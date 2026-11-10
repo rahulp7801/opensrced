@@ -24,13 +24,7 @@ If it lives in a virtualenv, set `OPENSRCER_GRAPH_PYTHON` to that Python (e.g. `
 /plugin install opensrcer@opensrced
 ```
 
-Then sign in at https://opensrced.vercel.app, open **Account → Harness**, create a token, and add it to `~/.claude/settings.json`:
-
-```json
-{ "env": { "OPENSRCER_TOKEN": "osh_…" } }
-```
-
-Restart Claude Code.
+The install asks for your token: sign in at https://opensrced.vercel.app, open **Account → Harness**, create one and paste it. (From a shell: `claude plugin install opensrcer@opensrced --config opensrcer_token=osh_…`; to change it later, `/plugin configure opensrcer@opensrced`.) Then restart Claude Code.
 
 ### VS Code with GitHub Copilot, Codex, other agents
 

@@ -6,7 +6,7 @@
         "${CLAUDE_PLUGIN_ROOT}/server.mjs"
       ],
       "env": {
-        "OPENSRCER_TOKEN": "${OPENSRCER_TOKEN:-}",
+        "OPENSRCER_TOKEN": "${user_config.opensrcer_token}",
         "OPENSRCER_URL": "${OPENSRCER_URL:-https://opensrced.vercel.app}",
         "OPENSRCER_GRAPH_PYTHON": "${OPENSRCER_GRAPH_PYTHON:-python}"
       }

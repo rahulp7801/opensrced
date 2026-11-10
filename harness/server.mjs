@@ -30,7 +30,8 @@ import { graphify, GraphifyError, overlayLevels, withOverlay } from "./graph.mjs
 
 const VERSION = "0.2.0";
 const BASE = (process.env.OPENSRCER_URL || "https://opensrced.vercel.app").replace(/\/+$/, "");
-const TOKEN = process.env.OPENSRCER_TOKEN || "";
+// A host that doesn't fill in `${user_config.…}` (plugin .mcp.json) leaves the literal: that is no token.
+const TOKEN = /^\$\{/.test(process.env.OPENSRCER_TOKEN ?? "") ? "" : process.env.OPENSRCER_TOKEN || "";
 const HOME = process.env.OPENSRCER_HOME || join(homedir(), ".opensrcer");
 const HERE = dirname(fileURLToPath(import.meta.url));
 const EVENT_TYPES = ["session_start", "verification", "pr_opened", "pr_merged", "pr_closed"];

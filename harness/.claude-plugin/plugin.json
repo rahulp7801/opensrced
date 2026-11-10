@@ -6,5 +6,14 @@
   "homepage": "https://opensrced.vercel.app",
   "repository": "https://github.com/rahulp7801/opensrced",
   "license": "MIT",
-  "keywords": ["open-source", "contributing", "pull-requests", "learning", "mcp-apps"]
+  "keywords": ["open-source", "contributing", "pull-requests", "learning", "mcp-apps"],
+  "userConfig": {
+    "opensrcer_token": {
+      "type": "string",
+      "title": "opensrcer token",
+      "description": "From https://opensrced.vercel.app/account (Harness → Create token). Starts with osh_.",
+      "sensitive": true,
+      "required": true
+    }
+  }
 }

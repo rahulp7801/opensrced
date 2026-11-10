@@ -364,7 +364,7 @@ for (const [name, params, message] of BAD_LESSON_CALLS) {
   });
 }
 
-test("without graphify, starting a lesson says how to install it instead of drawing something else", async () => {
+test("without graphify, the lesson starts without a map, says how to install it, and sends no graph", async () => {
   const { dir } = fixture();
   const child = spawn(process.execPath, [join(process.cwd(), "harness", "server.mjs")], {
     env: { ...process.env, OPENSRCER_URL: base, OPENSRCER_TOKEN: TOKEN, GITHUB_API_URL: base, OPENSRCER_HOME: home, OPENSRCER_GRAPH_PYTHON: "no-such-python-here" },
@@ -372,11 +372,14 @@ test("without graphify, starting a lesson says how to install it instead of draw
   const lines = createInterface({ input: child.stdout });
   try {
     const reply = new Promise<string>((resolve) => lines.once("line", resolve));
+    const before = seen.length;
     child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "lesson_start", arguments: { repo: "acme/app", issue: 12, dir } } }) + "\n");
     const r = JSON.parse(await reply) as { result: ToolResult };
-    assert.equal(r.result.isError, true);
-    assert.match(r.result.content[0].text, /needs Python with graphify.*pip install graphifyy==0\.9\.73/);
-    assert.ok(!seen.some((x) => x.url === "/api/harness/lessons" && x.auth === `Bearer ${TOKEN}` && x.body.includes("no-such")), "no lesson was created");
+    assert.notEqual(r.result.isError, true);
+    assert.match(r.result.content[0].text, /No code map: .*needs Python with graphify.*pip install graphifyy==0\.9\.73.*graded without it/);
+    const created = seen.slice(before).filter((x) => x.url === "/api/harness/lessons");
+    assert.equal(created.length, 1, "the lesson was created");
+    assert.ok(!("graph_gz" in JSON.parse(created[0].body)), "no graph was sent");
   } finally {
     child.kill();
   }

@@ -1,12 +1,21 @@
 {
   "name": "opensrcer",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A contribution harness for open source: each project's unwritten rules (what gets merged, why PRs get closed, what reviewers ask for) in your agent's context, a workflow that proves the fix, and your contributions counted on opensrcer.",
-  "author": { "name": "rahulp7801", "url": "https://github.com/rahulp7801" },
+  "author": {
+    "name": "rahulp7801",
+    "url": "https://github.com/rahulp7801"
+  },
   "homepage": "https://opensrced.vercel.app",
   "repository": "https://github.com/rahulp7801/opensrced",
   "license": "MIT",
-  "keywords": ["open-source", "contributing", "pull-requests", "learning", "mcp-apps"],
+  "keywords": [
+    "open-source",
+    "contributing",
+    "pull-requests",
+    "learning",
+    "mcp-apps"
+  ],
   "userConfig": {
     "opensrcer_token": {
       "type": "string",
@@ -15,5 +24,6 @@
       "sensitive": true,
       "required": true
     }
-  }
+  },
+  "types": "./types/index.d.ts"
 }

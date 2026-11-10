@@ -22,6 +22,8 @@
   // modules that are installed under mcp-server/node_modules. scripts/ are
   // tsx-run one-offs that import with explicit .ts extensions, which this
   // config rejects. Both are checked by their own commands; see the ci
-  // workflow.
-  "exclude": ["node_modules", "mcp-server", "scripts"]
+  // workflow. The harness plugin's pane (harness/hooks, tests, types) is a
+  // Claude Code module typed by Claude Code's own API; `claude plugin
+  // validate harness` and `claude plugin test harness` check it.
+  "exclude": ["node_modules", "mcp-server", "scripts", "harness/hooks", "harness/tests", "harness/types"]
 }

@@ -4,7 +4,7 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createServer, type Server } from "node:http";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -54,7 +54,7 @@ before(async () => {
       if (req.url === "/api/harness/graph") {
         if (graphReply === "too-large") { res.writeHead(413, { "content-type": "application/json" }); return res.end(JSON.stringify({ error: "acme/app's code map is too large to send (9 MB)." })); }
         res.writeHead(200, { "content-type": "application/gzip" });
-        return res.end(gzipSync(JSON.stringify({ graph: { nodes: [{ id: "fill", label: "fill()", community: 0, file_type: "code", source_file: "app/fill.py" }], links: [] }, html: "<html><body>graphify map</body></html>", revision: REMOTE_SHA, created_at: "" })));
+        return res.end(gzipSync(JSON.stringify({ graph: { nodes: [{ id: "fill", label: "fill()", community: 0, file_type: "code", source_file: "app/fill.py" }], links: [] }, html: "<html><body>graphify map<script>var nodesDS;</script></body></html>", revision: REMOTE_SHA, created_at: "" })));
       }
       const lessonRoute = /^\/api\/harness\/lessons(?:\/(l_[0-9a-f-]+)(?:\/(\w+))?)?/.exec(req.url ?? "");
       if (req.url === "/repos/acme/app/issues/12") return reply(res, { title: "fill ignores value", body: "fill(df, 0) leaves NaN." });
@@ -130,7 +130,7 @@ test("the plugin server speaks MCP: initialize, tools, and calls that reach open
   const { child, request, notify } = start(TOKEN);
   try {
     const init = await request("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" } });
-    assert.deepEqual((init.result as { serverInfo: unknown }).serverInfo, { name: "opensrcer", version: "0.2.0" });
+    assert.deepEqual((init.result as { serverInfo: unknown }).serverInfo, { name: "opensrcer", version: "0.3.0" });
     // Hosts without the plugin's skill get the workflow from the server itself.
     assert.match((init.result as { instructions: string }).instructions, /Call repo_profile .* before changing code/);
     notify("notifications/initialized");
@@ -281,8 +281,10 @@ test("a lesson over stdio: graphify's map of the checkout goes up, rubrics come 
     await request("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "claude-code", version: "1" } });
     const started = await request("tools/call", { name: "lesson_start", arguments: { repo: "acme/app", issue: 12, dir } });
     assert.equal((started.result as ToolResult).isError, undefined, text(started));
-    const created = JSON.parse(seen.at(-1)!.body);
-    assert.equal(seen.at(-1)!.url, "/api/harness/lessons");
+    // The last request may be the map file's lesson read (hosts without a panel).
+    const post = seen.findLast((x) => x.method === "POST" && x.url === "/api/harness/lessons");
+    assert.ok(post, "the lesson was created");
+    const created = JSON.parse(post.body);
     assert.deepEqual([created.issue_title, created.readme.trim()], ["fill ignores value", "acme/app cleans data frames."]);
     // graphify's graph.json, compacted and gzipped (the server unpacks it: lib/harness-lessons.ts).
     const graph = JSON.parse(gunzipSync(Buffer.from(created.graph_gz, "base64")).toString("utf8")) as { nodes: Array<{ id: string; label: string; source_file: string }>; links: Array<{ source: string; target: string; relation: string }> };
@@ -392,6 +394,18 @@ test("without graphify, the lesson gets graphify's map from opensrcer; when that
     assert.equal(created.length, 1, "the lesson was created");
     const sent = JSON.parse(gunzipSync(Buffer.from(JSON.parse(created[0].body).graph_gz, "base64")).toString("utf8"));
     assert.equal(sent.nodes[0].id, "fill", "the remote graph is the one the lesson is graded against");
+    // No panel here: the map goes to current.json for the plugin's pane (hooks/register.tsx).
+    const mapPath = join(home, "maps", "current.json");
+    const atStart = JSON.parse(readFileSync(mapPath, "utf8"));
+    assert.deepEqual([atStart.lesson, atStart.title, atStart.communities.length], [LESSON_ID, "acme/app #12", 1]);
+    assert.match(atStart.svg, /^<svg /);
+    const revealed = await new Promise<string>((resolve) => {
+      lines.once("line", resolve);
+      child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "lesson_reveal", arguments: { lesson: LESSON_ID } } }) + "\n");
+    });
+    assert.doesNotMatch(JSON.parse(revealed).result.content[0].text, /could not be updated/);
+    const afterReveal = JSON.parse(readFileSync(mapPath, "utf8"));
+    assert.deepEqual([afterReveal.changed, afterReveal.communities[0].level], [["app/fill.py"], "changed"], "the reveal colours the fix");
 
     graphReply = "too-large";
     before = seen.length;

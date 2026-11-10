@@ -17,6 +17,7 @@
 //   OPENSRCER_URL    defaults to https://opensrced.vercel.app
 //   OPENSRCER_HOME   where lessons' local data lives (default ~/.opensrcer)
 //   OPENSRCER_GRAPH_PYTHON  a Python with graphify for the code map (default: python)
+//   OPENSRCER_MAP_DIR       where the lesson map for Claude Code's pane is written (the plugin sets it)
 
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -26,13 +27,14 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
-import { graphify, GraphifyError, GraphifyMissing, GRAPHIFY_INSTALL, overlayLevels, withOverlay } from "./graph.mjs";
+import { graphify, GraphifyError, GraphifyMissing, GRAPHIFY_INSTALL, lessonMapData, overlayLevels, withOverlay } from "./graph.mjs";
 
-const VERSION = "0.2.0";
+const VERSION = "0.3.0";
 const BASE = (process.env.OPENSRCER_URL || "https://opensrced.vercel.app").replace(/\/+$/, "");
 // A host that doesn't fill in `${user_config.…}` (plugin .mcp.json) leaves the literal: that is no token.
 const TOKEN = /^\$\{/.test(process.env.OPENSRCER_TOKEN ?? "") ? "" : process.env.OPENSRCER_TOKEN || "";
 const HOME = process.env.OPENSRCER_HOME || join(homedir(), ".opensrcer");
+const MAP_DIR = process.env.OPENSRCER_MAP_DIR || join(HOME, "maps");
 const HERE = dirname(fileURLToPath(import.meta.url));
 const EVENT_TYPES = ["session_start", "verification", "pr_opened", "pr_merged", "pr_closed"];
 // GitHub's rules: owners are letters, digits and hyphens; names can't be "." or "..".
@@ -291,7 +293,53 @@ async function remoteMap(repo) {
     throw new ToolError(`${typeof body.error === "string" ? body.error : `opensrcer answered ${res.status} for the code map.`} Or install graphify locally: ${GRAPHIFY_INSTALL}`);
   }
   const stored = JSON.parse(gunzipSync(Buffer.from(await res.arrayBuffer()), { maxOutputLength: 160_000_000 }).toString("utf8"));
-  return { graph: stored.graph, html: stored.html, sha: String(stored.revision ?? ""), cached: false, remote: true };
+  const sha = String(stored.revision ?? "");
+  // Cached like a local build of the same commit (graphify's output for it is the same).
+  if (/^[0-9a-f]{40}$/i.test(sha)) {
+    const cache = join(HOME, "graph-cache", sha.toLowerCase());
+    mkdirSync(cache, { recursive: true });
+    writeFileSync(join(cache, "graph.json"), JSON.stringify(stored.graph));
+    writeFileSync(join(cache, "graph.html"), stored.html);
+  }
+  return { graph: stored.graph, html: stored.html, sha, cached: false, remote: true };
+}
+
+/** The lesson's map: the commit it was started on, from the cache, else built or fetched again. */
+async function lessonMap(local) {
+  const cache = local.sha ? join(HOME, "graph-cache", String(local.sha).toLowerCase()) : "";
+  if (cache && existsSync(join(cache, "graph.json")) && existsSync(join(cache, "graph.html"))) {
+    return { graph: JSON.parse(readFileSync(join(cache, "graph.json"), "utf8")), html: readFileSync(join(cache, "graph.html"), "utf8") };
+  }
+  return codeMap(local.dir, local.repo);
+}
+
+/** The lesson's map and its colours: the user's s7 starting points, and
+ *  the fix once revealed (before that the lesson has no key to give). */
+async function colouredMap(id) {
+  const built = await lessonMap(localLesson(id));
+  const s = await lessonState(id);
+  // s7's answer is stored as a JSON list.
+  let picks = [];
+  try { picks = JSON.parse(s.lesson.steps.find((x) => x.id === "s7")?.answer || "[]"); } catch { picks = []; }
+  picks = Array.isArray(picks) ? picks.filter((p) => typeof p === "string") : [];
+  return { built, levels: overlayLevels(built.graph, picks, s.key?.diff ?? ""), lesson: s.lesson };
+}
+
+/** Hosts without a panel: the lesson map for the plugin's pane beside the
+ *  chat (hooks/register.tsx), which redraws it after every lesson tool call.
+ *  Returns "" when written; a failure is said in the reply, never hidden. */
+async function mapForPane(id) {
+  if (uiHost) return "";
+  try {
+    const { built, levels, lesson } = await colouredMap(id);
+    const title = `${lesson.repo_url.replace("https://github.com/", "")} #${lesson.issue_number}`;
+    mkdirSync(MAP_DIR, { recursive: true });
+    writeFileSync(join(MAP_DIR, "current.json"), JSON.stringify({ lesson: id, stage: lesson.stage, ...lessonMapData(built.graph, levels, title) }));
+    return "";
+  } catch (error) {
+    if (!(error instanceof ToolError)) throw error;
+    return `The code map could not be updated: ${error.message}`;
+  }
 }
 
 // ── Lessons: text for the model (short: the panel shows the rest) ───────
@@ -372,7 +420,8 @@ async function callTool(name, args) {
     writeFileSync(lessonFile(L.id), JSON.stringify({ id: L.id, repo, dir: top, sha: built.sha }));
     const communities = new Set(built.graph.nodes.map((n) => n.community)).size;
     const map = `Code map (graphify${built.remote ? " on opensrcer, upstream" : ""}, commit ${built.sha.slice(0, 7)}${built.cached ? ", cached" : ""}): ${built.graph.nodes.length} nodes in ${communities} communities.${sendGraph ? "" : " It is too large to send, so steps s1, s3 and s7 are graded without it."}`;
-    return result(`${lessonText(L)}\n${map}`, { lesson: L, key: null });
+    const file = await mapForPane(L.id);
+    return result(`${lessonText(L)}\n${map}${file ? `\n${file}` : ""}`, { lesson: L, key: null });
   }
   throw new ToolError(`Unknown tool: ${name}`);
 }
@@ -411,7 +460,8 @@ async function lessonTool(name, id, args) {
     rubricShapes.delete(pendingKey);
     const grade = body.step.grade;
     const verdict = grade ? `${grade.passed ? "Passed" : "Not yet"}: ${grade.feedback}` : "Saved (this step isn't graded).";
-    return result(`${args.step}: ${verdict}\n${lessonText(body.lesson)}`, { lesson: body.lesson });
+    const file = args.step === "s7" ? await mapForPane(id) : "";
+    return result(`${args.step}: ${verdict}\n${lessonText(body.lesson)}${file ? `\n${file}` : ""}`, { lesson: body.lesson });
   }
   if (name === "lesson_hint") {
     const body = await post("hint", { step: args.step });
@@ -436,7 +486,8 @@ async function lessonTool(name, id, args) {
   if (name === "lesson_reveal") {
     await post("reveal", { give_up: args.give_up === true });
     const s = await lessonState(id);
-    return result(`Revealed. Walk the user through the fix file by file and why its test proves it, then ask explain-it.\n${lessonText(s.lesson)}`, s);
+    const file = await mapForPane(id);
+    return result(`Revealed. Walk the user through the fix file by file and why its test proves it, then ask explain-it.\n${lessonText(s.lesson)}${file ? `\n${file}` : ""}`, s);
   }
   if (name === "lesson_submit_own") {
     const local = localLesson(id);
@@ -449,18 +500,11 @@ async function lessonTool(name, id, args) {
     return result(name === "lesson_state" ? `Stage: ${s.lesson.stage}` : lessonText(s.lesson), s);
   }
   if (name === "lesson_graph") {
-    const local = localLesson(id);
-    const built = await codeMap(local.dir, local.repo);
-    const s = await lessonState(id);
-    // s7's answer is stored as a JSON list. The fix is coloured only once
-    // revealed: before that, the lesson has no key to give.
-    let picks = [];
-    try { picks = JSON.parse(s.lesson.steps.find((x) => x.id === "s7")?.answer || "[]"); } catch { picks = []; }
-    picks = Array.isArray(picks) ? picks.filter((p) => typeof p === "string") : [];
-    const levels = overlayLevels(built.graph, picks, s.key?.diff ?? "");
-    const html = withOverlay(built.html, levels);
-    return result(`Map: ${built.graph.nodes.length} nodes.`, { html, nodes: built.graph.nodes.length, marked: levels.size });
+    const { built, levels } = await colouredMap(id);
+    return result(`Map: ${built.graph.nodes.length} nodes.`, { html: withOverlay(built.html, levels), nodes: built.graph.nodes.length, marked: levels.size });
   }
+
+
   throw new ToolError(`Unknown tool: ${name}`);
 }
 

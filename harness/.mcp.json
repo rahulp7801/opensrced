@@ -8,7 +8,8 @@
       "env": {
         "OPENSRCER_TOKEN": "${user_config.opensrcer_token}",
         "OPENSRCER_URL": "${OPENSRCER_URL:-https://opensrced.vercel.app}",
-        "OPENSRCER_GRAPH_PYTHON": "${OPENSRCER_GRAPH_PYTHON:-python}"
+        "OPENSRCER_GRAPH_PYTHON": "${OPENSRCER_GRAPH_PYTHON:-python}",
+        "OPENSRCER_MAP_DIR": "${CLAUDE_PLUGIN_ROOT}/.maps"
       }
     }
   }

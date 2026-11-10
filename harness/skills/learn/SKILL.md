@@ -25,7 +25,7 @@ Right after `lesson_start`, while the user answers the first questions:
 ## Asking and grading
 
 - **With the lesson panel** (VS Code Copilot, Claude): the user answers in the panel. When it asks you to grade a step, call `lesson_answer` with the lesson, the step and your `grader_reply`; the answer they gave in the panel is used.
-- **Without a panel** (Claude Code, Codex): ask the open steps' questions in chat, one at a time, and send their answer in their own words with `lesson_answer`. Never improve, complete or translate it first.
+- **Without a panel** (Claude Code, Codex): ask the open steps' questions in chat, one at a time, and send their answer in their own words with `lesson_answer`. Never improve, complete or translate it first. In Claude Code the code map is in the opensrcer pane beside the chat; point the user to it when they look for where to start, after s7 and after the reveal.
 - When `lesson_answer` returns a rubric, judge the answer strictly as the rubric says, then call `lesson_answer` again with `grader_reply` set to exactly the JSON it asks for. A generous grade teaches nothing: if part is missing, mark it so and say what to add.
 - Don't show the rubric. It can contain the hidden fix.
 - When they're stuck, use `lesson_hint` before explaining anything yourself, and answer questions with questions that point the way. Don't name the files or functions the fix changes until the reveal.

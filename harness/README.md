@@ -3,7 +3,7 @@
 A plugin for contributing to open source, for Claude Code, VS Code with GitHub Copilot, Codex and any agent that speaks MCP. Two ways to work:
 
 - **Contribute.** Before your agent touches a project it reads that project's **profile**: measured from the project's own recent pull requests, it says what share of outside contributors' PRs get merged, why PRs get closed (opened without being assigned, discuss first, duplicate, stale…), what reviewers keep asking for, how fast maintainers respond, and the house conventions. The `contribute` skill then works so the PR fits, and `check_pr` checks the draft before you open it.
-- **Learn.** `lesson_start` turns an issue into a lesson where your agent is the teacher: what the project does, the task, where to look, what to change and how to prove it, then the fix (revealed after you predict it, or written by you), and explaining it. In VS Code with Copilot and in Claude, the lesson opens as a panel in the chat with the questions, hints and a map of the code; everywhere else it runs in the chat.
+- **Learn.** `lesson_start` turns an issue into a lesson where your agent is the teacher: what the project does, the task, where to look, what to change and how to prove it, then the fix (revealed after you predict it, or written by you), and explaining it. In VS Code with Copilot and in Claude, the lesson opens as a panel in the chat with the questions, hints and a map of the code. In Claude Code (terminal, VS Code, desktop) the lesson runs in the chat and the code map opens in a pane beside it, coloured as you go: your starting points, then what the fix changed (`/opensrcer-map` reopens it).
 
 The website is only needed once, to sign in and make a token; your lessons and contributions are counted on your account there.
 
@@ -85,4 +85,4 @@ Ask your agent to help you contribute to a repository, or to teach you an issue.
 - **Lessons:** the issue's title and text, the project's README, graphify's graph of the checkout (files, functions, classes and how they connect; not their code), your answers, and the fix's diff from your agent's hidden worktree (or, on path B, your own change). They are stored with the lesson on your account.
 - **Never:** prompts, secrets, or anything outside the checkout you point it at.
 
-graphify runs on your machine, on a throwaway copy of the commit; its viewer stays there (`~/.opensrcer/graph-cache`) for the panel. Your agent grades your answers, so the grades are as strict as the rubric it's given. A token can do only what your account can, and stops working the moment you revoke it or lose access.
+graphify runs on your machine, on a throwaway copy of the commit; its output stays there (`~/.opensrcer/graph-cache`) for the panel and the pane. Your agent grades your answers, so the grades are as strict as the rubric it's given. A token can do only what your account can, and stops working the moment you revoke it or lose access.

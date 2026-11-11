@@ -367,7 +367,11 @@ async function mapForPane(id) {
     const { built, levels, lesson } = await colouredMap(id);
     const title = `${lesson.repo_url.replace("https://github.com/", "")} #${lesson.issue_number}`;
     mkdirSync(MAP_DIR, { recursive: true });
-    writeFileSync(join(MAP_DIR, "current.json"), JSON.stringify({ lesson: id, stage: lesson.stage, ...lessonMapData(built.graph, levels, title) }));
+    const map = lessonMapData(built.graph, levels, title);
+    // Every file the fix changes, not only those in the code map (a CHANGES.rst isn't a node).
+    const diff = (await lessonState(id)).key?.diff ?? "";
+    const changed = [...new Set([...String(diff).matchAll(/^\+\+\+ b\/(\S+)/gm)].map((m) => m[1]))];
+    writeFileSync(join(MAP_DIR, "current.json"), JSON.stringify({ lesson: id, stage: lesson.stage, ...map, changed: changed.length ? changed : map.changed }));
     return "";
   } catch (error) {
     if (!(error instanceof ToolError)) throw error;
@@ -384,7 +388,12 @@ const STEP_STAGE = { s1: "kickoff", s2: "kickoff", s3: "kickoff", s4: "kickoff",
 function lessonText(L) {
   const open = L.steps.filter((s) => !s.done && L.required.includes(s.id) && OPEN_IN[L.stage].includes(STEP_STAGE[s.id]));
   const lines = [`Lesson ${L.id}: ${L.repo_url.replace("https://github.com/", "")} #${L.issue_number}, path ${L.path}. Stage: ${STAGE_TEXT[L.stage]}. Answer key: ${L.answer_key}.`];
-  if (open.length) lines.push(uiHost ? "Open in the lesson panel:" : "Ask the user, one at a time, and send their own words with lesson_answer:", ...open.map((s) => `- ${s.id} ${s.title}: ${s.question}`));
+  // In chat, explain-it is the per-file sentences and the test; the practice review questions are asked
+  // in conversation before it (skills/learn), and the answer has no slot for them.
+  const question = (s) => (!uiHost && s.id === "explain-it" ? "Now that you have seen the fix: one sentence in your own words for each file it changes, on what it does there, and why the test proves the fix." : s.question);
+  if (open.length) lines.push(uiHost ? "Open in the lesson panel:" : "Ask the user, one at a time, and send their own words with lesson_answer:", ...open.map((s) => `- ${s.id} ${s.title}: ${question(s)}`));
+  const results = L.steps.filter((s) => s.done && L.required.includes(s.id)).map((s) => `${s.id} ${s.grade ? (s.grade.passed ? "passed" : "not yet") : "saved"}`);
+  if (results.length) lines.push(`So far: ${results.join(", ")}.`);
   if (L.path === "A" && L.answer_key === "pending" && !L.revealed) lines.push("Prepare the hidden fix now (lesson_key), before s7: steps s7 and s8 are graded against it.");
   if (L.stage === "ide") lines.push("The user writes the fix in their checkout. When they say it's done, call lesson_submit_own with done: true.");
   if (L.stage === "reveal") lines.push("Call lesson_reveal, then walk the user through the fix.");
@@ -561,7 +570,8 @@ async function lessonTool(name, id, args) {
       ? "(Its detailed feedback was withheld because it would reveal the fix. Tell the user only whether it passed, and ask them a question back about their reasoning.)"
       : "";
     const verdict = grade ? `${grade.passed ? "Passed" : "Not yet"}${quiet ? ` ${quiet}` : `: ${grade.feedback}`}` : "Saved (this step isn't graded).";
-    const file = args.step === "s7" ? await mapForPane(id) : "";
+    // The map changes with s7 (starting points), and the pane shows the lesson's end.
+    const file = args.step === "s7" || body.lesson.stage === "done" ? await mapForPane(id) : "";
     return result(`${args.step}: ${verdict}\n${lessonText(body.lesson)}${file ? `\n${file}` : ""}`, { lesson: body.lesson });
   }
   if (name === "lesson_hint") {

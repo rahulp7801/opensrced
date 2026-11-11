@@ -9,7 +9,7 @@ The user wants to understand this project and this issue well enough to fix it a
 
 ## Start
 
-1. Call `repo_profile` for the repository, as the contribute skill says, and act on what it says first (assignment, discussion, AI policy). Call `read_issue` for the issue and its comments: it works without gh, so never send the student to `gh` or the browser for it; quote what they need.
+1. Call `repo_profile` for the repository, as the contribute skill says. An AI ban stops the lesson. Its other "before you start" steps (be assigned, agree the approach on the issue) are about opening a PR, not about learning: mention them now, run the lesson, and come back to them at the end. Call `read_issue` for the issue and its comments: it works without gh, so never send the student to `gh` or the browser for it; quote what they need.
 2. If they haven't said which path they want, ask first (the path is fixed once the lesson starts):
    - **A** (default): you write the fix out of sight; they predict it, then you reveal it and they explain it.
    - **B**: they write the fix themselves in their editor.

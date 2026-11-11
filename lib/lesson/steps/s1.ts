@@ -16,7 +16,9 @@ export function topModules(ctx: StepContext, limit = 8): string[] {
   const names = buildModuleMap(ctx.graph);
   const sizes = new Map<number, number>();
   // Only the project's own code counts: external packages are not its parts.
-  for (const n of ctx.graph.nodes) if (n.source_file) sizes.set(n.community, (sizes.get(n.community) ?? 0) + 1);
+  // Tests aren't "main parts" either: a rubric listing test files pushed real modules off the list.
+  const isTest = (file: string) => /(^|\/)(tests?|testing|__tests__|spec)\//i.test(file.replace(/\\/g, "/")) || /(^|\/)test_[^/]*$|_test\.[a-z]+$/i.test(file);
+  for (const n of ctx.graph.nodes) if (n.source_file && !isTest(n.source_file)) sizes.set(n.community, (sizes.get(n.community) ?? 0) + 1);
   const top = [...sizes.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([c]) => c);
   // Several modules in one folder would all read "src/pkg" (a real rubric listed it five
   // times): those are named by the file most of their code is in, so each part is checkable.
@@ -24,7 +26,7 @@ export function topModules(ctx: StepContext, limit = 8): string[] {
   const shared = new Set(folder.filter((n, i) => folder.indexOf(n) !== i));
   const mainFile = (c: number) => {
     const files = new Map<string, number>();
-    for (const n of ctx.graph!.nodes) if (n.community === c && n.source_file) files.set(n.source_file, (files.get(n.source_file) ?? 0) + 1);
+    for (const n of ctx.graph!.nodes) if (n.community === c && n.source_file && !isTest(n.source_file)) files.set(n.source_file, (files.get(n.source_file) ?? 0) + 1);
     return [...files.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
   };
   return [...new Set(top.map((c, i) => (shared.has(folder[i]!) ? mainFile(c) ?? folder[i]! : folder[i]!)))];

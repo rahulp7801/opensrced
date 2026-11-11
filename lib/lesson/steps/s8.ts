@@ -30,10 +30,10 @@ export const s8: StepDef<string> = {
       "- cause: true if the plan locates the root cause (where and why it goes wrong).",
       "- change: true if the described change would fix it.",
       "- proof: true if the test idea would fail before the change and pass after it.",
-      "- alternative: true if the plan works but differs from the key's approach.",
-      "- feedback: two or three plain sentences. Praise what is right. Ask one question about what is missing. If alternative is true, say plainly that their approach would also work.",
+      "- alternative: true if the plan would fix the bug in a different place or by a different mechanism than the key.",
+      "- feedback: two or three plain sentences. Praise what is right. Ask one question about what is missing. If alternative is true, say plainly that their approach would work (never hint that the real fix is different).",
       "", JSON_ONLY,
-      `{"cause":true,"change":false,"proof":true,"alternative":false,"feedback":"..."}`,
+      `{"cause":true,"change":true,"proof":true,"alternative":false,"feedback":"..."}`,
     ].join("\n");
     const cases = key?.cases.map((c) => `- ${c.variant} -> ${c.test ?? "not covered"}`).join("\n") ?? "";
     const user = [

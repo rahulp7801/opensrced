@@ -16,11 +16,15 @@ const config = [
       "mcp-server/node_modules/**",
       "node_modules/**",
       "next-env.d.ts",
+      // The VS Code extension's copy of harness/ (scripts/bundle.mjs) and its test profile.
+      "vscode/server/**",
+      "vscode/.vscode-test/**",
     ],
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
-    files: ["**/*.cjs"],
+    // CommonJS: VS Code loads extensions with require().
+    files: ["**/*.cjs", "vscode/**/*.js"],
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },
 ];

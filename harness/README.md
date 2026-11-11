@@ -28,7 +28,9 @@ The install asks for your token: sign in at https://opensrced.vercel.app, open *
 
 ### VS Code with GitHub Copilot
 
-Run this once in any terminal (Node 20 or newer):
+The easiest way is the **opensrcer extension** (source in [`vscode/`](../vscode)). It runs the server on VS Code's own runtime, so there's nothing else to install. Click **opensrcer** in the status bar, choose **Sign in**, and paste your token. The extension keeps the token in VS Code's secret storage, and the lesson's code map opens in a tab beside your editor.
+
+Without the extension, run this once in any terminal (Node 20 or newer):
 
 ```sh
 npx -y opensrcer-mcp install

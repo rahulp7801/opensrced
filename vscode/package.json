@@ -1,0 +1,77 @@
+{
+  "name": "opensrcer",
+  "displayName": "opensrcer",
+  "description": "Learn open source by fixing real issues: GitHub Copilot becomes your teacher, with each project's unwritten rules and a live code map.",
+  "version": "0.3.0",
+  "publisher": "opensrcer",
+  "license": "MIT",
+  "homepage": "https://opensrced.vercel.app",
+  "repository": { "type": "git", "url": "https://github.com/rahulp7801/opensrced.git", "directory": "vscode" },
+  "engines": { "vscode": "^1.101.0" },
+  "categories": ["AI", "Education", "Other"],
+  "keywords": ["mcp", "copilot", "open source", "contributing", "learning"],
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "mcpServerDefinitionProviders": [{ "id": "opensrcer", "label": "opensrcer" }],
+    "commands": [
+      { "command": "opensrcer.signIn", "title": "Sign in", "category": "opensrcer" },
+      { "command": "opensrcer.signOut", "title": "Sign out", "category": "opensrcer" },
+      { "command": "opensrcer.startLesson", "title": "Learn an issue", "category": "opensrcer" },
+      { "command": "opensrcer.checkSetup", "title": "Check my setup", "category": "opensrcer" },
+      { "command": "opensrcer.showMap", "title": "Show the code map", "category": "opensrcer" },
+      { "command": "opensrcer.menu", "title": "Menu", "category": "opensrcer" }
+    ],
+    "configuration": {
+      "title": "opensrcer",
+      "properties": {
+        "opensrcer.url": {
+          "type": "string",
+          "default": "https://opensrced.vercel.app",
+          "description": "The opensrcer site the tools talk to. Leave as is unless you run your own."
+        },
+        "opensrcer.graphPython": {
+          "type": "string",
+          "default": "",
+          "description": "Optional: a Python with graphify installed, to draw code maps on this machine. Empty: opensrcer draws them for you."
+        }
+      }
+    },
+    "walkthroughs": [
+      {
+        "id": "start",
+        "title": "Get started with opensrcer",
+        "description": "Sign in once, then ask Copilot to teach you an issue.",
+        "steps": [
+          {
+            "id": "signIn",
+            "title": "Sign in",
+            "description": "Create a token on the opensrcer site and paste it here. It's stored in VS Code's secret storage.\n[Sign in](command:opensrcer.signIn)",
+            "media": { "markdown": "media/sign-in.md" },
+            "completionEvents": ["onContext:opensrcer.signedIn"]
+          },
+          {
+            "id": "check",
+            "title": "Check your setup",
+            "description": "Copilot runs opensrcer's setup check and says how to fix anything missing.\n[Check my setup](command:opensrcer.checkSetup)",
+            "media": { "markdown": "media/check.md" },
+            "completionEvents": ["onCommand:opensrcer.checkSetup"]
+          },
+          {
+            "id": "learn",
+            "title": "Learn an issue",
+            "description": "Name a project and an issue. Copilot teaches it step by step, and the code map opens beside your editor.\n[Learn an issue](command:opensrcer.startLesson)",
+            "media": { "markdown": "media/learn.md" },
+            "completionEvents": ["onCommand:opensrcer.startLesson"]
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "bundle": "node scripts/bundle.mjs",
+    "test": "node --test test/core.test.js",
+    "test:vscode": "node scripts/bundle.mjs && node test/vscode/run.mjs",
+    "package": "node scripts/bundle.mjs && npx -y @vscode/vsce@3 package --no-dependencies"
+  }
+}

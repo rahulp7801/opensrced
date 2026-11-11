@@ -14,8 +14,9 @@ const INSTALL = [
 ];
 const when = (iso: string | null) => iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "never";
 
-/** `vscode`: show the one-command VS Code install (only once opensrcer-mcp is published to npm). */
-export function HarnessTokens({ vscode = false }: { vscode?: boolean }) {
+/** `vscode`: show the one-command VS Code install (only once opensrcer-mcp is published to npm).
+ *  `extensionUrl`: the VS Code extension's Marketplace page, once published (it replaces the npx route). */
+export function HarnessTokens({ vscode = false, extensionUrl = "" }: { vscode?: boolean; extensionUrl?: string }) {
   const [tokens, setTokens] = useState<Token[] | null>(null);
   const [name, setName] = useState("");
   const [fresh, setFresh] = useState<string | null>(null);
@@ -64,7 +65,14 @@ export function HarnessTokens({ vscode = false }: { vscode?: boolean }) {
         {/* Scrolls sideways on phones, so it takes keyboard focus. */}
         <pre tabIndex={0} role="region" aria-label="Plugin install commands" className="card mt-2 overflow-x-auto px-4 py-3 font-mono text-[13px] text-paper">{INSTALL.join("\n")}</pre>
         <p className="mt-2 text-[14px] text-paper-muted">To change the token later, run <code className="font-mono">/plugin configure opensrcer@opensrced</code>.</p>
-        {vscode && (
+        {extensionUrl && (
+          <>
+            <p className="mt-4 text-paper-dim">
+              In VS Code with GitHub Copilot: install the <a className="underline" href={extensionUrl} target="_blank" rel="noreferrer">opensrcer extension</a>, click <strong>opensrcer</strong> in the status bar, choose <strong>Sign in</strong>, and paste the token. Nothing else to install.
+            </p>
+          </>
+        )}
+        {vscode && !extensionUrl && (
           <>
             <p className="mt-4 text-paper-dim">In VS Code with GitHub Copilot, run this once in any terminal (it needs Node 20 or newer):</p>
             <pre tabIndex={0} role="region" aria-label="VS Code install command" className="card mt-2 overflow-x-auto px-4 py-3 font-mono text-[13px] text-paper">npx -y opensrcer-mcp install</pre>

@@ -119,7 +119,11 @@ export default async function AccountPage() {
           note="A token can do only what your account can; revoking it, or losing your invite, stops it at once."
         >
           {/* OPENSRCER_VSCODE_INSTALL=1 once opensrcer-mcp is on npm (harness/package.json). */}
-          <HarnessTokens vscode={process.env.OPENSRCER_VSCODE_INSTALL === "1"} />
+          {/* OPENSRCER_VSCODE_EXTENSION_URL: the extension's Marketplace page, once published (vscode/). Only https links. */}
+          <HarnessTokens
+            vscode={process.env.OPENSRCER_VSCODE_INSTALL === "1"}
+            extensionUrl={/^https:\/\//.test(process.env.OPENSRCER_VSCODE_EXTENSION_URL ?? "") ? process.env.OPENSRCER_VSCODE_EXTENSION_URL : ""}
+          />
         </SettingsSection>
 
         <SettingsSection id="data-heading" title="Your data" description="Download or erase what opensrcer keeps about you.">

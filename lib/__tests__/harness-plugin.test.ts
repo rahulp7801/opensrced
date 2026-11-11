@@ -449,9 +449,32 @@ test("the pane's map: graphify's biggest clusters plus every one the lesson touc
   assert.ok(map.svg.startsWith("<svg ") && map.svg.length < 131_072, "within the pane's SVG limit");
 });
 
+test("in a host with a panel, the map file is still written when the editor asks for it (the VS Code extension's map tab)", async () => {
+  const { dir } = fixture();
+  const mapDir = mkdtempSync(join(tmpdir(), "opensrcer-maps-"));
+  const child = spawn(process.execPath, [join(process.cwd(), "harness", "server.mjs")], {
+    env: { ...process.env, OPENSRCER_URL: base, OPENSRCER_TOKEN: TOKEN, GITHUB_API_URL: base, OPENSRCER_HOME: home, OPENSRCER_GRAPH_PYTHON: "no-such-python-here", OPENSRCER_MAP_DIR: mapDir, OPENSRCER_CLIENT: "vscode-extension" },
+  });
+  const lines = createInterface({ input: child.stdout });
+  const send = (id: number, method: string, params: unknown) => new Promise<Record<string, unknown>>((resolve) => {
+    lines.once("line", (line) => resolve(JSON.parse(line)));
+    child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n");
+  });
+  try {
+    await send(1, "initialize", { protocolVersion: "2025-06-18", capabilities: UI_CAPS, clientInfo: { name: "vscode", version: "1" } });
+    const started = await send(2, "tools/call", { name: "lesson_start", arguments: { repo: "acme/app", issue: 12, dir } });
+    assert.notEqual((started.result as ToolResult).isError, true);
+    const map = JSON.parse(readFileSync(join(mapDir, "current.json"), "utf8"));
+    assert.deepEqual([map.lesson, map.title], [LESSON_ID, "acme/app #12"]);
+    assert.match(map.svg, /^<svg /);
+  } finally {
+    child.kill();
+  }
+});
+
 test("setup_check: everything that works, and each problem with its fix", async () => {
-  const run = async (token: string) => {
-    const child = spawn(process.execPath, [join(process.cwd(), "harness", "server.mjs")], { env: { ...process.env, OPENSRCER_URL: base, OPENSRCER_TOKEN: token, OPENSRCER_GRAPH_PYTHON: "no-such-python-here" } });
+  const run = async (token: string, client = "") => {
+    const child = spawn(process.execPath, [join(process.cwd(), "harness", "server.mjs")], { env: { ...process.env, OPENSRCER_URL: base, OPENSRCER_TOKEN: token, OPENSRCER_GRAPH_PYTHON: "no-such-python-here", OPENSRCER_CLIENT: client } });
     const lines = createInterface({ input: child.stdout });
     try {
       const reply = new Promise<string>((resolve) => lines.once("line", resolve));
@@ -471,6 +494,10 @@ test("setup_check: everything that works, and each problem with its fix", async 
   assert.match(outsider, /1 thing to fix\./);
   assert.match(await run(`osh_${"z".repeat(32)}`), /FIX: The token isn't valid any more\. Create a new one at .*\/account/);
   assert.match(await run(""), /FIX: No opensrcer token\..*\/plugin configure opensrcer@opensrced/);
+  // The VS Code extension keeps the token itself: its users sign in from the Command Palette.
+  const inVsCode = await run("", "vscode-extension");
+  assert.match(inVsCode, /FIX: No opensrcer token\..*"opensrcer: Sign in" from the Command Palette/);
+  assert.doesNotMatch(inVsCode, /plugin configure/);
 });
 
 // `npx -y opensrcer-mcp install` (harness/install.mjs): VS Code set up in one step.

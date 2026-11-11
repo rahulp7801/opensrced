@@ -17,7 +17,8 @@
 //   OPENSRCER_URL    defaults to https://opensrced.vercel.app
 //   OPENSRCER_HOME   where lessons' local data lives (default ~/.opensrcer)
 //   OPENSRCER_GRAPH_PYTHON  a Python with graphify for the code map (default: python)
-//   OPENSRCER_MAP_DIR       where the lesson map for Claude Code's pane is written (the plugin sets it)
+//   OPENSRCER_MAP_DIR       where the lesson map for the editor's map pane is written (the plugin and the VS Code extension set it)
+//   OPENSRCER_CLIENT        "vscode-extension" when the VS Code extension runs it (changes how sign-in is explained)
 
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -173,7 +174,12 @@ If the user wants to learn (or to write the fix themselves), use lesson_start in
 
 class ToolError extends Error {}
 
-const NO_TOKEN = `No opensrcer token. Create one at ${BASE}/account (Harness). In Claude Code, run /plugin configure opensrcer@opensrced and paste it; elsewhere, set OPENSRCER_TOKEN. Then restart your editor.`;
+// The VS Code extension sets OPENSRCER_CLIENT and stores the token itself: its users sign in from the Command Palette.
+const VSCODE_EXTENSION = process.env.OPENSRCER_CLIENT === "vscode-extension";
+const TOKEN_HOW = VSCODE_EXTENSION
+  ? "In VS Code, run \"opensrcer: Sign in\" from the Command Palette (Ctrl+Shift+P) and paste it."
+  : "In Claude Code, run /plugin configure opensrcer@opensrced and paste it; elsewhere, set OPENSRCER_TOKEN. Then restart your editor.";
+const NO_TOKEN = `No opensrcer token. Create one at ${BASE}/account (Harness). ${TOKEN_HOW}`;
 
 async function api(path, init = {}) {
   if (!TOKEN) throw new ToolError(NO_TOKEN);
@@ -362,7 +368,9 @@ async function colouredMap(id) {
  *  chat (hooks/register.tsx), which redraws it after every lesson tool call.
  *  Returns "" when written; a failure is said in the reply, never hidden. */
 async function mapForPane(id) {
-  if (uiHost) return "";
+  // A host with a panel draws the map there, unless the editor asked for the file too
+  // (the VS Code extension's map tab sets OPENSRCER_MAP_DIR, whatever the chat renders).
+  if (uiHost && !process.env.OPENSRCER_MAP_DIR) return "";
   try {
     const { built, levels, lesson } = await colouredMap(id);
     const title = `${lesson.repo_url.replace("https://github.com/", "")} #${lesson.issue_number}`;
@@ -433,7 +441,7 @@ async function setupCheck(dir) {
         ok(`Signed in to opensrcer as @${body.login ?? "you"}.`);
         const t = body.today ?? {};
         if (t.lessons) ok(`Today: ${t.lessons.used} of ${t.lessons.limit} lessons, ${t.new_maps.used} of ${t.new_maps.limit} new code maps (24-hour window).`);
-      } else if (res.status === 401) fix(`The token isn't valid any more. Create a new one at ${BASE}/account (Harness). In Claude Code, run /plugin configure opensrcer@opensrced and paste it; elsewhere, set OPENSRCER_TOKEN. Then restart your editor.`);
+      } else if (res.status === 401) fix(`The token isn't valid any more. Create a new one at ${BASE}/account (Harness). ${TOKEN_HOW}`);
       else if (res.status === 403) fix(String(body.error ?? "This account doesn't have access yet.").replace("/join", `${BASE}/join`));
       else fix(`opensrcer answered ${res.status}. Try again in a minute.`);
     }

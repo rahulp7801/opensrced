@@ -1,0 +1,4 @@
+server/
+LICENSE
+*.vsix
+.vscode-test/

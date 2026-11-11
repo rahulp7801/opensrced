@@ -73,6 +73,12 @@ Ask your agent to help you contribute to a repository, or to teach you an issue.
 | `lesson_show` | Where a lesson stands (and the panel, where your editor has one) |
 | `record_event` | A verification result or a PR opened/merged/closed, for your stats |
 
+## If something doesn't work
+
+Ask your agent to "check my opensrcer setup" (in Claude Code: `/opensrcer:setup`). It checks the token, your account's access, git, the code map and GitHub, and says how to fix each problem.
+
+If your editor runs agents in a sandbox (for example VS Code's [agent sandboxing](https://code.visualstudio.com/docs/agents/run/agent-sandboxing), which can apply to MCP servers too), opensrcer needs: network access to `opensrced.vercel.app` and `api.github.com`, write access to `~/.opensrcer` and the temp folder, and permission to run `git` (and `python`, if you use graphify locally).
+
 ## What it sends
 
 - **Profiles and PR checks:** the repository name, and the draft's facts (title, description, changed paths, line counts). No code.

@@ -7,8 +7,9 @@
 import { sql, type SQL } from "drizzle-orm";
 import {
   bigint, boolean, customType, index, integer, jsonb, pgTable, primaryKey, real, serial, text,
-  timestamp, unique, uuid, vector,
+  timestamp, unique, uniqueIndex, uuid, vector,
 } from "drizzle-orm/pg-core";
+import { INTEREST_ROLES } from "../interest-roles";
 
 const tsvector = customType<{ data: string }>({ dataType: () => "tsvector" });
 const at = () => timestamp({ withTimezone: true });
@@ -257,3 +258,26 @@ export const classMembers = pgTable("class_members", {
   userId: userId(),
   joinedAt: createdAt(),
 }, (t) => [primaryKey({ columns: [t.code, t.userId] }), index().on(t.userId)]);
+
+/** An early-access request from /join (lib/interest.ts InterestRequest). One
+ *  per email and one per GitHub login in any case, as upsertRequest dedupes;
+ *  approving one admits its githubId (lib/access-server.ts canUse). */
+export const accessRequests = pgTable("access_requests", {
+  id: text().primaryKey(),
+  name: text().notNull(),
+  email: text().notNull().unique(), // lowercased by normalizeInterest
+  github: text().notNull(), // the login as typed; matched case-insensitively
+  githubId: bigint({ mode: "number" }), // null when GitHub couldn't be asked at sign-up
+  status: text({ enum: ["new", "approved", "declined"] }).notNull(),
+  role: text({ enum: INTEREST_ROLES }), // null on requests made before the form asked
+  createdAt: at().notNull(),
+  updatedAt: at().notNull(),
+}, (t) => [uniqueIndex("access_requests_github_lower_index").on(sql`lower(${t.github})`)]);
+
+/** Small one-off facts the app records once, by key: e.g. lib/interest.ts
+ *  notes here that the old Blob list of requests has been imported. */
+export const appMeta = pgTable("app_meta", {
+  key: text().primaryKey(),
+  value: jsonb().$type<Record<string, unknown>>().notNull(),
+  updatedAt: createdAt(),
+});

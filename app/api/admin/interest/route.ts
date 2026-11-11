@@ -60,7 +60,10 @@ export async function PATCH(req: Request) {
   // Approving needs the account's numeric id; look it up now if sign-up couldn't.
   let githubId: number | undefined;
   if (status === "approved") {
-    const all = await listRequests().catch(() => null);
+    const all = await listRequests().catch((error: unknown) => {
+      console.error("[interest] could not read requests", error);
+      return null;
+    });
     if (!all) return Response.json({ error: "Couldn't read the requests from storage. Try again in a moment." }, { status: 503, headers: NO_STORE });
     const request = all.find((r: InterestRequest) => r.id === id);
     if (!request) return Response.json({ error: "That request no longer exists." }, { status: 404, headers: NO_STORE });

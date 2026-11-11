@@ -534,3 +534,24 @@ test("read_issue: the issue and its newest comments, maintainers marked, framed 
     child.kill();
   }
 });
+
+test("an answer waiting for its grade survives the host restarting the server", async () => {
+  // The answer goes to one server process; the grade comes from the next one (Claude Code restarts MCP servers).
+  const first = start(TOKEN);
+  try {
+    const asked = await first.request("tools/call", { name: "lesson_answer", arguments: { lesson: LESSON_ID, step: "s4", answer: "It should fill NaN; it leaves it." } });
+    assert.match(text(asked), /RUBRIC:/);
+  } finally {
+    first.child.kill();
+  }
+  const second = start(TOKEN);
+  try {
+    const graded = await second.request("tools/call", { name: "lesson_answer", arguments: { lesson: LESSON_ID, step: "s4", grader_reply: '{"users":true}' } });
+    assert.match(text(graded), /^s4: Passed/);
+    assert.deepEqual(JSON.parse(seen.at(-1)!.body), { step: "s4", answer: "It should fill NaN; it leaves it.", grader_reply: '{"users":true}' }, "graded the answer the user gave");
+    const again = await second.request("tools/call", { name: "lesson_answer", arguments: { lesson: LESSON_ID, step: "s4", grader_reply: '{"users":true}' } });
+    assert.equal((again.result as ToolResult).isError, true, "once graded, the pending answer is gone");
+  } finally {
+    second.child.kill();
+  }
+});

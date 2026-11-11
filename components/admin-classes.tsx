@@ -44,6 +44,19 @@ export function AdminClasses() {
     await load();
   }
 
+  // Prepare a repository's code map before class: the first build takes minutes, then every student's lesson starts at once.
+  const [mapRepo, setMapRepo] = useState("");
+  const [mapStatus, setMapStatus] = useState<string | null>(null);
+  async function prepareMap(event: React.FormEvent) {
+    event.preventDefault();
+    setMapStatus("Building the code map… a big project takes a few minutes.");
+    const res = await fetch("/api/admin/classes/maps", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ repo: mapRepo }) }).catch(() => null);
+    const body = (await res?.json().catch(() => ({}))) as { error?: unknown; repo?: string; nodes?: number; revision?: string; already?: boolean } | undefined;
+    setMapStatus(res?.ok && body
+      ? `${body.repo}: ${body.already ? "already ready" : "ready"} (${body.nodes} nodes, commit ${body.revision}). Students' lessons on it start at once.`
+      : typeof body?.error === "string" ? body.error : "Couldn't prepare that map. Try again in a minute.");
+  }
+
   const link = (code: string) => `${window.location.origin}/class/${code}`;
   const open = (i: Invite) => !i.revokedAt && new Date(i.expiresAt).getTime() > Date.now();
 
@@ -93,6 +106,14 @@ export function AdminClasses() {
           ))}
         </ul>
       )}
+      <form onSubmit={prepareMap} className="flex flex-wrap items-end gap-3 border-t border-border-soft pt-5">
+        <label className="min-w-0 flex-1">
+          <span className="label-mono mb-1.5 block">Prepare a code map before class</span>
+          <input value={mapRepo} onChange={(e) => setMapRepo(e.target.value)} required placeholder="owner/name, e.g. pallets/itsdangerous" className="field w-full" />
+        </label>
+        <button type="submit" className="btn-quiet" disabled={!mapRepo.trim() || mapStatus?.startsWith("Building") === true}>Prepare map</button>
+      </form>
+      {mapStatus && <p role="status" className="text-[14px] text-paper-muted">{mapStatus}</p>}
     </div>
   );
 }

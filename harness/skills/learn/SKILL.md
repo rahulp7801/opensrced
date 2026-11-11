@@ -10,9 +10,10 @@ The user wants to understand this project and this issue well enough to fix it a
 ## Start
 
 1. Call `repo_profile` for the repository, as the contribute skill says, and act on what it says first (assignment, discussion, AI policy). Call `read_issue` for the issue and its comments: it works without gh, so never send the student to `gh` or the browser for it; quote what they need.
-2. Call `lesson_start` with the repository, the issue number and `dir`, the absolute path of their local clone. Ask which path they want if they haven't said:
+2. If they haven't said which path they want, ask first (the path is fixed once the lesson starts):
    - **A** (default): you write the fix out of sight; they predict it, then you reveal it and they explain it.
    - **B**: they write the fix themselves in their editor.
+3. Then call `lesson_start` with the repository, the issue number, `dir` (the absolute path of their local clone) and `path`.
 
 ## Path A: prepare the hidden fix right away
 
@@ -34,5 +35,6 @@ Right after `lesson_start`, while the user answers the first questions:
 
 - Once s8 is graded (or the user explicitly gives up), call `lesson_reveal`, then walk them through the fix file by file, and why its test proves it.
 - Before explain-it, ask them two review questions a maintainer might ask about this fix and talk through their answers (the panel doesn't ask these).
+- For explain-it, `lesson_reveal` lists the files the fix changes: ask for one sentence on each, in their words, and send each sentence under its exact path. If they skipped a file, ask about that file rather than writing the sentence for them.
 - Path B: when they say their change is done, call `lesson_submit_own` with `done: true`; compare their change with the key at the reveal, and say what each does better.
 - After s10 the lesson is done. Their PR is theirs: follow the contribute skill (check_pr, their own description, AI disclosure), and never open, push or post anything unless they ask for that exact action.

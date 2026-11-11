@@ -8,12 +8,9 @@ import { canUse } from "@/lib/access-server";
 import { getDb } from "@/lib/db/client";
 import { assertUnderDailyLimit, DailyLimitError, HarnessAuthError, harnessUser, recordGraphBuild } from "@/lib/harness";
 import { splitRepo } from "@/lib/ai-policy";
+import { packGraph, type StoredGraph } from "@/lib/graph-worker";
+import { buildSharedGraph, SharedGraphError, storedSharedGraph } from "@/lib/harness-graph";
 import { cloudExecution } from "@/lib/cloud-run-state";
-import { buildCloudGraph } from "@/lib/cloud-graph";
-import { buildGraphWorker, packGraph, type StoredGraph } from "@/lib/graph-worker";
-import { getSharedGraph, saveStoredGraph } from "@/lib/graph-store";
-import { reserveCloudSlot } from "@/lib/cloud-capacity";
-import { CapacityError, reserveSlot } from "@/lib/concurrency";
 import { readJsonBody } from "@/lib/request-body";
 
 export const dynamic = "force-dynamic";
@@ -41,35 +38,20 @@ export async function POST(req: Request) {
   }
 
   let graph: StoredGraph | null;
-  try { graph = await getSharedGraph(repo); } catch (error) {
-    console.error("[harness/graph] read", error);
-    return Response.json({ error: "Graph storage is unavailable. Try again later, or install graphify locally." }, { status: 503 });
-  }
-  if (!graph) {
-    // Only a build costs the sandbox: it counts against the account's day (lib/harness.ts DAILY_LIMITS).
-    try { await assertUnderDailyLimit(db, userId, "graph_builds"); } catch (error) {
-      if (error instanceof DailyLimitError) return Response.json({ error: `${error.message} Or install graphify locally to map it on your machine.` }, { status: 429 });
-      throw error;
-    }
-    let release: () => void | Promise<void>;
-    try { release = cloudExecution() ? await reserveCloudSlot("graph", 2, 5.5 * 60_000, userId) : reserveSlot("graph", 2); }
-    catch (error) {
-      if (error instanceof CapacityError) return Response.json({ error: `${error.message} Try again in a few minutes.` }, { status: 429 });
-      throw error;
-    }
-    const signal = AbortSignal.any([req.signal, AbortSignal.timeout(260_000)]);
-    try {
+  try {
+    graph = await storedSharedGraph(repo);
+    if (!graph) {
+      // Only a build costs the sandbox: it counts against the account's day (lib/harness.ts DAILY_LIMITS).
+      try { await assertUnderDailyLimit(db, userId, "graph_builds"); } catch (error) {
+        if (error instanceof DailyLimitError) return Response.json({ error: `${error.message} Or install graphify locally to map it on your machine.` }, { status: 429 });
+        throw error;
+      }
       // Counted before it runs: a build that fails or times out spent the sandbox too.
-      await recordGraphBuild(db, userId, repo);
-      // No token: only a public repository clones, so only public graphs reach the shared store.
-      graph = cloudExecution() ? await buildCloudGraph(repo, null, signal, () => {}, release) : await buildGraphWorker(repo, null, signal);
-      await saveStoredGraph(userId, repo, graph, "public");
-    } catch (error) {
-      console.error("[harness/graph] build", error);
-      return Response.json({ error: signal.aborted ? "Building the code map took too long for this repository." : `Couldn't build a code map of ${repo}. It must be a public GitHub repository.` }, { status: 502 });
-    } finally {
-      if (!cloudExecution()) await Promise.resolve(release()).catch(() => {});
+      graph = await buildSharedGraph(repo, userId, req.signal, () => recordGraphBuild(db, userId, repo));
     }
+  } catch (error) {
+    if (error instanceof SharedGraphError) return Response.json({ error: error.message }, { status: error.status });
+    throw error;
   }
   const packed = packGraph(graph);
   if (packed.length > GRAPH_REPLY_MAX) {

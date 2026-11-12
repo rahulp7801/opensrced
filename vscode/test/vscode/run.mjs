@@ -11,7 +11,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const ext = join(here, "..", "..");
+// EXT_PATH runs the suite against another copy, e.g. a .vsix unzipped (its extension/ folder),
+// to prove the packaged files alone work.
+const ext = process.env.EXT_PATH || join(here, "..", "..");
 const guesses = [
   process.argv[2], process.env.VSCODE_PATH,
   process.env.LOCALAPPDATA && join(process.env.LOCALAPPDATA, "Programs", "Microsoft VS Code", "Code.exe"),

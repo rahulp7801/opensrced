@@ -281,3 +281,26 @@ export const appMeta = pgTable("app_meta", {
   value: jsonb().$type<Record<string, unknown>>().notNull(),
   updatedAt: createdAt(),
 });
+
+const bytea = customType<{ data: Buffer; driverData: Buffer | Uint8Array }>({
+  dataType: () => "bytea",
+  fromDriver: (value) => Buffer.from(value),
+});
+
+/** A public repository's newest code map (graph-worker packGraph: gzipped), for the
+ *  harness (lib/harness-graph.ts). In Postgres so lessons don't depend on Blob. */
+export const sharedGraphs = pgTable("shared_graphs", {
+  repo: text().primaryKey(), // owner/name, lowercase
+  revision: text().notNull(),
+  data: bytea().notNull(),
+  updatedAt: createdAt(),
+});
+
+/** Leases on capped cloud work, one row per slot ("graph/0"): expiry frees a slot a
+ *  terminated function never released. */
+export const cloudLeases = pgTable("cloud_leases", {
+  key: text().primaryKey(),
+  id: text().notNull(),
+  owner: text().notNull(),
+  expires: at().notNull(),
+}, (t) => [index().on(t.owner)]);

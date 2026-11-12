@@ -28,15 +28,17 @@ export default async function ClassPage({ params }: { params: Promise<{ code: st
   const reason = closedReason(invite);
   return (
     <Shell title={invite.name} description="Your instructor is using opensrcer to teach open-source contribution. Join with your GitHub account.">
-      {!sub ? (
+      {admitted ? (
+        // Access can come from elsewhere (invited, approved, another class): only an open link says "You're in" it.
+        <NextSteps welcome={reason ? "You already have access to opensrcer." : `You're in ${invite.name}.`} />
+      ) : reason ? (
+        // Said before sign-in too: nobody signs in only to learn the link is closed.
+        <div role="alert" className="callout" data-tone="warn"><p className="text-paper">{reason}</p></div>
+      ) : !sub ? (
         <div className="space-y-3">
           <p className="text-paper-dim">Step 1 of 3: sign in with GitHub. You come straight back here.</p>
           <GitHubSignIn returnTo={`/class/${code}`}>Sign in with GitHub</GitHubSignIn>
         </div>
-      ) : admitted ? (
-        <NextSteps name={invite.name} />
-      ) : reason ? (
-        <div role="alert" className="callout" data-tone="warn"><p className="text-paper">{reason}</p></div>
       ) : (
         <ClassJoin code={code} name={invite.name} />
       )}
@@ -54,10 +56,10 @@ function Shell({ title, description, children }: { title: string; description: s
 }
 
 /** What a student does once admitted: one token, one install. */
-function NextSteps({ name }: { name: string }) {
+function NextSteps({ welcome }: { welcome: string }) {
   return (
     <div className="space-y-5">
-      <div role="status" className="callout" data-tone="ok"><p className="font-semibold text-paper">You&apos;re in {name}.</p></div>
+      <div role="status" className="callout" data-tone="ok"><p className="font-semibold text-paper">{welcome}</p></div>
       <ol className="list-decimal space-y-4 pl-5 text-paper-dim">
         <li>
           <Link href="/account#harness-heading" className="link">Create your token</Link> on your Account page (Harness). Copy it: it&apos;s shown once.
@@ -66,7 +68,10 @@ function NextSteps({ name }: { name: string }) {
           Install the plugin and paste the token when it asks. In Claude Code:
           {/* Scrolls sideways on phones, so it takes keyboard focus. */}
           <pre tabIndex={0} role="region" aria-label="Claude Code install commands" className="card mt-2 overflow-x-auto px-4 py-3 font-mono text-[13px] text-paper">{"/plugin marketplace add rahulp7801/opensrced\n/plugin install opensrcer@opensrced"}</pre>
-          <span className="mt-2 block text-[14px]">Using VS Code with Copilot? Your Account page has the steps.</span>
+          {/* Only once the Account page has VS Code steps (the same switches app/account/page.tsx reads). */}
+          {(process.env.OPENSRCER_VSCODE_INSTALL === "1" || /^https:\/\//.test(process.env.OPENSRCER_VSCODE_EXTENSION_URL ?? "")) && (
+            <span className="mt-2 block text-[14px]">Using VS Code with Copilot? Your Account page has the steps.</span>
+          )}
         </li>
         <li>Ask your agent to teach you an issue, for example: <q>Teach me issue 429 in pallets/itsdangerous.</q></li>
       </ol>

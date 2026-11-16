@@ -141,7 +141,7 @@ test("the plugin server speaks MCP: initialize, tools, and calls that reach open
   const { child, request, notify } = start(TOKEN);
   try {
     const init = await request("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" } });
-    assert.deepEqual((init.result as { serverInfo: unknown }).serverInfo, { name: "opensrcer", version: "0.3.0" });
+    assert.deepEqual((init.result as { serverInfo: unknown }).serverInfo, { name: "opensrcer", version: "0.3.1" });
     // Hosts without the plugin's skill get the workflow from the server itself.
     assert.match((init.result as { instructions: string }).instructions, /Call repo_profile .* before changing code/);
     notify("notifications/initialized");
@@ -234,8 +234,9 @@ test("without a token the tools say how to get one; with a bad one, opensrcer's 
 // The code map is graphify's, as on the site: these tests run it for real
 // (CI installs requirements-graph.txt), and say so when it isn't installed.
 const GRAPH_PYTHON = process.env.OPENSRCER_GRAPH_PYTHON || "python";
-const graphifyMissing = spawnSync(GRAPH_PYTHON, ["-I", "-m", "graphify", "--help"], { encoding: "utf8" }).status === 0
-  ? false : `graphify isn't installed in ${GRAPH_PYTHON} (pip install -r requirements-graph.txt, or set OPENSRCER_GRAPH_PYTHON)`;
+// The plugin draws maps locally only with the pinned graphify (harness/graph.mjs GRAPHIFY_VERSION).
+const graphifyMissing = spawnSync(GRAPH_PYTHON, ["-I", "-c", "import importlib.metadata as m; print(m.version('graphifyy'))"], { encoding: "utf8" }).stdout?.trim() === "0.9.73"
+  ? false : `graphify 0.9.73 isn't installed in ${GRAPH_PYTHON} (pip install -r requirements-graph.txt, or set OPENSRCER_GRAPH_PYTHON)`;
 // CI installs it, so there a skip would hide a broken setup.
 if (graphifyMissing && process.env.CI) throw new Error(graphifyMissing);
 
@@ -447,6 +448,12 @@ test("the pane's map: graphify's biggest clusters plus every one the lesson touc
   assert.deepEqual([map.changed, map.explored], [["pkg/url_safe.py"], ["pkg/big59.py"]]);
   assert.ok(map.edges.length <= 80);
   assert.ok(map.svg.startsWith("<svg ") && map.svg.length < 131_072, "within the pane's SVG limit");
+  // The SVG is graphify's own picture, node by node: the 500 busiest plus the lesson's, recoloured as on the site.
+  const dots = [...map.svg.matchAll(/<circle [^>]*fill="(#[0-9A-Fa-f]{6})"/g)].map((m) => m[1]);
+  assert.equal(dots.length, 500 + 3, "500 nodes and the 3-colour legend");
+  assert.ok(dots.includes("#EDC948") && dots.includes("#4E79A7"), "the fix's node is yellow, the picked one blue");
+  const plain = lessonMapData({ nodes: nodes.filter((n) => n.community < 2), links: [] }, new Map(), "acme/app #12").svg;
+  assert.ok(plain.includes("#0f0f1a") && plain.includes('fill="#4E79A7"') && plain.includes('fill="#F28E2B"'), "before any lesson colour: graphify's ground and community palette");
 });
 
 test("in a host with a panel, the map file is still written when the editor asks for it (the VS Code extension's map tab)", async () => {

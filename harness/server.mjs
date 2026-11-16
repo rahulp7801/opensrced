@@ -28,9 +28,9 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
-import { graphify, GraphifyError, GraphifyMissing, GRAPHIFY_INSTALL, lessonMapData, overlayLevels, withOverlay } from "./graph.mjs";
+import { graphify, GraphifyError, GraphifyMissing, GRAPHIFY_INSTALL, GRAPHIFY_VERSION, lessonMapData, localGraphifyVersion, overlayLevels, withOverlay } from "./graph.mjs";
 
-const VERSION = "0.3.0";
+const VERSION = "0.3.1";
 const BASE = (process.env.OPENSRCER_URL || "https://opensrced.vercel.app").replace(/\/+$/, "");
 // A host that doesn't fill in `${user_config.…}` (plugin .mcp.json) leaves the literal: that is no token.
 const TOKEN = /^\$\{/.test(process.env.OPENSRCER_TOKEN ?? "") ? "" : process.env.OPENSRCER_TOKEN || "";
@@ -448,8 +448,10 @@ async function setupCheck(dir) {
   }
 
   const python = process.env.OPENSRCER_GRAPH_PYTHON || "python";
-  const localGraphify = await run(python, ["-I", "-c", "import graphify"], { windowsHide: true, timeout: 20_000 }).then(() => true, () => false);
-  ok(localGraphify ? `Code maps: drawn here with graphify (${python}).` : "Code maps: opensrcer draws them for you (nothing to install).");
+  const graphifyVersion = await localGraphifyVersion(python);
+  ok(graphifyVersion === GRAPHIFY_VERSION ? `Code maps: drawn here with graphify ${GRAPHIFY_VERSION} (${python}).`
+    : graphifyVersion ? `Code maps: opensrcer draws them for you (graphify ${graphifyVersion} in ${python} isn't the ${GRAPHIFY_VERSION} opensrcer uses, so it's left alone).`
+    : "Code maps: opensrcer draws them for you (nothing to install).");
   const ghSignedIn = await run("gh", ["auth", "status"], { encoding: "utf8", timeout: 20_000 }).then(() => true, () => false);
   ok(ghSignedIn ? "GitHub: issues are read with your gh sign-in." : "GitHub: opensrcer reads issues for you (gh is optional).");
 

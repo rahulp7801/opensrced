@@ -18,11 +18,13 @@ const PANE = {
 test("a lesson tool call opens the map; the terminal gets cells, the other surfaces the SVG", OPTIONS, async ($, on) => {
   const opened: string[] = [];
   on("fs.read", (_, e) => (String(e.path).endsWith("current.json") ? { value: JSON.stringify(MAP) } : { error: "ENOENT" }));
-  on("ui.open", (_, e) => { opened.push(e.title ?? ""); return { value: { isPlaced: true } }; });
+  const rows: Array<number | undefined> = [];
+  on("ui.open", (_, e) => { opened.push(e.title ?? ""); rows.push(e.rows); return { value: { isPlaced: true } }; });
   on("tool.call", () => ({ result: {} }));
 
   const ran = await $.tool.call({ tool: "mcp__plugin_opensrcer_opensrcer__lesson_reveal", lesson: MAP.lesson });
   expect(opened).toEqual(["Code map: acme/app #12"]);
+  expect(rows).toEqual([14]); // a strip above the prompt, never the whole panel
   expect(String((ran as { context?: string[] }).context)).toMatch(/opensrcer pane beside the chat/);
 
   const terminal = await $.ui.mount({ ...PANE, surface: "terminal" });
@@ -32,7 +34,7 @@ test("a lesson tool call opens the map; the terminal gets cells, the other surfa
 
   for (const surface of ["desktop", "vscode", "mobile"] as const) {
     const ui = await $.ui.mount({ ...PANE, surface });
-    expect(await ui.find({ type: "Svg" })).toBeTruthy();
+    expect((await ui.find({ type: "Svg" }))?.props.height).toBe(240); // capped: the chat stays in view
     expect((await ui.find({ type: "Markdown" }))?.text).toMatch(/Your starting points:.*janitor\/functions\/fill.py/);
     await ui.unmount();
   }

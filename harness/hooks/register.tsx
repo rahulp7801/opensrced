@@ -11,11 +11,14 @@ import type { Register } from "claude-code";
 import type { LessonMap, MapLevel } from "../types";
 
 const PANE = "opensrcer-map";
+// The pane stays a strip above the prompt, never the whole panel: the chat must stay in view.
+const PANE_ROWS = 14;
+const MAP_HEIGHT_PX = 240;
 const LESSON_TOOLS = "mcp__plugin_opensrcer_opensrcer__lesson_";
 // Change the tag when LessonMap's fields change: it declines what an earlier version stored.
 const map = atom({ plugin: "opensrcer", key: "map" } as const, null, { shape: "map-1" });
 
-const LEGEND = "Clusters of related code from graphify, sized by how much code each holds. Blue: your starting points. Yellow: changed by the fix. Grey: not looked at yet.";
+const LEGEND = "graphify's map of the code: dots are functions, classes and files, coloured by community until the lesson starts colouring. Blue: your starting points. Yellow: changed by the fix. Grey: not looked at yet.";
 /** Cell colours (0x00RRGGBB); grey is lighter than the SVG's to read on a dark terminal. */
 const CELL: Record<MapLevel, number> = { unseen: 0x8a8a8a, explored: 0x4e79a7, changed: 0xedc948 };
 const DEFAULT = 0x01000000;
@@ -76,7 +79,7 @@ export const register: Register = (on) => {
     const m = await load($);
     if (!m) return { text: "No lesson map yet: start a lesson (lesson_start) first." };
     await update($, map, () => m);
-    const opened = await $.ui.open({ id: PANE, title: `Code map: ${m.title}` });
+    const opened = await $.ui.open({ id: PANE, title: `Code map: ${m.title}`, rows: PANE_ROWS });
     return { text: opened.isPlaced ? `Opened the code map for ${m.title}.` : "This surface can't show a pane beside the chat." };
   });
 
@@ -88,7 +91,7 @@ export const register: Register = (on) => {
       const m = await load($);
       if (!m) return false;
       await update($, map, () => m);
-      return (await $.ui.open({ id: PANE, title: `Code map: ${m.title}` })).isPlaced;
+      return (await $.ui.open({ id: PANE, title: `Code map: ${m.title}`, rows: PANE_ROWS })).isPlaced;
     })().catch((error: unknown) => {
       $.ui.log(`opensrcer map: ${error instanceof Error ? error.message : String(error)}`);
       return false;
@@ -118,7 +121,7 @@ export const register: Register = (on) => {
     const { Svg } = $.ui.resolve({ ...e, surface: e.surface === "vscode" ? ("vscode" as const) : e.surface === "mobile" ? ("mobile" as const) : ("desktop" as const) });
     return (
       <Box flexDirection="column">
-        <Svg source={m.svg} alt={`Code map of ${m.title}: ${m.communities.length} clusters of code. ${text.replace(/[*`]/g, "")}`} isInteractive />
+        <Svg source={m.svg} height={MAP_HEIGHT_PX} alt={`Code map of ${m.title}: ${m.communities.length} clusters of code. ${text.replace(/[*`]/g, "")}`} isInteractive />
         <Text dimColor>{LEGEND}</Text>
         {text && <Markdown text={text} />}
       </Box>

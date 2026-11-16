@@ -14,7 +14,8 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 
 const run = promisify(execFile);
-export const GRAPHIFY_INSTALL = "pip install graphifyy==0.9.73";
+export const GRAPHIFY_VERSION = "0.9.73";
+export const GRAPHIFY_INSTALL = `pip install graphifyy==${GRAPHIFY_VERSION}`;
 const TIMEOUT_MS = 15 * 60_000;
 
 export class GraphifyError extends Error {}
@@ -30,11 +31,21 @@ export function compactGraph(raw) {
   };
 }
 
+/** The graphify version installed in `python`, or null when there is none. */
+export async function localGraphifyVersion(python = process.env.OPENSRCER_GRAPH_PYTHON || "python") {
+  return run(python, ["-I", "-c", "import importlib.metadata as m; print(m.version('graphifyy'))"], { encoding: "utf8", windowsHide: true, timeout: 20_000 })
+    .then(({ stdout }) => stdout.trim() || null, () => null);
+}
+
 /** graphify's graph of `top` at its HEAD commit: {graph, html, sha, cached}.
- *  Cached under `cacheRoot/<sha>`. Throws GraphifyError with what to do. */
+ *  Cached under `cacheRoot/<version>/<sha>`. Throws GraphifyError with what to do;
+ *  GraphifyMissing also when the installed graphify isn't the pinned version, since
+ *  a different version draws a different graph than the one the site grades with. */
 export async function graphify(top, cacheRoot, python = process.env.OPENSRCER_GRAPH_PYTHON || "python") {
+  const version = await localGraphifyVersion(python);
+  if (version && version !== GRAPHIFY_VERSION) throw new GraphifyMissing(`graphify ${version} is installed in "${python}", but opensrcer uses ${GRAPHIFY_VERSION} (${GRAPHIFY_INSTALL}).`);
   const sha = (await run("git", ["-C", top, "rev-parse", "HEAD"], { encoding: "utf8" })).stdout.trim();
-  const cache = join(cacheRoot, sha);
+  const cache = join(cacheRoot, GRAPHIFY_VERSION, sha);
   if (existsSync(join(cache, "graph.json")) && existsSync(join(cache, "graph.html"))) {
     return { graph: JSON.parse(readFileSync(join(cache, "graph.json"), "utf8")), html: readFileSync(join(cache, "graph.html"), "utf8"), sha, cached: true };
   }
@@ -242,28 +253,102 @@ export function lessonMapData(graph, levels, title) {
     y: pos[i].y,
     r: 4 + 14 * Math.sqrt(g.count / biggest),
   }));
-  // Labels: touched clusters first, then the biggest; each file named once,
-  // and none drawn over another (boxes estimated at 6 px a character).
-  const shown = new Set();
-  const placed = [];
-  const named = new Set();
-  const order = communities.map((c, i) => i).sort((a, b) => Number(communities[b].level !== "unseen") - Number(communities[a].level !== "unseen") || communities[b].count - communities[a].count);
-  for (const i of order) {
-    const c = communities[i];
-    if (named.has(c.label) || (c.level === "unseen" && shown.size >= 14)) continue;
-    const w = Math.min(28, c.label.length) * 6, box = { x0: c.x * MAP_W - w / 2, x1: c.x * MAP_W + w / 2, y0: c.y * MAP_H - c.r - 14, y1: c.y * MAP_H - c.r - 1 };
-    if (placed.some((b) => box.x0 < b.x1 && b.x0 < box.x1 && box.y0 < b.y1 && b.y0 < box.y1)) continue;
-    placed.push(box);
-    named.add(c.label);
-    shown.add(i);
+  // The communities feed the terminal's cell map (hooks/register.tsx); the SVG
+  // is graphify's own picture, node by node (nodeSvg).
+  return { title, communities, edges, explored: [...files.explored].slice(0, 12), changed: [...files.changed].slice(0, 12), svg: nodeSvg(graph, levels) };
+}
+
+// graphify's viewer (graph.html, vis-network), drawn as a still SVG: every node a
+// dot coloured by its community from graphify's palette, sized by its links
+// (10 + 30 × degree / most), the busiest labelled, on graphify's dark ground.
+// Once the lesson colours nodes, they are recoloured as on the site
+// (withOverlay): the rest grey, the starting points blue, the fix yellow.
+const GRAPHIFY_PALETTE = ["#4E79A7", "#F28E2B", "#E15759", "#76B7B2", "#59A14F", "#EDC948", "#B07AA1", "#FF9DA7", "#9C755F", "#BAB0AC"];
+// ponytail: the busiest nodes only; an SVG element takes 131072 characters at most.
+const SVG_MAX_NODES = 500;
+const SVG_MAX_EDGES = 1400;
+
+/** Fruchterman–Reingold for the nodes, started with each community around its own
+ *  point on a ring, so communities settle into clusters as graphify's do. Pure. */
+function nodeLayout(nodes, edges) {
+  const n = nodes.length;
+  const comms = [...new Set(nodes.map((x) => x.community ?? -1))];
+  const ring = new Map(comms.map((c, i) => [c, { x: 0.5 + 0.3 * Math.cos((2 * Math.PI * i) / comms.length), y: 0.5 + 0.3 * Math.sin((2 * Math.PI * i) / comms.length) }]));
+  const pos = nodes.map((x, i) => {
+    const c = ring.get(x.community ?? -1);
+    return { x: c.x + 0.06 * Math.cos(i * 2.39996) * Math.sqrt((i % 17) / 17), y: c.y + 0.06 * Math.sin(i * 2.39996) * Math.sqrt((i % 17) / 17) };
+  });
+  if (n < 2) return pos.map(() => ({ x: 0.5, y: 0.5 }));
+  const k = 0.9 * Math.sqrt(1 / n);
+  for (let step = 0, t = 0.06; step < 160; step++, t *= 0.975) {
+    const d = pos.map(() => ({ x: 0, y: 0 }));
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+      const dx = pos[i].x - pos[j].x, dy = pos[i].y - pos[j].y, dist = Math.max(1e-4, Math.hypot(dx, dy)), f = (k * k) / dist;
+      d[i].x += (dx / dist) * f; d[i].y += (dy / dist) * f; d[j].x -= (dx / dist) * f; d[j].y -= (dy / dist) * f;
+    }
+    for (const [a, b] of edges) {
+      const dx = pos[a].x - pos[b].x, dy = pos[a].y - pos[b].y, dist = Math.max(1e-4, Math.hypot(dx, dy)), f = (dist * dist) / k;
+      d[a].x -= (dx / dist) * f; d[a].y -= (dy / dist) * f; d[b].x += (dx / dist) * f; d[b].y += (dy / dist) * f;
+    }
+    pos.forEach((p, i) => {
+      const len = Math.max(1e-9, Math.hypot(d[i].x, d[i].y));
+      p.x += (d[i].x / len) * Math.min(len, t); p.y += (d[i].y / len) * Math.min(len, t);
+      p.x += (0.5 - p.x) * 0.02; p.y += (0.5 - p.y) * 0.02;
+    });
   }
-  const svg = [
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${MAP_W} ${MAP_H + 30}" width="${MAP_W}" height="${MAP_H + 30}" font-family="sans-serif">`,
-    ...edges.map(([a, b, w]) => `<line x1="${(communities[a].x * MAP_W).toFixed(1)}" y1="${(communities[a].y * MAP_H).toFixed(1)}" x2="${(communities[b].x * MAP_W).toFixed(1)}" y2="${(communities[b].y * MAP_H).toFixed(1)}" stroke="#8a8a8a" stroke-opacity="0.45" stroke-width="${(0.5 + Math.min(2.5, Math.log1p(w) / 2)).toFixed(2)}"/>`),
-    ...communities.map((c) => `<circle cx="${(c.x * MAP_W).toFixed(1)}" cy="${(c.y * MAP_H).toFixed(1)}" r="${c.r.toFixed(1)}" fill="${MAP_COLORS[c.level]}" stroke="${c.level === "unseen" ? "#777" : "#fff"}" stroke-width="${c.level === "unseen" ? 0.5 : 1.5}"><title>${xml(c.label)}: ${c.count} nodes</title></circle>`),
-    ...communities.flatMap((c, i) => (shown.has(i) ? [`<text x="${(c.x * MAP_W).toFixed(1)}" y="${(c.y * MAP_H - c.r - 3).toFixed(1)}" font-size="11" text-anchor="middle" fill="#9a9a9a">${xml(c.label.slice(0, 28))}</text>`] : [])),
-    ...Object.entries(MAP_LABELS).map(([level, label], i) => `<circle cx="${14 + i * 170}" cy="${MAP_H + 15}" r="5" fill="${MAP_COLORS[level]}"/><text x="${24 + i * 170}" y="${MAP_H + 19}" font-size="11" fill="#9a9a9a">${xml(label)}</text>`),
+  const xs = pos.map((p) => p.x), ys = pos.map((p) => p.y);
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  return pos.map((p) => ({ x: 0.04 + 0.92 * ((p.x - x0) / Math.max(1e-9, x1 - x0)), y: 0.05 + 0.9 * ((p.y - y0) / Math.max(1e-9, y1 - y0)) }));
+}
+
+/** The SVG of graphify's map, recoloured by `levels` when it has any. Pure. */
+export function nodeSvg(graph, levels) {
+  const degree = new Map();
+  for (const l of graph.links ?? []) {
+    degree.set(l.source, (degree.get(l.source) ?? 0) + 1);
+    degree.set(l.target, (degree.get(l.target) ?? 0) + 1);
+  }
+  const deg = (x) => degree.get(x.id) ?? 0;
+  // The busiest nodes, and every node the lesson colours.
+  const kept = [...graph.nodes].sort((a, b) => Number(levels.has(b.id)) - Number(levels.has(a.id)) || deg(b) - deg(a)).slice(0, Math.max(SVG_MAX_NODES, levels.size));
+  const index = new Map(kept.map((x, i) => [x.id, i]));
+  const edges = (graph.links ?? []).map((l) => [index.get(l.source), index.get(l.target)]).filter(([a, b]) => a !== undefined && b !== undefined && a !== b).slice(0, SVG_MAX_EDGES);
+  const pos = nodeLayout(kept, edges);
+  const most = Math.max(1, ...kept.map(deg));
+  const W = MAP_W, H = MAP_H;
+  const at = (i) => `${Math.round(pos[i].x * W)},${Math.round(pos[i].y * H)}`;
+  const coloured = levels.size > 0;
+  const fill = (x) => (coloured ? MAP_COLORS[levels.get(x.id) ?? "unseen"] : GRAPHIFY_PALETTE[Math.abs(x.community ?? 0) % GRAPHIFY_PALETTE.length]);
+  // vis-network's dot `size` is its radius in its own units; scaled to this canvas.
+  const radius = (x) => (10 + (30 * deg(x)) / most) * 0.22;
+  // Drawn last so the lesson's nodes sit on top.
+  const order = kept.map((_, i) => i).sort((a, b) => Number(levels.has(kept[a].id)) - Number(levels.has(kept[b].id)));
+  // Labels as graphify shows them (its busiest nodes), the lesson's first, at most
+  // 24 and none over another (boxes estimated at 5 px a character).
+  const labelled = new Set();
+  const boxes = [];
+  const byWeight = kept.map((_, i) => i).filter((i) => levels.has(kept[i].id) || deg(kept[i]) / most >= 0.15)
+    .sort((a, b) => Number(levels.has(kept[b].id)) - Number(levels.has(kept[a].id)) || deg(kept[b]) - deg(kept[a]));
+  for (const i of byWeight) {
+    if (labelled.size >= 24) break;
+    const text = String(kept[i].label).slice(0, 24), w = text.length * 5, x = pos[i].x * W, y = pos[i].y * H - radius(kept[i]) - 2;
+    const box = { x0: x - w / 2, x1: x + w / 2, y0: y - 9, y1: y + 1 };
+    if (boxes.some((b) => box.x0 < b.x1 && b.x0 < box.x1 && box.y0 < b.y1 && b.y0 < box.y1)) continue;
+    boxes.push(box);
+    labelled.add(i);
+  }
+  const legend = coloured
+    ? Object.entries(MAP_LABELS).map(([level, text], i) => `<circle cx="${14 + i * 170}" cy="${H + 15}" r="5" fill="${MAP_COLORS[level]}"/><text x="${24 + i * 170}" y="${H + 19}" font-size="11" fill="#e0e0e0">${xml(text)}</text>`)
+    : [`<text x="12" y="${H + 19}" font-size="11" fill="#e0e0e0">Colours: graphify's communities (related code). Bigger dots have more links.</text>`];
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H + 30}" width="${W}" height="${H + 30}" font-family="sans-serif">`,
+    `<rect width="${W}" height="${H + 30}" fill="#0f0f1a"/>`,
+    `<g stroke="#848484" stroke-opacity="0.45" stroke-width="0.7">`,
+    ...edges.map(([a, b]) => `<path d="M${at(a)}L${at(b)}"/>`),
+    "</g>",
+    ...order.map((i) => `<circle cx="${Math.round(pos[i].x * W)}" cy="${Math.round(pos[i].y * H)}" r="${radius(kept[i]).toFixed(1)}" fill="${fill(kept[i])}"${levels.has(kept[i].id) ? ' stroke="#ffffff" stroke-width="1.2"' : ""}><title>${xml(kept[i].label)}</title></circle>`),
+    ...[...labelled].map((i) => `<text x="${Math.round(pos[i].x * W)}" y="${Math.round(pos[i].y * H - radius(kept[i]) - 2)}" font-size="9" text-anchor="middle" fill="#ffffff">${xml(String(kept[i].label).slice(0, 24))}</text>`),
+    ...legend,
     "</svg>",
   ].join("");
-  return { title, communities, edges, explored: [...files.explored].slice(0, 12), changed: [...files.changed].slice(0, 12), svg };
 }

@@ -92,7 +92,7 @@ svg{width:100%;height:auto;max-height:75vh} ul{margin:4px 0 10px;padding-left:18
   return `${head}<h1>${escapeHtml(map.title ?? "Code map")}</h1>
 <p class="stage">${escapeHtml(STAGES[map.stage] ?? "Lesson in progress")}</p>
 ${svg}
-<p class="legend">Each circle is a cluster of related code from graphify, sized by how much code it holds; lines show how clusters connect.</p>
+<p class="legend">graphify's map of the code: each dot is a function, class or file, bigger with more links; lines are calls and imports.</p>
 ${list("Your starting points", map.explored)}${list("Changed by the fix", map.changed)}</body></html>`;
 }
 

@@ -164,7 +164,7 @@ export function harnessDeps(db: Db, userId: string, graderReply: string | null =
 async function ownHarnessLesson(db: Db, userId: string, id: string): Promise<Lesson | Response> {
   if (!lessonsEnabled()) return json({ error: LESSONS_DISABLED }, 404);
   const lesson = await new DbLessonStore(async () => db).get(id).catch(() => null);
-  return lesson && lesson.owner === userId && lesson.run_id === HARNESS_RUN ? lesson : json({ error: "not found" }, 404);
+  return lesson && lesson.owner === userId && lesson.run_id === HARNESS_RUN ? lesson : json({ error: `There's no lesson ${id} on your account. Start one with lesson_start; your lessons are listed on your Account page.` }, 404);
 }
 
 const relay = (body: unknown) => new Request("http://harness.local/", { method: "POST", body: JSON.stringify(body) });

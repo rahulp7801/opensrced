@@ -800,6 +800,8 @@ export async function fetchRepoProfile(client: GitHubClient, repo: string, now =
       try {
         data = await client.graphql<Data>(QUERY, { owner: o, name: nm, q: cohortQueries(o, nm, now, window)[slice], n, cursor });
       } catch (error) {
+        // GitHub answers a repository that doesn't exist with a NOT_FOUND error, not empty data.
+        if ((error as { errors?: Array<{ type?: string; path?: unknown[] }> }).errors?.some((e) => e.type === "NOT_FOUND" && e.path?.[0] === "repository")) throw new RepoNotFoundError(repo);
         throw new RepoProfileFetchError(repo, error);
       }
       if (!data?.repository) throw new RepoNotFoundError(repo);

@@ -125,8 +125,15 @@ export function checkDraft(p: RepoProfile, draft: PrDraft): Check[] {
     const tests = touchesTests ? " Test lines count too: if most of the size is the test, say so in the description." : "";
     add("size", "warn", `The draft changes ${lines} lines; the ${o.merged.count} merged outside PRs here change a median of ${o.medianLinesMerged}. Consider splitting it.${tests}`);
   }
+  // Whatever this project's history: a code change should carry the test that proves it, and say which issue it fixes.
+  if (!checks.some((x) => x.id === "tests") && !touchesTests && kind !== "docs" && kind !== "translation") {
+    add("no-tests", "note", "The draft changes no tests. A fix normally comes with the test that proves it: it fails without the change and passes with it.");
+  }
+  if (!checks.some((x) => x.id === "linked-issue") && !draft.linkedIssue) {
+    add("no-issue-link", "note", 'The description doesn\'t link the issue it fixes ("Fixes #123", or "Part of #123" on a shared issue).');
+  }
   // Silence would read as "all good" (nbQA, earthpy): say there is too little to compare with.
-  const NORMS = ["linked-issue", "tests", "changelog", "title", "sign-off", "size"];
+  const NORMS =["linked-issue", "tests", "changelog", "title", "sign-off", "size"];
   if (!checks.some((c) => NORMS.includes(c.id))) {
     add("too-little-history", "note", `Too few merged PRs here to compare this draft with (${o.merged.count} merged outside PR${o.merged.count === 1 ? "" : "s"} in the window). Read the contributing guide and a few recent merged PRs instead.`);
   }

@@ -88,6 +88,19 @@ test("with too little history, check_pr says so instead of returning nothing (nb
   assert.match(note.text, /^Too few merged PRs here to compare this draft with \(0 merged outside PRs in the window\)/);
 });
 
+test("with no history to go on, a code draft without a test or an issue link still gets a note for each (itsdangerous: 0 merged outside PRs)", () => {
+  const quiet = summarizeProfile("acme/quiet", []);
+  const bare = checkDraft(quiet, { ...GOOD, title: "fixed stuff", body: "small fix", files: ["src/acme/serializer.py"], linkedIssue: false });
+  assert.deepEqual(["no-tests", "no-issue-link", "too-little-history"].map((id) => bare.find((c) => c.id === id)?.status), ["note", "note", "note"]);
+  const tidy = checkDraft(quiet, { ...GOOD, files: ["src/acme/serializer.py", "tests/test_serializer.py"], linkedIssue: true });
+  assert.equal(tidy.find((c) => c.id === "no-tests" || c.id === "no-issue-link"), undefined, "a draft with both gets neither");
+  const docs = checkDraft(quiet, { ...GOOD, title: "[DOC] fix a typo", files: ["docs/index.rst"], linkedIssue: true });
+  assert.equal(docs.find((c) => c.id === "no-tests"), undefined, "docs have no test to add");
+  // Where the project's own habit already judged tests or the link, no second, softer note.
+  const judged = checkDraft(profile(), { ...GOOD, files: ["janitor/functions/fill.py"], linkedIssue: false });
+  assert.equal(judged.find((c) => c.id === "no-tests" || c.id === "no-issue-link"), undefined);
+});
+
 test("a written procedure warns even without PR history (earthpy: approval before a PR)", () => {
   const quiet = summarizeProfile("acme/quiet", []);
   quiet.aiPolicy = { stance: "unknown", source: null, evidence: null, procedures: [

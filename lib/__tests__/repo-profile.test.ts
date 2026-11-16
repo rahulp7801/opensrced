@@ -635,6 +635,12 @@ test("a missing repository and a GitHub failure are named errors", async () => {
   await assert.rejects(fetchRepoProfile(client(null).client, "acme/gone"), RepoNotFoundError);
   await assert.rejects(fetchRepoProfile(client(new Error("rate limited")).client, "acme/app"), RepoProfileFetchError);
   await assert.rejects(fetchRepoProfile(client([]).client, "not a repo"), /repo/i);
+  // What GitHub really sends for a repository that doesn't exist (Octokit's GraphqlResponseError):
+  // not found, never "GitHub didn't answer".
+  const notFound = Object.assign(new Error("Could not resolve to a Repository"), { errors: [{ type: "NOT_FOUND", path: ["repository"] }], data: { repository: null } });
+  await assert.rejects(fetchRepoProfile(client(notFound).client, "acme/never"), RepoNotFoundError);
+  const otherNotFound = Object.assign(new Error("Could not resolve a node"), { errors: [{ type: "NOT_FOUND", path: ["search", "nodes", 0] }] });
+  await assert.rejects(fetchRepoProfile(client(otherNotFound).client, "acme/app"), RepoProfileFetchError);
 });
 
 test("a failed last-merge search is a named error, not a silent gap", async () => {

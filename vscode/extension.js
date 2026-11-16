@@ -9,7 +9,7 @@ const vscode = require("vscode");
 const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
-const { TokenFormatError, cleanToken, siteUrl, serverLaunch, describeMe, mapHtml, parseMap, parseIssue } = require("./core");
+const { TokenFormatError, cleanToken, siteUrl, serverLaunch, describeMe, mapHtml, viewerHtml, parseMap, parseIssue } = require("./core");
 
 const SECRET = "opensrcer.token";
 const PROVIDER = "opensrcer";
@@ -152,10 +152,14 @@ async function activate(context) {
 
   function showMap(map, focus) {
     if (!panel) {
-      panel = vscode.window.createWebviewPanel("opensrcer.map", "opensrcer map", { viewColumn: vscode.ViewColumn.Beside, preserveFocus: !focus }, { enableScripts: false });
+      // Scripts on for graphify's viewer (its own CSP in viewerHtml); no local files and no
+      // message handler, so the page can reach nothing of VS Code's.
+      panel = vscode.window.createWebviewPanel("opensrcer.map", "opensrcer map", { viewColumn: vscode.ViewColumn.Beside, preserveFocus: !focus }, { enableScripts: true, localResourceRoots: [], retainContextWhenHidden: true });
       panel.onDidDispose(() => { panel = null; });
     } else if (focus) panel.reveal(undefined, false);
-    panel.webview.html = mapHtml(map, panel.webview.cspSource);
+    const viewerFile = map && map.viewer === "current.html" ? path.join(mapDir, "current.html") : "";
+    const viewer = viewerFile && fs.existsSync(viewerFile) ? viewerHtml(fs.readFileSync(viewerFile, "utf8"), panel.webview.cspSource) : null;
+    panel.webview.html = viewer ?? mapHtml(map, panel.webview.cspSource);
   }
 
   let timer = null;

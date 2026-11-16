@@ -30,7 +30,7 @@ import { promisify } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { graphify, GraphifyError, GraphifyMissing, GRAPHIFY_INSTALL, GRAPHIFY_VERSION, lessonMapData, localGraphifyVersion, overlayLevels, withOverlay } from "./graph.mjs";
 
-const VERSION = "0.3.4";
+const VERSION = "0.3.5";
 const BASE = (process.env.OPENSRCER_URL || "https://opensrced.vercel.app").replace(/\/+$/, "");
 // A host that doesn't fill in `${user_config.…}` (plugin .mcp.json) leaves the literal: that is no token.
 const TOKEN = /^\$\{/.test(process.env.OPENSRCER_TOKEN ?? "") ? "" : process.env.OPENSRCER_TOKEN || "";
@@ -381,9 +381,14 @@ async function mapForPane(id) {
     // Every file the fix changes, not only those in the code map (a CHANGES.rst isn't a node).
     const diff = (await lessonState(id)).key?.diff ?? "";
     const changed = [...new Set([...String(diff).matchAll(/^\+\+\+ b\/(\S+)/gm)].map((m) => m[1]))];
-    const data = JSON.stringify({ lesson: id, stage: lesson.stage, ...map, changed: changed.length ? changed : map.changed });
+    // graphify's own viewer (vis-network), coloured by the lesson as the panel's is: an editor
+    // tab that runs scripts (the VS Code extension) shows it in place of the still SVG.
+    const viewer = typeof built.html === "string" && built.html.includes("</body>") ? withOverlay(built.html, levels) : "";
+    const data = JSON.stringify({ lesson: id, stage: lesson.stage, ...map, changed: changed.length ? changed : map.changed, viewer: viewer ? "current.html" : null });
     for (const dir of new Set([resolve(MAP_DIR), resolve(SHARED_MAP_DIR)])) {
       mkdirSync(dir, { recursive: true });
+      // The page first: whoever reads current.json finds its viewer already written.
+      if (viewer) writeFileSync(join(dir, "current.html"), viewer);
       writeFileSync(join(dir, "current.json"), data);
     }
     return "";

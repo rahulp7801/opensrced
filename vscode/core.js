@@ -96,6 +96,26 @@ ${svg}
 ${list("Your starting points", map.explored)}${list("Changed by the fix", map.changed)}</body></html>`;
 }
 
+/** Where graphify's viewer loads vis-network from (harness/server.mjs, the site's graph.html). */
+const VIEWER_SCRIPTS = "https://unpkg.com";
+
+/**
+ * The map tab showing graphify's own viewer (graph.html, recoloured by harness/graph.mjs
+ * withOverlay): vis-network's interactive map, as on the site. It runs scripts, so a CSP is
+ * put first in its head: scripts only inline and from VIEWER_SCRIPTS, and no network
+ * access, so nothing in the page (its labels come from the repository) can send data
+ * anywhere. The webview has no message handler and no local files (extension.js).
+ * Returns null for anything that isn't an HTML page.
+ */
+function viewerHtml(html, cspSource) {
+  const page = String(html ?? "");
+  const at = page.search(/<head[^>]*>/i);
+  if (at < 0) return null;
+  const end = page.indexOf(">", at) + 1;
+  const csp = `default-src 'none'; script-src 'unsafe-inline' ${VIEWER_SCRIPTS}; style-src 'unsafe-inline' ${cspSource}; img-src data: blob:; font-src data:; connect-src 'none';`;
+  return `${page.slice(0, end)}<meta http-equiv="Content-Security-Policy" content="${csp}">${page.slice(end)}`;
+}
+
 /** The map file the server wrote, or null when there's none or it's unreadable mid-write. */
 function parseMap(text) {
   try {
@@ -114,4 +134,4 @@ function parseIssue(text) {
   return m && Number(m[2]) > 0 ? { repo: m[1], number: Number(m[2]) } : null;
 }
 
-module.exports = { TOKEN, TokenFormatError, cleanToken, siteUrl, serverLaunch, describeMe, mapHtml, parseMap, parseIssue, STAGES };
+module.exports = { TOKEN, TokenFormatError, cleanToken, siteUrl, serverLaunch, describeMe, mapHtml, viewerHtml, parseMap, parseIssue, STAGES };

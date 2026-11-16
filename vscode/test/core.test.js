@@ -4,7 +4,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { TokenFormatError, cleanToken, siteUrl, serverLaunch, describeMe, mapHtml, parseMap, parseIssue } = require("../core");
+const { TokenFormatError, cleanToken, siteUrl, serverLaunch, describeMe, mapHtml, viewerHtml, parseMap, parseIssue } = require("../core");
 
 const GOOD = `osh_${"aB3_-".repeat(6)}xy`;
 
@@ -95,3 +95,15 @@ for (const [text, want] of [
 ]) {
   test(`parseIssue(${JSON.stringify(text)})`, () => assert.deepEqual(parseIssue(text), want));
 }
+
+test("viewerHtml: graphify's page with a CSP first in its head (scripts inline and from unpkg only, no network); not a page → null", () => {
+  const page = viewerHtml('<html><head><title>g</title></head><body><script src="https://unpkg.com/vis-network@9.1.6/x.js"></script></body></html>', "vscode-resource:");
+  const meta = page.match(/^<html><head><meta http-equiv="Content-Security-Policy" content="([^"]+)"><title>/);
+  assert.ok(meta, "the CSP comes before anything else in the head");
+  assert.match(meta[1], /default-src 'none'/);
+  assert.match(meta[1], /script-src 'unsafe-inline' https:\/\/unpkg\.com;/);
+  assert.match(meta[1], /connect-src 'none'/);
+  assert.doesNotMatch(meta[1], /unsafe-eval/);
+  assert.match(viewerHtml('<HTML><HEAD lang="en"></HEAD></HTML>', "x"), /^<HTML><HEAD lang="en"><meta http-equiv/);
+  for (const bad of ["", "no html here", null, undefined]) assert.equal(viewerHtml(bad, "x"), null);
+});

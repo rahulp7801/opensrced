@@ -267,6 +267,9 @@ const GRAPHIFY_PALETTE = ["#4E79A7", "#F28E2B", "#E15759", "#76B7B2", "#59A14F",
 // ponytail: the busiest nodes only; an SVG element takes 131072 characters at most.
 const SVG_MAX_NODES = 500;
 const SVG_MAX_EDGES = 1400;
+const SVG_MAX_CHARS = 125_000; // the Svg element's limit is 131072
+const SVG_ANIMATED_NODES = 300;
+const SVG_ANIMATED_EDGES = 800;
 
 /** Fruchterman–Reingold for the nodes, started with each community around its own
  *  point on a ring, so communities settle into clusters as graphify's do. Pure. */
@@ -278,7 +281,8 @@ function nodeLayout(nodes, edges) {
     const c = ring.get(x.community ?? -1);
     return { x: c.x + 0.06 * Math.cos(i * 2.39996) * Math.sqrt((i % 17) / 17), y: c.y + 0.06 * Math.sin(i * 2.39996) * Math.sqrt((i % 17) / 17) };
   });
-  if (n < 2) return pos.map(() => ({ x: 0.5, y: 0.5 }));
+  if (n < 2) return pos.map(() => ({ x: 0.5, y: 0.5, sx: 0.5, sy: 0.5 }));
+  const seed = pos.map((p) => ({ ...p }));
   const k = 0.9 * Math.sqrt(1 / n);
   for (let step = 0, t = 0.06; step < 160; step++, t *= 0.975) {
     const d = pos.map(() => ({ x: 0, y: 0 }));
@@ -298,11 +302,13 @@ function nodeLayout(nodes, edges) {
   }
   const xs = pos.map((p) => p.x), ys = pos.map((p) => p.y);
   const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-  return pos.map((p) => ({ x: 0.04 + 0.92 * ((p.x - x0) / Math.max(1e-9, x1 - x0)), y: 0.05 + 0.9 * ((p.y - y0) / Math.max(1e-9, y1 - y0)) }));
+  const fx = (x) => 0.04 + 0.92 * ((x - x0) / Math.max(1e-9, x1 - x0)), fy = (y) => 0.05 + 0.9 * ((y - y0) / Math.max(1e-9, y1 - y0));
+  // sx, sy: where the node started, on the same canvas (the SVG animates it settling, as vis-network's physics does).
+  return pos.map((p, i) => ({ x: fx(p.x), y: fy(p.y), sx: fx(seed[i].x), sy: fy(seed[i].y) }));
 }
 
 /** The SVG of graphify's map, recoloured by `levels` when it has any. Pure. */
-export function nodeSvg(graph, levels) {
+export function nodeSvg(graph, levels, animate = true, maxNodes = SVG_MAX_NODES, maxEdges = SVG_MAX_EDGES) {
   const degree = new Map();
   for (const l of graph.links ?? []) {
     degree.set(l.source, (degree.get(l.source) ?? 0) + 1);
@@ -310,9 +316,9 @@ export function nodeSvg(graph, levels) {
   }
   const deg = (x) => degree.get(x.id) ?? 0;
   // The busiest nodes, and every node the lesson colours.
-  const kept = [...graph.nodes].sort((a, b) => Number(levels.has(b.id)) - Number(levels.has(a.id)) || deg(b) - deg(a)).slice(0, Math.max(SVG_MAX_NODES, levels.size));
+  const kept = [...graph.nodes].sort((a, b) => Number(levels.has(b.id)) - Number(levels.has(a.id)) || deg(b) - deg(a)).slice(0, Math.max(maxNodes, levels.size));
   const index = new Map(kept.map((x, i) => [x.id, i]));
-  const edges = (graph.links ?? []).map((l) => [index.get(l.source), index.get(l.target)]).filter(([a, b]) => a !== undefined && b !== undefined && a !== b).slice(0, SVG_MAX_EDGES);
+  const edges = (graph.links ?? []).map((l) => [index.get(l.source), index.get(l.target)]).filter(([a, b]) => a !== undefined && b !== undefined && a !== b).slice(0, maxEdges);
   const pos = nodeLayout(kept, edges);
   const most = Math.max(1, ...kept.map(deg));
   const W = MAP_W, H = MAP_H;
@@ -340,15 +346,41 @@ export function nodeSvg(graph, levels) {
   const legend = coloured
     ? Object.entries(MAP_LABELS).map(([level, text], i) => `<circle cx="${14 + i * 170}" cy="${H + 15}" r="5" fill="${MAP_COLORS[level]}"/><text x="${24 + i * 170}" y="${H + 19}" font-size="11" fill="#e0e0e0">${xml(text)}</text>`)
     : [`<text x="12" y="${H + 19}" font-size="11" fill="#e0e0e0">Colours: graphify's communities (related code). Bigger dots have more links.</text>`];
-  return [
+  // Motion as the web demo's map has it, with no script (a pane draws SVG as an image or a
+  // script-less frame): the dots settle from their communities into place, then the links
+  // and names fade in, and the lesson's nodes pulse a few times. Each animation's static
+  // attributes are the finished picture, so a surface that doesn't animate draws that.
+  const SETTLE = "1.6s";
+  const fadeIn = animate ? `<animate attributeName="opacity" values="0;0;1" keyTimes="0;0.7;1" dur="2.2s" fill="freeze"/>` : "";
+  const settle = (i) => {
+    if (!animate) return "";
+    const dx = Math.round((pos[i].sx - pos[i].x) * W), dy = Math.round((pos[i].sy - pos[i].y) * H);
+    return dx || dy ? `<animateTransform attributeName="transform" type="translate" from="${dx} ${dy}" to="0 0" dur="${SETTLE}" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.2 0.7 0.2 1"/>` : "";
+  };
+  const pulse = (i) => {
+    if (!animate || !levels.has(kept[i].id)) return "";
+    const r = radius(kept[i]);
+    return `<circle cx="${Math.round(pos[i].x * W)}" cy="${Math.round(pos[i].y * H)}" r="${r.toFixed(1)}" fill="none" stroke="${fill(kept[i])}" stroke-width="1.5" stroke-opacity="0"><animate attributeName="r" values="${r.toFixed(1)};${(r + 9).toFixed(1)}" dur="1.4s" begin="${SETTLE}" repeatCount="3"/><animate attributeName="stroke-opacity" values="0.9;0" dur="1.4s" begin="${SETTLE}" repeatCount="3"/></circle>`;
+  };
+  const svg = [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H + 30}" width="${W}" height="${H + 30}" font-family="sans-serif">`,
+    // Where the surface lets the pointer reach the map (the desktop app), a dot lights up under it and names itself.
+    "<style>circle:hover{stroke:#ffffff;stroke-width:2.5}</style>",
     `<rect width="${W}" height="${H + 30}" fill="#0f0f1a"/>`,
-    `<g stroke="#848484" stroke-opacity="0.45" stroke-width="0.7">`,
+    `<g stroke="#848484" stroke-opacity="0.45" stroke-width="0.7">${fadeIn}`,
     ...edges.map(([a, b]) => `<path d="M${at(a)}L${at(b)}"/>`),
     "</g>",
-    ...order.map((i) => `<circle cx="${Math.round(pos[i].x * W)}" cy="${Math.round(pos[i].y * H)}" r="${radius(kept[i]).toFixed(1)}" fill="${fill(kept[i])}"${levels.has(kept[i].id) ? ' stroke="#ffffff" stroke-width="1.2"' : ""}><title>${xml(kept[i].label)}</title></circle>`),
+    ...order.map((i) => `<circle cx="${Math.round(pos[i].x * W)}" cy="${Math.round(pos[i].y * H)}" r="${radius(kept[i]).toFixed(1)}" fill="${fill(kept[i])}"${levels.has(kept[i].id) ? ' stroke="#ffffff" stroke-width="1.2"' : ""}><title>${xml(kept[i].label)}</title>${settle(i)}</circle>`),
+    ...order.map(pulse),
+    `<g>${fadeIn}`,
     ...[...labelled].map((i) => `<text x="${Math.round(pos[i].x * W)}" y="${Math.round(pos[i].y * H - radius(kept[i]) - 2)}" font-size="9" text-anchor="middle" fill="#ffffff">${xml(String(kept[i].label).slice(0, 24))}</text>`),
+    "</g>",
     ...legend,
     "</svg>",
   ].join("");
+  // The motion costs characters: a map too big for the pane's limit with it moves with its
+  // busiest 300 nodes instead, and one too big even then is drawn still with all 500.
+  if (svg.length <= SVG_MAX_CHARS || !animate) return svg;
+  if (maxNodes > SVG_ANIMATED_NODES) return nodeSvg(graph, levels, true, SVG_ANIMATED_NODES, SVG_ANIMATED_EDGES);
+  return nodeSvg(graph, levels, false);
 }

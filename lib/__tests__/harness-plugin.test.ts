@@ -141,7 +141,7 @@ test("the plugin server speaks MCP: initialize, tools, and calls that reach open
   const { child, request, notify } = start(TOKEN);
   try {
     const init = await request("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" } });
-    assert.deepEqual((init.result as { serverInfo: unknown }).serverInfo, { name: "opensrcer", version: "0.3.1" });
+    assert.deepEqual((init.result as { serverInfo: unknown }).serverInfo, { name: "opensrcer", version: "0.3.2" });
     // Hosts without the plugin's skill get the workflow from the server itself.
     assert.match((init.result as { instructions: string }).instructions, /Call repo_profile .* before changing code/);
     notify("notifications/initialized");
@@ -450,10 +450,18 @@ test("the pane's map: graphify's biggest clusters plus every one the lesson touc
   assert.ok(map.svg.startsWith("<svg ") && map.svg.length < 131_072, "within the pane's SVG limit");
   // The SVG is graphify's own picture, node by node: the 500 busiest plus the lesson's, recoloured as on the site.
   const dots = [...map.svg.matchAll(/<circle [^>]*fill="(#[0-9A-Fa-f]{6})"/g)].map((m) => m[1]);
-  assert.equal(dots.length, 500 + 3, "500 nodes and the 3-colour legend");
+  assert.equal(dots.length, 300 + 3, "a map this big moves with its 300 busiest nodes (and every one the lesson colours), plus the 3-colour legend");
   assert.ok(dots.includes("#EDC948") && dots.includes("#4E79A7"), "the fix's node is yellow, the picked one blue");
   const plain = lessonMapData({ nodes: nodes.filter((n) => n.community < 2), links: [] }, new Map(), "acme/app #12").svg;
   assert.ok(plain.includes("#0f0f1a") && plain.includes('fill="#4E79A7"') && plain.includes('fill="#F28E2B"'), "before any lesson colour: graphify's ground and community palette");
+  // Motion with no script: a small map settles and fades in; one too big for the limit with it is drawn still.
+  const small = lessonMapData({ nodes: nodes.filter((n) => n.community < 3), links: links.slice(0, 100) }, new Map([["0-1", "explored"]]), "acme/app #12").svg;
+  assert.match(small, /<animateTransform attributeName="transform" type="translate"/);
+  assert.match(small, /<animate attributeName="r" values=/, "the lesson's node pulses");
+  assert.doesNotMatch(small, /<script|on[a-z]+=/i, "no script and no event handlers");
+  const big = lessonMapData({ nodes, links }, new Map(), "acme/app #12").svg;
+  assert.ok(big.includes("<animateTransform") && big.length <= 125_000, "a big map moves with its busiest 300 nodes, within the limit");
+  assert.equal([...big.matchAll(/<circle [^>]*fill="#[0-9A-Fa-f]{6}"/g)].length, 300);
 });
 
 test("in a host with a panel, the map file is still written when the editor asks for it (the VS Code extension's map tab)", async () => {

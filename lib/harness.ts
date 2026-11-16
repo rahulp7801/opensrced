@@ -7,9 +7,9 @@
 // someone's invite revokes their harness too.
 
 import { createHash, randomBytes } from "node:crypto";
-import { and, count, desc, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "./db/client";
-import { apiTokens, harnessEvents, lessons } from "./db/schema";
+import { apiTokens, harnessEvents, lessonSteps, lessons, repos } from "./db/schema";
 import { ensureUser } from "./users";
 import { splitRepo } from "./ai-policy";
 
@@ -69,6 +69,37 @@ export async function createToken(db: Db, userId: string, login: string, name: s
 export async function listTokens(db: Db, userId: string): Promise<TokenInfo[]> {
   return db.select({ id: apiTokens.id, name: apiTokens.name, createdAt: apiTokens.createdAt, lastUsedAt: apiTokens.lastUsedAt })
     .from(apiTokens).where(and(eq(apiTokens.userId, userId), isNull(apiTokens.revokedAt))).orderBy(desc(apiTokens.id));
+}
+
+/** A lesson as the Account page lists it: what the plugin (or the site) has recorded so far. */
+export type LessonSummary = {
+  id: string;
+  repo: string;
+  issue: number;
+  stage: string;
+  path: "ai" | "self" | null;
+  answerKey: "verified" | "unverified" | "failed" | null;
+  startedAt: Date;
+  finishedAt: Date | null;
+  /** The steps done, in lesson order. */
+  done: string[];
+};
+
+const STEP_ORDER = ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "explain-it", "s10"];
+
+/** The user's newest lessons with their progress, newest first. */
+export async function listLessons(db: Db, userId: string, limit = 20): Promise<LessonSummary[]> {
+  const rows = await db.select({ id: lessons.id, owner: repos.owner, name: repos.name, issue: lessons.issueNumber, stage: lessons.stage, path: lessons.path, answerKey: lessons.answerKeyStatus, startedAt: lessons.startedAt, finishedAt: lessons.finishedAt })
+    .from(lessons).innerJoin(repos, eq(repos.id, lessons.repoId))
+    .where(eq(lessons.userId, userId)).orderBy(desc(lessons.startedAt)).limit(limit);
+  if (!rows.length) return [];
+  const steps = await db.select({ lessonId: lessonSteps.lessonId, step: lessonSteps.step }).from(lessonSteps)
+    .where(and(inArray(lessonSteps.lessonId, rows.map((r) => r.id)), eq(lessonSteps.done, true)));
+  return rows.map(({ owner, name, ...r }) => ({
+    ...r,
+    repo: `${owner}/${name}`,
+    done: steps.filter((x) => x.lessonId === r.id).map((x) => x.step).sort((a, b) => STEP_ORDER.indexOf(a) - STEP_ORDER.indexOf(b)),
+  }));
 }
 
 /** Revoke one of the user's own tokens. Throws TokenNotFoundError for anyone else's. */

@@ -5,12 +5,12 @@ import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { openDb, type DbConnection } from "../db/client";
 import { migrateDb } from "../db/migrate";
-import { apiTokens, harnessEvents, lessons } from "../db/schema";
+import { apiTokens, harnessEvents, lessonSteps, lessons } from "../db/schema";
 import { ensureRepo } from "../record/standing";
 import { ensureUser } from "../users";
 import {
   assertUnderDailyLimit, createToken, DAILY_LIMITS, dailyLimit, DailyLimitConfigError, DailyLimitError, dailyUsage, GRAPH_BUILT,
-  harnessUser, HarnessAuthError, HarnessInputError, hashToken, listTokens, MAX_EVENT_BYTES, MAX_TOKENS,
+  harnessUser, HarnessAuthError, HarnessInputError, hashToken, listLessons, listTokens, MAX_EVENT_BYTES, MAX_TOKENS,
   recordEvent, recordGraphBuild, revokeToken, TOKEN_HEADER, TokenLimitError, TokenNotFoundError,
 } from "../harness";
 
@@ -175,4 +175,31 @@ test("map builds count only the site's own graph_built events, which a client ca
   await assert.rejects(assertUnderDailyLimit(db, "github|72", "graph_builds", new Date(), env), /1 new code map in the last 24 hours/);
   const [row] = await db.select().from(harnessEvents).where(eq(harnessEvents.type, GRAPH_BUILT));
   assert.equal(row?.repo, "acme/app");
+});
+
+test("the Account page's lessons: newest first, each with the steps done in lesson order; nobody else's", async () => {
+  const db = connection.db;
+  await ensureUser(db, "github|80", "learner");
+  await ensureUser(db, "github|81", "other");
+  assert.deepEqual(await listLessons(db, "github|80"), [], "no lessons yet");
+  const repoId = await ensureRepo(db, "pallets/itsdangerous");
+  const [older, newer, theirs] = await db.insert(lessons).values([
+    { userId: "github|80", repoId, issueNumber: 1, stage: "kickoff", startedAt: new Date("2026-11-01T00:00:00Z") },
+    { userId: "github|80", repoId, issueNumber: 429, stage: "explain", path: "ai", answerKeyStatus: "verified", startedAt: new Date("2026-11-15T00:00:00Z") },
+    { userId: "github|81", repoId, issueNumber: 7, stage: "done", startedAt: new Date("2026-11-15T00:00:00Z") },
+  ]).returning();
+  await db.insert(lessonSteps).values([
+    { lessonId: newer!.id, step: "s8", done: true },
+    { lessonId: newer!.id, step: "explain-it", done: false },
+    { lessonId: newer!.id, step: "s1", done: true },
+    { lessonId: newer!.id, step: "s4", done: true },
+    { lessonId: theirs!.id, step: "s1", done: true },
+  ]);
+  const listed = await listLessons(db, "github|80");
+  assert.deepEqual(listed.map((l) => [l.id, l.repo, l.issue, l.stage, l.answerKey, l.done]), [
+    [newer!.id, "pallets/itsdangerous", 429, "explain", "verified", ["s1", "s4", "s8"]],
+    [older!.id, "pallets/itsdangerous", 1, "kickoff", null, []],
+  ]);
+  assert.equal((await listLessons(db, "github|80", 1)).length, 1, "the limit holds");
+  assert.deepEqual((await listLessons(db, "github|81")).map((l) => l.issue), [7]);
 });

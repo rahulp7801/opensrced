@@ -4,6 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ApiKeysForm } from "@/app/crucible/api-keys-form";
 import { DeleteAccount } from "@/components/delete-account";
+import { HarnessLessons } from "@/components/harness-lessons";
 import { HarnessTokens } from "@/components/harness-tokens";
 import { PageHeading } from "@/components/page-heading";
 import { SettingsSection } from "@/components/settings-section";
@@ -12,7 +13,9 @@ import { safeAvatarUrl } from "@/lib/avatar-url";
 import { MemberSince } from "@/components/member-since";
 import { RecordSummary } from "@/components/record-summary";
 import { ProjectMaps } from "@/components/project-map";
+import { getDb } from "@/lib/db/client";
 import { flagEnabled } from "@/lib/flags";
+import { listLessons } from "@/lib/harness";
 import { authDisabled, sessionAccount } from "@/lib/require-session";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +34,11 @@ export default async function AccountPage() {
   if (!account) redirect(`/login?returnTo=${encodeURIComponent("/account")}`);
   const localMode = authDisabled();
   const picture = safeAvatarUrl(account.picture);
+  // null: the list couldn't be read (said on the page, and logged), never shown as "no lessons".
+  const lessons = await listLessons(await getDb(), account.id).catch((error: unknown) => {
+    console.error("account: listing lessons failed", error);
+    return null;
+  });
 
   return (
     <div className="mx-auto w-full max-w-[1100px] px-5 py-10 sm:px-8">
@@ -124,6 +132,10 @@ export default async function AccountPage() {
             vscode={process.env.OPENSRCER_VSCODE_INSTALL === "1"}
             extensionUrl={/^https:\/\//.test(process.env.OPENSRCER_VSCODE_EXTENSION_URL ?? "") ? process.env.OPENSRCER_VSCODE_EXTENSION_URL : ""}
           />
+        </SettingsSection>
+
+        <SettingsSection id="lessons-heading" title="Your lessons" description="Lessons you've run with the plugin, and how far each has come. Updated as you answer.">
+          <HarnessLessons lessons={lessons} />
         </SettingsSection>
 
         <SettingsSection id="data-heading" title="Your data" description="Download or erase what opensrcer keeps about you.">

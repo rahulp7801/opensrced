@@ -173,8 +173,6 @@ export function withOverlay(html, levels) {
 
 const MAP_MAX_COMMUNITIES = 36;
 const MAP_MAX_EDGES = 80;
-const MAP_W = 640;
-const MAP_H = 400;
 
 const xml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 /** A community's name: the file most of its code lives in, with its folder. */
@@ -267,6 +265,9 @@ const GRAPHIFY_PALETTE = ["#4E79A7", "#F28E2B", "#E15759", "#76B7B2", "#59A14F",
 // ponytail: the busiest nodes only; an SVG element takes 131072 characters at most.
 const SVG_MAX_NODES = 500;
 const SVG_MAX_EDGES = 1400;
+const NODE_W = 480;
+const NODE_H = 450; // plus 30 for the legend
+const LABEL_PX = 15; // in the map's own units: readable once a narrow pane scales it down
 const SVG_MAX_CHARS = 125_000; // the Svg element's limit is 131072
 const SVG_ANIMATED_NODES = 300;
 const SVG_ANIMATED_EDGES = 800;
@@ -321,7 +322,8 @@ export function nodeSvg(graph, levels, animate = true, maxNodes = SVG_MAX_NODES,
   const edges = (graph.links ?? []).map((l) => [index.get(l.source), index.get(l.target)]).filter(([a, b]) => a !== undefined && b !== undefined && a !== b).slice(0, maxEdges);
   const pos = nodeLayout(kept, edges);
   const most = Math.max(1, ...kept.map(deg));
-  const W = MAP_W, H = MAP_H;
+  // Nearly square: a narrow side panel scales it by its width, so a wide canvas would shrink its text the most.
+  const W = NODE_W, H = NODE_H;
   const at = (i) => `${Math.round(pos[i].x * W)},${Math.round(pos[i].y * H)}`;
   const coloured = levels.size > 0;
   const fill = (x) => (coloured ? MAP_COLORS[levels.get(x.id) ?? "unseen"] : GRAPHIFY_PALETTE[Math.abs(x.community ?? 0) % GRAPHIFY_PALETTE.length]);
@@ -337,15 +339,15 @@ export function nodeSvg(graph, levels, animate = true, maxNodes = SVG_MAX_NODES,
     .sort((a, b) => Number(levels.has(kept[b].id)) - Number(levels.has(kept[a].id)) || deg(kept[b]) - deg(kept[a]));
   for (const i of byWeight) {
     if (labelled.size >= 24) break;
-    const text = String(kept[i].label).slice(0, 24), w = text.length * 5, x = pos[i].x * W, y = pos[i].y * H - radius(kept[i]) - 2;
-    const box = { x0: x - w / 2, x1: x + w / 2, y0: y - 9, y1: y + 1 };
+    const text = String(kept[i].label).slice(0, 24), w = text.length * LABEL_PX * 0.56, x = pos[i].x * W, y = pos[i].y * H - radius(kept[i]) - 2;
+    const box = { x0: x - w / 2, x1: x + w / 2, y0: y - LABEL_PX, y1: y + 2 };
     if (boxes.some((b) => box.x0 < b.x1 && b.x0 < box.x1 && box.y0 < b.y1 && b.y0 < box.y1)) continue;
     boxes.push(box);
     labelled.add(i);
   }
   const legend = coloured
-    ? Object.entries(MAP_LABELS).map(([level, text], i) => `<circle cx="${14 + i * 170}" cy="${H + 15}" r="5" fill="${MAP_COLORS[level]}"/><text x="${24 + i * 170}" y="${H + 19}" font-size="11" fill="#e0e0e0">${xml(text)}</text>`)
-    : [`<text x="12" y="${H + 19}" font-size="11" fill="#e0e0e0">Colours: graphify's communities (related code). Bigger dots have more links.</text>`];
+    ? Object.entries(MAP_LABELS).map(([level, text], i) => `<circle cx="${[12, 138, 316][i]}" cy="${H + 15}" r="6" fill="${MAP_COLORS[level]}"/><text x="${[22, 148, 326][i]}" y="${H + 20}" font-size="14" fill="#e0e0e0">${xml(text)}</text>`)
+    : [`<text x="12" y="${H + 20}" font-size="14" fill="#e0e0e0">Colours: graphify's communities. Bigger dots have more links.</text>`];
   // Motion as the web demo's map has it, with no script (a pane draws SVG as an image or a
   // script-less frame): the dots settle from their communities into place, then the links
   // and names fade in, and the lesson's nodes pulse a few times. Each animation's static
@@ -373,7 +375,7 @@ export function nodeSvg(graph, levels, animate = true, maxNodes = SVG_MAX_NODES,
     ...order.map((i) => `<circle cx="${Math.round(pos[i].x * W)}" cy="${Math.round(pos[i].y * H)}" r="${radius(kept[i]).toFixed(1)}" fill="${fill(kept[i])}"${levels.has(kept[i].id) ? ' stroke="#ffffff" stroke-width="1.2"' : ""}><title>${xml(kept[i].label)}</title>${settle(i)}</circle>`),
     ...order.map(pulse),
     `<g>${fadeIn}`,
-    ...[...labelled].map((i) => `<text x="${Math.round(pos[i].x * W)}" y="${Math.round(pos[i].y * H - radius(kept[i]) - 2)}" font-size="9" text-anchor="middle" fill="#ffffff">${xml(String(kept[i].label).slice(0, 24))}</text>`),
+    ...[...labelled].map((i) => `<text x="${Math.round(pos[i].x * W)}" y="${Math.round(pos[i].y * H - radius(kept[i]) - 2)}" font-size="${LABEL_PX}" text-anchor="middle" fill="#ffffff" stroke="#0f0f1a" stroke-width="3" paint-order="stroke">${xml(String(kept[i].label).slice(0, 24))}</text>`),
     "</g>",
     ...legend,
     "</svg>",

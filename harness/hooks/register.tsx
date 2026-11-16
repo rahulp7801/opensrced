@@ -12,8 +12,14 @@ import type { LessonMap, MapLevel } from "../types";
 
 const PANE = "opensrcer-map";
 // The pane stays a strip above the prompt, never the whole panel: the chat must stay in view.
-const PANE_ROWS = 14;
-const MAP_HEIGHT_PX = 240;
+// Its height is the person's choice (userConfig map_size, /plugin configure opensrcer@opensrced).
+const MAP_SIZES: Record<string, { px: number; rows: number }> = {
+  small: { px: 260, rows: 14 },
+  medium: { px: 340, rows: 18 },
+  large: { px: 420, rows: 22 },
+  "extra large": { px: 540, rows: 28 },
+};
+const DEFAULT_SIZE = MAP_SIZES.large!;
 const LESSON_TOOLS = "mcp__plugin_opensrcer_opensrcer__lesson_";
 // Change the tag when LessonMap's fields change: it declines what an earlier version stored.
 const map = atom({ plugin: "opensrcer", key: "map" } as const, null, { shape: "map-1" });
@@ -69,7 +75,8 @@ function notes(m: LessonMap): string {
   return lines.join("\n\n");
 }
 
-export const register: Register = (on) => {
+export const register: Register = (on, options) => {
+  const size = MAP_SIZES[String(options.map_size ?? "")] ?? DEFAULT_SIZE;
   on("session.start", async ($, e, next) => {
     await $.command.register({ name: "opensrcer-map", description: "Show the opensrcer lesson's code map beside the chat" });
     return next(e);
@@ -79,7 +86,7 @@ export const register: Register = (on) => {
     const m = await load($);
     if (!m) return { text: "No lesson map yet: start a lesson (lesson_start) first." };
     await update($, map, () => m);
-    const opened = await $.ui.open({ id: PANE, title: `Code map: ${m.title}`, rows: PANE_ROWS });
+    const opened = await $.ui.open({ id: PANE, title: `Code map: ${m.title}`, rows: size.rows });
     return { text: opened.isPlaced ? `Opened the code map for ${m.title}.` : "This surface can't show a pane beside the chat." };
   });
 
@@ -91,7 +98,7 @@ export const register: Register = (on) => {
       const m = await load($);
       if (!m) return false;
       await update($, map, () => m);
-      return (await $.ui.open({ id: PANE, title: `Code map: ${m.title}`, rows: PANE_ROWS })).isPlaced;
+      return (await $.ui.open({ id: PANE, title: `Code map: ${m.title}`, rows: size.rows })).isPlaced;
     })().catch((error: unknown) => {
       $.ui.log(`opensrcer map: ${error instanceof Error ? error.message : String(error)}`);
       return false;
@@ -121,7 +128,7 @@ export const register: Register = (on) => {
     const { Svg } = $.ui.resolve({ ...e, surface: e.surface === "vscode" ? ("vscode" as const) : e.surface === "mobile" ? ("mobile" as const) : ("desktop" as const) });
     return (
       <Box flexDirection="column">
-        <Svg source={m.svg} height={MAP_HEIGHT_PX} alt={`Code map of ${m.title}: ${m.communities.length} clusters of code. ${text.replace(/[*`]/g, "")}`} isInteractive />
+        <Svg source={m.svg} height={size.px} alt={`Code map of ${m.title}: ${m.communities.length} clusters of code. ${text.replace(/[*`]/g, "")}`} isInteractive />
         <Text dimColor>{LEGEND}</Text>
         {text && <Markdown text={text} />}
       </Box>

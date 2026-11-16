@@ -17,14 +17,14 @@ const PANE = {
 
 test("a lesson tool call opens the map; the terminal gets cells, the other surfaces the SVG", OPTIONS, async ($, on) => {
   const opened: string[] = [];
-  on("fs.read", (_, e) => (String(e.path).endsWith("current.json") ? { value: JSON.stringify(MAP) } : { error: "ENOENT" }));
+  on("fs.read", (_, e) => (String(e.path).endsWith("current.json") ? { value: JSON.stringify(MAP) } : { deny: "ENOENT" }));
   const rows: Array<number | undefined> = [];
   on("ui.open", (_, e) => { opened.push(e.title ?? ""); rows.push(e.rows); return { value: { isPlaced: true } }; });
   on("tool.call", () => ({ result: {} }));
 
   const ran = await $.tool.call({ tool: "mcp__plugin_opensrcer_opensrcer__lesson_reveal", lesson: MAP.lesson });
   expect(opened).toEqual(["Code map: acme/app #12"]);
-  expect(rows).toEqual([14]); // a strip above the prompt, never the whole panel
+  expect(rows).toEqual([22]); // the default size, "large": a strip above the prompt, never the whole panel
   expect(String((ran as { context?: string[] }).context)).toMatch(/opensrcer pane beside the chat/);
 
   const terminal = await $.ui.mount({ ...PANE, surface: "terminal" });
@@ -34,7 +34,7 @@ test("a lesson tool call opens the map; the terminal gets cells, the other surfa
 
   for (const surface of ["desktop", "vscode", "mobile"] as const) {
     const ui = await $.ui.mount({ ...PANE, surface });
-    expect((await ui.find({ type: "Svg" }))?.props.height).toBe(240); // capped: the chat stays in view
+    expect((await ui.find({ type: "Svg" }))?.props.height).toBe(420); // capped: the chat stays in view
     expect((await ui.find({ type: "Markdown" }))?.text).toMatch(/Your starting points:.*janitor\/functions\/fill.py/);
     await ui.unmount();
   }
@@ -53,5 +53,17 @@ test("other tools leave the pane alone", OPTIONS, async ($, on) => {
 test("before any lesson the pane says so", OPTIONS, async ($) => {
   const ui = await $.ui.mount({ ...PANE, surface: "terminal" });
   expect((await ui.find({ type: "Text" }))?.text).toMatch(/No lesson map yet/);
+  await ui.unmount();
+});
+
+test("the map's size is the person's choice (map_size)", { options: { opensrcer_token: "osh_tttttttttttttttttttttttttttttttt", map_size: "small" } }, async ($, on) => {
+  const rows: Array<number | undefined> = [];
+  on("fs.read", (_, e) => (String(e.path).endsWith("current.json") ? { value: JSON.stringify(MAP) } : { deny: "ENOENT" }));
+  on("ui.open", (_, e) => { rows.push(e.rows); return { value: { isPlaced: true } }; });
+  on("tool.call", () => ({ result: {} }));
+  await $.tool.call({ tool: "mcp__plugin_opensrcer_opensrcer__lesson_show", lesson: MAP.lesson });
+  expect(rows).toEqual([14]);
+  const ui = await $.ui.mount({ ...PANE, surface: "vscode" });
+  expect((await ui.find({ type: "Svg" }))?.props.height).toBe(260);
   await ui.unmount();
 });

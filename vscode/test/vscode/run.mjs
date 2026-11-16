@@ -29,7 +29,8 @@ const args = [
   `--user-data-dir=${join(tmp, "user")}`, `--extensions-dir=${join(tmp, "extensions")}`,
   "--disable-extensions", "--disable-workspace-trust", "--skip-welcome", "--skip-release-notes", "--new-window",
 ];
-const env = { ...process.env, OPENSRCER_TEST_OUT: out };
+// OPENSRCER_HOME: the map folder the tab watches is a throwaway one, never your own.
+const env = { ...process.env, OPENSRCER_TEST_OUT: out, OPENSRCER_HOME: join(tmp, "opensrcer-home") };
 delete env.ELECTRON_RUN_AS_NODE;
 // VS Code's own output goes to a file, not an inherited pipe: its helper processes
 // would hold a pipe open after it's gone.

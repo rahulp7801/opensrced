@@ -1,6 +1,6 @@
 {
   "name": "opensrcer",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "A contribution harness for open source: each project's unwritten rules (what gets merged, why PRs get closed, what reviewers ask for) in your agent's context, a workflow that proves the fix, and your contributions counted on opensrcer.",
   "author": {
     "name": "rahulp7801",
@@ -27,8 +27,8 @@
     "map_size": {
       "type": "string",
       "title": "Code map size",
-      "description": "How tall the code map beside the chat is: small, medium, large or extra large.",
-      "options": ["small", "medium", "large", "extra large"],
+      "description": "How tall the code map above the prompt is: small, medium, large or extra large. hidden: only /opensrcer-map opens it (e.g. when the opensrcer VS Code extension shows the map in a tab beside your editor).",
+      "options": ["small", "medium", "large", "extra large", "hidden"],
       "default": "large"
     }
   },

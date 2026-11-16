@@ -141,7 +141,7 @@ test("the plugin server speaks MCP: initialize, tools, and calls that reach open
   const { child, request, notify } = start(TOKEN);
   try {
     const init = await request("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" } });
-    assert.deepEqual((init.result as { serverInfo: unknown }).serverInfo, { name: "opensrcer", version: "0.3.3" });
+    assert.deepEqual((init.result as { serverInfo: unknown }).serverInfo, { name: "opensrcer", version: "0.3.4" });
     // Hosts without the plugin's skill get the workflow from the server itself.
     assert.match((init.result as { instructions: string }).instructions, /Call repo_profile .* before changing code/);
     notify("notifications/initialized");
@@ -482,6 +482,8 @@ test("in a host with a panel, the map file is still written when the editor asks
     const map = JSON.parse(readFileSync(join(mapDir, "current.json"), "utf8"));
     assert.deepEqual([map.lesson, map.title], [LESSON_ID, "acme/app #12"]);
     assert.match(map.svg, /^<svg /);
+    // And in the shared folder the VS Code extension's map tab watches, whichever editor ran the lesson.
+    assert.equal(readFileSync(join(home, "maps", "current.json"), "utf8"), readFileSync(join(mapDir, "current.json"), "utf8"));
   } finally {
     child.kill();
   }

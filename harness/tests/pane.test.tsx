@@ -67,3 +67,15 @@ test("the map's size is the person's choice (map_size)", { options: { opensrcer_
   expect((await ui.find({ type: "Svg" }))?.props.height).toBe(260);
   await ui.unmount();
 });
+
+test("hidden: lesson calls leave the pane closed; /opensrcer-map still opens it", { options: { opensrcer_token: "osh_tttttttttttttttttttttttttttttttt", map_size: "hidden" } }, async ($, on) => {
+  const opened: string[] = [];
+  on("fs.read", (_, e) => (String(e.path).endsWith("current.json") ? { value: JSON.stringify(MAP) } : { deny: "ENOENT" }));
+  on("ui.open", (_, e) => { opened.push(e.title ?? ""); return { value: { isPlaced: true } }; });
+  on("tool.call", () => ({ result: {} }));
+  const ran = await $.tool.call({ tool: "mcp__plugin_opensrcer_opensrcer__lesson_show", lesson: MAP.lesson });
+  expect(opened).toEqual([]);
+  expect(String((ran as { context?: string[] }).context ?? "")).not.toMatch(/opensrcer pane/);
+  await $.command.run({ command: "opensrcer-map", args: "", origin: { kind: "composer" }, presentation: { isFullscreen: false, columns: 100 } });
+  expect(opened).toEqual(["Code map: acme/app #12"]);
+});

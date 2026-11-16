@@ -30,12 +30,15 @@ import { promisify } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { graphify, GraphifyError, GraphifyMissing, GRAPHIFY_INSTALL, GRAPHIFY_VERSION, lessonMapData, localGraphifyVersion, overlayLevels, withOverlay } from "./graph.mjs";
 
-const VERSION = "0.3.3";
+const VERSION = "0.3.4";
 const BASE = (process.env.OPENSRCER_URL || "https://opensrced.vercel.app").replace(/\/+$/, "");
 // A host that doesn't fill in `${user_config.…}` (plugin .mcp.json) leaves the literal: that is no token.
 const TOKEN = /^\$\{/.test(process.env.OPENSRCER_TOKEN ?? "") ? "" : process.env.OPENSRCER_TOKEN || "";
 const HOME = process.env.OPENSRCER_HOME || join(homedir(), ".opensrcer");
 const MAP_DIR = process.env.OPENSRCER_MAP_DIR || join(HOME, "maps");
+// Every map is also written here, whoever started the server: the VS Code extension's map
+// tab watches it, so a lesson in Claude Code shows beside the editor too.
+const SHARED_MAP_DIR = join(HOME, "maps");
 const HERE = dirname(fileURLToPath(import.meta.url));
 const EVENT_TYPES = ["session_start", "verification", "pr_opened", "pr_merged", "pr_closed"];
 // GitHub's rules: owners are letters, digits and hyphens; names can't be "." or "..".
@@ -374,12 +377,15 @@ async function mapForPane(id) {
   try {
     const { built, levels, lesson } = await colouredMap(id);
     const title = `${lesson.repo_url.replace("https://github.com/", "")} #${lesson.issue_number}`;
-    mkdirSync(MAP_DIR, { recursive: true });
     const map = lessonMapData(built.graph, levels, title);
     // Every file the fix changes, not only those in the code map (a CHANGES.rst isn't a node).
     const diff = (await lessonState(id)).key?.diff ?? "";
     const changed = [...new Set([...String(diff).matchAll(/^\+\+\+ b\/(\S+)/gm)].map((m) => m[1]))];
-    writeFileSync(join(MAP_DIR, "current.json"), JSON.stringify({ lesson: id, stage: lesson.stage, ...map, changed: changed.length ? changed : map.changed }));
+    const data = JSON.stringify({ lesson: id, stage: lesson.stage, ...map, changed: changed.length ? changed : map.changed });
+    for (const dir of new Set([resolve(MAP_DIR), resolve(SHARED_MAP_DIR)])) {
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, "current.json"), data);
+    }
     return "";
   } catch (error) {
     if (!(error instanceof ToolError)) throw error;

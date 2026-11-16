@@ -77,6 +77,8 @@ function notes(m: LessonMap): string {
 
 export const register: Register = (on, options) => {
   const size = MAP_SIZES[String(options.map_size ?? "")] ?? DEFAULT_SIZE;
+  // hidden: the pane opens only when asked (/opensrcer-map), at the default size.
+  const opensItself = options.map_size !== "hidden";
   on("session.start", async ($, e, next) => {
     await $.command.register({ name: "opensrcer-map", description: "Show the opensrcer lesson's code map beside the chat" });
     return next(e);
@@ -92,7 +94,7 @@ export const register: Register = (on, options) => {
 
   on("tool.call", async ($, e, next) => {
     const ran = await next(e);
-    if (!e.tool.startsWith(LESSON_TOOLS) || ran.deny !== undefined || ran.isError) return ran;
+    if (!opensItself || !e.tool.startsWith(LESSON_TOOLS) || ran.deny !== undefined || ran.isError) return ran;
     // The map is extra: whatever goes wrong drawing it, the lesson call's result stands.
     const shown = await (async () => {
       const m = await load($);

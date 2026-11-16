@@ -8,6 +8,7 @@
 const vscode = require("vscode");
 const fs = require("node:fs");
 const path = require("node:path");
+const os = require("node:os");
 const { TokenFormatError, cleanToken, siteUrl, serverLaunch, describeMe, mapHtml, parseMap, parseIssue } = require("./core");
 
 const SECRET = "opensrcer.token";
@@ -16,7 +17,9 @@ const PROVIDER = "opensrcer";
 /** @param {vscode.ExtensionContext} context */
 async function activate(context) {
   const changed = new vscode.EventEmitter();
-  const mapDir = path.join(context.globalStorageUri.fsPath, "maps");
+  // The folder every opensrcer server writes its lesson map to (harness/server.mjs SHARED_MAP_DIR),
+  // so the tab follows a lesson run here with Copilot and one run in Claude Code alike.
+  const mapDir = path.join(process.env.OPENSRCER_HOME || path.join(os.homedir(), ".opensrcer"), "maps");
   fs.mkdirSync(mapDir, { recursive: true });
   const serverPath = path.join(context.extensionPath, "server", "server.mjs");
   const version = context.extension.packageJSON.version;

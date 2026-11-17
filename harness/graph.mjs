@@ -464,6 +464,103 @@ function removedLines(diff) {
   return out;
 }
 
+// The file map's moving part: a bubble per file, settling under a small force layout (no
+// library), lines between files that use each other, the lesson's flowing. Hover lights a
+// file's neighbours, a click glides to its card, bubbles can be dragged. Runs in the page.
+const FILE_MAP_SCRIPT = String.raw`
+(() => {
+  const D = JSON.parse(document.getElementById("osr-data").textContent);
+  const svg = document.getElementById("osr-graph");
+  const NS = "http://www.w3.org/2000/svg";
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+  const W = () => svg.clientWidth || 480, H = () => svg.clientHeight || 320;
+  const byId = new Map(D.nodes.map((n, i) => {
+    const a = (i / D.nodes.length) * Math.PI * 2;
+    return [n.id, Object.assign(n, { x: W() / 2 + Math.cos(a) * 12, y: H() / 2 + Math.sin(a) * 12, vx: 0, vy: 0 })];
+  }));
+  const links = D.links.filter((l) => byId.has(l.s) && byId.has(l.t)).map((l) => ({ ...l, a: byId.get(l.s), b: byId.get(l.t) }));
+  const gLinks = el("g", {}, svg), gNodes = el("g", {}, svg);
+  for (const l of links) {
+    const hot = l.a.level !== "unseen" && l.b.level !== "unseen" && l.a.level !== "none";
+    const kind = l.a.level === "changed" || l.b.level === "changed" ? "fix" : "start";
+    l.path = el("path", { class: "link" + (hot ? " flow " + kind : ""), "stroke-width": Math.min(4, 1 + Math.log2(l.w)) }, gLinks);
+  }
+  for (const n of D.nodes) {
+    n.g = el("g", { class: "node " + n.level, tabindex: "0", role: "button", "aria-label": n.label }, gNodes);
+    n.g.style.setProperty("--c", n.color);
+    if (n.level === "changed" || n.level === "explored") el("circle", { class: "pulse", r: n.r }, n.g);
+    el("circle", { class: "dot", r: n.r }, n.g);
+    const t = el("text", { class: "name", y: n.r + 14 }, n.g);
+    t.textContent = n.label;
+  }
+  const near = new Map(D.nodes.map((n) => [n.id, new Set([n.id])]));
+  for (const l of links) { near.get(l.s).add(l.t); near.get(l.t).add(l.s); }
+  let alpha = 1, dragging = null;
+  const tick = () => {
+    const w = W(), h = H(), ns = D.nodes;
+    for (let i = 0; i < ns.length; i++) for (let j = i + 1; j < ns.length; j++) {
+      const a = ns[i], b = ns[j];
+      let dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 0.01;
+      const room = a.r + b.r + 46;
+      const f = (1800 / (d * d) + (d < room ? (room - d) * 0.25 : 0)) * alpha;
+      dx /= d; dy /= d; a.vx -= dx * f; a.vy -= dy * f; b.vx += dx * f; b.vy += dy * f;
+    }
+    for (const l of links) {
+      const dx = l.b.x - l.a.x, dy = l.b.y - l.a.y, d = Math.hypot(dx, dy) || 0.01;
+      const f = (d - 120) * 0.012 * alpha;
+      l.a.vx += (dx / d) * f; l.a.vy += (dy / d) * f; l.b.vx -= (dx / d) * f; l.b.vy -= (dy / d) * f;
+    }
+    for (const n of ns) {
+      const pull = n.level === "changed" ? 0.03 : n.level === "explored" ? 0.02 : 0.008;
+      n.vx += (w / 2 - n.x) * pull * alpha; n.vy += (h / 2 - n.y) * pull * alpha;
+      if (n === dragging) { n.vx = n.vy = 0; continue; }
+      n.x += n.vx *= 0.6; n.y += n.vy *= 0.6;
+      n.x = Math.max(n.r + 4, Math.min(w - n.r - 4, n.x)); n.y = Math.max(n.r + 4, Math.min(h - n.r - 20, n.y));
+    }
+  };
+  const draw = () => {
+    for (const l of links) {
+      const mx = (l.a.x + l.b.x) / 2 + (l.b.y - l.a.y) * 0.12, my = (l.a.y + l.b.y) / 2 - (l.b.x - l.a.x) * 0.12;
+      l.path.setAttribute("d", "M" + l.a.x + "," + l.a.y + "Q" + mx + "," + my + " " + l.b.x + "," + l.b.y);
+    }
+    for (const n of D.nodes) n.g.setAttribute("transform", "translate(" + n.x + "," + n.y + ")");
+  };
+  const frame = () => { tick(); draw(); alpha *= 0.985; if (alpha > 0.02 || dragging) requestAnimationFrame(frame); else running = false; };
+  let running = false;
+  const wake = (a) => { alpha = Math.max(alpha, a); if (!running) { running = true; requestAnimationFrame(frame); } };
+  if (still) { for (let i = 0; i < 300; i++) { tick(); alpha *= 0.985; } draw(); } else wake(1);
+  // Hover: the file and its neighbours stay lit, the rest steps back.
+  const focus = (n) => {
+    svg.classList.toggle("focus", Boolean(n));
+    for (const m of D.nodes) m.g.classList.toggle("on", Boolean(n) && near.get(n.id).has(m.id));
+    for (const l of links) l.path.classList.toggle("on", Boolean(n) && (l.a === n || l.b === n));
+  };
+  for (const n of D.nodes) {
+    n.g.addEventListener("pointerenter", () => focus(n));
+    n.g.addEventListener("pointerleave", () => focus(null));
+    n.g.addEventListener("focus", () => focus(n));
+    n.g.addEventListener("blur", () => focus(null));
+    const go = () => {
+      const card = document.getElementById(n.id);
+      if (!card) return;
+      card.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "center" });
+      card.classList.remove("flash"); void card.offsetWidth; card.classList.add("flash");
+    };
+    let moved = false;
+    n.g.addEventListener("pointerdown", (e) => { dragging = n; moved = false; n.g.setPointerCapture(e.pointerId); wake(0.3); });
+    n.g.addEventListener("pointermove", (e) => {
+      if (dragging !== n) return;
+      const r = svg.getBoundingClientRect();
+      n.x = e.clientX - r.left; n.y = e.clientY - r.top; moved = true; wake(0.3);
+    });
+    n.g.addEventListener("pointerup", () => { dragging = null; if (!moved) go(); });
+    n.g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+  }
+  addEventListener("resize", () => wake(0.4));
+})();
+`;
+
 /**
  * The code map as a page of file cards: each code file a card listing its classes and
  * functions in source order (methods under their class), the files it uses and is used by
@@ -505,13 +602,15 @@ export function fileMapHtml(graph, levels, diff, title) {
   const anchor = (f) => "f-" + f.replace(/[^\w]/g, "-");
   const base = (f) => f.split("/").pop();
   const link = (g) => `<a href="#${anchor(g)}">${xml(base(g))}</a>`;
-  const card = ({ f, symbols }) => {
+  const accentOf = (symbols) => {
+    const counts = new Map();
+    for (const n of symbols) counts.set(n.community, (counts.get(n.community) ?? 0) + 1);
+    return GRAPHIFY_PALETTE[([...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 0) % GRAPHIFY_PALETTE.length];
+  };
+  const card = ({ f, symbols }, i) => {
     const lv = level(f);
     // A file the user named as a whole marks all its nodes; a named function marks just that row.
     const whole = symbols.every((n) => levels.get(n.id) === "explored");
-    const counts = new Map();
-    for (const n of symbols) counts.set(n.community, (counts.get(n.community) ?? 0) + 1);
-    const community = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 0;
     const classes = symbols.filter((n) => !n.label.startsWith(".") && !n.label.endsWith(")")).map((n) => n.id);
     // The function each removed line sits in (the last one starting at or before it).
     const fns = symbols.filter((n) => n.label.endsWith(")"));
@@ -531,7 +630,7 @@ export function fileMapHtml(graph, levels, diff, title) {
     const inn = (usedBy.get(f) ?? []).slice(0, 4).map(link);
     const dir = f.includes("/") ? f.slice(0, f.lastIndexOf("/") + 1) : "";
     const tag = lv === "changed" ? '<span class="tag fixtag">fix</span>' : lv === "explored" ? '<span class="tag starttag">start</span>' : "";
-    return `<section id="${anchor(f)}" class="card${lit ? " " + lv : ""}" style="--accent:${GRAPHIFY_PALETTE[community % GRAPHIFY_PALETTE.length]}">
+    return `<section id="${anchor(f)}" class="card${lit ? " " + lv : ""}" style="--accent:${accentOf(symbols)};--i:${i}">
 <h2><span class="dir">${xml(dir)}</span>${xml(base(f))}${tag}</h2>
 <ul>${shown.map((r) => r.html).join("")}</ul>${rest.length ? `<details><summary>${rest.length} more</summary><ul>${rest.map((r) => r.html).join("")}</ul></details>` : ""}
 ${out.length || inn.length ? `<p class="rel">${out.length ? `uses ${out.join(" ")}` : ""}${out.length && inn.length ? "<br>" : ""}${inn.length ? `used by ${inn.join(" ")}` : ""}</p>` : ""}
@@ -539,7 +638,13 @@ ${out.length || inn.length ? `<p class="rel">${out.length ? `uses ${out.join(" "
   };
   const legend = lit
     ? `<p class="legend"><span class="key starttag">start</span> your starting points <span class="key fixtag">fix</span> what the fix changes <span class="star">★</span> a changed function</p>`
-    : `<p class="legend">Each card is a file, with its classes and functions in source order. Your starting points and the fix light up as the lesson goes on.</p>`;
+    : `<p class="legend">Each bubble is a file, linked to the files it uses; each card lists a file's classes and functions. Your starting points and the fix light up as the lesson goes on. Drag a bubble, or click it to jump to its card.</p>`;
+  // The bubbles' data: a file each (sized by how much is in it), and the files it uses.
+  const shown = new Set(files.map((x) => x.f));
+  const data = {
+    nodes: files.map(({ f, symbols }) => ({ id: anchor(f), label: base(f), r: Math.round(7 + 2.4 * Math.sqrt(symbols.length)), color: accentOf(symbols), level: lit ? level(f) : "none" })),
+    links: [...uses].flatMap(([a, m]) => [...m].filter(([b]) => shown.has(a) && shown.has(b)).map(([b, w]) => ({ s: anchor(a), t: anchor(b), w }))),
+  };
   return `<!doctype html><html><head><meta charset="utf-8"><title>${xml(title)}</title>
 <style>
 :root { --bg: var(--vscode-editor-background, #1e1e1e); --fg: var(--vscode-foreground, #cccccc); --muted: var(--vscode-descriptionForeground, #9d9d9d); --card: var(--vscode-sideBar-background, #252526); --line: var(--vscode-panel-border, #3c3c3c); --start: #4E79A7; --fix: #EDC948; }
@@ -566,9 +671,37 @@ li.fix { color: #111; background: var(--fix); border-radius: 3px; } li.fix::befo
 details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-top: 2px; }
 .rel { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .rel a { color: var(--vscode-textLink-foreground, #3794ff); margin-right: 6px; text-decoration: none; }
+#osr-graph { display: block; width: 100%; height: 340px; margin: 0 0 16px; border: 1px solid var(--line); border-radius: 10px; touch-action: none;
+  background: radial-gradient(ellipse at 50% 45%, color-mix(in srgb, var(--fg) 7%, transparent), transparent 70%), var(--card); }
+.link { fill: none; stroke: var(--muted); stroke-opacity: .28; transition: stroke-opacity .2s; }
+.link.flow { stroke-opacity: .9; stroke-dasharray: 5 7; animation: flow 1.1s linear infinite; }
+.link.flow.start { stroke: var(--start); } .link.flow.fix { stroke: var(--fix); }
+@keyframes flow { to { stroke-dashoffset: -24; } }
+.node { cursor: pointer; transition: opacity .25s; outline: none; }
+.node .dot { fill: var(--c); stroke: color-mix(in srgb, var(--c) 55%, #fff); stroke-width: 1.5; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--c) 70%, transparent)); transition: transform .2s; transform-box: fill-box; transform-origin: center; }
+.node:hover .dot, .node:focus .dot { transform: scale(1.18); }
+.node.unseen { opacity: .38; }
+.node.explored .dot { stroke: var(--start); stroke-width: 3; } .node.changed .dot { stroke: var(--fix); stroke-width: 3; }
+.pulse { fill: none; stroke-width: 2; transform-box: fill-box; transform-origin: center; animation: pulse 2s ease-out infinite; }
+.explored .pulse { stroke: var(--start); } .changed .pulse { stroke: var(--fix); }
+@keyframes pulse { from { transform: scale(1); opacity: .8; } to { transform: scale(2.1); opacity: 0; } }
+.name { fill: var(--fg); font-size: 11.5px; text-anchor: middle; paint-order: stroke; stroke: var(--card); stroke-width: 3px; pointer-events: none; }
+.changed .name, .explored .name { font-weight: 600; }
+#osr-graph.focus .node:not(.on) { opacity: .12; } #osr-graph.focus .link:not(.on) { stroke-opacity: .05; } #osr-graph.focus .link.on { stroke-opacity: 1; }
+.card { animation: rise .45s cubic-bezier(.2,.7,.3,1) both; animation-delay: calc(var(--i) * 45ms); transition: transform .2s, box-shadow .2s; }
+.card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+.card.flash { animation: flash 1.2s ease-out; }
+@keyframes flash { 0% { box-shadow: 0 0 0 0 var(--accent); } 30% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 45%, transparent); } 100% { box-shadow: 0 0 0 0 transparent; } }
+li.fix { background: linear-gradient(100deg, var(--fix) 40%, #fff6c4 50%, var(--fix) 60%); background-size: 250% 100%; animation: shimmer 2.8s linear infinite; }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+@media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
 </style></head><body>
 <h1>${xml(title)}</h1>
 ${legend}
+<svg id="osr-graph" role="img" aria-label="The files of ${xml(title)} and how they use each other"></svg>
+<script type="application/json" id="osr-data">${JSON.stringify(data).replace(/</g, "\\u003c")}</script>
 <main class="grid">${files.map(card).join("\n")}</main>
+<script>${FILE_MAP_SCRIPT}</script>
 </body></html>`;
 }

@@ -141,7 +141,7 @@ test("the plugin server speaks MCP: initialize, tools, and calls that reach open
   const { child, request, notify } = start(TOKEN);
   try {
     const init = await request("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" } });
-    assert.deepEqual((init.result as { serverInfo: unknown }).serverInfo, { name: "opensrcer", version: "0.3.11" });
+    assert.deepEqual((init.result as { serverInfo: unknown }).serverInfo, { name: "opensrcer", version: "0.3.12" });
     // Hosts without the plugin's skill get the workflow from the server itself.
     assert.match((init.result as { instructions: string }).instructions, /Call repo_profile .* before changing code/);
     notify("notifications/initialized");
@@ -488,7 +488,7 @@ test("in a host with a panel, the map file is still written when the editor asks
     assert.equal(map.viewer, "current.html");
     const page = readFileSync(join(home, "maps", "current.html"), "utf8");
     assert.match(page, /<main class="grid">[\s\S]*<section id="f-/);
-    assert.doesNotMatch(page, /<script/);
+    assert.doesNotMatch(page, /<script src/, "nothing loaded from outside");
     // The extension's tab marks itself open (tab.json, its process id): the map says so, and the
     // Claude Code pane stays closed. A marker left by a process that's gone counts for nothing.
     assert.equal(map.tabOpen, false);
@@ -697,6 +697,13 @@ test("the file map: a card per code file, the lesson's first; only the functions
   assert.match(page, /<li class="fn in" title="loads\(\)">loads\(\)<\/li><\/ul>/, "P.loads, the other loads, isn't");
   assert.match(page, /<li class="fn start" title="helper\(\)">helper\(\)/, "a function the user named is highlighted (its full name on hover)");
   assert.match(page, /&lt;img src=x&gt;\(\)/);
-  assert.doesNotMatch(page, /<img|<script|A sentence/);
+  assert.doesNotMatch(page, /<img|<script src|A sentence/, "no markup from names, no outside scripts, no docstrings");
   assert.match(page, /uses <a href="#f-pkg-b-py">b\.py<\/a>/);
+  // The bubbles' data: a file each with its lesson level, and the files it uses.
+  const data = JSON.parse(/<script type="application\/json" id="osr-data">([\s\S]*?)<\/script>/.exec(page)![1]);
+  assert.deepEqual(data.nodes.map((n: { id: string; level: string }) => [n.id, n.level]), [["f-pkg-a-py", "changed"], ["f-pkg-b-py", "explored"]]);
+  assert.deepEqual(data.links, [{ s: "f-pkg-a-py", t: "f-pkg-b-py", w: 1 }]);
+  // A file name can't end the data's script early.
+  const hostile = fileMapHtml({ nodes: [node("h", "f()", "x/</script><b>.py", 1)], links: [] }, new Map(), "", "t");
+  assert.equal(hostile.split("</script>").length - 1, 2, "only the page's own two scripts close");
 });

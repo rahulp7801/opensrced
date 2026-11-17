@@ -150,9 +150,11 @@ export function withOverlay(html, levels) {
   const lesson = new Set(${lesson});
   // A code name has no spaces; docstring nodes have sentences for labels and stay hover-only.
   const code = (n) => !/\\s/.test(String(n.label ?? "").trim());
-  const fix = nodesDS.get().filter((n) => lesson.has(n.id) && code(n)).map((n) => n.id);
+  // The fix's busiest code nodes (a changed file marks all of its nodes).
+  const fix = nodesDS.get().filter((n) => lesson.has(n.id) && code(n))
+    .sort((a, b) => (b.degree ?? 0) - (a.degree ?? 0)).slice(0, ${LABEL_FIX_COUNT}).map((n) => n.id);
   // The rest by degree: ${LABEL_FIT_COUNT} when the graph is fitted, more as the user zooms in.
-  const busiest = nodesDS.get().filter((n) => !lesson.has(n.id) && n.font && n.font.size > 0)
+  const busiest = nodesDS.get().filter((n) => !fix.includes(n.id) && n.font && n.font.size > 0)
     .sort((a, b) => (b.degree ?? 0) - (a.degree ?? 0)).map((n) => n.id);
   let fitScale = 0;
   const size = () => {
@@ -171,12 +173,27 @@ export function withOverlay(html, levels) {
   if (!html.includes("nodesDS")) return html.slice(0, end) + access + html.slice(end);
   if (levels.size === 0) return html.slice(0, end) + access + labelScript + html.slice(end);
   const data = JSON.stringify({ colors: MAP_COLORS, labels: MAP_LABELS, levels: Object.fromEntries(levels) }).replace(/</g, "\\u003c");
+  // graphify's look stays: every node keeps its community colour. What the lesson hasn't
+  // touched fades, and the fix's nodes get a ring in the lesson's yellow.
   const script = `${access}<script>
 (() => {
   if (typeof nodesDS === "undefined") return; // vis-network didn't load: nothing to recolour
   const { colors, labels, levels } = ${data};
-  const paint = (c) => ({ background: c, border: c, highlight: { background: "#ffffff", border: c } });
-  nodesDS.update(nodesDS.getIds().map((id) => ({ id, color: paint(colors[levels[id]] ?? colors.unseen) })));
+  const fade = (c) => {
+    const m = /^#([0-9a-f]{6})$/i.exec(String(c ?? ""));
+    if (!m) return "rgba(120,120,140,0.25)";
+    const n = parseInt(m[1], 16);
+    return "rgba(" + (n >> 16) + "," + ((n >> 8) & 255) + "," + (n & 255) + ",0.25)";
+  };
+  nodesDS.update(nodesDS.get().map((n) => {
+    const own = (n.color && n.color.background) || n.color;
+    const level = levels[n.id];
+    // Starting points look as graphify draws them; only the fix's nodes get a ring.
+    if (level === "explored") return { id: n.id, color: { background: own, border: own, highlight: { background: "#ffffff", border: own } } };
+    return level === "changed"
+      ? { id: n.id, borderWidth: 1.5, color: { background: own, border: colors.changed, highlight: { background: "#ffffff", border: colors.changed } } }
+      : { id: n.id, color: { background: fade(own), border: fade(own), highlight: { background: own, border: own } } };
+  }));
   const legend = document.createElement("div");
   legend.setAttribute("role", "note");
   legend.style.cssText = "position:fixed;left:12px;bottom:12px;padding:8px 10px;background:rgba(13,13,13,.85);color:#ddd;font:12px sans-serif;border-radius:6px;z-index:10";
@@ -184,7 +201,8 @@ export function withOverlay(html, levels) {
     const item = document.createElement("span");
     item.style.cssText = "margin-right:12px;white-space:nowrap";
     const dot = document.createElement("span");
-    dot.style.cssText = "display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;background:" + c;
+    dot.style.cssText = "display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;box-sizing:border-box;" +
+      ({ unseen: "background:rgba(160,160,180,.3)", explored: "background:#4E79A7", changed: "background:#4E79A7;border:2px solid " + c })[level];
     item.append(dot, labels[level]);
     legend.append(item);
   }
@@ -299,6 +317,7 @@ const NODE_W = 480;
 const NODE_H = 450; // plus 30 for the legend
 const LABEL_SCREEN_PX = 13; // graphify viewer labels, on screen at any zoom (withOverlay)
 const LABEL_FIT_COUNT = 25; // viewer labels on a fitted graph; zooming in shows more
+const LABEL_FIX_COUNT = 10; // the fix's nodes always labelled in the viewer
 const LABEL_PX = 15; // in the map's own units: readable once a narrow pane scales it down
 const SVG_MAX_CHARS = 125_000; // the Svg element's limit is 131072
 const SVG_ANIMATED_NODES = 300;

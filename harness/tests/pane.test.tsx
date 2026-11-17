@@ -79,3 +79,13 @@ test("hidden: lesson calls leave the pane closed; /opensrcer-map still opens it"
   await $.command.run({ command: "opensrcer-map", args: "", origin: { kind: "composer" }, presentation: { isFullscreen: false, columns: 100 } });
   expect(opened).toEqual(["Code map: acme/app #12"]);
 });
+
+test("while the VS Code extension's map tab shows the map, lesson calls leave the pane closed and say where the map is", OPTIONS, async ($, on) => {
+  const opened: string[] = [];
+  on("fs.read", (_, e) => (String(e.path).endsWith("current.json") ? { value: JSON.stringify({ ...MAP, tabOpen: true }) } : { deny: "ENOENT" }));
+  on("ui.open", (_, e) => { opened.push(e.title ?? ""); return { value: { isPlaced: true } }; });
+  on("tool.call", () => ({ result: {} }));
+  const ran = await $.tool.call({ tool: "mcp__plugin_opensrcer_opensrcer__lesson_show", lesson: MAP.lesson });
+  expect(opened).toEqual([]);
+  expect(String((ran as { context?: string[] }).context)).toMatch(/opensrcer map tab beside the editor/);
+});

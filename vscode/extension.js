@@ -146,6 +146,8 @@ async function activate(context) {
   let panel = null;
   let shown = ""; // lesson+stage last opened automatically: a closed tab reopens only when the lesson moves on
   const mapFile = path.join(mapDir, "current.json");
+  const tabMarker = path.join(mapDir, "tab.json");
+  context.subscriptions.push({ dispose: () => fs.rmSync(tabMarker, { force: true }) });
   const readMap = () => (fs.existsSync(mapFile) ? parseMap(fs.readFileSync(mapFile, "utf8")) : null);
   const seen = readMap();
   if (seen) shown = `${seen.lesson}:${seen.stage}`; // a map from a past session doesn't pop up at startup
@@ -155,10 +157,13 @@ async function activate(context) {
       // Scripts on for graphify's viewer (its own CSP in viewerHtml); no local files and no
       // message handler, so the page can reach nothing of VS Code's.
       panel = vscode.window.createWebviewPanel("opensrcer.map", "opensrcer map", { viewColumn: vscode.ViewColumn.Beside, preserveFocus: !focus }, { enableScripts: true, localResourceRoots: [], retainContextWhenHidden: true });
-      panel.onDidDispose(() => { panel = null; });
+      // While the tab is open, the Claude Code plugin keeps its own copy of the map closed
+      // (harness/server.mjs mapTabOpen reads this; our process id, so a crash doesn't leave it set).
+      fs.writeFileSync(tabMarker, JSON.stringify({ pid: process.pid }));
+      panel.onDidDispose(() => { panel = null; fs.rmSync(tabMarker, { force: true }); });
     } else if (focus) panel.reveal(undefined, false);
     const viewerFile = map && map.viewer === "current.html" ? path.join(mapDir, "current.html") : "";
-    const viewer = viewerFile && fs.existsSync(viewerFile) ? viewerHtml(fs.readFileSync(viewerFile, "utf8"), panel.webview.cspSource) : null;
+    const viewer = viewerFile && fs.existsSync(viewerFile) ? viewerHtml(fs.readFileSync(viewerFile, "utf8"), panel.webview.cspSource, map.svg) : null;
     panel.webview.html = viewer ?? mapHtml(map, panel.webview.cspSource);
   }
 

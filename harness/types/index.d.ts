@@ -12,6 +12,8 @@ export type LessonMap = {
   explored: string[];
   changed: string[];
   svg: string;
+  /** The VS Code extension's map tab is open and shows this map (harness/server.mjs mapTabOpen). */
+  tabOpen?: boolean;
 };
 
 declare module "claude-code" {

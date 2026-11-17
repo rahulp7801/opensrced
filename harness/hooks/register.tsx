@@ -22,7 +22,7 @@ const MAP_SIZES: Record<string, { px: number; rows: number }> = {
 const DEFAULT_SIZE = MAP_SIZES.large!;
 const LESSON_TOOLS = "mcp__plugin_opensrcer_opensrcer__lesson_";
 // Change the tag when LessonMap's fields change: it declines what an earlier version stored.
-const map = atom({ plugin: "opensrcer", key: "map" } as const, null, { shape: "map-1" });
+const map = atom({ plugin: "opensrcer", key: "map" } as const, null, { shape: "map-2" });
 
 const LEGEND = "graphify's map of the code: dots are functions, classes and files, coloured by community until the lesson starts colouring. Blue: your starting points. Yellow: changed by the fix. Grey: not looked at yet.";
 /** Cell colours (0x00RRGGBB); grey is lighter than the SVG's to read on a dark terminal. */
@@ -96,16 +96,19 @@ export const register: Register = (on, options) => {
     const ran = await next(e);
     if (!opensItself || !e.tool.startsWith(LESSON_TOOLS) || ran.deny !== undefined || ran.isError) return ran;
     // The map is extra: whatever goes wrong drawing it, the lesson call's result stands.
-    const shown = await (async () => {
+    const shown = await (async (): Promise<"pane" | "tab" | false> => {
       const m = await load($);
       if (!m) return false;
       await update($, map, () => m);
-      return (await $.ui.open({ id: PANE, title: `Code map: ${m.title}`, rows: size.rows })).isPlaced;
+      // The VS Code extension's map tab is showing this map beside the editor: no second copy above the prompt.
+      if (m.tabOpen) return "tab";
+      return (await $.ui.open({ id: PANE, title: `Code map: ${m.title}`, rows: size.rows })).isPlaced ? "pane" : false;
     })().catch((error: unknown) => {
       $.ui.log(`opensrcer map: ${error instanceof Error ? error.message : String(error)}`);
-      return false;
+      return false as const;
     });
     if (!shown) return ran;
+    if (shown === "tab") return { ...ran, context: [...(ran.context ?? []), "The lesson's code map is in the opensrcer map tab beside the editor (graphify's interactive map): blue marks the user's starting points, yellow what the fix changes (after the reveal). Point the user to it when it helps."] };
     // The model learns the map is on screen, so it can point the user to it.
     return { ...ran, context: [...(ran.context ?? []), "The lesson's code map is in the opensrcer pane beside the chat: blue marks the user's starting points, yellow what the fix changes (after the reveal). Point the user to it when it helps; /opensrcer-map reopens it."] };
   });

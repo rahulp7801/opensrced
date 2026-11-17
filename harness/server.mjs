@@ -30,7 +30,7 @@ import { promisify } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { graphify, GraphifyError, GraphifyMissing, GRAPHIFY_INSTALL, GRAPHIFY_VERSION, lessonMapData, localGraphifyVersion, overlayLevels, withOverlay } from "./graph.mjs";
 
-const VERSION = "0.3.5";
+const VERSION = "0.3.7";
 const BASE = (process.env.OPENSRCER_URL || "https://opensrced.vercel.app").replace(/\/+$/, "");
 // A host that doesn't fill in `${user_config.…}` (plugin .mcp.json) leaves the literal: that is no token.
 const TOKEN = /^\$\{/.test(process.env.OPENSRCER_TOKEN ?? "") ? "" : process.env.OPENSRCER_TOKEN || "";
@@ -39,6 +39,20 @@ const MAP_DIR = process.env.OPENSRCER_MAP_DIR || join(HOME, "maps");
 // Every map is also written here, whoever started the server: the VS Code extension's map
 // tab watches it, so a lesson in Claude Code shows beside the editor too.
 const SHARED_MAP_DIR = join(HOME, "maps");
+
+/** Whether the VS Code extension's map tab is open: it leaves tab.json (its process id) in the
+ *  shared folder while the tab exists. A process that has gone away (a crash) doesn't count. */
+function mapTabOpen() {
+  try {
+    const { pid } = JSON.parse(readFileSync(join(SHARED_MAP_DIR, "tab.json"), "utf8"));
+    if (!Number.isInteger(pid) || pid <= 0) return false;
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    // EPERM: the process exists but belongs to someone else; anything else: no tab.
+    return error?.code === "EPERM";
+  }
+}
 const HERE = dirname(fileURLToPath(import.meta.url));
 const EVENT_TYPES = ["session_start", "verification", "pr_opened", "pr_merged", "pr_closed"];
 // GitHub's rules: owners are letters, digits and hyphens; names can't be "." or "..".
@@ -384,7 +398,7 @@ async function mapForPane(id) {
     // graphify's own viewer (vis-network), coloured by the lesson as the panel's is: an editor
     // tab that runs scripts (the VS Code extension) shows it in place of the still SVG.
     const viewer = typeof built.html === "string" && built.html.includes("</body>") ? withOverlay(built.html, levels) : "";
-    const data = JSON.stringify({ lesson: id, stage: lesson.stage, ...map, changed: changed.length ? changed : map.changed, viewer: viewer ? "current.html" : null });
+    const data = JSON.stringify({ lesson: id, stage: lesson.stage, ...map, changed: changed.length ? changed : map.changed, viewer: viewer ? "current.html" : null, tabOpen: mapTabOpen() });
     for (const dir of new Set([resolve(MAP_DIR), resolve(SHARED_MAP_DIR)])) {
       mkdirSync(dir, { recursive: true });
       // The page first: whoever reads current.json finds its viewer already written.

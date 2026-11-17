@@ -107,7 +107,7 @@ const VIEWER_SCRIPTS = "https://unpkg.com";
  * anywhere. The webview has no message handler and no local files (extension.js).
  * Returns null for anything that isn't an HTML page.
  */
-function viewerHtml(html, cspSource) {
+function viewerHtml(html, cspSource, fallbackSvg = "") {
   const page = String(html ?? "");
   const at = page.search(/<head[^>]*>/i);
   if (at < 0) return null;
@@ -115,7 +115,21 @@ function viewerHtml(html, cspSource) {
   const csp = `default-src 'none'; script-src 'unsafe-inline' ${VIEWER_SCRIPTS}; style-src 'unsafe-inline' ${cspSource}; img-src data: blob:; font-src data:; connect-src 'none';`;
   const withCsp = `${page.slice(0, end)}<meta http-equiv="Content-Security-Policy" content="${csp}">${page.slice(end)}`;
   const close = withCsp.lastIndexOf("</body>");
-  return close < 0 ? withCsp : withCsp.slice(0, close) + PANEL_TOGGLE + withCsp.slice(close);
+  const svg = String(fallbackSvg).trimStart().startsWith("<svg") ? fallbackSvg : "";
+  return close < 0 ? withCsp : withCsp.slice(0, close) + offlineFallback(svg) + PANEL_TOGGLE + withCsp.slice(close);
+}
+
+/**
+ * graphify's viewer needs vis-network from unpkg.com. Offline (or blocked), the page would be
+ * blank: it shows the still map instead (the SVG the pane draws) and says why.
+ */
+function offlineFallback(svg) {
+  return `<div id="osr-offline" hidden style="position:fixed;inset:0;z-index:30;overflow:auto;background:#0f0f1a;color:#e0e0e0;font:13px sans-serif;padding:12px 16px">
+<p style="margin:0 0 8px">The interactive map couldn't load: it needs vis-network from unpkg.com (check your internet connection). Here is the still map; run <b>opensrcer: Show the code map</b> to try again.</p>
+${svg ? `<div style="max-width:720px">${svg.replace("<svg ", '<svg style="width:100%;height:auto" ')}</div>` : ""}
+</div>
+<script>window.addEventListener("load", () => { if (typeof vis === "undefined") document.getElementById("osr-offline").hidden = false; });</script>
+`;
 }
 
 /**

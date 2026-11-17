@@ -110,3 +110,10 @@ test("viewerHtml: graphify's page with a CSP first in its head (scripts inline a
   assert.match(page, /<button id="osr-panel-toggle"[^>]*aria-controls="sidebar"[^>]*>Search<\/button>[\s\S]*<\/script>\n<\/body><\/html>$/);
   assert.match(page, /@media \(max-width:759px\)/);
 });
+
+test("viewerHtml: offline, the page shows the still map and says why (vis-network didn't load)", () => {
+  const page = viewerHtml("<html><head></head><body></body></html>", "x", '<svg xmlns="http://www.w3.org/2000/svg"><circle r="1"/></svg>');
+  assert.match(page, /<div id="osr-offline" hidden[^>]*>[\s\S]*couldn't load: it needs vis-network from unpkg\.com[\s\S]*<svg style="width:100%;height:auto" xmlns=/);
+  assert.match(page, /if \(typeof vis === "undefined"\) document\.getElementById\("osr-offline"\)\.hidden = false/);
+  assert.doesNotMatch(viewerHtml("<html><head></head><body></body></html>", "x", "<script>alert(1)</script>"), /alert\(1\)/, "only an SVG is taken as the fallback");
+});

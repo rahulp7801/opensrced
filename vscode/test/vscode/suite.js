@@ -104,8 +104,17 @@ async function run() {
     // 3. The map tab opens when the server writes a lesson's map.
     fs.writeFileSync(path.join(api.mapDir, "current.json"), JSON.stringify({ lesson: "l_test", stage: "locate", title: "pallets/itsdangerous #429", svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="#4E79A7"/></svg>', explored: ["src/itsdangerous/serializer.py"], changed: [] }));
     await wait("the map tab", () => api.panelOpen(), 10_000).then(() => check("map tab opens beside the editor", true), (e) => check("map tab opens beside the editor", false, e.message));
-    const tabs = vscode.window.tabGroups.all.flatMap((g) => g.tabs.map((t) => t.label));
-    check("map tab is labelled", tabs.includes("opensrcer map"), tabs.join(" | "));
+    // The panel exists before VS Code lists its tab: wait for the tab, not just the panel.
+    const tabLabels = () => vscode.window.tabGroups.all.flatMap((g) => g.tabs.map((t) => t.label));
+    await wait("the map tab in the tab list", () => tabLabels().includes("opensrcer map"), 5_000).catch(() => {});
+    check("map tab is labelled", tabLabels().includes("opensrcer map"), tabLabels().join(" | "));
+    // While it's open, tab.json holds this extension host's pid (the Claude Code plugin then keeps its pane closed).
+    const marker = path.join(api.mapDir, "tab.json");
+    const pid = fs.existsSync(marker) ? JSON.parse(fs.readFileSync(marker, "utf8")).pid : null;
+    check("an open map tab leaves its marker (tab.json, this process)", pid === process.pid, `pid ${pid}, extension host ${process.pid}`);
+    const mapTab = vscode.window.tabGroups.all.flatMap((g) => g.tabs).find((t) => t.label === "opensrcer map");
+    if (mapTab) await vscode.window.tabGroups.close(mapTab);
+    await wait("the marker to go", () => !fs.existsSync(marker), 5_000).then(() => check("closing the map tab removes its marker", true), (e) => check("closing the map tab removes its marker", false, e.message));
 
     // 4. VS Code's own MCP host: does the provider show up, and do the tools reach the language-model tool list?
     const cmds = (await vscode.commands.getCommands(true)).filter((c) => /mcp/i.test(c));

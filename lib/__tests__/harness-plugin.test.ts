@@ -4,7 +4,7 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createServer, type Server } from "node:http";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -141,7 +141,7 @@ test("the plugin server speaks MCP: initialize, tools, and calls that reach open
   const { child, request, notify } = start(TOKEN);
   try {
     const init = await request("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" } });
-    assert.deepEqual((init.result as { serverInfo: unknown }).serverInfo, { name: "opensrcer", version: "0.3.5" });
+    assert.deepEqual((init.result as { serverInfo: unknown }).serverInfo, { name: "opensrcer", version: "0.3.7" });
     // Hosts without the plugin's skill get the workflow from the server itself.
     assert.match((init.result as { instructions: string }).instructions, /Call repo_profile .* before changing code/);
     notify("notifications/initialized");
@@ -487,7 +487,23 @@ test("in a host with a panel, the map file is still written when the editor asks
     // With graphify's viewer page beside it, for an editor tab that runs it.
     assert.equal(map.viewer, "current.html");
     assert.match(readFileSync(join(home, "maps", "current.html"), "utf8"), /<\/body>/);
+    // The extension's tab marks itself open (tab.json, its process id): the map says so, and the
+    // Claude Code pane stays closed. A marker left by a process that's gone counts for nothing.
+    assert.equal(map.tabOpen, false);
+    const tabOpenAfterStart = async (id: number) => {
+      const again = await send(id, "tools/call", { name: "lesson_start", arguments: { repo: "acme/app", issue: 12, dir } });
+      assert.notEqual((again.result as ToolResult).isError, true);
+      return JSON.parse(readFileSync(join(mapDir, "current.json"), "utf8")).tabOpen;
+    };
+    writeFileSync(join(home, "maps", "tab.json"), JSON.stringify({ pid: process.pid }));
+    assert.equal(await tabOpenAfterStart(3), true);
+    const gone = spawnSync(process.execPath, ["-e", ""]).pid;
+    writeFileSync(join(home, "maps", "tab.json"), JSON.stringify({ pid: gone }));
+    assert.equal(await tabOpenAfterStart(4), false);
+    writeFileSync(join(home, "maps", "tab.json"), "not json");
+    assert.equal(await tabOpenAfterStart(5), false);
   } finally {
+    rmSync(join(home, "maps", "tab.json"), { force: true });
     child.kill();
   }
 });

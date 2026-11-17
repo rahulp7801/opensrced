@@ -106,4 +106,7 @@ test("viewerHtml: graphify's page with a CSP first in its head (scripts inline a
   assert.doesNotMatch(meta[1], /unsafe-eval/);
   assert.match(viewerHtml('<HTML><HEAD lang="en"></HEAD></HTML>', "x"), /^<HTML><HEAD lang="en"><meta http-equiv/);
   for (const bad of ["", "no html here", null, undefined]) assert.equal(viewerHtml(bad, "x"), null);
+  // A narrow editor tab: graphify's 280 px side panel slides over the graph from a button, just before </body>.
+  assert.match(page, /<button id="osr-panel-toggle"[^>]*aria-controls="sidebar"[^>]*>Search<\/button>[\s\S]*<\/script>\n<\/body><\/html>$/);
+  assert.match(page, /@media \(max-width:759px\)/);
 });

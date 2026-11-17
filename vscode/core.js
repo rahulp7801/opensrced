@@ -113,8 +113,48 @@ function viewerHtml(html, cspSource) {
   if (at < 0) return null;
   const end = page.indexOf(">", at) + 1;
   const csp = `default-src 'none'; script-src 'unsafe-inline' ${VIEWER_SCRIPTS}; style-src 'unsafe-inline' ${cspSource}; img-src data: blob:; font-src data:; connect-src 'none';`;
-  return `${page.slice(0, end)}<meta http-equiv="Content-Security-Policy" content="${csp}">${page.slice(end)}`;
+  const withCsp = `${page.slice(0, end)}<meta http-equiv="Content-Security-Policy" content="${csp}">${page.slice(end)}`;
+  const close = withCsp.lastIndexOf("</body>");
+  return close < 0 ? withCsp : withCsp.slice(0, close) + PANEL_TOGGLE + withCsp.slice(close);
 }
+
+/**
+ * An editor tab beside the code is narrow, and graphify's side panel is a fixed 280 px:
+ * below 760 px the graph takes the whole tab and the panel slides over it from a button;
+ * wider, the panel sits where graphify puts it and the button hides it. The graph re-fits
+ * after each change (graphify's `network`, a global of its page).
+ */
+const PANEL_TOGGLE = `<style>
+#osr-panel-toggle{position:fixed;top:10px;left:10px;z-index:20;background:#1a1a2e;color:#e0e0e0;border:1px solid #3a3a5e;border-radius:6px;padding:6px 10px;font:13px sans-serif;cursor:pointer}
+#osr-panel-toggle:focus-visible{outline:2px solid #4E79A7;outline-offset:2px}
+body.osr-hide #sidebar{display:none}
+@media (max-width:759px){
+  #sidebar{position:fixed;top:0;right:0;bottom:0;width:min(280px,85vw);z-index:15;box-shadow:-8px 0 24px rgba(0,0,0,.5);transform:translateX(100%);transition:transform .2s}
+  body.osr-show #sidebar{transform:none}
+}
+</style>
+<button id="osr-panel-toggle" type="button" aria-controls="sidebar" aria-expanded="false">Search</button>
+<script>
+(() => {
+  const button = document.getElementById("osr-panel-toggle");
+  const narrow = () => window.matchMedia("(max-width: 759px)").matches;
+  const open = () => (narrow() ? document.body.classList.contains("osr-show") : !document.body.classList.contains("osr-hide"));
+  const sync = () => {
+    button.setAttribute("aria-expanded", String(open()));
+    button.textContent = open() ? "Hide panel" : "Search";
+  };
+  const refit = () => setTimeout(() => { if (typeof network !== "undefined") { network.redraw(); network.fit(); } }, 220);
+  button.addEventListener("click", () => {
+    document.body.classList.toggle(narrow() ? "osr-show" : "osr-hide");
+    sync();
+    refit();
+  });
+  window.addEventListener("resize", () => { sync(); refit(); });
+  sync();
+  refit();
+})();
+</script>
+`;
 
 /** The map file the server wrote, or null when there's none or it's unreadable mid-write. */
 function parseMap(text) {

@@ -139,77 +139,83 @@ export function withOverlay(html, levels) {
 })();
 </script>
 `;
-  // graphify labels its biggest nodes at 12 graph units, which a fitted narrow tab scales under
-  // vis-network's 5 px cutoff: no text at all. Keep those labels (and the lesson's own nodes)
-  // LABEL_SCREEN_PX on screen at any zoom, outlined so they read over edges.
-  // ponytail: of the lesson's nodes only the fix's get a label; starting points are many and already coloured.
-  const lesson = JSON.stringify([...levels].filter(([, l]) => l === "changed").map(([id]) => id)).replace(/</g, "\\u003c");
-  const labelScript = `<script>
-(() => {
-  if (typeof nodesDS === "undefined" || typeof network === "undefined") return;
-  const lesson = new Set(${lesson});
-  // A code name has no spaces; docstring nodes have sentences for labels and stay hover-only.
-  const code = (n) => !/\\s/.test(String(n.label ?? "").trim());
-  // The fix's busiest code nodes (a changed file marks all of its nodes).
-  const fix = nodesDS.get().filter((n) => lesson.has(n.id) && code(n))
-    .sort((a, b) => (b.degree ?? 0) - (a.degree ?? 0)).slice(0, ${LABEL_FIX_COUNT}).map((n) => n.id);
-  // The rest by degree: ${LABEL_FIT_COUNT} when the graph is fitted, more as the user zooms in.
-  const busiest = nodesDS.get().filter((n) => !fix.includes(n.id) && n.font && n.font.size > 0)
-    .sort((a, b) => (b.degree ?? 0) - (a.degree ?? 0)).map((n) => n.id);
-  let fitScale = 0;
-  const size = () => {
-    const s = Math.max(network.getScale(), 0.01);
-    fitScale ||= s;
-    const shown = new Set([...fix, ...busiest.slice(0, Math.round(${LABEL_FIT_COUNT} * Math.max(1, (s / fitScale) ** 2)))]);
-    const font = { size: Math.max(${LABEL_SCREEN_PX} / s, 12), color: "#ffffff", strokeWidth: 3 / Math.min(s, 1), strokeColor: "#0f0f1a" };
-    nodesDS.update([...fix, ...busiest].map((id) => ({ id, font: shown.has(id) ? font : { size: 0 } })));
-  };
-  network.once("stabilizationIterationsDone", () => { fitScale = 0; size(); });
-  network.on("zoom", size);
-  size();
-})();
-</script>
-`;
   if (!html.includes("nodesDS")) return html.slice(0, end) + access + html.slice(end);
-  if (levels.size === 0) return html.slice(0, end) + access + labelScript + html.slice(end);
-  const data = JSON.stringify({ colors: MAP_COLORS, labels: MAP_LABELS, levels: Object.fromEntries(levels) }).replace(/</g, "\\u003c");
-  // graphify's look stays: every node keeps its community colour. What the lesson hasn't
-  // touched fades, and the fix's nodes get a ring in the lesson's yellow.
+  const lit = JSON.stringify(Object.fromEntries(levels)).replace(/</g, "\\u003c");
+  // graphify's look, decluttered: no docstring nodes; the lesson's code bright in its community
+  // colours and the rest faded hard (after the reveal the fix brightest, the starting points dimmer);
+  // labels LABEL_SCREEN_PX on screen, placed only where they don't overlap, the lesson's first.
   const script = `${access}<script>
 (() => {
-  if (typeof nodesDS === "undefined") return; // vis-network didn't load: nothing to recolour
-  const { colors, labels, levels } = ${data};
-  const fade = (c) => {
+  if (typeof nodesDS === "undefined" || typeof network === "undefined") return; // vis-network didn't load
+  const levels = ${lit};
+  const lit = Object.keys(levels).length > 0;
+  const revealed = Object.values(levels).includes("changed");
+  nodesDS.remove(nodesDS.get().filter((n) => n.file_type === "rationale").map((n) => n.id));
+  // How bright each node is: 1 as graphify draws it, less for what the lesson leaves aside.
+  const alpha = (id) => !lit ? 1 : levels[id] === "changed" ? 1 : levels[id] === "explored" ? (revealed ? ${FADE_EXPLORED} : 1) : ${FADE_UNSEEN};
+  const rgba = (c, a) => {
     const m = /^#([0-9a-f]{6})$/i.exec(String(c ?? ""));
-    if (!m) return "rgba(120,120,140,0.25)";
-    const n = parseInt(m[1], 16);
-    return "rgba(" + (n >> 16) + "," + ((n >> 8) & 255) + "," + (n & 255) + ",0.25)";
+    const n = m ? parseInt(m[1], 16) : 0x78788c;
+    return "rgba(" + (n >> 16) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
   };
-  nodesDS.update(nodesDS.get().map((n) => {
-    const own = (n.color && n.color.background) || n.color;
-    const level = levels[n.id];
-    // Starting points look as graphify draws them; only the fix's nodes get a ring.
-    if (level === "explored") return { id: n.id, color: { background: own, border: own, highlight: { background: "#ffffff", border: own } } };
-    return level === "changed"
-      ? { id: n.id, borderWidth: 1.5, color: { background: own, border: colors.changed, highlight: { background: "#ffffff", border: colors.changed } } }
-      : { id: n.id, color: { background: fade(own), border: fade(own), highlight: { background: own, border: own } } };
-  }));
+  if (lit) {
+    nodesDS.update(nodesDS.get().map((n) => {
+      const own = (n.color && n.color.background) || n.color;
+      const c = rgba(own, alpha(n.id));
+      return { id: n.id, color: { background: c, border: c, highlight: { background: own, border: "#ffffff" }, hover: { background: own, border: own } } };
+    }));
+    edgesDS.update(edgesDS.get().map((e) => ({ id: e.id, color: { ...(typeof e.color === "object" ? e.color : {}), opacity: Math.min(alpha(e.from), alpha(e.to)) * 0.7 } })));
+  }
+  // Labels: code names only, the lesson's first, then the busiest; each placed only where it
+  // doesn't overlap one already placed. Recomputed whenever the view moves.
+  const cut = (t) => (t.length > 26 ? t.slice(0, 25) + "\\u2026" : t);
+  const rank = (n) => alpha(n.id) * 1e6 + (levels[n.id] === "changed" ? 5e5 : 0) + (n.degree ?? 0) * 100 + (n.size ?? 0);
+  const nodes = nodesDS.get().filter((n) => n.label && !/\\s/.test(String(n.label).trim()) && (!lit || alpha(n.id) >= ${FADE_EXPLORED}))
+    .sort((a, b) => rank(b) - rank(a)).map((n) => ({ id: n.id, text: cut(String(n.label)), size: n.size ?? 10 }));
+  const others = nodesDS.get().filter((n) => !nodes.some((x) => x.id === n.id)).map((n) => n.id);
+  const container = document.getElementById("graph") ?? document.body;
+  let queued = false;
+  const place = () => {
+    queued = false;
+    const s = Math.max(network.getScale(), 0.01);
+    const W = container.clientWidth, H = container.clientHeight;
+    const pos = network.getPositions(nodes.map((n) => n.id));
+    const boxes = [];
+    const shown = new Set();
+    for (const n of nodes) {
+      if (!pos[n.id]) continue;
+      const d = network.canvasToDOM(pos[n.id]);
+      const w = n.text.length * 7.4 + 8, h = 18;
+      const b = { x: d.x - w / 2, y: d.y + n.size * s + 1, w, h }; // vis-network draws the label under the dot
+      if (b.x + w < 0 || b.y < 0 || b.x > W || b.y > H) continue;
+      if (boxes.some((o) => b.x < o.x + o.w && o.x < b.x + b.w && b.y < o.y + o.h && o.y < b.y + b.h)) continue;
+      boxes.push(b); shown.add(n.id);
+    }
+    const font = { size: ${LABEL_SCREEN_PX} / s, color: "#ffffff", strokeWidth: 3 / s, strokeColor: "#0f0f1a" };
+    nodesDS.update([...nodes.map((n) => ({ id: n.id, label: n.text, font: shown.has(n.id) ? font : { size: 0 } })), ...others.map((id) => ({ id, font: { size: 0 } }))]);
+  };
+  const later = () => { if (!queued) { queued = true; requestAnimationFrame(place); } };
+  for (const event of ["stabilizationIterationsDone", "zoom", "dragEnd", "animationFinished", "resize"]) network.on(event, later);
+  place();
+  if (!lit) return;
   const legend = document.createElement("div");
   legend.setAttribute("role", "note");
   legend.style.cssText = "position:fixed;left:12px;bottom:12px;padding:8px 10px;background:rgba(13,13,13,.85);color:#ddd;font:12px sans-serif;border-radius:6px;z-index:10";
-  for (const [level, c] of Object.entries(colors)) {
+  const items = revealed
+    ? [[1, "changed by the fix"], [${FADE_EXPLORED}, "your starting points"], [${FADE_UNSEEN}, "not looked at"]]
+    : [[1, "your starting points"], [${FADE_UNSEEN}, "not looked at"]];
+  for (const [a, text] of items) {
     const item = document.createElement("span");
     item.style.cssText = "margin-right:12px;white-space:nowrap";
     const dot = document.createElement("span");
-    dot.style.cssText = "display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;box-sizing:border-box;" +
-      ({ unseen: "background:rgba(160,160,180,.3)", explored: "background:#4E79A7", changed: "background:#4E79A7;border:2px solid " + c })[level];
-    item.append(dot, labels[level]);
+    dot.style.cssText = "display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;background:" + rgba("#76B7B2", a);
+    item.append(dot, text);
     legend.append(item);
   }
   document.body.append(legend);
 })();
 </script>
-${labelScript}`;
+`;
   return html.slice(0, end) + script + html.slice(end);
 }
 
@@ -316,8 +322,8 @@ const SVG_MAX_EDGES = 1400;
 const NODE_W = 480;
 const NODE_H = 450; // plus 30 for the legend
 const LABEL_SCREEN_PX = 13; // graphify viewer labels, on screen at any zoom (withOverlay)
-const LABEL_FIT_COUNT = 25; // viewer labels on a fitted graph; zooming in shows more
-const LABEL_FIX_COUNT = 10; // the fix's nodes always labelled in the viewer
+const FADE_UNSEEN = 0.12; // viewer: what the lesson hasn't touched
+const FADE_EXPLORED = 0.45; // viewer, after the reveal: starting points the fix doesn't change
 const LABEL_PX = 15; // in the map's own units: readable once a narrow pane scales it down
 const SVG_MAX_CHARS = 125_000; // the Svg element's limit is 131072
 const SVG_ANIMATED_NODES = 300;

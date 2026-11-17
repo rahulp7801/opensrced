@@ -108,7 +108,7 @@ export const register: Register = (on, options) => {
       return false as const;
     });
     if (!shown) return ran;
-    if (shown === "tab") return { ...ran, context: [...(ran.context ?? []), "The lesson's code map is in the opensrcer map tab beside the editor (graphify's interactive map): blue marks the user's starting points, yellow what the fix changes (after the reveal). Point the user to it when it helps."] };
+    if (shown === "tab") return { ...ran, context: [...(ran.context ?? []), "The lesson's code map is in the opensrcer map tab beside the editor (graphify's interactive map): the lesson's code is bright in graphify's colours and the rest faded (after the reveal the fix is brightest, the starting points dimmer). Point the user to it when it helps."] };
     // The model learns the map is on screen, so it can point the user to it.
     return { ...ran, context: [...(ran.context ?? []), "The lesson's code map is in the opensrcer pane beside the chat: blue marks the user's starting points, yellow what the fix changes (after the reveal). Point the user to it when it helps; /opensrcer-map reopens it."] };
   });

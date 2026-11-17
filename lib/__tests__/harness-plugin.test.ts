@@ -141,7 +141,7 @@ test("the plugin server speaks MCP: initialize, tools, and calls that reach open
   const { child, request, notify } = start(TOKEN);
   try {
     const init = await request("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" } });
-    assert.deepEqual((init.result as { serverInfo: unknown }).serverInfo, { name: "opensrcer", version: "0.3.9" });
+    assert.deepEqual((init.result as { serverInfo: unknown }).serverInfo, { name: "opensrcer", version: "0.3.10" });
     // Hosts without the plugin's skill get the workflow from the server itself.
     assert.match((init.result as { instructions: string }).instructions, /Call repo_profile .* before changing code/);
     notify("notifications/initialized");
@@ -627,38 +627,46 @@ test("an answer waiting for its grade survives the host restarting the server", 
   }
 });
 
-test("graphify's viewer: labels stay readable at any zoom, the fix's code nodes always labelled", async () => {
+test("graphify's viewer, decluttered: no docstrings, the rest faded, labels that never overlap", async () => {
   const { runInNewContext } = await import("node:vm");
   const { pathToFileURL } = await import("node:url");
   // A real ESM import (tsc turns import() into require here, which can't load an .mjs).
   const esm = new Function("u", "return import(u)") as (u: string) => Promise<{ withOverlay: (html: string, levels: Map<string, string>) => string }>;
   const { withOverlay } = await esm(pathToFileURL(join(process.cwd(), "harness", "graph.mjs")).href);
-  const nodes = [
-    { id: "big", label: "Serializer", degree: 9, font: { size: 12 } },
-    { id: "small", label: "helper()", degree: 1, font: { size: 0 } },
-    { id: "fix", label: "loads()", degree: 1, font: { size: 0 } },
-    { id: "doc", label: "Like loads but unsafe.", degree: 1, font: { size: 0 } },
+  type N = { id: string; label: string; degree: number; size: number; file_type: string; color: string; font?: { size: number }; x: number; y: number };
+  let nodes: N[] = [
+    { id: "fix", label: "loads()", degree: 1, size: 10, file_type: "code", color: "#76B7B2", x: 100, y: 100 },
+    { id: "busy", label: "Serializer", degree: 9, size: 10, file_type: "code", color: "#76B7B2", x: 102, y: 101 }, // on top of "fix"
+    { id: "start", label: "unsign()", degree: 2, size: 10, file_type: "code", color: "#E15759", x: 400, y: 300 },
+    { id: "far", label: "helper()", degree: 5, size: 10, file_type: "code", color: "#59A14F", x: 700, y: 500 },
+    { id: "doc", label: "Like loads but unsafe.", degree: 1, size: 10, file_type: "rationale", color: "#76B7B2", x: 300, y: 300 },
   ];
-  const page = withOverlay("<html><body><script>nodesDS</script></body></html>", new Map([["fix", "changed"], ["doc", "changed"]]));
-  // Run the page's own scripts against a stand-in vis-network.
-  const font = new Map<string, { size: number }>();
-  let zoom: () => void = () => {};
-  let scale = 0.25;
+  const page = withOverlay("<html><body><script>nodesDS</script></body></html>", new Map([["fix", "changed"], ["busy", "explored"], ["start", "explored"], ["</script><b>x", "explored"]]));
+  assert.equal(page.includes("</script><b>x"), false, "a node id can't close the page's script");
+  // Run the page's own scripts against a stand-in vis-network, at scale 1.
   const sandbox = {
-    document: { querySelectorAll: () => [], body: { append() {} }, createElement: () => ({ style: {}, setAttribute() {}, append() {} }) },
+    document: { querySelectorAll: () => [], getElementById: () => ({ clientWidth: 1000, clientHeight: 700 }), body: { append() {} }, createElement: () => ({ style: {}, setAttribute() {}, append() {} }) },
     MutationObserver: class { observe() {} },
+    requestAnimationFrame: (f: () => void) => f(),
     nodesDS: {
-      get: () => nodes, getIds: () => nodes.map((n) => n.id),
-      update: (u: { id: string; font?: { size: number } }[]) => u.forEach((x) => x.font && font.set(x.id, x.font)),
+      get: () => nodes,
+      remove: (ids: string[]) => { nodes = nodes.filter((n) => !ids.includes(n.id)); },
+      update: (u: Partial<N>[]) => u.forEach((x) => Object.assign(nodes.find((n) => n.id === x.id)!, x)),
     },
-    network: { getScale: () => scale, once: () => {}, on: (_e: string, f: () => void) => { zoom = f; } },
+    edgesDS: { get: () => [], update() {} },
+    network: {
+      getScale: () => 1, on() {},
+      getPositions: (ids: string[]) => Object.fromEntries(nodes.filter((n) => ids.includes(n.id)).map((n) => [n.id, { x: n.x, y: n.y }])),
+      canvasToDOM: (p: { x: number; y: number }) => p,
+    },
   };
   for (const [, code] of page.matchAll(/<script>([\s\S]*?)<\/script>/g)) if (code !== "nodesDS") runInNewContext(code, sandbox);
-  // Fitted at a quarter scale: 13 px on screen is 52 graph units, past vis-network's 5 px cutoff.
-  assert.equal(font.get("big")?.size, 52);
-  assert.equal(font.get("fix")?.size, 52, "the fix's code node is labelled");
-  assert.equal(font.has("doc"), false, "a docstring node stays hover-only");
-  assert.equal(font.has("small"), false, "graphify's unlabelled nodes stay unlabelled");
-  scale = 2; zoom();
-  assert.equal(font.get("big")?.size, 12, "zoomed in, never smaller than graphify's own 12");
+  const node = (id: string) => nodes.find((n) => n.id === id);
+  assert.equal(node("doc"), undefined, "docstring nodes are gone");
+  assert.equal(node("fix")?.font?.size, 13, "the fix is labelled first, 13 px on screen");
+  assert.equal(node("busy")?.font?.size, 0, "a label that would overlap one already placed isn't drawn");
+  assert.equal(node("start")?.font?.size, 13, "starting points are labelled where they fit");
+  assert.equal(node("far")?.font?.size, 0, "what the lesson hasn't touched has no label");
+  assert.match(String((node("far")?.color as unknown as { background: string }).background), /,0\.12\)$/, "and is faded");
+  assert.match(String((node("start")?.color as unknown as { background: string }).background), /,0\.45\)$/, "after the reveal, starting points dim");
 });

@@ -148,6 +148,10 @@ async function activate(context) {
   const mapFile = path.join(mapDir, "current.json");
   const tabMarker = path.join(mapDir, "tab.json");
   context.subscriptions.push({ dispose: () => fs.rmSync(tabMarker, { force: true }) });
+  // While we watch, a new lesson's first map opens our tab, so the plugin doesn't open its pane for it.
+  const watchMarker = path.join(mapDir, "watch.json");
+  fs.writeFileSync(watchMarker, JSON.stringify({ pid: process.pid }));
+  context.subscriptions.push({ dispose: () => fs.rmSync(watchMarker, { force: true }) });
   const readMap = () => (fs.existsSync(mapFile) ? parseMap(fs.readFileSync(mapFile, "utf8")) : null);
   const seen = readMap();
   if (seen) shown = `${seen.lesson}:${seen.stage}`; // a map from a past session doesn't pop up at startup

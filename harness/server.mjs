@@ -30,7 +30,7 @@ import { promisify } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { graphify, GraphifyError, GraphifyMissing, GRAPHIFY_INSTALL, GRAPHIFY_VERSION, lessonMapData, localGraphifyVersion, overlayLevels, withOverlay } from "./graph.mjs";
 
-const VERSION = "0.3.7";
+const VERSION = "0.3.8";
 const BASE = (process.env.OPENSRCER_URL || "https://opensrced.vercel.app").replace(/\/+$/, "");
 // A host that doesn't fill in `${user_config.…}` (plugin .mcp.json) leaves the literal: that is no token.
 const TOKEN = /^\$\{/.test(process.env.OPENSRCER_TOKEN ?? "") ? "" : process.env.OPENSRCER_TOKEN || "";
@@ -42,16 +42,26 @@ const SHARED_MAP_DIR = join(HOME, "maps");
 
 /** Whether the VS Code extension's map tab is open: it leaves tab.json (its process id) in the
  *  shared folder while the tab exists. A process that has gone away (a crash) doesn't count. */
-function mapTabOpen() {
+/** Whether a live process left this marker in the shared map folder (the VS Code extension's
+ *  tab.json while its map tab is open, watch.json while it watches the folder). */
+function markerAlive(name) {
   try {
-    const { pid } = JSON.parse(readFileSync(join(SHARED_MAP_DIR, "tab.json"), "utf8"));
+    const { pid } = JSON.parse(readFileSync(join(SHARED_MAP_DIR, name), "utf8"));
     if (!Number.isInteger(pid) || pid <= 0) return false;
     process.kill(pid, 0);
     return true;
   } catch (error) {
-    // EPERM: the process exists but belongs to someone else; anything else: no tab.
+    // EPERM: the process exists but belongs to someone else; anything else: no marker.
     return error?.code === "EPERM";
   }
+}
+/** The VS Code map tab shows this map: it's open, or the extension is watching and opens it for
+ *  a lesson or stage it hasn't shown (the first map of a lesson arrives before the tab exists). */
+function mapTabOpen(key) {
+  if (markerAlive("tab.json")) return true;
+  let prev = "";
+  try { const m = JSON.parse(readFileSync(join(SHARED_MAP_DIR, "current.json"), "utf8")); prev = `${m.lesson}:${m.stage}`; } catch { /* no map yet */ }
+  return key !== prev && markerAlive("watch.json");
 }
 const HERE = dirname(fileURLToPath(import.meta.url));
 const EVENT_TYPES = ["session_start", "verification", "pr_opened", "pr_merged", "pr_closed"];
@@ -398,7 +408,7 @@ async function mapForPane(id) {
     // graphify's own viewer (vis-network), coloured by the lesson as the panel's is: an editor
     // tab that runs scripts (the VS Code extension) shows it in place of the still SVG.
     const viewer = typeof built.html === "string" && built.html.includes("</body>") ? withOverlay(built.html, levels) : "";
-    const data = JSON.stringify({ lesson: id, stage: lesson.stage, ...map, changed: changed.length ? changed : map.changed, viewer: viewer ? "current.html" : null, tabOpen: mapTabOpen() });
+    const data = JSON.stringify({ lesson: id, stage: lesson.stage, ...map, changed: changed.length ? changed : map.changed, viewer: viewer ? "current.html" : null, tabOpen: mapTabOpen(`${id}:${lesson.stage}`) });
     for (const dir of new Set([resolve(MAP_DIR), resolve(SHARED_MAP_DIR)])) {
       mkdirSync(dir, { recursive: true });
       // The page first: whoever reads current.json finds its viewer already written.

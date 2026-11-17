@@ -139,7 +139,37 @@ export function withOverlay(html, levels) {
 })();
 </script>
 `;
-  if (!html.includes("nodesDS") || levels.size === 0) return html.slice(0, end) + access + html.slice(end);
+  // graphify labels its biggest nodes at 12 graph units, which a fitted narrow tab scales under
+  // vis-network's 5 px cutoff: no text at all. Keep those labels (and the lesson's own nodes)
+  // LABEL_SCREEN_PX on screen at any zoom, outlined so they read over edges.
+  // ponytail: of the lesson's nodes only the fix's get a label; starting points are many and already coloured.
+  const lesson = JSON.stringify([...levels].filter(([, l]) => l === "changed").map(([id]) => id)).replace(/</g, "\\u003c");
+  const labelScript = `<script>
+(() => {
+  if (typeof nodesDS === "undefined" || typeof network === "undefined") return;
+  const lesson = new Set(${lesson});
+  // A code name has no spaces; docstring nodes have sentences for labels and stay hover-only.
+  const code = (n) => !/\\s/.test(String(n.label ?? "").trim());
+  const fix = nodesDS.get().filter((n) => lesson.has(n.id) && code(n)).map((n) => n.id);
+  // The rest by degree: ${LABEL_FIT_COUNT} when the graph is fitted, more as the user zooms in.
+  const busiest = nodesDS.get().filter((n) => !lesson.has(n.id) && n.font && n.font.size > 0)
+    .sort((a, b) => (b.degree ?? 0) - (a.degree ?? 0)).map((n) => n.id);
+  let fitScale = 0;
+  const size = () => {
+    const s = Math.max(network.getScale(), 0.01);
+    fitScale ||= s;
+    const shown = new Set([...fix, ...busiest.slice(0, Math.round(${LABEL_FIT_COUNT} * Math.max(1, (s / fitScale) ** 2)))]);
+    const font = { size: Math.max(${LABEL_SCREEN_PX} / s, 12), color: "#ffffff", strokeWidth: 3 / Math.min(s, 1), strokeColor: "#0f0f1a" };
+    nodesDS.update([...fix, ...busiest].map((id) => ({ id, font: shown.has(id) ? font : { size: 0 } })));
+  };
+  network.once("stabilizationIterationsDone", () => { fitScale = 0; size(); });
+  network.on("zoom", size);
+  size();
+})();
+</script>
+`;
+  if (!html.includes("nodesDS")) return html.slice(0, end) + access + html.slice(end);
+  if (levels.size === 0) return html.slice(0, end) + access + labelScript + html.slice(end);
   const data = JSON.stringify({ colors: MAP_COLORS, labels: MAP_LABELS, levels: Object.fromEntries(levels) }).replace(/</g, "\\u003c");
   const script = `${access}<script>
 (() => {
@@ -161,7 +191,7 @@ export function withOverlay(html, levels) {
   document.body.append(legend);
 })();
 </script>
-`;
+${labelScript}`;
   return html.slice(0, end) + script + html.slice(end);
 }
 
@@ -267,6 +297,8 @@ const SVG_MAX_NODES = 500;
 const SVG_MAX_EDGES = 1400;
 const NODE_W = 480;
 const NODE_H = 450; // plus 30 for the legend
+const LABEL_SCREEN_PX = 13; // graphify viewer labels, on screen at any zoom (withOverlay)
+const LABEL_FIT_COUNT = 25; // viewer labels on a fitted graph; zooming in shows more
 const LABEL_PX = 15; // in the map's own units: readable once a narrow pane scales it down
 const SVG_MAX_CHARS = 125_000; // the Svg element's limit is 131072
 const SVG_ANIMATED_NODES = 300;

@@ -116,7 +116,9 @@ function viewerHtml(html, cspSource, fallbackSvg = "") {
   const withCsp = `${page.slice(0, end)}<meta http-equiv="Content-Security-Policy" content="${csp}">${page.slice(end)}`;
   const close = withCsp.lastIndexOf("</body>");
   const svg = String(fallbackSvg).trimStart().startsWith("<svg") ? fallbackSvg : "";
-  return close < 0 ? withCsp : withCsp.slice(0, close) + offlineFallback(svg) + PANEL_TOGGLE + withCsp.slice(close);
+  // graphify's viewer needs vis-network and has its side panel; a page without them (the file map) gets neither.
+  const graphify = /vis-network/.test(page);
+  return close < 0 || !graphify ? withCsp : withCsp.slice(0, close) + offlineFallback(svg) + PANEL_TOGGLE + withCsp.slice(close);
 }
 
 /**

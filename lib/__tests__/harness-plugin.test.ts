@@ -141,7 +141,7 @@ test("the plugin server speaks MCP: initialize, tools, and calls that reach open
   const { child, request, notify } = start(TOKEN);
   try {
     const init = await request("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" } });
-    assert.deepEqual((init.result as { serverInfo: unknown }).serverInfo, { name: "opensrcer", version: "0.3.10" });
+    assert.deepEqual((init.result as { serverInfo: unknown }).serverInfo, { name: "opensrcer", version: "0.3.11" });
     // Hosts without the plugin's skill get the workflow from the server itself.
     assert.match((init.result as { instructions: string }).instructions, /Call repo_profile .* before changing code/);
     notify("notifications/initialized");
@@ -484,9 +484,11 @@ test("in a host with a panel, the map file is still written when the editor asks
     assert.match(map.svg, /^<svg /);
     // And in the shared folder the VS Code extension's map tab watches, whichever editor ran the lesson.
     assert.equal(readFileSync(join(home, "maps", "current.json"), "utf8"), readFileSync(join(mapDir, "current.json"), "utf8"));
-    // With graphify's viewer page beside it, for an editor tab that runs it.
+    // With the file map beside it (file cards, no scripts), for the editor's map tab.
     assert.equal(map.viewer, "current.html");
-    assert.match(readFileSync(join(home, "maps", "current.html"), "utf8"), /<\/body>/);
+    const page = readFileSync(join(home, "maps", "current.html"), "utf8");
+    assert.match(page, /<main class="grid">[\s\S]*<section id="f-/);
+    assert.doesNotMatch(page, /<script/);
     // The extension's tab marks itself open (tab.json, its process id): the map says so, and the
     // Claude Code pane stays closed. A marker left by a process that's gone counts for nothing.
     assert.equal(map.tabOpen, false);
@@ -669,4 +671,32 @@ test("graphify's viewer, decluttered: no docstrings, the rest faded, labels that
   assert.equal(node("far")?.font?.size, 0, "what the lesson hasn't touched has no label");
   assert.match(String((node("far")?.color as unknown as { background: string }).background), /,0\.12\)$/, "and is faded");
   assert.match(String((node("start")?.color as unknown as { background: string }).background), /,0\.45\)$/, "after the reveal, starting points dim");
+});
+
+test("the file map: a card per code file, the lesson's first; only the functions the fix's removed lines sit in are starred; names escaped", async () => {
+  const { pathToFileURL } = await import("node:url");
+  const esm = new Function("u", "return import(u)") as (u: string) => Promise<{ fileMapHtml: (g: unknown, levels: Map<string, string>, diff: string, title: string) => string }>;
+  const { fileMapHtml } = await esm(pathToFileURL(join(process.cwd(), "harness", "graph.mjs")).href);
+  const node = (id: string, label: string, file: string, at: number, file_type = "code") => ({ id, label, source_file: file, source_location: `L${at}`, file_type, community: 0 });
+  const graph = {
+    nodes: [
+      node("a", "a.py", "pkg/a.py", 1), node("a_s", "S", "pkg/a.py", 5), node("a_s_loads", ".loads()", "pkg/a.py", 10), node("a_s_dumps", ".dumps()", "pkg/a.py", 30),
+      node("a_p", "P", "pkg/a.py", 40), node("a_p_loads", ".loads()", "pkg/a.py", 45),
+      node("b", "b.py", "pkg/b.py", 1), node("b_f", "helper()", "pkg/b.py", 3), node("b_x", "<img src=x>()", "pkg/b.py", 9),
+      node("c_doc", "A sentence about a.", "pkg/a.py", 11, "rationale"),
+    ],
+    links: [{ source: "a_s_loads", target: "b_f", relation: "calls" }],
+  };
+  const diff = "--- a/pkg/a.py\n+++ b/pkg/a.py\n@@ -11,3 +11,3 @@\n context\n-    old body\n+    new body\n";
+  const levels = new Map([["a_s_loads", "changed"], ["a_s_dumps", "changed"], ["a_p_loads", "changed"], ["b_f", "explored"]]);
+  const page = fileMapHtml(graph, levels, diff, "o/n #1");
+  const cards = [...page.matchAll(/<section id="([^"]+)" class="card ([a-z]+)"/g)].map((m) => [m[1], m[2]]);
+  assert.deepEqual(cards, [["f-pkg-a-py", "changed"], ["f-pkg-b-py", "explored"]], "the fix's file first, then the starting points'");
+  assert.equal([...page.matchAll(/class="star"/g)].length, 2, "the legend's star and one changed function");
+  assert.match(page, /<li class="fn in fix"><span class="star"[^>]*>\u2605<\/span>loads\(\)<\/li><li class="fn in">dumps\(\)/, "S.loads (line 12 is in it) is starred, S.dumps isn't");
+  assert.match(page, /<li class="fn in">loads\(\)<\/li><\/ul>/, "P.loads, the other loads, isn't");
+  assert.match(page, /<li class="fn start">helper\(\)/, "a function the user named is highlighted");
+  assert.match(page, /&lt;img src=x&gt;\(\)/);
+  assert.doesNotMatch(page, /<img|<script|A sentence/);
+  assert.match(page, /uses <a href="#f-pkg-b-py">b\.py<\/a>/);
 });

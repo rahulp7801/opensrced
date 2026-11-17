@@ -443,3 +443,132 @@ export function nodeSvg(graph, levels, animate = true, maxNodes = SVG_MAX_NODES,
   if (maxNodes > SVG_ANIMATED_NODES) return nodeSvg(graph, levels, true, SVG_ANIMATED_NODES, SVG_ANIMATED_EDGES);
   return nodeSvg(graph, levels, false);
 }
+
+// ── The file map: the lesson's code as tidy file cards (the VS Code map tab) ──────────
+
+const FILE_MAP_ROWS = 10; // symbols shown per card before "more"; the lesson's are always shown
+
+/** The old line numbers a diff removes or rewrites, by file: the functions around them are what the fix changes. */
+function removedLines(diff) {
+  const out = new Map();
+  let file = null, old = 0;
+  for (const text of String(diff ?? "").split(/\r?\n/)) {
+    const f = /^\+\+\+ (?:b\/)?(\S+)/.exec(text);
+    if (f) { file = f[1]; continue; }
+    const h = /^@@ -(\d+)/.exec(text);
+    if (h) { old = Number(h[1]); continue; }
+    if (!file || text.startsWith("---")) continue;
+    if (text.startsWith("-")) { out.set(file, [...(out.get(file) ?? []), old]); old++; }
+    else if (!text.startsWith("+")) old++;
+  }
+  return out;
+}
+
+/**
+ * The code map as a page of file cards: each code file a card listing its classes and
+ * functions in source order (methods under their class), the files it uses and is used by
+ * as links to their cards, the lesson's files first and highlighted (blue: the user's
+ * starting points; yellow: what the fix changes, the changed functions starred).
+ * No scripts and no network; colours from VS Code's theme where it gives them. Pure.
+ */
+export function fileMapHtml(graph, levels, diff, title) {
+  const removed = removedLines(diff);
+  const nodes = graph.nodes.filter((n) => n.file_type === "code" && n.source_file);
+  const path = (n) => n.source_file.replace(/\\/g, "/");
+  const byFile = new Map();
+  for (const n of nodes) byFile.set(path(n), [...(byFile.get(path(n)) ?? []), n]);
+  const fileOf = new Map(nodes.map((n) => [n.id, path(n)]));
+  // File to file: how many calls, imports and uses cross between them.
+  const uses = new Map();
+  for (const l of graph.links ?? []) {
+    const a = fileOf.get(l.source), b = fileOf.get(l.target);
+    if (!a || !b || a === b) continue;
+    const m = uses.get(a) ?? new Map();
+    m.set(b, (m.get(b) ?? 0) + 1);
+    uses.set(a, m);
+  }
+  const usedBy = new Map();
+  for (const [a, m] of uses) for (const b of m.keys()) usedBy.set(b, [...(usedBy.get(b) ?? []), a]);
+  const line = (n) => Number(/\d+/.exec(n.source_location ?? "")?.[0] ?? 1e9);
+  const level = (f) => {
+    const ls = byFile.get(f).map((n) => levels.get(n.id));
+    return ls.includes("changed") ? "changed" : ls.includes("explored") ? "explored" : "unseen";
+  };
+  const rank = { changed: 0, explored: 1, unseen: 2 };
+  const isTest = (f) => Number(/(^|\/)tests?\//.test(f));
+  const files = [...byFile.keys()]
+    // The file's own node (label "serializer.py") is the card itself.
+    .map((f) => ({ f, symbols: byFile.get(f).filter((n) => !/\.\w+$/.test(n.label)).sort((a, b) => line(a) - line(b)) }))
+    .filter((x) => x.symbols.length)
+    .sort((a, b) => rank[level(a.f)] - rank[level(b.f)] || isTest(a.f) - isTest(b.f) || b.symbols.length - a.symbols.length);
+  const lit = levels.size > 0;
+  const anchor = (f) => "f-" + f.replace(/[^\w]/g, "-");
+  const base = (f) => f.split("/").pop();
+  const link = (g) => `<a href="#${anchor(g)}">${xml(base(g))}</a>`;
+  const card = ({ f, symbols }) => {
+    const lv = level(f);
+    // A file the user named as a whole marks all its nodes; a named function marks just that row.
+    const whole = symbols.every((n) => levels.get(n.id) === "explored");
+    const counts = new Map();
+    for (const n of symbols) counts.set(n.community, (counts.get(n.community) ?? 0) + 1);
+    const community = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 0;
+    const classes = symbols.filter((n) => !n.label.startsWith(".") && !n.label.endsWith(")")).map((n) => n.id);
+    // The function each removed line sits in (the last one starting at or before it).
+    const fns = symbols.filter((n) => n.label.endsWith(")"));
+    const fixed = new Set((removed.get(f) ?? []).map((at) => fns.filter((n) => line(n) <= at).at(-1)?.id).filter(Boolean));
+    const rows = symbols.map((n) => {
+      const method = n.label.startsWith(".") && classes.some((c) => n.id.startsWith(c + "_"));
+      const name = n.label.replace(/^\./, "");
+      const fix = fixed.has(n.id);
+      const start = !whole && levels.get(n.id) === "explored";
+      const kind = n.label.endsWith(")") ? "fn" : "cls";
+      const cls = [kind, method && "in", fix && "fix", start && "start"].filter(Boolean).join(" ");
+      return { html: `<li class="${cls}">${fix ? '<span class="star" title="the fix changes this">★</span>' : ""}${xml(name)}</li>`, keep: fix || start };
+    });
+    const shown = rows.filter((r, i) => i < FILE_MAP_ROWS || r.keep);
+    const rest = rows.filter((r, i) => !(i < FILE_MAP_ROWS || r.keep));
+    const out = [...(uses.get(f) ?? new Map())].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([g]) => link(g));
+    const inn = (usedBy.get(f) ?? []).slice(0, 4).map(link);
+    const dir = f.includes("/") ? f.slice(0, f.lastIndexOf("/") + 1) : "";
+    const tag = lv === "changed" ? '<span class="tag fixtag">fix</span>' : lv === "explored" ? '<span class="tag starttag">start</span>' : "";
+    return `<section id="${anchor(f)}" class="card${lit ? " " + lv : ""}" style="--accent:${GRAPHIFY_PALETTE[community % GRAPHIFY_PALETTE.length]}">
+<h2><span class="dir">${xml(dir)}</span>${xml(base(f))}${tag}</h2>
+<ul>${shown.map((r) => r.html).join("")}</ul>${rest.length ? `<details><summary>${rest.length} more</summary><ul>${rest.map((r) => r.html).join("")}</ul></details>` : ""}
+${out.length || inn.length ? `<p class="rel">${out.length ? `uses ${out.join(" ")}` : ""}${out.length && inn.length ? "<br>" : ""}${inn.length ? `used by ${inn.join(" ")}` : ""}</p>` : ""}
+</section>`;
+  };
+  const legend = lit
+    ? `<p class="legend"><span class="key starttag">start</span> your starting points <span class="key fixtag">fix</span> what the fix changes <span class="star">★</span> a changed function</p>`
+    : `<p class="legend">Each card is a file, with its classes and functions in source order. Your starting points and the fix light up as the lesson goes on.</p>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${xml(title)}</title>
+<style>
+:root { --bg: var(--vscode-editor-background, #1e1e1e); --fg: var(--vscode-foreground, #cccccc); --muted: var(--vscode-descriptionForeground, #9d9d9d); --card: var(--vscode-sideBar-background, #252526); --line: var(--vscode-panel-border, #3c3c3c); --start: #4E79A7; --fix: #EDC948; }
+body { margin: 0; padding: 14px 16px 24px; background: var(--bg); color: var(--fg); font: 13px var(--vscode-font-family, system-ui, sans-serif); }
+h1 { font-size: 15px; margin: 0 0 4px; }
+.legend { margin: 0 0 14px; color: var(--muted); }
+.key, .tag { display: inline-block; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 8px; margin: 0 2px 0 8px; color: #111; }
+.starttag { background: var(--start); color: #fff; } .fixtag { background: var(--fix); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; align-items: start; }
+.card { background: var(--card); border: 1px solid var(--line); border-top: 3px solid var(--accent); border-radius: 8px; padding: 10px 12px; }
+.card.unseen { opacity: .5; } .card.unseen:hover, .card:target { opacity: 1; }
+.card.explored { border-color: var(--start); border-top-color: var(--start); }
+.card.changed { border-color: var(--fix); border-top-color: var(--fix); box-shadow: 0 0 0 1px var(--fix); }
+.card:target { outline: 2px solid var(--fg); }
+h2 { font-size: 13px; margin: 0 0 6px; font-weight: 600; overflow-wrap: anywhere; }
+.dir { color: var(--muted); font-weight: 400; }
+ul { list-style: none; margin: 0; padding: 0; font-family: var(--vscode-editor-font-family, ui-monospace, monospace); font-size: 12px; line-height: 1.6; }
+li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+li.cls { font-weight: 600; } li.cls::before { content: "\\25C6  "; color: var(--accent); }
+li.fn::before { content: "\\0192  "; color: var(--muted); } li.in { padding-left: 14px; }
+li.start { color: #fff; background: var(--start); border-radius: 3px; } li.start::before { color: #fff; }
+li.fix { color: #111; background: var(--fix); border-radius: 3px; } li.fix::before { color: #111; }
+.star { margin-right: 4px; color: var(--fix); } li.fix .star { color: #111; }
+details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.rel { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.rel a { color: var(--vscode-textLink-foreground, #3794ff); margin-right: 6px; text-decoration: none; }
+</style></head><body>
+<h1>${xml(title)}</h1>
+${legend}
+<main class="grid">${files.map(card).join("\n")}</main>
+</body></html>`;
+}

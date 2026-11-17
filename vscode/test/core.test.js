@@ -112,8 +112,15 @@ test("viewerHtml: graphify's page with a CSP first in its head (scripts inline a
 });
 
 test("viewerHtml: offline, the page shows the still map and says why (vis-network didn't load)", () => {
-  const page = viewerHtml("<html><head></head><body></body></html>", "x", '<svg xmlns="http://www.w3.org/2000/svg"><circle r="1"/></svg>');
+  const graphify = '<html><head></head><body><script src="https://unpkg.com/vis-network@9.1.6/x.js"></script></body></html>';
+  const page = viewerHtml(graphify, "x", '<svg xmlns="http://www.w3.org/2000/svg"><circle r="1"/></svg>');
   assert.match(page, /<div id="osr-offline" hidden[^>]*>[\s\S]*couldn't load: it needs vis-network from unpkg\.com[\s\S]*<svg style="width:100%;height:auto" xmlns=/);
   assert.match(page, /if \(typeof vis === "undefined"\) document\.getElementById\("osr-offline"\)\.hidden = false/);
-  assert.doesNotMatch(viewerHtml("<html><head></head><body></body></html>", "x", "<script>alert(1)</script>"), /alert\(1\)/, "only an SVG is taken as the fallback");
+  assert.doesNotMatch(viewerHtml(graphify, "x", "<script>alert(1)</script>"), /alert\(1\)/, "only an SVG is taken as the fallback");
+});
+
+test("viewerHtml: a page without vis-network (the file map) gets the CSP but no offline notice or panel button", () => {
+  const page = viewerHtml("<html><head></head><body><main>cards</main></body></html>", "x", "<svg></svg>");
+  assert.match(page, /Content-Security-Policy/);
+  assert.doesNotMatch(page, /osr-offline|osr-panel-toggle/);
 });

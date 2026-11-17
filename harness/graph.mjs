@@ -523,7 +523,7 @@ export function fileMapHtml(graph, levels, diff, title) {
       const start = !whole && levels.get(n.id) === "explored";
       const kind = n.label.endsWith(")") ? "fn" : "cls";
       const cls = [kind, method && "in", fix && "fix", start && "start"].filter(Boolean).join(" ");
-      return { html: `<li class="${cls}">${fix ? '<span class="star" title="the fix changes this">★</span>' : ""}${xml(name)}</li>`, keep: fix || start };
+      return { html: `<li class="${cls}" title="${xml(name)}">${fix ? '<span class="star" title="the fix changes this">★</span>' : ""}${xml(name)}</li>`, keep: fix || start };
     });
     const shown = rows.filter((r, i) => i < FILE_MAP_ROWS || r.keep);
     const rest = rows.filter((r, i) => !(i < FILE_MAP_ROWS || r.keep));

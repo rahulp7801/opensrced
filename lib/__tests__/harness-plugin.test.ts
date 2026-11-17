@@ -693,9 +693,9 @@ test("the file map: a card per code file, the lesson's first; only the functions
   const cards = [...page.matchAll(/<section id="([^"]+)" class="card ([a-z]+)"/g)].map((m) => [m[1], m[2]]);
   assert.deepEqual(cards, [["f-pkg-a-py", "changed"], ["f-pkg-b-py", "explored"]], "the fix's file first, then the starting points'");
   assert.equal([...page.matchAll(/class="star"/g)].length, 2, "the legend's star and one changed function");
-  assert.match(page, /<li class="fn in fix"><span class="star"[^>]*>\u2605<\/span>loads\(\)<\/li><li class="fn in">dumps\(\)/, "S.loads (line 12 is in it) is starred, S.dumps isn't");
-  assert.match(page, /<li class="fn in">loads\(\)<\/li><\/ul>/, "P.loads, the other loads, isn't");
-  assert.match(page, /<li class="fn start">helper\(\)/, "a function the user named is highlighted");
+  assert.match(page, /<li class="fn in fix" title="loads\(\)"><span class="star"[^>]*>\u2605<\/span>loads\(\)<\/li><li class="fn in" title="dumps\(\)">dumps\(\)/, "S.loads (line 12 is in it) is starred, S.dumps isn't");
+  assert.match(page, /<li class="fn in" title="loads\(\)">loads\(\)<\/li><\/ul>/, "P.loads, the other loads, isn't");
+  assert.match(page, /<li class="fn start" title="helper\(\)">helper\(\)/, "a function the user named is highlighted (its full name on hover)");
   assert.match(page, /&lt;img src=x&gt;\(\)/);
   assert.doesNotMatch(page, /<img|<script|A sentence/);
   assert.match(page, /uses <a href="#f-pkg-b-py">b\.py<\/a>/);

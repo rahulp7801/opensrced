@@ -49,12 +49,12 @@ for (const path of ['/discover', '/issues', '/dispatches', '/crucible', '/graph'
   assert.ok([302, 303, 307].includes(r.status) && new URL(r.location, base).pathname === '/login', `${path} must ask for sign-in, got ${r.status} ${r.location}`);
 }
 assert.equal((await request('/api/dispatches')).status, 401);
-assert.deepEqual(JSON.parse((await request('/api/access')).text), { inviteOnly: true, signedIn: false, invited: false });
+assert.deepEqual(JSON.parse((await request('/api/access')).text), { inviteOnly: true, signedIn: false, invited: false, student: false });
 const sitemap = await request('/sitemap.xml');
 assert.match(sitemap.text, /\/demo\/stage</, 'the public demo is in the sitemap');
 
 // Signed in without an invite: told it is invite-only, and owns nothing.
-assert.deepEqual(JSON.parse((await request('/api/access', outsider)).text), { inviteOnly: true, signedIn: true, invited: false });
+assert.deepEqual(JSON.parse((await request('/api/access', outsider)).text), { inviteOnly: true, signedIn: true, invited: false, student: false });
 assert.equal((await request('/demo/stage', outsider)).status, 200, 'the demo is public to everyone');
 for (const path of ['/discover', '/crucible', '/login']) {
   assert.ok(redirectsTo(await request(path, outsider), '/?access=invite-only'), `${path} must send an outsider to the preview page`);
@@ -68,7 +68,7 @@ const run = await request('/api/run/agentic', outsider, { method: 'POST', body: 
 assert.equal(run.status, 403, 'an outsider cannot start runs');
 
 // Invited: the app as usual.
-assert.deepEqual(JSON.parse((await request('/api/access', invited)).text), { inviteOnly: true, signedIn: true, invited: true });
+assert.deepEqual(JSON.parse((await request('/api/access', invited)).text), { inviteOnly: true, signedIn: true, invited: true, student: false });
 assert.equal((await request('/discover', invited)).status, 200);
 assert.equal((await request('/api/dispatches', invited)).status, 200);
 assert.equal((await request('/api/settings/keys', invited)).status, 200);

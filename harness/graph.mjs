@@ -447,6 +447,10 @@ export function nodeSvg(graph, levels, animate = true, maxNodes = SVG_MAX_NODES,
 // ── The file map: the lesson's code as tidy file cards (the VS Code map tab) ──────────
 
 const FILE_MAP_ROWS = 10; // symbols shown per card before "more"; the lesson's are always shown
+// A big project (django: 2,000 files) can't be a card and a bubble per file: the page keeps the
+// lesson's files and then the most connected ones, up to these.
+const FILE_MAP_CARDS = 80;
+const FILE_MAP_BUBBLES = 36;
 
 /** The old line numbers a diff removes or rewrites, by file: the functions around them are what the fix changes. */
 function removedLines(diff) {
@@ -491,8 +495,9 @@ const FILE_MAP_SCRIPT = String.raw`
     n.g.style.setProperty("--c", n.color);
     if (n.level === "changed" || n.level === "explored") el("circle", { class: "pulse", r: n.r }, n.g);
     el("circle", { class: "dot", r: n.r }, n.g);
-    const t = el("text", { class: "name", y: n.r + 14 }, n.g);
-    t.textContent = n.label;
+    n.t = el("text", { class: "name", y: n.r + 14 }, n.g);
+    n.t.textContent = n.label;
+    n.lw = n.t.getComputedTextLength() || n.label.length * 7;
   }
   const near = new Map(D.nodes.map((n) => [n.id, new Set([n.id])]));
   for (const l of links) { near.get(l.s).add(l.t); near.get(l.t).add(l.s); }
@@ -502,6 +507,15 @@ const FILE_MAP_SCRIPT = String.raw`
     for (let i = 0; i < ns.length; i++) for (let j = i + 1; j < ns.length; j++) {
       const a = ns[i], b = ns[j];
       let dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 0.01;
+      // Each file is a box (its bubble and the name under it): boxes that overlap step apart
+      // along the shorter way out, so names don't print over each other.
+      const ox = Math.max(a.r, a.lw / 2) + Math.max(b.r, b.lw / 2) + 8 - Math.abs(dx);
+      const oy = a.r + b.r + 22 - Math.abs(dy);
+      if (ox > 0 && oy > 0) {
+        const k = 0.25 * (alpha + 0.05);
+        if (ox < oy) { const s = (Math.sign(dx) || 1) * ox * k; a.vx -= s; b.vx += s; }
+        else { const s = (Math.sign(dy) || 1) * oy * k; a.vy -= s; b.vy += s; }
+      }
       const room = a.r + b.r + 46;
       const f = (1800 / (d * d) + (d < room ? (room - d) * 0.25 : 0)) * alpha;
       dx /= d; dy /= d; a.vx -= dx * f; a.vy -= dy * f; b.vx += dx * f; b.vy += dy * f;
@@ -516,7 +530,7 @@ const FILE_MAP_SCRIPT = String.raw`
       n.vx += (w / 2 - n.x) * pull * alpha; n.vy += (h / 2 - n.y) * pull * alpha;
       if (n === dragging) { n.vx = n.vy = 0; continue; }
       n.x += n.vx *= 0.6; n.y += n.vy *= 0.6;
-      n.x = Math.max(n.r + 4, Math.min(w - n.r - 4, n.x)); n.y = Math.max(n.r + 4, Math.min(h - n.r - 20, n.y));
+      const hw = Math.max(n.r, n.lw / 2) + 4; n.x = Math.max(hw, Math.min(w - hw, n.x)); n.y = Math.max(n.r + 4, Math.min(h - n.r - 20, n.y));
     }
   };
   const draw = () => {
@@ -526,10 +540,23 @@ const FILE_MAP_SCRIPT = String.raw`
     }
     for (const n of D.nodes) n.g.setAttribute("transform", "translate(" + n.x + "," + n.y + ")");
   };
-  const frame = () => { tick(); draw(); alpha *= 0.985; if (alpha > 0.02 || dragging) requestAnimationFrame(frame); else running = false; };
+  // Once still, a name that would still touch one placed before it (the lesson's files first,
+  // then the biggest) is hidden; hovering its file or a neighbour shows it.
+  const declutter = () => {
+    const placed = [];
+    const rank = (n) => (n.level === "changed" ? 0 : n.level === "explored" ? 1 : 2);
+    for (const n of [...D.nodes].sort((a, b) => rank(a) - rank(b) || b.r - a.r)) {
+      const r = n.t.getBoundingClientRect();
+      const hit = placed.some((p) => r.left < p.right + 4 && r.right > p.left - 4 && r.top < p.bottom && r.bottom > p.top);
+      n.g.classList.toggle("quiet", hit);
+      if (!hit) placed.push(r);
+    }
+  };
+  let frames = 0;
+  const frame = () => { tick(); draw(); alpha *= 0.975; if (++frames % 20 === 0) declutter(); if (alpha > 0.02 || dragging) requestAnimationFrame(frame); else { running = false; declutter(); } };
   let running = false;
   const wake = (a) => { alpha = Math.max(alpha, a); if (!running) { running = true; requestAnimationFrame(frame); } };
-  if (still) { for (let i = 0; i < 300; i++) { tick(); alpha *= 0.985; } draw(); } else wake(1);
+  if (still) { for (let i = 0; i < 300; i++) { tick(); alpha *= 0.975; } draw(); declutter(); } else wake(1);
   // Hover: the file and its neighbours stay lit, the rest steps back.
   const focus = (n) => {
     svg.classList.toggle("focus", Boolean(n));
@@ -598,10 +625,20 @@ export function fileMapHtml(graph, levels, diff, title) {
     .map((f) => ({ f, symbols: byFile.get(f).filter((n) => !/\.\w+$/.test(n.label)).sort((a, b) => line(a) - line(b)) }))
     .filter((x) => x.symbols.length)
     .sort((a, b) => rank[level(a.f)] - rank[level(b.f)] || isTest(a.f) - isTest(b.f) || b.symbols.length - a.symbols.length);
+  // How connected each file is: the calls, imports and uses crossing to or from it.
+  const weight = new Map();
+  for (const [a, m] of uses) for (const [b, w] of m) { weight.set(a, (weight.get(a) ?? 0) + w); weight.set(b, (weight.get(b) ?? 0) + w); }
+  /** The lesson's files, then the most connected, up to `max`; in `list`'s own order. */
+  const keep = (list, max) => {
+    const pick = new Set([...list].sort((a, b) => rank[level(a.f)] - rank[level(b.f)] || (weight.get(b.f) ?? 0) - (weight.get(a.f) ?? 0)).slice(0, max).map((x) => x.f));
+    return list.filter((x) => pick.has(x.f) || level(x.f) !== "unseen");
+  };
+  const cards = keep(files, FILE_MAP_CARDS);
+  const carded = new Set(cards.map((x) => x.f));
   const lit = levels.size > 0;
   const anchor = (f) => "f-" + f.replace(/[^\w]/g, "-");
   const base = (f) => f.split("/").pop();
-  const link = (g) => `<a href="#${anchor(g)}">${xml(base(g))}</a>`;
+  const link = (g) => (carded.has(g) ? `<a href="#${anchor(g)}">${xml(base(g))}</a>` : `<span>${xml(base(g))}</span>`);
   const accentOf = (symbols) => {
     const counts = new Map();
     for (const n of symbols) counts.set(n.community, (counts.get(n.community) ?? 0) + 1);
@@ -640,9 +677,12 @@ ${out.length || inn.length ? `<p class="rel">${out.length ? `uses ${out.join(" "
     ? `<p class="legend"><span class="key starttag">start</span> your starting points <span class="key fixtag">fix</span> what the fix changes <span class="star">★</span> a changed function</p>`
     : `<p class="legend">Each bubble is a file, linked to the files it uses; each card lists a file's classes and functions. Your starting points and the fix light up as the lesson goes on. Drag a bubble, or click it to jump to its card.</p>`;
   // The bubbles' data: a file each (sized by how much is in it), and the files it uses.
-  const shown = new Set(files.map((x) => x.f));
+  // A file linked to nothing (a config, a lone script) only floats about: it keeps its card, not a bubble.
+  const linked = new Set([...uses].flatMap(([a, m]) => [a, ...m.keys()]));
+  const bubbles = keep(cards.filter(({ f }) => linked.has(f) || (lit && level(f) !== "unseen")), FILE_MAP_BUBBLES);
+  const shown = new Set(bubbles.map((x) => x.f));
   const data = {
-    nodes: files.map(({ f, symbols }) => ({ id: anchor(f), label: base(f), r: Math.round(7 + 2.4 * Math.sqrt(symbols.length)), color: accentOf(symbols), level: lit ? level(f) : "none" })),
+    nodes: bubbles.map(({ f, symbols }) => ({ id: anchor(f), label: base(f), r: Math.min(22, Math.round(7 + 2.4 * Math.sqrt(symbols.length))), color: accentOf(symbols), level: lit ? level(f) : "none" })),
     links: [...uses].flatMap(([a, m]) => [...m].filter(([b]) => shown.has(a) && shown.has(b)).map(([b, w]) => ({ s: anchor(a), t: anchor(b), w }))),
   };
   return `<!doctype html><html><head><meta charset="utf-8"><title>${xml(title)}</title>
@@ -650,7 +690,7 @@ ${out.length || inn.length ? `<p class="rel">${out.length ? `uses ${out.join(" "
 :root { --bg: var(--vscode-editor-background, #1e1e1e); --fg: var(--vscode-foreground, #cccccc); --muted: var(--vscode-descriptionForeground, #9d9d9d); --card: var(--vscode-sideBar-background, #252526); --line: var(--vscode-panel-border, #3c3c3c); --start: #4E79A7; --fix: #EDC948; }
 body { margin: 0; padding: 14px 16px 24px; background: var(--bg); color: var(--fg); font: 13px var(--vscode-font-family, system-ui, sans-serif); }
 h1 { font-size: 15px; margin: 0 0 4px; }
-.legend { margin: 0 0 14px; color: var(--muted); }
+.legend { margin: 0 0 14px; color: var(--muted); } .legend.more { margin: 14px 0 0; }
 .key, .tag { display: inline-block; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 8px; margin: 0 2px 0 8px; color: #111; }
 .starttag { background: var(--start); color: #fff; } .fixtag { background: var(--fix); }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; align-items: start; }
@@ -687,6 +727,7 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
 @keyframes pulse { from { transform: scale(1); opacity: .8; } to { transform: scale(2.1); opacity: 0; } }
 .name { fill: var(--fg); font-size: 11.5px; text-anchor: middle; paint-order: stroke; stroke: var(--card); stroke-width: 3px; pointer-events: none; }
 .changed .name, .explored .name { font-weight: 600; }
+.name { transition: opacity .2s; } .node.quiet .name { opacity: 0; } #osr-graph.focus .node.on .name, .node.quiet:hover .name { opacity: 1; }
 #osr-graph.focus .node:not(.on) { opacity: .12; } #osr-graph.focus .link:not(.on) { stroke-opacity: .05; } #osr-graph.focus .link.on { stroke-opacity: 1; }
 .card { animation: rise .45s cubic-bezier(.2,.7,.3,1) both; animation-delay: calc(var(--i) * 45ms); transition: transform .2s, box-shadow .2s; }
 .card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.25); }
@@ -699,9 +740,10 @@ li.fix { background: linear-gradient(100deg, var(--fix) 40%, #fff6c4 50%, var(--
 </style></head><body>
 <h1>${xml(title)}</h1>
 ${legend}
-<svg id="osr-graph" role="img" aria-label="The files of ${xml(title)} and how they use each other"></svg>
+<svg id="osr-graph" style="height:${Math.min(560, Math.max(300, 120 + bubbles.length * 11))}px" role="img" aria-label="The files of ${xml(title)} and how they use each other"></svg>
 <script type="application/json" id="osr-data">${JSON.stringify(data).replace(/</g, "\\u003c")}</script>
-<main class="grid">${files.map(card).join("\n")}</main>
+<main class="grid">${cards.map(card).join("\n")}</main>
+${files.length > cards.length ? `<p class="legend more">${files.length - cards.length} more files aren't shown: the map keeps the lesson's files and the most connected others. Ask about any of them in chat.</p>` : ""}
 <script>${FILE_MAP_SCRIPT}</script>
 </body></html>`;
 }

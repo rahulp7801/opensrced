@@ -706,4 +706,28 @@ test("the file map: a card per code file, the lesson's first; only the functions
   // A file name can't end the data's script early.
   const hostile = fileMapHtml({ nodes: [node("h", "f()", "x/</script><b>.py", 1)], links: [] }, new Map(), "", "t");
   assert.equal(hostile.split("</script>").length - 1, 2, "only the page's own two scripts close");
+
+  // A big project: the lesson's files and the most connected others, a card for 80 and a bubble
+  // for 36; a file linked to nothing gets a card but no bubble; a file without a card isn't a link.
+  const big = { nodes: [] as ReturnType<typeof node>[], links: [] as Array<{ source: string; target: string }> };
+  for (let i = 0; i < 200; i++) big.nodes.push(node(`m${i}`, `f${i}()`, `m/f${i}.py`, 1));
+  big.nodes.push(node("lone", "lone()", "setup.py", 1), node("lesson", "picked()", "deep/picked.py", 1));
+  // f0 is used by every other file (the hub); each file also uses the next one.
+  for (let i = 1; i < 200; i++) big.links.push({ source: `m${i}`, target: "m0" }, { source: `m${i}`, target: `m${(i + 1) % 200}` });
+  const bigPage = fileMapHtml(big, new Map([["lesson", "explored"]]), "", "big");
+  const bigCards = [...bigPage.matchAll(/<section id="([^"]+)"/g)].map((m) => m[1]);
+  const bigData = JSON.parse(/id="osr-data">([\s\S]*?)<\/script>/.exec(bigPage)![1]);
+  assert.equal(bigCards.length, 80, "80 cards, the lesson's file among them");
+  assert.ok(bigCards.includes("f-deep-picked-py") && bigCards.includes("f-m-f0-py"), "the lesson's file and the hub are kept");
+  assert.equal(bigData.nodes.length, 36);
+  assert.ok(bigData.nodes.some((n: { id: string }) => n.id === "f-deep-picked-py"), "the lesson's file is a bubble though it links to nothing");
+  assert.ok(!bigData.links.some((l: { s: string; t: string }) => ![l.s, l.t].every((id) => bigData.nodes.some((n: { id: string }) => n.id === id))), "links only between bubbles");
+  assert.match(bigPage, /122 more files aren't shown/);
+  assert.doesNotMatch(bigPage, /href="#f-(?!(?:m-f\d+|deep-picked)-py)/, "links only to cards");
+  const kept = new Set(bigCards);
+  for (const [, id] of bigPage.matchAll(/href="#([^"]+)"/g)) assert.ok(kept.has(id), `${id} has a card`);
+  const small = fileMapHtml({ nodes: [...graph.nodes, node("cfg", "main()", "tools/cfg.py", 1)], links: graph.links }, new Map(), "", "t");
+  const smallData = JSON.parse(/id="osr-data">([\s\S]*?)<\/script>/.exec(small)![1]);
+  assert.match(small, /id="f-tools-cfg-py"/, "a file linked to nothing keeps its card");
+  assert.ok(!smallData.nodes.some((n: { id: string }) => n.id === "f-tools-cfg-py"), "but gets no bubble");
 });

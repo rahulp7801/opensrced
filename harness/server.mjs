@@ -30,7 +30,7 @@ import { promisify } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { graphify, GraphifyError, GraphifyMissing, GRAPHIFY_INSTALL, GRAPHIFY_VERSION, lessonMapData, localGraphifyVersion, overlayLevels, withOverlay, fileMapHtml } from "./graph.mjs";
 
-const VERSION = "0.3.12";
+const VERSION = "0.3.13";
 const BASE = (process.env.OPENSRCER_URL || "https://opensrced.vercel.app").replace(/\/+$/, "");
 // A host that doesn't fill in `${user_config.…}` (plugin .mcp.json) leaves the literal: that is no token.
 const TOKEN = /^\$\{/.test(process.env.OPENSRCER_TOKEN ?? "") ? "" : process.env.OPENSRCER_TOKEN || "";
@@ -40,10 +40,9 @@ const MAP_DIR = process.env.OPENSRCER_MAP_DIR || join(HOME, "maps");
 // tab watches it, so a lesson in Claude Code shows beside the editor too.
 const SHARED_MAP_DIR = join(HOME, "maps");
 
-/** Whether the VS Code extension's map tab is open: it leaves tab.json (its process id) in the
- *  shared folder while the tab exists. A process that has gone away (a crash) doesn't count. */
 /** Whether a live process left this marker in the shared map folder (the VS Code extension's
- *  tab.json while its map tab is open, watch.json while it watches the folder). */
+ *  tab.json while its map tab is open, watch.json while it watches the folder). A process that
+ *  has gone away (a crash) doesn't count. */
 function markerAlive(name) {
   try {
     const { pid } = JSON.parse(readFileSync(join(SHARED_MAP_DIR, name), "utf8"));

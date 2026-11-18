@@ -4,7 +4,8 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { TokenFormatError, cleanToken, siteUrl, serverLaunch, describeMe, mapHtml, viewerHtml, parseMap, parseIssue } = require("../core");
+const { TokenFormatError, cleanToken, siteUrl, serverLaunch, describeMe, mapHtml, viewerHtml, parseMap, parseIssue, mapIsMine } = require("../core");
+const path = require("node:path");
 
 const GOOD = `osh_${"aB3_-".repeat(6)}xy`;
 
@@ -123,4 +124,18 @@ test("viewerHtml: a page without vis-network (the file map) gets the CSP but no 
   const page = viewerHtml("<html><head></head><body><main>cards</main></body></html>", "x", "<svg></svg>");
   assert.match(page, /Content-Security-Policy/);
   assert.doesNotMatch(page, /osr-offline|osr-panel-toggle/);
+});
+
+test("mapIsMine: only the window whose folders hold the lesson (its checkout or the agent's folder) opens the map", () => {
+  const root = path.resolve("/work");
+  const app = path.join(root, "app");
+  const map = (places) => ({ lesson: "l_1", stage: "kickoff", places });
+  assert.equal(mapIsMine(map([path.join(root, "agent"), path.join(app, "src")]), [app]), true, "the checkout is inside the folder");
+  assert.equal(mapIsMine(map([app]), [app]), true, "the folder itself");
+  assert.equal(mapIsMine(map([path.join(root, "app-other")]), [app]), false, "a sibling whose name starts the same isn't inside");
+  assert.equal(mapIsMine(map([path.join(root, "elsewhere")]), [app, path.join(root, "docs")]), false, "another project's lesson");
+  assert.equal(mapIsMine(map([app]), []), false, "a window with no folder shows no one's lesson");
+  assert.equal(mapIsMine({ lesson: "l_1", stage: "kickoff" }, []), true, "a map from an older plugin (no places) is every window's");
+  assert.equal(mapIsMine(map([app.toUpperCase()]), [app], "win32"), true, "Windows paths match whatever their case");
+  assert.equal(mapIsMine(map([app.toUpperCase()]), [app], "linux"), app.toUpperCase() === app, "elsewhere case counts");
 });

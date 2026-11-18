@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { analyzeImpactFromDiff, touchedNodeIds } from "../graph-impact";
+import { analyzeImpactFromDiff, changedOldLines, editedNodeIds, touchedNodeIds } from "../graph-impact";
 import type { GraphData } from "../graph";
 
 test("touchedNodeIds: nodes in changed files and changed definitions, nothing else", () => {
@@ -70,4 +70,36 @@ test("graph impact handles a production-size dependency chain", { timeout: 2_000
   assert.equal(result.totalAffected, count - 1);
   assert.equal(result.affectedModules, 10);
   assert.equal(result.topNode, "node0");
+});
+
+test("changedOldLines: removed lines where they were, added ones at the line they follow, hunk headers' names", () => {
+  const diff = [
+    "diff --git a/pkg/core.py b/pkg/core.py", "--- a/pkg/core.py", "+++ b/pkg/core.py",
+    "@@ -10,4 +10,5 @@ class Option(Parameter):", " a", "-b", "+B", "+C", " d",
+    "@@ -40,2 +41,2 @@ def get_error_hint(self, ctx):", " x", "--- a dashed line the fix removes",
+  ].join("\n");
+  assert.deepEqual([...changedOldLines(diff)], [["pkg/core.py", { lines: [11, 11, 11, 41], headers: ["option", "get_error_hint"] }]]);
+});
+
+test("editedNodeIds: the function each changed line sits in, not every node of a big changed file", () => {
+  const node = (id: string, label: string, file: string, line?: number) => ({ id, label, community: 0, file_type: "code", source_file: file, ...(line ? { source_location: `L${line}` } : {}) });
+  const graph = {
+    nodes: [
+      node("core", "core.py", "pkg/core.py", 1), node("opt", "Option", "pkg/core.py", 10),
+      node("hint", ".get_error_hint()", "pkg/core.py", 20), node("help", ".get_help_extra()", "pkg/core.py", 40),
+      node("t_old", "test_old()", "tests/test_core.py", 5), node("t_cli", "cli()", "tests/test_other.py", 3),
+      node("far", "progressbar()", "pkg/termui.py", 1),
+    ],
+    links: [{ source: "far", target: "help", relation: "calls" }],
+  } as unknown as GraphData;
+  const diff = [
+    "--- a/pkg/core.py", "+++ b/pkg/core.py", "@@ -21,2 +21,3 @@", "     result = 1", "+    result = 2",
+    "--- a/tests/test_core.py", "+++ b/tests/test_core.py", "@@ -8,1 +8,4 @@", " x", "+def test_new():", "+    def cli():", "+        pass",
+  ].join("\n");
+  assert.deepEqual([...editedNodeIds(graph, diff)].sort(), ["hint", "t_old"], "get_error_hint and the test the new one follows; not core.py's other nodes, not every cli()");
+  assert.ok(touchedNodeIds(graph, diff).has("help"), "(touchedNodeIds takes the whole file)");
+  // Without line numbers: the hunk header names the function; failing that, the whole file.
+  const flat = { nodes: graph.nodes.map((n) => ({ ...n, source_location: undefined })), links: [] } as unknown as GraphData;
+  assert.deepEqual([...editedNodeIds(flat, "--- a/pkg/core.py\n+++ b/pkg/core.py\n@@ -21,2 +21,3 @@ def get_error_hint(self):\n+x\n")], ["hint"]);
+  assert.equal(editedNodeIds(flat, "--- a/pkg/core.py\n+++ b/pkg/core.py\n@@ -21,2 +21,3 @@\n+x\n").size, 4);
 });

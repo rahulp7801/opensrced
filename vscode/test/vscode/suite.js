@@ -7,6 +7,7 @@
 const vscode = require("vscode");
 const fs = require("node:fs");
 const http = require("node:http");
+const os = require("node:os");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 
@@ -108,13 +109,29 @@ async function run() {
     const tabLabels = () => vscode.window.tabGroups.all.flatMap((g) => g.tabs.map((t) => t.label));
     await wait("the map tab in the tab list", () => tabLabels().includes("opensrcer map"), 5_000).catch(() => {});
     check("map tab is labelled", tabLabels().includes("opensrcer map"), tabLabels().join(" | "));
-    // While it's open, tab.json holds this extension host's pid (the Claude Code plugin then keeps its pane closed).
-    const marker = path.join(api.mapDir, "tab.json");
-    const pid = fs.existsSync(marker) ? JSON.parse(fs.readFileSync(marker, "utf8")).pid : null;
-    check("an open map tab leaves its marker (tab.json, this process)", pid === process.pid, `pid ${pid}, extension host ${process.pid}`);
-    const mapTab = vscode.window.tabGroups.all.flatMap((g) => g.tabs).find((t) => t.label === "opensrcer map");
-    if (mapTab) await vscode.window.tabGroups.close(mapTab);
+    // While it's open, tab-<pid>.json holds this extension host's pid and this window's folders
+    // (the Claude Code plugin then keeps its pane closed for lessons in them).
+    const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+    const marker = path.join(api.mapDir, `tab-${process.pid}.json`);
+    const tab = fs.existsSync(marker) ? JSON.parse(fs.readFileSync(marker, "utf8")) : {};
+    check("an open map tab leaves its marker (this process, this window's folders)", tab.pid === process.pid && folders.length === 1 && JSON.stringify(tab.folders) === JSON.stringify(folders), JSON.stringify(tab));
+    const watching = path.join(api.mapDir, `watch-${process.pid}.json`);
+    check("the watching window leaves its marker with its folders", fs.existsSync(watching) && JSON.stringify(JSON.parse(fs.readFileSync(watching, "utf8")).folders) === JSON.stringify(folders));
+    const closeTab = async () => {
+      const mapTab = vscode.window.tabGroups.all.flatMap((g) => g.tabs).find((t) => t.label === "opensrcer map");
+      if (mapTab) await vscode.window.tabGroups.close(mapTab);
+      await wait("the tab to close", () => !api.panelOpen(), 5_000).catch(() => {});
+    };
+    await closeTab();
     await wait("the marker to go", () => !fs.existsSync(marker), 5_000).then(() => check("closing the map tab removes its marker", true), (e) => check("closing the map tab removes its marker", false, e.message));
+    // Only the window whose folders hold the lesson opens it: another project's lesson stays out.
+    const lessonMap = (lesson, places) => fs.writeFileSync(path.join(api.mapDir, "current.json"), JSON.stringify({ lesson, stage: "kickoff", title: "t", svg: "", explored: [], changed: [], places }));
+    lessonMap("l_elsewhere", [path.join(os.tmpdir(), "some-other-project"), path.join(os.tmpdir(), "some-other-checkout")]);
+    await new Promise((r) => setTimeout(r, 2_000));
+    check("a lesson outside this window's folders doesn't open the tab", !api.panelOpen());
+    lessonMap("l_here", [path.join(os.tmpdir(), "some-other-project"), path.join(folders[0] ?? "", "clone")]);
+    await wait("the map tab", () => api.panelOpen(), 10_000).then(() => check("a lesson whose checkout is in this window's folder opens it", true), (e) => check("a lesson whose checkout is in this window's folder opens it", false, e.message));
+    await closeTab();
 
     // 4. VS Code's own MCP host: does the provider show up, and do the tools reach the language-model tool list?
     const cmds = (await vscode.commands.getCommands(true)).filter((c) => /mcp/i.test(c));

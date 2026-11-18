@@ -1,6 +1,6 @@
 // s7 Three starting points: the contributor picks at least three files or
-// functions. Graded without a model, by graph distance to what the hidden fix
-// touches (touchedNodeIds from lib/graph-impact.ts):
+// functions. Graded without a model, by graph distance to the code the hidden fix
+// edits (editedNodeIds from lib/graph-impact.ts: the functions its changed lines sit in):
 //   on target     the pick is in the fix (a changed file or symbol)
 //   close         within 2 hops of a node the fix touches
 //   red herring   anything else
@@ -8,7 +8,7 @@
 // verified answer key (lib/lesson/machine.ts isGraded).
 
 import { findNode, hopDistances, type GraphData } from "../../graph";
-import { touchedNodeIds } from "../../graph-impact";
+import { editedNodeIds } from "../../graph-impact";
 import { hiddenDiffFacts } from "../leak";
 import { StepInputError, type StepDef } from "./shared";
 
@@ -66,7 +66,7 @@ export function gradePicks(graph: GraphData | null, diff: string, picks: string[
   const facts = hiddenDiffFacts(diff);
   const files = facts.files.map(norm);
   const symbols = new Set(facts.symbols.map((s) => s.toLowerCase()));
-  const distances = graph ? hopDistances(graph, touchedNodeIds(graph, diff), CLOSE_HOPS) : new Map<string, number>();
+  const distances = graph ? hopDistances(graph, editedNodeIds(graph, diff), CLOSE_HOPS) : new Map<string, number>();
   return picks.map((raw) => {
     const pick = norm(raw);
     if (files.some((f) => sameFile(f, pick)) || symbols.has(pick.split(/[.:#]/).at(-1) ?? pick)) return { pick: raw, verdict: "on_target", hops: 0 };

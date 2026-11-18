@@ -23,14 +23,14 @@
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { graphify, GraphifyError, GraphifyMissing, GRAPHIFY_INSTALL, GRAPHIFY_VERSION, lessonMapData, localGraphifyVersion, overlayLevels, withOverlay, fileMapHtml } from "./graph.mjs";
 
-const VERSION = "0.3.15";
+const VERSION = "0.3.16";
 const BASE = (process.env.OPENSRCER_URL || "https://opensrced.vercel.app").replace(/\/+$/, "");
 // A host that doesn't fill in `${user_config.…}` (plugin .mcp.json) leaves the literal: that is no token.
 const TOKEN = /^\$\{/.test(process.env.OPENSRCER_TOKEN ?? "") ? "" : process.env.OPENSRCER_TOKEN || "";
@@ -40,27 +40,43 @@ const MAP_DIR = process.env.OPENSRCER_MAP_DIR || join(HOME, "maps");
 // tab watches it, so a lesson in Claude Code shows beside the editor too.
 const SHARED_MAP_DIR = join(HOME, "maps");
 
-/** Whether a live process left this marker in the shared map folder (the VS Code extension's
- *  tab.json while its map tab is open, watch.json while it watches the folder). A process that
- *  has gone away (a crash) doesn't count. */
-function markerAlive(name) {
-  try {
-    const { pid } = JSON.parse(readFileSync(join(SHARED_MAP_DIR, name), "utf8"));
-    if (!Number.isInteger(pid) || pid <= 0) return false;
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    // EPERM: the process exists but belongs to someone else; anything else: no marker.
-    return error?.code === "EPERM";
-  }
+/** The live markers of one kind in the shared map folder, left by VS Code windows running the
+ *  extension: "tab" while a window's map tab is open, "watch" while it watches the folder. Each
+ *  window writes <kind>-<pid>.json with its workspace folders; an older extension wrote one
+ *  <kind>.json without them (null folders: it takes every lesson). A process that has gone
+ *  away (a crash) doesn't count. */
+function liveMarkers(kind) {
+  let names = [];
+  try { names = readdirSync(SHARED_MAP_DIR).filter((n) => n === `${kind}.json` || new RegExp(`^${kind}-\\d+\\.json$`).test(n)); } catch { return []; }
+  return names.flatMap((name) => {
+    try {
+      const { pid, folders } = JSON.parse(readFileSync(join(SHARED_MAP_DIR, name), "utf8"));
+      if (!Number.isInteger(pid) || pid <= 0) return [];
+      try { process.kill(pid, 0); } catch (error) { if (error?.code !== "EPERM") return []; } // EPERM: alive, someone else's
+      return [{ folders: Array.isArray(folders) ? folders.map(String) : null }];
+    } catch { return []; }
+  });
 }
-/** The VS Code map tab shows this map: it's open, or the extension is watching and opens it for
- *  a lesson or stage it hasn't shown (the first map of a lesson arrives before the tab exists). */
-function mapTabOpen(key) {
-  if (markerAlive("tab.json")) return true;
+/** `p` is `folder` or inside it (case-insensitive on Windows). */
+function within(p, folder) {
+  const fold = (s) => { const r = resolve(s); return process.platform === "win32" ? r.toLowerCase() : r; };
+  const a = fold(p), b = fold(folder);
+  return a === b || a.startsWith(b.endsWith(sep) ? b : b + sep);
+}
+/** Where a lesson lives: the folder the agent runs in, and the checkout. */
+function lessonPlaces(id) {
+  const places = [process.cwd()];
+  try { places.push(localLesson(id).dir); } catch (error) { if (!(error instanceof ToolError)) throw error; }
+  return places.map((p) => resolve(p));
+}
+/** A VS Code window whose folders hold this lesson shows the map: its tab is open, or it watches
+ *  and opens it for a lesson or stage it hasn't shown (the first map arrives before the tab). */
+function mapTabOpen(key, places) {
+  const mine = (m) => !m.folders || m.folders.some((f) => places.some((p) => within(p, f)));
+  if (liveMarkers("tab").some(mine)) return true;
   let prev = "";
   try { const m = JSON.parse(readFileSync(join(SHARED_MAP_DIR, "current.json"), "utf8")); prev = `${m.lesson}:${m.stage}`; } catch { /* no map yet */ }
-  return key !== prev && markerAlive("watch.json");
+  return key !== prev && liveMarkers("watch").some(mine);
 }
 const HERE = dirname(fileURLToPath(import.meta.url));
 const EVENT_TYPES = ["session_start", "verification", "pr_opened", "pr_merged", "pr_closed"];
@@ -407,7 +423,9 @@ async function mapForPane(id) {
     // The file map (file cards, the lesson highlighted): an editor tab (the VS Code extension)
     // shows it in place of the still SVG.
     const viewer = fileMapHtml(built.graph, levels, diff, title);
-    const data = JSON.stringify({ lesson: id, stage: lesson.stage, ...map, changed: changed.length ? changed : map.changed, viewer: viewer ? "current.html" : null, tabOpen: mapTabOpen(`${id}:${lesson.stage}`) });
+    // places: the VS Code window whose folders hold one of them opens the map, no other window.
+    const places = lessonPlaces(id);
+    const data = JSON.stringify({ lesson: id, stage: lesson.stage, ...map, changed: changed.length ? changed : map.changed, viewer: viewer ? "current.html" : null, places, tabOpen: mapTabOpen(`${id}:${lesson.stage}`, places) });
     for (const dir of new Set([resolve(MAP_DIR), resolve(SHARED_MAP_DIR)])) {
       mkdirSync(dir, { recursive: true });
       // The page first: whoever reads current.json finds its viewer already written.

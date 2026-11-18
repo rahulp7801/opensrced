@@ -9,7 +9,7 @@ const vscode = require("vscode");
 const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
-const { TokenFormatError, cleanToken, siteUrl, serverLaunch, describeMe, mapHtml, viewerHtml, parseMap, parseIssue } = require("./core");
+const { TokenFormatError, cleanToken, siteUrl, serverLaunch, describeMe, mapHtml, viewerHtml, parseMap, parseIssue, mapIsMine } = require("./core");
 
 const SECRET = "opensrcer.token";
 const PROVIDER = "opensrcer";
@@ -146,12 +146,17 @@ async function activate(context) {
   let panel = null;
   let shown = ""; // lesson+stage last opened automatically: a closed tab reopens only when the lesson moves on
   const mapFile = path.join(mapDir, "current.json");
-  const tabMarker = path.join(mapDir, "tab.json");
+  // Markers for the Claude Code plugin (harness/server.mjs mapTabOpen), one per window: our
+  // process id (so a crash doesn't leave them set) and our folders (we show only lessons in them).
+  const folders = () => (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+  const tabMarker = path.join(mapDir, `tab-${process.pid}.json`);
+  const watchMarker = path.join(mapDir, `watch-${process.pid}.json`);
+  const mark = (file) => fs.writeFileSync(file, JSON.stringify({ pid: process.pid, folders: folders() }));
   context.subscriptions.push({ dispose: () => fs.rmSync(tabMarker, { force: true }) });
   // While we watch, a new lesson's first map opens our tab, so the plugin doesn't open its pane for it.
-  const watchMarker = path.join(mapDir, "watch.json");
-  fs.writeFileSync(watchMarker, JSON.stringify({ pid: process.pid }));
+  mark(watchMarker);
   context.subscriptions.push({ dispose: () => fs.rmSync(watchMarker, { force: true }) });
+  context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => { mark(watchMarker); if (panel) mark(tabMarker); }));
   const readMap = () => (fs.existsSync(mapFile) ? parseMap(fs.readFileSync(mapFile, "utf8")) : null);
   const seen = readMap();
   if (seen) shown = `${seen.lesson}:${seen.stage}`; // a map from a past session doesn't pop up at startup
@@ -163,7 +168,7 @@ async function activate(context) {
       panel = vscode.window.createWebviewPanel("opensrcer.map", "opensrcer map", { viewColumn: vscode.ViewColumn.Beside, preserveFocus: !focus }, { enableScripts: true, localResourceRoots: [], retainContextWhenHidden: true });
       // While the tab is open, the Claude Code plugin keeps its own copy of the map closed
       // (harness/server.mjs mapTabOpen reads this; our process id, so a crash doesn't leave it set).
-      fs.writeFileSync(tabMarker, JSON.stringify({ pid: process.pid }));
+      mark(tabMarker);
       panel.onDidDispose(() => { panel = null; fs.rmSync(tabMarker, { force: true }); });
     } else if (focus) panel.reveal(undefined, false);
     const viewerFile = map && map.viewer === "current.html" ? path.join(mapDir, "current.html") : "";
@@ -176,7 +181,8 @@ async function activate(context) {
     clearTimeout(timer);
     timer = setTimeout(() => {
       const map = readMap();
-      if (!map) return;
+      // Another window's lesson (its checkout and agent aren't in our folders) is that window's to show.
+      if (!map || !mapIsMine(map, folders())) return;
       const key = `${map.lesson}:${map.stage}`;
       if (panel || key !== shown) showMap(map, false);
       shown = key;

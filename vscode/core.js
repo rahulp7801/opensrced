@@ -4,6 +4,8 @@
 
 "use strict";
 
+const path = require("node:path");
+
 /** A harness token as the site issues it (lib/harness-token.ts TOKEN_HEADER). */
 const TOKEN = /^osh_[A-Za-z0-9_-]{32}$/;
 
@@ -190,4 +192,16 @@ function parseIssue(text) {
   return m && Number(m[2]) > 0 ? { repo: m[1], number: Number(m[2]) } : null;
 }
 
-module.exports = { TOKEN, TokenFormatError, cleanToken, siteUrl, serverLaunch, describeMe, mapHtml, viewerHtml, parseMap, parseIssue, STAGES };
+/**
+ * Whether this window's workspace folders hold the lesson the map is of (the plugin writes
+ * map.places: the folder the agent runs in and the checkout), so only that window opens the
+ * map. A map from an older plugin, without places, is every window's.
+ */
+function mapIsMine(map, folders, platform = process.platform) {
+  if (!Array.isArray(map?.places)) return true;
+  const fold = (s) => { const r = path.resolve(String(s)); return platform === "win32" ? r.toLowerCase() : r; };
+  const inside = (p, f) => p === f || p.startsWith(f.endsWith(path.sep) ? f : f + path.sep);
+  return map.places.some((p) => folders.some((f) => inside(fold(p), fold(f))));
+}
+
+module.exports = { TOKEN, TokenFormatError, cleanToken, siteUrl, serverLaunch, describeMe, mapHtml, viewerHtml, parseMap, parseIssue, mapIsMine, STAGES };

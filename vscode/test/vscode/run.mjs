@@ -5,7 +5,7 @@
 // TIMEOUT_MS (default 10 minutes) bounds the run; a slow machine needs the room.
 
 import { spawn, spawnSync } from "node:child_process";
-import { closeSync, existsSync, mkdtempSync, openSync, readFileSync, rmSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,7 +28,10 @@ const args = [
   `--extensionDevelopmentPath=${ext}`, `--extensionTestsPath=${join(here, "suite.js")}`,
   `--user-data-dir=${join(tmp, "user")}`, `--extensions-dir=${join(tmp, "extensions")}`,
   "--disable-extensions", "--disable-workspace-trust", "--skip-welcome", "--skip-release-notes", "--new-window",
+  // A folder of its own: the map tab shows only lessons in the window's folders.
+  join(tmp, "workspace"),
 ];
+mkdirSync(join(tmp, "workspace"));
 // OPENSRCER_HOME: the map folder the tab watches is a throwaway one, never your own.
 const env = { ...process.env, OPENSRCER_TEST_OUT: out, OPENSRCER_HOME: join(tmp, "opensrcer-home") };
 delete env.ELECTRON_RUN_AS_NODE;

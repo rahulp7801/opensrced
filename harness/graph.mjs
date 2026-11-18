@@ -111,7 +111,9 @@ export function overlayLevels(graph, picks, keyDiff) {
     const symbols = new Set([...keyDiff.matchAll(/^[+-]\s*(?:def|function|fn|func|class|struct|pub\s+fn|async\s+def|const|let|var)\s+(\w+)/gm)].map((m) => m[1].toLowerCase()));
     for (const n of graph.nodes) {
       const file = norm(n.source_file || "");
-      if ((file && files.some((f) => file.includes(f) || f.includes(file))) || symbols.has(norm(n.label))) levels.set(n.id, "changed");
+      // A node with a file is changed when its file is; a name the diff defines marks only nodes
+      // without one (a new test's local `def cli()` isn't every `cli()` in the project).
+      if (file ? files.some((f) => file.includes(f) || f.includes(file)) : symbols.has(norm(n.label).replace(/^\./, "").replace(/\(\)$/, ""))) levels.set(n.id, "changed");
     }
   }
   return levels;
@@ -684,8 +686,12 @@ ${out.length || inn.length ? `<p class="rel">${out.length ? `uses ${out.join(" "
   const linked = new Set([...uses].flatMap(([a, m]) => [a, ...m.keys()]));
   const bubbles = keep(cards.filter(({ f }) => linked.has(f) || (lit && level(f) !== "unseen")), FILE_MAP_BUBBLES);
   const shown = new Set(bubbles.map((x) => x.f));
+  // Two bubbles named termui.py (src/click/, examples/termui/) say which folder each is in.
+  const seen = new Map();
+  for (const { f } of bubbles) seen.set(base(f), (seen.get(base(f)) ?? 0) + 1);
+  const bubbleName = (f) => (seen.get(base(f)) > 1 ? f.split("/").slice(-2).join("/") : base(f));
   const data = {
-    nodes: bubbles.map(({ f, symbols }) => ({ id: anchor(f), label: base(f), r: Math.min(22, Math.round(7 + 2.4 * Math.sqrt(symbols.length))), color: accentOf(symbols), level: lit ? level(f) : "none" })),
+    nodes: bubbles.map(({ f, symbols }) => ({ id: anchor(f), label: bubbleName(f), r: Math.min(22, Math.round(7 + 2.4 * Math.sqrt(symbols.length))), color: accentOf(symbols), level: lit ? level(f) : "none" })),
     links: [...uses].flatMap(([a, m]) => [...m].filter(([b]) => shown.has(a) && shown.has(b)).map(([b, w]) => ({ s: anchor(a), t: anchor(b), w }))),
   };
   return `<!doctype html><html><head><meta charset="utf-8"><title>${xml(title)}</title>

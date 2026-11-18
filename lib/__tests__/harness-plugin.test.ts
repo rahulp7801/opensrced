@@ -536,9 +536,26 @@ test("in a host with a panel, the map file is still written when the editor asks
     assert.equal(await tabOpenAfterStart(6), false);
     rmSync(join(home, "maps", "current.json"));
     assert.equal(await tabOpenAfterStart(7), true);
-  } finally {
-    rmSync(join(home, "maps", "tab.json"), { force: true });
+    // Each VS Code window marks itself with its folders (tab-<pid>.json, watch-<pid>.json) and shows
+    // only lessons in them: the map says where the lesson lives, and another project's window
+    // doesn't keep the pane closed.
     rmSync(join(home, "maps", "watch.json"), { force: true });
+    const places = JSON.parse(readFileSync(join(mapDir, "current.json"), "utf8")).places as string[];
+    assert.ok(places.some((p) => p.toLowerCase() === join(dir).toLowerCase()), `the checkout is among the lesson's places: ${places}`);
+    const elsewhere = mkdtempSync(join(tmpdir(), "other-project-"));
+    writeFileSync(join(home, "maps", `tab-${process.pid}.json`), JSON.stringify({ pid: process.pid, folders: [elsewhere] }));
+    assert.equal(await tabOpenAfterStart(8), false, "another project's window doesn't count");
+    writeFileSync(join(home, "maps", `tab-${process.pid}.json`), JSON.stringify({ pid: process.pid, folders: [elsewhere, join(dir, "..")] }));
+    assert.equal(await tabOpenAfterStart(9), true, "the window holding the checkout does");
+    rmSync(join(home, "maps", `tab-${process.pid}.json`));
+    writeFileSync(join(home, "maps", `watch-${process.pid}.json`), JSON.stringify({ pid: process.pid, folders: [elsewhere] }));
+    rmSync(join(home, "maps", "current.json"));
+    assert.equal(await tabOpenAfterStart(10), false, "a watching window of another project doesn't open it");
+    writeFileSync(join(home, "maps", `watch-${process.pid}.json`), JSON.stringify({ pid: process.pid, folders: [dir.toUpperCase()] }));
+    rmSync(join(home, "maps", "current.json"));
+    assert.equal(await tabOpenAfterStart(11), process.platform === "win32", "folders match case-insensitively on Windows only");
+  } finally {
+    for (const name of ["tab.json", "watch.json", `tab-${process.pid}.json`, `watch-${process.pid}.json`]) rmSync(join(home, "maps", name), { force: true });
     child.kill();
   }
 });
@@ -755,4 +772,27 @@ test("the file map: a card per code file, the lesson's first; only the functions
   const smallData = JSON.parse(/id="osr-data">([\s\S]*?)<\/script>/.exec(small)![1]);
   assert.match(small, /id="f-tools-cfg-py"/, "a file linked to nothing keeps its card");
   assert.ok(!smallData.nodes.some((n: { id: string }) => n.id === "f-tools-cfg-py"), "but gets no bubble");
+});
+
+test("the map marks only the fix's files as changed (not every namesake of a function the fix adds); bubbles with the same file name say their folder", async () => {
+  const { pathToFileURL } = await import("node:url");
+  const esm = new Function("u", "return import(u)") as (u: string) => Promise<{
+    overlayLevels: (g: unknown, picks: string[], diff: string) => Map<string, string>;
+    fileMapHtml: (g: unknown, levels: Map<string, string>, diff: string, title: string) => string;
+  }>;
+  const { overlayLevels, fileMapHtml } = await esm(pathToFileURL(join(process.cwd(), "harness", "graph.mjs")).href);
+  const node = (id: string, label: string, file: string) => ({ id, label, source_file: file, source_location: "L1", file_type: "code", community: 0 });
+  const graph = {
+    nodes: [
+      node("core_hint", ".get_error_hint()", "src/click/core.py"), node("t_cli", "cli()", "tests/test_options.py"),
+      node("ex_cli", "cli()", "examples/imagepipe/imagepipe.py"), node("termui", "echo()", "src/click/termui.py"), node("ex_termui", "cli2()", "examples/termui/termui.py"),
+    ],
+    links: [{ source: "termui", target: "core_hint" }, { source: "ex_termui", target: "core_hint" }, { source: "ex_cli", target: "core_hint" }, { source: "t_cli", target: "core_hint" }],
+  };
+  // The fix adds a test with a local `def cli()`: only its own file is changed, not imagepipe.py's cli().
+  const diff = "--- a/src/click/core.py\n+++ b/src/click/core.py\n@@ -1,1 +1,1 @@\n-x\n+y\n--- a/tests/test_options.py\n+++ b/tests/test_options.py\n@@ -1,0 +1,2 @@\n+def test_new():\n+    def cli():\n";
+  const levels = overlayLevels(graph, [], diff);
+  assert.deepEqual([...levels].filter(([, l]) => l === "changed").map(([id]) => id).sort(), ["core_hint", "t_cli"]);
+  const data = JSON.parse(/id="osr-data">([\s\S]*?)<\/script>/.exec(fileMapHtml(graph, levels, diff, "t"))![1]) as { nodes: Array<{ label: string }> };
+  assert.deepEqual(data.nodes.map((n) => n.label).sort(), ["click/core.py", "click/termui.py", "imagepipe.py", "termui/termui.py", "test_options.py"].map((l) => (l === "click/core.py" ? "core.py" : l)).sort());
 });

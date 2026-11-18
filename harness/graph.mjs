@@ -545,9 +545,12 @@ const FILE_MAP_SCRIPT = String.raw`
   const declutter = () => {
     const placed = [];
     const rank = (n) => (n.level === "changed" ? 0 : n.level === "explored" ? 1 : 2);
+    const over = (r, p, pad) => r.left < p.right + pad && r.right > p.left - pad && r.top < p.bottom && r.bottom > p.top;
+    // Another file's bubble covers a name as surely as another name does.
+    const dots = D.nodes.map((m) => [m, m.g.querySelector(".dot").getBoundingClientRect()]);
     for (const n of [...D.nodes].sort((a, b) => rank(a) - rank(b) || b.r - a.r)) {
       const r = n.t.getBoundingClientRect();
-      const hit = placed.some((p) => r.left < p.right + 4 && r.right > p.left - 4 && r.top < p.bottom && r.bottom > p.top);
+      const hit = placed.some((p) => over(r, p, 4)) || dots.some(([m, d]) => m !== n && over(r, d, 0));
       n.g.classList.toggle("quiet", hit);
       if (!hit) placed.push(r);
     }

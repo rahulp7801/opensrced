@@ -16,7 +16,7 @@ The first time Copilot uses opensrcer, VS Code asks whether to trust the opensrc
 ## What you get
 
 - **Lessons.** What the project does, the task, where to look, what to change and how to prove it, then the fix (revealed after you predict it, or written by you), and explaining it in your own words.
-- **The code map.** The *opensrcer map* tab opens beside your editor and updates as you go: a bubble for each file, linked to the files it uses, and a card for each file listing its classes and functions. Blue marks where you chose to start, yellow what the fix changed (the changed functions starred). Click a bubble to jump to its card. Reopen it with *opensrcer: Show the code map*. It follows lessons you run in Claude Code (the opensrcer plugin) too.
+- **The code map.** The *opensrcer map* tab opens beside your editor and updates as you go: a bubble for each file, linked to the files it uses, and a card for each file listing its classes and functions. Blue marks where you chose to start, yellow what the fix changed (the changed functions starred). Click a bubble to jump to its card. Reopen it with *opensrcer: Show the code map*. It follows lessons you run in Claude Code (the opensrcer plugin) too, in the window whose folder holds the lesson's project; for that you don't need to sign in here.
 - **Each project's unwritten rules.** Before Copilot touches a project, it reads that project's measured norms: what gets PRs merged or closed, what reviewers ask for.
 
 ## Commands

@@ -55,7 +55,8 @@ async function activate(context) {
     const signedIn = Boolean(await token());
     await vscode.commands.executeCommand("setContext", "opensrcer.signedIn", signedIn);
     status.text = signedIn ? "$(mortar-board) opensrcer" : "$(mortar-board) opensrcer: Sign in";
-    status.tooltip = signedIn ? "opensrcer: learn an issue, check your setup, show the code map" : "Sign in to opensrcer";
+    // Someone using the extension only for Claude Code's map needn't sign in here: the plugin has its own token.
+    status.tooltip = signedIn ? "opensrcer: learn an issue, check your setup, show the code map" : "Sign in to opensrcer for lessons in Copilot Chat. The code map tab works without it (the Claude Code plugin has its own token).";
     status.show();
   }
   context.subscriptions.push(context.secrets.onDidChange(async (e) => {

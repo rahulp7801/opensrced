@@ -15,13 +15,13 @@ The user wants to understand this project and this issue well enough to fix it a
    - **B**: they write the fix themselves in their editor.
 3. Then call `lesson_start` with the repository, the issue number, `dir` (the absolute path of their local clone) and `path`.
 
-## Path A: prepare the hidden fix right away
+## Prepare the hidden fix right away
 
-Right after `lesson_start`, while the user answers the first questions:
+Both paths need it: path A grades s7 and s8 against it, path B's reveal compares the user's change with it. Right after `lesson_start`, while the user answers the first questions:
 
 1. Create a separate worktree **outside** their checkout, detached (their branch is already checked out there): `git -C <their clone> worktree add --detach <their clone>-opensrcer-key`. Never change their checkout, and never show them this worktree, its diff, or the names of the files it touches before the reveal.
 2. In that worktree, find the root cause, write a test that fails, fix it, and run the test again to see it pass.
-3. Call `lesson_key` with `key_dir` (that worktree), a title, a short diagnosis and `verified` (true only if the new test failed before the fix and passes after). Steps s7 and s8 are graded against this key, so store it before s7.
+3. Call `lesson_key` with `key_dir` (that worktree), a title, a short diagnosis and `verified` (true only if the new test failed before the fix and passes after). In path A, s7 and s8 are graded against this key, so store it before s7.
 
 ## Asking and grading
 

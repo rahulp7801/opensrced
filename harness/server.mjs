@@ -30,7 +30,7 @@ import { promisify } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { graphify, GraphifyError, GraphifyMissing, GRAPHIFY_INSTALL, GRAPHIFY_VERSION, lessonMapData, localGraphifyVersion, overlayLevels, withOverlay, fileMapHtml } from "./graph.mjs";
 
-const VERSION = "0.3.13";
+const VERSION = "0.3.14";
 const BASE = (process.env.OPENSRCER_URL || "https://opensrced.vercel.app").replace(/\/+$/, "");
 // A host that doesn't fill in `${user_config.…}` (plugin .mcp.json) leaves the literal: that is no token.
 const TOKEN = /^\$\{/.test(process.env.OPENSRCER_TOKEN ?? "") ? "" : process.env.OPENSRCER_TOKEN || "";
@@ -164,7 +164,7 @@ const TOOLS = [
   {
     name: "lesson_key",
     description:
-      "Path A: store the hidden fix as the lesson's answer key. Write it in a separate git worktree (git -C <checkout> worktree add --detach <a folder outside the checkout>: --detach, since the checkout's branch can't be checked out twice), never in the user's checkout and never shown to them; run its new test without and with the fix. The diff is read from that worktree here, so don't paste it.",
+      "Store the hidden fix as the lesson's answer key (both paths: path A grades against it, path B's reveal compares the user's change with it). Write it in a separate git worktree (git -C <checkout> worktree add --detach <a folder outside the checkout>: --detach, since the checkout's branch can't be checked out twice), never in the user's checkout and never shown to them; run its new test without and with the fix. The diff is read from that worktree here, so don't paste it.",
     inputSchema: object({
       ...lessonArg,
       key_dir: { type: "string", description: "Absolute path of the worktree holding the fix." },
@@ -436,7 +436,9 @@ function lessonText(L) {
   if (open.length) lines.push(uiHost ? "Open in the lesson panel:" : "Ask the user, one at a time, and send their own words with lesson_answer:", ...open.map((s) => `- ${s.id} ${s.title}: ${question(s)}`));
   const results = L.steps.filter((s) => s.done && L.required.includes(s.id)).map((s) => `${s.id} ${s.grade ? (s.grade.passed ? "passed" : "not yet") : "saved"}`);
   if (results.length) lines.push(`So far: ${results.join(", ")}.`);
-  if (L.path === "A" && L.answer_key === "pending" && !L.revealed) lines.push("Prepare the hidden fix now (lesson_key), before s7: steps s7 and s8 are graded against it.");
+  if (L.answer_key === "pending" && !L.revealed) lines.push(L.path === "A"
+    ? "Prepare the hidden fix now (lesson_key), before s7: steps s7 and s8 are graded against it."
+    : "Prepare the hidden fix now (lesson_key) while they work, without showing it: the reveal compares their change with it.");
   if (L.stage === "ide") lines.push("The user writes the fix in their checkout. When they say it's done, call lesson_submit_own with done: true.");
   if (L.stage === "reveal") lines.push("Call lesson_reveal, then walk the user through the fix.");
   if (L.stage === "done") lines.push(L.path === "A"
@@ -639,7 +641,12 @@ async function lessonTool(name, id, args) {
     return `Answer key stored (${body.lesson.answer_key}, ${files} file${files === 1 ? "" : "s"}). Keep it to yourself until lesson_reveal.\n${lessonText(body.lesson)}`;
   }
   if (name === "lesson_reveal") {
-    await post("reveal", { give_up: args.give_up === true });
+    try { await post("reveal", { give_up: args.give_up === true }); }
+    catch (error) {
+      // The site says its own hidden fix is "still running"; here the key is the agent's to store.
+      if (error instanceof ToolError && /still running/.test(error.message)) throw new ToolError("There is no answer key yet, so nothing to reveal: write the fix in a hidden worktree and store it with lesson_key (the learn skill says how), then call lesson_reveal again.");
+      throw error;
+    }
     const s = await lessonState(id);
     const file = await mapForPane(id);
     // explain-it is graded per changed file, by exact path: name them, so the agent asks about each.

@@ -1,6 +1,6 @@
 {
   "name": "opensrcer",
-  "version": "0.3.13",
+  "version": "0.3.14",
   "description": "A contribution harness for open source: each project's unwritten rules (what gets merged, why PRs get closed, what reviewers ask for) in your agent's context, a workflow that proves the fix, and your contributions counted on opensrcer.",
   "author": {
     "name": "rahulp7801",

@@ -70,7 +70,7 @@ Ask your agent to help you contribute to a repository, or to teach you an issue.
 | `check_pr` | The draft PR against those norms, before you open it |
 | `lesson_start` | A lesson on an issue: `{ "repo": "earthlab/earthpy", "issue": 953, "dir": "/path/to/your/clone" }` |
 | `lesson_answer`, `lesson_hint` | Your answers (graded by your agent against the step's rubric) and hints |
-| `lesson_key`, `lesson_reveal` | Path A: the fix your agent writes out of sight, and its reveal |
+| `lesson_key`, `lesson_reveal` | The fix your agent writes out of sight, and its reveal (path B compares the user's own change with it) |
 | `lesson_submit_own` | Path B: your own change, read from your checkout |
 | `lesson_show` | Where a lesson stands (and the panel, where your editor has one) |
 | `record_event` | A verification result or a PR opened/merged/closed, for your stats |

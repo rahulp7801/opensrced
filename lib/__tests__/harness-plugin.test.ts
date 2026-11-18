@@ -74,6 +74,12 @@ before(async () => {
         res.writeHead(502, { "content-type": "application/json" });
         return res.end(JSON.stringify({ error: "The grader did not return a usable answer. Please retry." }));
       }
+      // A path-B lesson whose key the agent hasn't stored: the site answers its reveal as lib/lesson/api.ts does.
+      if (lessonRoute?.[1] === LESSON_B && lessonRoute[2] === "reveal") {
+        res.writeHead(409, { "content-type": "application/json" });
+        return res.end(JSON.stringify({ error: "The hidden fix is still running. Keep going; it will be ready soon." }));
+      }
+      if (lessonRoute?.[1] === LESSON_B) return reply(res, { lesson: { ...lessonBase("reveal"), id: LESSON_B, path: "B" } });
       if (lessonRoute) return reply(res, lessonApi(req.method ?? "", lessonRoute[1], lessonRoute[2], body));
       res.writeHead(204);
       res.end();
@@ -92,6 +98,7 @@ function reply(res: import("node:http").ServerResponse, body: unknown) {
 
 // A stub of /api/harness/lessons (the real one: lib/__tests__/harness-lessons.test.ts).
 const LESSON_ID = "l_0b3a5c1e-0000-4000-8000-000000000001";
+const LESSON_B = "l_0b3a5c1e-0000-4000-8000-00000000000b";
 const lessonBase = (stage: string, answerKey = "pending") => ({
   id: LESSON_ID, repo_url: "https://github.com/acme/app", issue_number: 12, path: "A", mode: "short", stage, answer_key: answerKey, revealed: stage === "explain",
   required: ["s1", "s4", "s7", "s8", "explain-it", "s10"],
@@ -141,7 +148,8 @@ test("the plugin server speaks MCP: initialize, tools, and calls that reach open
   const { child, request, notify } = start(TOKEN);
   try {
     const init = await request("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" } });
-    assert.deepEqual((init.result as { serverInfo: unknown }).serverInfo, { name: "opensrcer", version: "0.3.12" });
+    const { version } = JSON.parse(readFileSync(join(process.cwd(), "harness", ".claude-plugin", "plugin.json"), "utf8")) as { version: string };
+    assert.deepEqual((init.result as { serverInfo: unknown }).serverInfo, { name: "opensrcer", version });
     // Hosts without the plugin's skill get the workflow from the server itself.
     assert.match((init.result as { instructions: string }).instructions, /Call repo_profile .* before changing code/);
     notify("notifications/initialized");
@@ -338,6 +346,23 @@ test("a lesson over stdio: graphify's map of the checkout goes up, rubrics come 
     await request("tools/call", { name: "lesson_submit_own", arguments: { lesson: LESSON_ID } });
     assert.match(JSON.parse(seen.at(-1)!.body).diff, /new\.py/);
     assert.equal(execFileSync("git", ["-C", dir, "diff", "--cached", "--name-only"], { encoding: "utf8" }), "", "nothing staged in the user's checkout");
+  } finally {
+    child.kill();
+  }
+});
+
+test("path B: the agent is told to store the hidden fix, and a reveal without it says so instead of 'still running'", async () => {
+  const { child, request, notify } = start(TOKEN);
+  try {
+    await request("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "claude-code", version: "1" } });
+    notify("notifications/initialized");
+    const shown = await request("tools/call", { name: "lesson_show", arguments: { lesson: LESSON_B } });
+    assert.match(text(shown), /path B/);
+    assert.match(text(shown), /Prepare the hidden fix now \(lesson_key\) while they work/);
+    const revealed = await request("tools/call", { name: "lesson_reveal", arguments: { lesson: LESSON_B } });
+    assert.equal((revealed.result as ToolResult).isError, true);
+    assert.match(text(revealed), /no answer key yet[\s\S]*lesson_key/);
+    assert.doesNotMatch(text(revealed), /still running/);
   } finally {
     child.kill();
   }

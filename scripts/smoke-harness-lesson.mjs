@@ -231,8 +231,10 @@ try {
   await map.getByText("your starting points").waitFor({ timeout: 60_000 });
   await map.getByText("changed by the fix").waitFor();
   const colours = await map.locator("body").evaluate(() => Object.fromEntries(nodesDS.get().map((n) => [n.id, n.color?.background])));
-  assert.equal(colours.app_core, "#4E79A7", "a starting point the user picked is blue");
-  assert.equal(colours.app_fill, "#EDC948", "a file the fix changed is yellow");
+  // Every node keeps graphify's community colour; the lesson sets how bright it is (harness/graph.mjs withOverlay).
+  const alphaOf = (c) => Number(/^rgba\(\d+,\d+,\d+,([\d.]+)\)$/.exec(String(c))?.[1]);
+  assert.equal(alphaOf(colours.app_fill), 1, `a file the fix changed is at full strength (${colours.app_fill})`);
+  assert.equal(alphaOf(colours.app_core), 0.45, `after the reveal, a starting point the fix doesn't change steps back (${colours.app_core})`);
   if (shots) await page.screenshot({ path: join(shots, "3-map.png"), fullPage: true });
 
   const axe = await new AxeBuilder({ page }).include("#view").analyze();

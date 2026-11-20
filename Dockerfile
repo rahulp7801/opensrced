@@ -18,7 +18,7 @@
 
 # Pinned by digest so a moved tag cannot change the image silently;
 # Dependabot (docker ecosystem) proposes digest updates.
-FROM node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6
+FROM node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54
 
 # git       — clone, worktree, apply (the whole PR pipeline)
 # patch     — GNU patch, the last tier of the diff-apply ladder

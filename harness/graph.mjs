@@ -92,6 +92,9 @@ const norm = (s) => s.trim().replace(/\\/g, "/").replace(/^\.?\//, "").replace(/
  *  picked as starting points ("explored"). Pure. */
 const CODE_EXT = /\.(?:py|pyi|js|mjs|cjs|jsx|ts|tsx|go|rs|java|kt|rb|php|c|h|cc|cpp|hpp|cs|swift|scala|sh|md|rst|toml|ya?ml|json|cfg|ini|txt|html|css)$/i;
 
+// Data files: a JSON/TOML/YAML file's keys aren't code (the file map's DATA_FILE says the same).
+const DATA_EXT = /\.(?:json|jsonc|toml|ya?ml|lock|cfg|ini|txt|csv)$/i;
+
 export function overlayLevels(graph, picks, keyDiff) {
   const levels = new Map();
   for (const pick of picks.map(norm).filter(Boolean)) {
@@ -105,11 +108,20 @@ export function overlayLevels(graph, picks, keyDiff) {
     // A Rust impl's generics sit between type and method (…_unitvariantaccess_a_r_tuple_variant).
     const generic = parts ? new RegExp(`_${parts.slice(0, -1).map(clean).join("_")}(?:_[a-z0-9]+){1,3}_${clean(parts.at(-1))}$`) : null;
     const exact = suffix ? graph.nodes.some((n) => n.id.toLowerCase().endsWith(suffix)) : false;
+    const sameFile = (file) => file === pick || file.endsWith(`/${pick}`);
+    // A folder names its files when it's specific (≤ 25 files, as s7 FOLDER_PICK_MAX_FILES):
+    // date-fns keeps each function in a folder of its own.
+    const folder = pick.replace(/\/+$/, "");
+    const inFolder = (file) => file.startsWith(`${folder}/`) || file.includes(`/${folder}/`);
+    const fileHit = isFile && !graph.nodes.some((n) => sameFile(norm(n.source_file || "")))
+      ? (() => { const fs = new Set(graph.nodes.map((n) => norm(n.source_file || "")).filter((f) => f && inFolder(f))); return fs.size <= 25 ? fs : new Set(); })()
+      : null;
     for (const n of graph.nodes) {
       const file = norm(n.source_file || "");
       const label = norm(n.label).replace(/^\./, "");
       const id = n.id.toLowerCase();
-      const hit = isFile ? file && (file === pick || file.endsWith(`/${pick}`)) : suffix ? (exact ? id.endsWith(suffix) : generic.test(id)) : label === pick;
+      // A name matches code, not a data file's keys (package.json's "./formatDistance" export).
+      const hit = isFile ? file && (fileHit ? fileHit.has(file) : sameFile(file)) : suffix ? (exact ? id.endsWith(suffix) : generic.test(id)) : label === pick && !DATA_EXT.test(file);
       if (hit) levels.set(n.id, "explored");
     }
   }
@@ -659,7 +671,18 @@ export function fileMapHtml(graph, levels, diff, title) {
   const lit = levels.size > 0;
   const anchor = (f) => "f-" + f.replace(/[^\w]/g, "-");
   const base = (f) => f.split("/").pop();
-  const link = (g) => (carded.has(g) ? `<a href="#${anchor(g)}">${xml(base(g))}</a>` : `<span>${xml(base(g))}</span>`);
+  // A file's short name: as many trailing folders as it takes to tell namesakes apart
+  // (addDays/index.ts beside format/index.ts; src/lexical/math.rs beside tests/lexical/math.rs).
+  const namesakes = new Map();
+  for (const f of byFile.keys()) namesakes.set(base(f), [...(namesakes.get(base(f)) ?? []), f]);
+  const shortName = (f) => {
+    const same = namesakes.get(base(f)) ?? [f];
+    if (same.length < 2) return base(f);
+    const tail = (g, k) => g.split("/").slice(-k).join("/");
+    for (let k = 2; k < f.split("/").length; k++) if (same.filter((g) => tail(g, k) === tail(f, k)).length === 1) return tail(f, k);
+    return f;
+  };
+  const link = (g) => (carded.has(g) ? `<a href="#${anchor(g)}" title="${xml(g)}">${xml(shortName(g))}</a>` : `<span title="${xml(g)}">${xml(shortName(g))}</span>`);
   const accentOf = (symbols) => {
     const counts = new Map();
     for (const n of symbols) counts.set(n.community, (counts.get(n.community) ?? 0) + 1);
@@ -703,18 +726,8 @@ ${out.length || inn.length ? `<p class="rel">${out.length ? `uses ${out.join(" "
   const bubbles = keep(cards.filter(({ f }) => linked.has(f) || (lit && level(f) !== "unseen")), FILE_MAP_BUBBLES);
   const shown = new Set(bubbles.map((x) => x.f));
   // Two bubbles named termui.py (src/click/, examples/termui/) say which folder each is in.
-  const seen = new Map();
-  for (const { f } of bubbles) seen.set(base(f), [...(seen.get(base(f)) ?? []), f]);
-  // As many trailing folders as it takes to tell namesakes apart (src/lexical/math.rs, tests/lexical/math.rs).
-  const bubbleName = (f) => {
-    const same = seen.get(base(f));
-    if (same.length < 2) return base(f);
-    const tail = (g, k) => g.split("/").slice(-k).join("/");
-    for (let k = 2; k < f.split("/").length; k++) if (same.filter((g) => tail(g, k) === tail(f, k)).length === 1) return tail(f, k);
-    return f;
-  };
   const data = {
-    nodes: bubbles.map(({ f, symbols }) => ({ id: anchor(f), label: bubbleName(f), r: Math.min(22, Math.round(7 + 2.4 * Math.sqrt(symbols.length))), color: accentOf(symbols), level: lit ? level(f) : "none" })),
+    nodes: bubbles.map(({ f, symbols }) => ({ id: anchor(f), label: shortName(f), r: Math.min(22, Math.round(7 + 2.4 * Math.sqrt(symbols.length))), color: accentOf(symbols), level: lit ? level(f) : "none" })),
     links: [...uses].flatMap(([a, m]) => [...m].filter(([b]) => shown.has(a) && shown.has(b)).map(([b, w]) => ({ s: anchor(a), t: anchor(b), w }))),
   };
   return `<!doctype html><html><head><meta charset="utf-8"><title>${xml(title)}</title>

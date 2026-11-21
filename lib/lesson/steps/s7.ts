@@ -42,12 +42,27 @@ const norm = (s: string) => s.trim().replace(/\\/g, "/").replace(/^\.?\//, "").r
 // A path, or a name with a real file extension: "Serializer.loads" is a method, not a ".loads" file.
 const looksLikeFile = (pick: string) => pick.includes("/") || new RegExp(`^${CODE_FILE.source}$`, "i").test(pick);
 const sameFile = (a: string, b: string) => a === b || a.endsWith(`/${b}`) || b.endsWith(`/${a}`);
+// A folder names the files in it (date-fns keeps each function in its own folder) as long as it's
+// specific: "src/" or a whole package isn't finding where to look.
+export const FOLDER_PICK_MAX_FILES = 25;
+const inFolder = (file: string, folder: string) => {
+  const f = folder.replace(/\/+$/, "");
+  return file.startsWith(`${f}/`) || file.includes(`/${f}/`);
+};
+/** The files of the graph a folder pick names, or [] when it names none or too many. */
+function folderFiles(graph: GraphData, pick: string): string[] {
+  const files = [...new Set(graph.nodes.map((n) => norm(n.source_file || "")).filter((f) => f && inFolder(f, pick)))];
+  return files.length <= FOLDER_PICK_MAX_FILES ? files : [];
+}
 
-/** The graph nodes a pick names: every node in a picked file, or the node a
- *  symbol resolves to (lib/graph.ts findNode). */
+/** The graph nodes a pick names: every node in a picked file (or a specific folder's files),
+ *  or the node a symbol resolves to (lib/graph.ts findNode). */
 export function pickNodes(graph: GraphData, pick: string): string[] {
   if (looksLikeFile(pick)) {
-    return graph.nodes.filter((n) => n.source_file && sameFile(norm(n.source_file), pick)).map((n) => n.id);
+    const exact = graph.nodes.filter((n) => n.source_file && sameFile(norm(n.source_file), pick)).map((n) => n.id);
+    if (exact.length) return exact;
+    const inside = new Set(folderFiles(graph, pick));
+    return graph.nodes.filter((n) => inside.has(norm(n.source_file || ""))).map((n) => n.id);
   }
   // "Serializer.loads": graphify labels methods ".loads()" (no class), but its
   // ids end in the qualified name (…_serializer_serializer_loads), so match those.
@@ -78,7 +93,8 @@ export function gradePicks(graph: GraphData | null, diff: string, picks: string[
   const distances = graph ? hopDistances(graph, editedNodeIds(graph, diff), CLOSE_HOPS) : new Map<string, number>();
   return picks.map((raw) => {
     const pick = norm(raw);
-    if (files.some((f) => sameFile(f, pick)) || symbols.has(pick.split(/[.:#]/).at(-1) ?? pick)) return { pick: raw, verdict: "on_target", hops: 0 };
+    const folderHit = graph && looksLikeFile(pick) && folderFiles(graph, pick).some((g) => files.some((f) => sameFile(f, g)));
+    if (files.some((f) => sameFile(f, pick)) || folderHit || symbols.has(pick.split(/[.:#]/).at(-1) ?? pick)) return { pick: raw, verdict: "on_target", hops: 0 };
     const hops = graph ? Math.min(...pickNodes(graph, pick).map((id) => distances.get(id) ?? Infinity)) : Infinity;
     if (hops === 0) return { pick: raw, verdict: "on_target", hops: 0 };
     if (hops <= CLOSE_HOPS) return { pick: raw, verdict: "close", hops };

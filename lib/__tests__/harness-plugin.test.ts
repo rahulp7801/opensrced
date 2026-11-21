@@ -740,7 +740,7 @@ test("the file map: a card per code file, the lesson's first; only the functions
   assert.match(page, /<li class="fn start" title="helper\(\)">helper\(\)/, "a function the user named is highlighted (its full name on hover)");
   assert.match(page, /&lt;img src=x&gt;\(\)/);
   assert.doesNotMatch(page, /<img|<script src|A sentence/, "no markup from names, no outside scripts, no docstrings");
-  assert.match(page, /uses <a href="#f-pkg-b-py">b\.py<\/a>/);
+  assert.match(page, /uses <a href="#f-pkg-b-py" title="pkg\/b\.py">b\.py<\/a>/, "a link names the file (its full path on hover)");
   // The bubbles' data: a file each with its lesson level, and the files it uses.
   const data = JSON.parse(/<script type="application\/json" id="osr-data">([\s\S]*?)<\/script>/.exec(page)![1]);
   assert.deepEqual(data.nodes.map((n: { id: string; level: string }) => [n.id, n.level]), [["f-pkg-a-py", "changed"], ["f-pkg-b-py", "explored"]]);
@@ -858,4 +858,24 @@ test("a fix that only adds lines still stars the function it's in (the one at th
   const rows = [...page.matchAll(/<li class="([^"]*)"[^>]*>(.*?)<\/li>/g)].map((m) => [m[1], m[2].replace(/<[^>]+>/g, "")]);
   assert.deepEqual(rows.filter(([c]) => c.includes("fix")), [["fn in fix", "\u2605right_crop()"]], "one star");
   assert.ok(rows.findIndex(([c]) => c.includes("fix")) > rows.findIndex(([, t]) => t === "Text"), "on Text's right_crop, not Span's");
+});
+
+test("the map lights a folder pick's files (when it's specific) and never a data file's keys", async () => {
+  const { pathToFileURL } = await import("node:url");
+  const esm = new Function("u", "return import(u)") as (u: string) => Promise<{ overlayLevels: (g: unknown, picks: string[], diff: string) => Map<string, string> }>;
+  const { overlayLevels } = await esm(pathToFileURL(join(process.cwd(), "harness", "graph.mjs")).href);
+  const node = (id: string, label: string, file: string) => ({ id, label, source_file: file, file_type: "code", community: 0 });
+  const graph = {
+    nodes: [
+      node("fdns", "formatDistanceToNowStrict()", "pkgs/core/src/formatDistanceToNowStrict/index.ts"),
+      node("fdns_t", "it()", "pkgs/core/src/formatDistanceToNowStrict/test.ts"),
+      node("export", "./formatDistanceToNowStrict", "pkgs/core/package.json"),
+      node("other", "formatDistanceToNowStrict", "pkgs/core/package.json"),
+      ...Array.from({ length: 30 }, (_, i) => node(`f${i}`, `f${i}()`, `pkgs/core/src/fn${i}/index.ts`)),
+    ],
+    links: [],
+  };
+  assert.deepEqual([...overlayLevels(graph, ["pkgs/core/src/formatDistanceToNowStrict"], "").keys()].sort(), ["fdns", "fdns_t"]);
+  assert.deepEqual([...overlayLevels(graph, ["pkgs/core"], "").keys()], [], "too broad a folder lights nothing");
+  assert.deepEqual([...overlayLevels(graph, ["formatDistanceToNowStrict"], "").keys()], ["fdns"], "a name matches the function, not package.json's keys");
 });

@@ -93,6 +93,22 @@ test("a Class.method pick resolves through graphify's qualified ids, not as a fi
   assert.equal(pickNodes(graph, "serializer.py").length, 2, "a real extension is still a file");
 });
 
+test("a specific folder names the files in it (one folder per function, as date-fns); a broad one doesn't", async () => {
+  const { pickNodes, FOLDER_PICK_MAX_FILES } = await import("../lesson/steps/s7");
+  const node = (id: string, file: string) => ({ id, label: `${id}()`, community: 0, file_type: "code", source_file: file });
+  const nodes = [
+    node("fds", "pkgs/core/src/formatDistanceStrict/index.ts"), node("fds_t", "pkgs/core/src/formatDistanceStrict/test.ts"),
+    node("fdns", "pkgs/core/src/formatDistanceToNowStrict/index.ts"),
+    ...Array.from({ length: FOLDER_PICK_MAX_FILES }, (_, i) => node(`f${i}`, `pkgs/core/src/fn${i}/index.ts`)),
+  ];
+  const graph = { nodes, links: [{ source: "fdns", target: "fds", relation: "calls" }] } as unknown as GraphData;
+  assert.deepEqual(pickNodes(graph, "pkgs/core/src/formatdistancestrict").sort(), ["fds", "fds_t"]);
+  assert.deepEqual(pickNodes(graph, "pkgs/core/src/formatdistancestrict/"), ["fds", "fds_t"], "a trailing slash too");
+  assert.deepEqual(pickNodes(graph, "pkgs/core"), [], `more than ${FOLDER_PICK_MAX_FILES} files isn't a place to start`);
+  const diff = "--- a/pkgs/core/src/formatDistanceStrict/index.ts\n+++ b/pkgs/core/src/formatDistanceStrict/index.ts\n@@ -1,1 +1,1 @@\n-a\n+b\n";
+  assert.deepEqual(gradePicks(graph, diff, ["pkgs/core/src/formatDistanceStrict", "pkgs/core/src/formatDistanceToNowStrict", "pkgs/core"]).map((r) => r.verdict), ["on_target", "close", "red_herring"]);
+});
+
 test("Rust-style paths (Type::method) are picks too, through an impl's generics; prose around them isn't a pick", async () => {
   const { pickNodes } = await import("../lesson/steps/s7");
   // graphify puts an impl's generics in the id: impl<'a, R> UnitVariantAccess<'a, R> { fn tuple_variant }.

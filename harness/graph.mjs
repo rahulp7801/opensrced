@@ -739,7 +739,7 @@ h1 { font-size: 15px; margin: 0 0 4px; }
 .key, .tag { display: inline-block; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 8px; margin: 0 2px 0 8px; color: #111; }
 .starttag { background: var(--start); color: #fff; } .fixtag { background: var(--fix); }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; align-items: start; }
-.card { background: var(--card); border: 1px solid var(--line); border-top: 3px solid var(--accent); border-radius: 8px; padding: 10px 12px; }
+.card { background: var(--card); border: 1px solid var(--line); border-top: 3px solid var(--accent); border-radius: 8px; padding: 10px 12px; min-width: 0; }
 .card.unseen { opacity: .5; } .card.unseen:hover, .card:target { opacity: 1; }
 .card.explored { border-color: var(--start); border-top-color: var(--start); }
 .card.changed { border-color: var(--fix); border-top-color: var(--fix); box-shadow: 0 0 0 1px var(--fix); }
@@ -754,7 +754,7 @@ li.start { color: #fff; background: var(--start); border-radius: 3px; } li.start
 li.fix { color: #111; background: var(--fix); border-radius: 3px; } li.fix::before { color: #111; }
 .star { margin-right: 4px; color: var(--fix); } li.fix .star { color: #111; }
 details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-top: 2px; }
-.rel { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.rel { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .rel a { color: var(--vscode-textLink-foreground, #3794ff); margin-right: 6px; text-decoration: none; }
 #osr-graph { display: block; width: 100%; height: 340px; margin: 0 0 16px; border: 1px solid var(--line); border-radius: 10px; touch-action: none;
   background: radial-gradient(ellipse at 50% 45%, color-mix(in srgb, var(--fg) 7%, transparent), transparent 70%), var(--card); }

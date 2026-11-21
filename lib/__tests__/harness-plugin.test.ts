@@ -842,3 +842,20 @@ test("the map reads Rust-style picks (Type::method, through an impl's generics) 
   assert.ok(labels.includes("src/lexical/math.rs") && labels.includes("tests/lexical/math.rs"), labels.join(", "));
   assert.equal(new Set(labels).size, labels.length, "no two bubbles share a name");
 });
+
+test("a fix that only adds lines still stars the function it's in (the one at those lines, not a namesake)", async () => {
+  const { pathToFileURL } = await import("node:url");
+  const esm = new Function("u", "return import(u)") as (u: string) => Promise<{ fileMapHtml: (g: unknown, levels: Map<string, string>, diff: string, title: string) => string }>;
+  const { fileMapHtml } = await esm(pathToFileURL(join(process.cwd(), "harness", "graph.mjs")).href);
+  const node = (id: string, label: string, at: number) => ({ id, label, source_file: "rich/text.py", source_location: `L${at}`, file_type: "code", community: 0 });
+  const graph = {
+    nodes: [node("span", "Span", 10), node("span_crop", ".right_crop()", 76), node("text", "Text", 900), node("text_crop", ".right_crop()", 1169)],
+    links: [],
+  };
+  // A guard added at the top of Text.right_crop: no line removed.
+  const diff = "diff --git a/rich/text.py b/rich/text.py\n--- a/rich/text.py\n+++ b/rich/text.py\n@@ -1169,3 +1169,5 @@ class Text:\n     def right_crop(self, amount):\n         \"\"\"Remove.\"\"\"\n+        if amount <= 0:\n+            return\n         max_offset = 1\n";
+  const page = fileMapHtml(graph, new Map([["text_crop", "changed"], ["span_crop", "changed"]]), diff, "t");
+  const rows = [...page.matchAll(/<li class="([^"]*)"[^>]*>(.*?)<\/li>/g)].map((m) => [m[1], m[2].replace(/<[^>]+>/g, "")]);
+  assert.deepEqual(rows.filter(([c]) => c.includes("fix")), [["fn in fix", "\u2605right_crop()"]], "one star");
+  assert.ok(rows.findIndex(([c]) => c.includes("fix")) > rows.findIndex(([, t]) => t === "Text"), "on Text's right_crop, not Span's");
+});

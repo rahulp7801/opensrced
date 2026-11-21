@@ -461,18 +461,23 @@ const FILE_MAP_ROWS = 10; // symbols shown per card before "more"; the lesson's 
 const FILE_MAP_CARDS = 80;
 const FILE_MAP_BUBBLES = 36;
 
-/** The old line numbers a diff removes or rewrites, by file: the functions around them are what the fix changes. */
-function removedLines(diff) {
+/** The old line numbers a diff changes, by file: a removed line where it was, an added one at the
+ *  line it follows (a fix that only adds a guard still changes the function it's in). The functions
+ *  around them are what the fix changes (as lib/graph-impact.ts changedOldLines reads a diff). */
+function changedLines(diff) {
   const out = new Map();
   let file = null, old = 0;
-  for (const text of String(diff ?? "").split(/\r?\n/)) {
-    const f = /^\+\+\+ (?:b\/)?(\S+)/.exec(text);
-    if (f) { file = f[1]; continue; }
+  const lines = String(diff ?? "").split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const text = lines[i];
+    // A file's header is "--- a/…" right before "+++ b/…"; an added line can start "+++" too.
+    if (text.startsWith("--- ") && lines[i + 1]?.startsWith("+++ ")) { file = /^\+\+\+ (?:b\/)?(\S+)/.exec(lines[++i])?.[1] ?? null; continue; }
     const h = /^@@ -(\d+)/.exec(text);
     if (h) { old = Number(h[1]); continue; }
-    if (!file || text.startsWith("---")) continue;
+    if (!file || text.startsWith("diff --git")) continue;
     if (text.startsWith("-")) { out.set(file, [...(out.get(file) ?? []), old]); old++; }
-    else if (!text.startsWith("+")) old++;
+    else if (text.startsWith("+")) out.set(file, [...(out.get(file) ?? []), Math.max(old - 1, 1)]);
+    else old++;
   }
   return out;
 }
@@ -609,7 +614,7 @@ const FILE_MAP_SCRIPT = String.raw`
  * No scripts and no network; colours from VS Code's theme where it gives them. Pure.
  */
 export function fileMapHtml(graph, levels, diff, title) {
-  const removed = removedLines(diff);
+  const changed = changedLines(diff);
   const nodes = graph.nodes.filter((n) => n.file_type === "code" && n.source_file);
   const path = (n) => n.source_file.replace(/\\/g, "/");
   const byFile = new Map();
@@ -667,7 +672,7 @@ export function fileMapHtml(graph, levels, diff, title) {
     const classes = symbols.filter((n) => !n.label.startsWith(".") && !n.label.endsWith(")")).map((n) => n.id);
     // The function each removed line sits in (the last one starting at or before it).
     const fns = symbols.filter((n) => n.label.endsWith(")"));
-    const fixed = new Set((removed.get(f) ?? []).map((at) => fns.filter((n) => line(n) <= at).at(-1)?.id).filter(Boolean));
+    const fixed = new Set((changed.get(f) ?? []).map((at) => fns.filter((n) => line(n) <= at).at(-1)?.id).filter(Boolean));
     const rows = symbols.map((n) => {
       const method = n.label.startsWith(".") && classes.some((c) => n.id.startsWith(c + "_"));
       const name = n.label.replace(/^\./, "");

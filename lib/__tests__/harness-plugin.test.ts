@@ -796,3 +796,24 @@ test("the map marks only the fix's files as changed (not every namesake of a fun
   const data = JSON.parse(/id="osr-data">([\s\S]*?)<\/script>/.exec(fileMapHtml(graph, levels, diff, "t"))![1]) as { nodes: Array<{ label: string }> };
   assert.deepEqual(data.nodes.map((n) => n.label).sort(), ["click/core.py", "click/termui.py", "imagepipe.py", "termui/termui.py", "test_options.py"].map((l) => (l === "click/core.py" ? "core.py" : l)).sort());
 });
+
+test("the file map leaves out data files (package.json's keys) unless the lesson touches them, and shows a lesson file with nothing mapped in it", async () => {
+  const { pathToFileURL } = await import("node:url");
+  const esm = new Function("u", "return import(u)") as (u: string) => Promise<{ fileMapHtml: (g: unknown, levels: Map<string, string>, diff: string, title: string) => string }>;
+  const { fileMapHtml } = await esm(pathToFileURL(join(process.cwd(), "harness", "graph.mjs")).href);
+  const node = (id: string, label: string, file: string) => ({ id, label, source_file: file, source_location: "L1", file_type: "code", community: 0 });
+  const graph = {
+    nodes: [
+      node("idx", "index.ts", "src/index.ts"), node("parse", "parseSetCookie()", "src/index.ts"),
+      node("pkg_name", "name", "package.json"), node("pkg_version", "version", "package.json"),
+      node("spec", "parse-set-cookie.spec.ts", "src/parse-set-cookie.spec.ts"),
+    ],
+    links: [{ source: "spec", target: "parse" }],
+  };
+  const cards = (page: string) => [...page.matchAll(/<section id="([^"]+)"/g)].map((m) => m[1]);
+  const plain = fileMapHtml(graph, new Map(), "", "t");
+  assert.deepEqual(cards(plain), ["f-src-index-ts"], "no package.json card, and an unseen file with nothing mapped has none either");
+  const lit = fileMapHtml(graph, new Map([["parse", "changed"], ["spec", "changed"], ["pkg_name", "explored"]]), "", "t");
+  assert.deepEqual(cards(lit).sort(), ["f-package-json", "f-src-index-ts", "f-src-parse-set-cookie-spec-ts"], "files the lesson touches always get their card");
+  assert.match(lit, /<section id="f-src-parse-set-cookie-spec-ts"[^>]*>[\s\S]*?No functions or classes mapped in this file\./);
+});

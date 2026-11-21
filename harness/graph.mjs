@@ -625,10 +625,13 @@ export function fileMapHtml(graph, levels, diff, title) {
   };
   const rank = { changed: 0, explored: 1, unseen: 2 };
   const isTest = (f) => Number(/(^|\/)tests?\//.test(f));
+  const DATA_FILE = /\.(?:json|jsonc|toml|ya?ml|lock|cfg|ini|txt|csv)$/i;
   const files = [...byFile.keys()]
     // The file's own node (label "serializer.py") is the card itself.
     .map((f) => ({ f, symbols: byFile.get(f).filter((n) => !/\.\w+$/.test(n.label)).sort((a, b) => line(a) - line(b)) }))
-    .filter((x) => x.symbols.length)
+    // A data file (package.json's keys, pyproject.toml's tables) isn't code to read; a file the
+    // lesson touches always gets its card, even with nothing mapped in it (a test of describe blocks).
+    .filter((x) => (x.symbols.length && !DATA_FILE.test(x.f)) || level(x.f) !== "unseen")
     .sort((a, b) => rank[level(a.f)] - rank[level(b.f)] || isTest(a.f) - isTest(b.f) || b.symbols.length - a.symbols.length);
   // How connected each file is: the calls, imports and uses crossing to or from it.
   const weight = new Map();
@@ -674,7 +677,7 @@ export function fileMapHtml(graph, levels, diff, title) {
     const tag = lv === "changed" ? '<span class="tag fixtag">fix</span>' : lv === "explored" ? '<span class="tag starttag">start</span>' : "";
     return `<section id="${anchor(f)}" class="card${lit ? " " + lv : ""}" style="--accent:${accentOf(symbols)};--i:${i}">
 <h2><span class="dir">${xml(dir)}</span>${xml(base(f))}${tag}</h2>
-<ul>${shown.map((r) => r.html).join("")}</ul>${rest.length ? `<details><summary>${rest.length} more</summary><ul>${rest.map((r) => r.html).join("")}</ul></details>` : ""}
+${rows.length ? `<ul>${shown.map((r) => r.html).join("")}</ul>` : '<p class="rel">No functions or classes mapped in this file.</p>'}${rest.length ? `<details><summary>${rest.length} more</summary><ul>${rest.map((r) => r.html).join("")}</ul></details>` : ""}
 ${out.length || inn.length ? `<p class="rel">${out.length ? `uses ${out.join(" ")}` : ""}${out.length && inn.length ? "<br>" : ""}${inn.length ? `used by ${inn.join(" ")}` : ""}</p>` : ""}
 </section>`;
   };

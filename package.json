@@ -46,7 +46,7 @@
     "drizzle-orm": "^0.45.4",
     "gsap": "3.15.0",
     "monaco-pyright-lsp": "0.1.7",
-    "next": "15.5.28",
+    "next": "15.5.29",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "tailwind-merge": "^2.5.5"

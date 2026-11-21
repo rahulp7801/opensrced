@@ -98,11 +98,18 @@ export function overlayLevels(graph, picks, keyDiff) {
     // As lib/lesson/steps/s7.ts pickNodes: a path or a real file extension is a file;
     // "Serializer.loads" is a method, matched by graphify's qualified id (…_serializer_loads).
     const isFile = pick.includes("/") || CODE_EXT.test(pick);
-    const suffix = pick.includes(".") && !isFile ? `_${pick.split(".").join("_")}` : null;
+    // Serializer.loads or (Rust, C++…) Error::fix_position, as lib/lesson/steps/s7.ts pickNodes reads them.
+    const parts = /\.|::/.test(pick) && !isFile ? pick.replace(/\(\)$/, "").split(/\.|::/).filter(Boolean) : null;
+    const suffix = parts ? `_${parts.join("_")}` : null;
+    const clean = (s) => s.replace(/[^a-z0-9_]/g, "");
+    // A Rust impl's generics sit between type and method (…_unitvariantaccess_a_r_tuple_variant).
+    const generic = parts ? new RegExp(`_${parts.slice(0, -1).map(clean).join("_")}(?:_[a-z0-9]+){1,3}_${clean(parts.at(-1))}$`) : null;
+    const exact = suffix ? graph.nodes.some((n) => n.id.toLowerCase().endsWith(suffix)) : false;
     for (const n of graph.nodes) {
       const file = norm(n.source_file || "");
       const label = norm(n.label).replace(/^\./, "");
-      const hit = isFile ? file && (file === pick || file.endsWith(`/${pick}`)) : suffix ? n.id.toLowerCase().endsWith(suffix) : label === pick;
+      const id = n.id.toLowerCase();
+      const hit = isFile ? file && (file === pick || file.endsWith(`/${pick}`)) : suffix ? (exact ? id.endsWith(suffix) : generic.test(id)) : label === pick;
       if (hit) levels.set(n.id, "explored");
     }
   }
@@ -552,7 +559,8 @@ const FILE_MAP_SCRIPT = String.raw`
     const dots = D.nodes.map((m) => [m, m.g.querySelector(".dot").getBoundingClientRect()]);
     for (const n of [...D.nodes].sort((a, b) => rank(a) - rank(b) || b.r - a.r)) {
       const r = n.t.getBoundingClientRect();
-      const hit = placed.some((p) => over(r, p, 4)) || dots.some(([m, d]) => m !== n && over(r, d, 0));
+      // The lesson's files keep their names whatever they touch; the rest give way.
+      const hit = rank(n) < 2 ? false : placed.some((p) => over(r, p, 4)) || dots.some(([m, d]) => m !== n && over(r, d, 0));
       n.g.classList.toggle("quiet", hit);
       if (!hit) placed.push(r);
     }
@@ -691,8 +699,15 @@ ${out.length || inn.length ? `<p class="rel">${out.length ? `uses ${out.join(" "
   const shown = new Set(bubbles.map((x) => x.f));
   // Two bubbles named termui.py (src/click/, examples/termui/) say which folder each is in.
   const seen = new Map();
-  for (const { f } of bubbles) seen.set(base(f), (seen.get(base(f)) ?? 0) + 1);
-  const bubbleName = (f) => (seen.get(base(f)) > 1 ? f.split("/").slice(-2).join("/") : base(f));
+  for (const { f } of bubbles) seen.set(base(f), [...(seen.get(base(f)) ?? []), f]);
+  // As many trailing folders as it takes to tell namesakes apart (src/lexical/math.rs, tests/lexical/math.rs).
+  const bubbleName = (f) => {
+    const same = seen.get(base(f));
+    if (same.length < 2) return base(f);
+    const tail = (g, k) => g.split("/").slice(-k).join("/");
+    for (let k = 2; k < f.split("/").length; k++) if (same.filter((g) => tail(g, k) === tail(f, k)).length === 1) return tail(f, k);
+    return f;
+  };
   const data = {
     nodes: bubbles.map(({ f, symbols }) => ({ id: anchor(f), label: bubbleName(f), r: Math.min(22, Math.round(7 + 2.4 * Math.sqrt(symbols.length))), color: accentOf(symbols), level: lit ? level(f) : "none" })),
     links: [...uses].flatMap(([a, m]) => [...m].filter(([b]) => shown.has(a) && shown.has(b)).map(([b, w]) => ({ s: anchor(a), t: anchor(b), w }))),

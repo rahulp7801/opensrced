@@ -817,3 +817,28 @@ test("the file map leaves out data files (package.json's keys) unless the lesson
   assert.deepEqual(cards(lit).sort(), ["f-package-json", "f-src-index-ts", "f-src-parse-set-cookie-spec-ts"], "files the lesson touches always get their card");
   assert.match(lit, /<section id="f-src-parse-set-cookie-spec-ts"[^>]*>[\s\S]*?No functions or classes mapped in this file\./);
 });
+
+test("the map reads Rust-style picks (Type::method, through an impl's generics) and names namesake files by as many folders as it takes", async () => {
+  const { pathToFileURL } = await import("node:url");
+  const esm = new Function("u", "return import(u)") as (u: string) => Promise<{
+    overlayLevels: (g: unknown, picks: string[], diff: string) => Map<string, string>;
+    fileMapHtml: (g: unknown, levels: Map<string, string>, diff: string, title: string) => string;
+  }>;
+  const { overlayLevels, fileMapHtml } = await esm(pathToFileURL(join(process.cwd(), "harness", "graph.mjs")).href);
+  const node = (id: string, label: string, file: string) => ({ id, label, source_file: file, source_location: "L1", file_type: "code", community: 0 });
+  const graph = {
+    nodes: [
+      node("src_de_unitvariantaccess_a_r_tuple_variant", ".tuple_variant()", "src/de.rs"),
+      node("src_de_variantaccess_a_r_tuple_variant", ".tuple_variant()", "src/de.rs"),
+      node("src_error_error_fix_position", ".fix_position()", "src/error.rs"),
+      node("a", "round()", "src/lexical/math.rs"), node("b", "round()", "tests/lexical/math.rs"), node("c", "go()", "src/run.rs"),
+    ],
+    links: [{ source: "a", target: "c" }, { source: "b", target: "c" }, { source: "src_error_error_fix_position", target: "c" }, { source: "src_de_unitvariantaccess_a_r_tuple_variant", target: "c" }],
+  };
+  const levels = overlayLevels(graph, ["UnitVariantAccess::tuple_variant", "Error::fix_position"], "");
+  assert.deepEqual([...levels.keys()].sort(), ["src_de_unitvariantaccess_a_r_tuple_variant", "src_error_error_fix_position"]);
+  const data = JSON.parse(/id="osr-data">([\s\S]*?)<\/script>/.exec(fileMapHtml(graph, new Map(), "", "t"))![1]) as { nodes: Array<{ label: string }> };
+  const labels = data.nodes.map((n) => n.label);
+  assert.ok(labels.includes("src/lexical/math.rs") && labels.includes("tests/lexical/math.rs"), labels.join(", "));
+  assert.equal(new Set(labels).size, labels.length, "no two bubbles share a name");
+});

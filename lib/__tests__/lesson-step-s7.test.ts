@@ -92,3 +92,24 @@ test("a Class.method pick resolves through graphify's qualified ids, not as a fi
   assert.deepEqual(pickNodes(graph, "timedserializer.loads()"), ["src_pkg_timed_timedserializer_loads"]);
   assert.equal(pickNodes(graph, "serializer.py").length, 2, "a real extension is still a file");
 });
+
+test("Rust-style paths (Type::method) are picks too, through an impl's generics; prose around them isn't a pick", async () => {
+  const { pickNodes } = await import("../lesson/steps/s7");
+  // graphify puts an impl's generics in the id: impl<'a, R> UnitVariantAccess<'a, R> { fn tuple_variant }.
+  const rust = {
+    nodes: [
+      { id: "src_de_unitvariantaccess_a_r_tuple_variant", label: ".tuple_variant()", community: 0, file_type: "code", source_file: "src/de.rs" },
+      { id: "src_de_variantaccess_a_r_tuple_variant", label: ".tuple_variant()", community: 0, file_type: "code", source_file: "src/de.rs" },
+      { id: "src_error_error_fix_position", label: ".fix_position()", community: 1, file_type: "code", source_file: "src/error.rs" },
+    ],
+    links: [],
+  };
+  assert.deepEqual(pickNodes(rust, "unitvariantaccess::tuple_variant"), ["src_de_unitvariantaccess_a_r_tuple_variant"], "not VariantAccess's");
+  assert.deepEqual(pickNodes(rust, "error::fix_position"), ["src_error_error_fix_position"]);
+  assert.deepEqual(
+    s7.parseAnswer("src/error.rs, where line and column are set (Error::fix_position)\nUnitVariantAccess::tuple_variant, which makes the error\nsrc/de.rs"),
+    ["src/error.rs", "Error::fix_position", "UnitVariantAccess::tuple_variant", "src/de.rs"],
+    "the explanations after the commas are not picks",
+  );
+  assert.deepEqual(s7.parseAnswer("loads\ndumps\nsign"), ["loads", "dumps", "sign"], "a bare function name is still a pick");
+});

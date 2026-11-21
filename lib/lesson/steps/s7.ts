@@ -20,20 +20,22 @@ export const S7_MIN_PICKS = 3;
 
 // A code file: a path ending in a source or docs extension.
 const CODE_FILE = /(?:[\w.-]+\/)*[\w-][\w.-]*\.(?:py|pyi|js|mjs|cjs|jsx|ts|tsx|go|rs|java|kt|rb|php|c|h|cc|cpp|hpp|cs|swift|scala|sh|md|rst|toml|ya?ml|json|cfg|ini|txt|html|css)\b/gi;
-// A dotted name like Serializer.loads, or a call like loads().
-const DOTTED = /\b[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+(?:\(\))?|\b[A-Za-z_]\w*\(\)/g;
+// A qualified name like Serializer.loads or (Rust, C++, PHP, Ruby) Error::fix_position, or a call like loads().
+const DOTTED = /\b[A-Za-z_]\w*(?:(?:\.|::)[A-Za-z_]\w*)+(?:\(\))?|\b[A-Za-z_]\w*\(\)/g;
 
 /** The picks in one line of the answer. The student's own words reach here
  *  as they wrote them ("My starting points: serializer.py (Serializer.loads)
- *  and timed.py to see ..."), so a line naming files or dotted names gives
- *  those; anything else is taken as it is. Pure; exported for tests. */
+ *  and timed.py to see ..."), so a line naming files or qualified names gives
+ *  those; a bare word is taken as it is (a function name); words with no name
+ *  in them ("which makes the error") are prose, not a pick. Pure; exported for tests. */
 export function picksIn(line: string): string[] {
   const text = line.replace(/^and\s+/i, "").trim();
   if (!text) return [];
   const files = text.match(CODE_FILE) ?? [];
   const rest = files.reduce((t, f) => t.replace(f, " "), text);
   const names = (rest.match(DOTTED) ?? []).filter((n) => !/^(?:e\.g|i\.e|etc)\b/i.test(n));
-  return files.length || names.length ? [...files, ...names] : [text];
+  if (files.length || names.length) return [...files, ...names];
+  return /\s/.test(text) ? [] : [text];
 }
 
 const norm = (s: string) => s.trim().replace(/\\/g, "/").replace(/^\.?\//, "").replace(/\(\)$/, "").replace(/^`|`$/g, "").toLowerCase();
@@ -49,11 +51,18 @@ export function pickNodes(graph: GraphData, pick: string): string[] {
   }
   // "Serializer.loads": graphify labels methods ".loads()" (no class), but its
   // ids end in the qualified name (…_serializer_serializer_loads), so match those.
-  const parts = pick.replace(/\(\)$/, "").split(".").filter(Boolean);
+  // A Rust impl's generics sit between the two (UnitVariantAccess<'a, R>::tuple_variant
+  // is …_unitvariantaccess_a_r_tuple_variant): matched when nothing is exact.
+  const parts = pick.replace(/\(\)$/, "").split(/\.|::/).filter(Boolean);
   if (parts.length >= 2) {
+    const ids = graph.nodes.map((n) => [n.id, n.id.toLowerCase()] as const);
     const suffix = `_${parts.join("_")}`.toLowerCase();
-    const qualified = graph.nodes.filter((n) => n.id.toLowerCase().endsWith(suffix)).map((n) => n.id);
+    const qualified = ids.filter(([, id]) => id.endsWith(suffix)).map(([id]) => id);
     if (qualified.length) return qualified;
+    const escape = (s: string) => s.toLowerCase().replace(/[^a-z0-9_]/g, "");
+    const generic = new RegExp(`_${parts.slice(0, -1).map(escape).join("_")}(?:_[a-z0-9]+){1,3}_${escape(parts.at(-1)!)}$`);
+    const loose = ids.filter(([, id]) => generic.test(id)).map(([id]) => id);
+    if (loose.length) return loose;
   }
   const node = pick.length >= 3 ? findNode(graph, pick) : null;
   return node ? [node.id] : [];

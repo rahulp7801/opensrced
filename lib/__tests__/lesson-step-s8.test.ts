@@ -26,12 +26,14 @@ test("s8's grader gets the answer key fenced, accepts other approaches, and must
   assert.equal(s8.grade(ctx, `${ctx.issue.body} ${ctx.issue.body} ${ctx.issue.body}`)?.passed, false, "a copy of the issue is turned back");
 });
 
-test("s8 passes on the cause plus the change or the proof", () => {
-  const reply = (o: object) => JSON.stringify({ cause: true, change: false, proof: true, alternative: false, feedback: "Good test idea.", ...o });
+test("s8 passes only on the cause, a change that works and a test that proves it", () => {
+  const reply = (o: object) => JSON.stringify({ cause: true, change: true, proof: true, alternative: false, feedback: "Good test idea.", ...o });
   assert.equal(s8.parseGrade!(reply({}), PLAN).passed, true);
-  assert.equal(s8.parseGrade!(reply({ proof: false, change: true }), PLAN).passed, true);
-  assert.equal(s8.parseGrade!(reply({ proof: false }), PLAN).passed, false);
-  assert.equal(s8.parseGrade!(reply({ cause: false, change: true }), PLAN).passed, false, "the cause is required");
+  assert.equal(s8.parseGrade!(reply({ change: false }), PLAN).passed, false, "a change that wouldn't fix it doesn't pass, however good the test");
+  assert.equal(s8.parseGrade!(reply({ change: false, alternative: true }), PLAN).passed, false, "nor does calling it an alternative");
+  assert.equal(s8.parseGrade!(reply({ proof: false }), PLAN).passed, false, "the test idea is required");
+  assert.equal(s8.parseGrade!(reply({ cause: false }), PLAN).passed, false, "the cause is required");
+  assert.equal(s8.parseGrade!(reply({ alternative: true }), PLAN).passed, true, "a different fix that works passes");
   assert.deepEqual((s8.parseGrade!(reply({ alternative: true }), PLAN).detail as { alternative: boolean }).alternative, true);
   assert.throws(() => s8.parseGrade!(reply({ alternative: "maybe" }), PLAN), ReplyFormatError);
 });

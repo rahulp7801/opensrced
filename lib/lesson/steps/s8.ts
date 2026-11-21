@@ -1,8 +1,8 @@
 // s8 Predict the change and the test. Graded by the fast model against the
 // hidden diff, its test cases and diagnosis, on three parts: the cause
-// (where), the change (what), the proof (a test idea). Pass = the cause plus
-// one of the other two. A different fix that would also work is accepted, and
-// the grader must say so. Only graded with a verified answer key.
+// (where), the change (what), the proof (a test idea). Pass = all three: a
+// change that wouldn't fix it doesn't pass, however good the test idea. A
+// different fix that would also work is accepted, and the grader must say so. Only graded with a verified answer key.
 
 import { jsonObject, looksCopied, replyBool, replyText } from "../../understanding";
 import { fence, GRADER_UNTRUSTED, issueBlock, JSON_ONLY, textAnswer, type StepDef } from "./shared";
@@ -49,6 +49,6 @@ export const s8: StepDef<string> = {
     const change = replyBool(o.change, "change");
     const proof = replyBool(o.proof, "proof");
     const alternative = replyBool(o.alternative, "alternative");
-    return { passed: cause && (change || proof), feedback: replyText(o.feedback, "feedback", 600), detail: { cause, change, proof, alternative } };
+    return { passed: cause && change && proof, feedback: replyText(o.feedback, "feedback", 600), detail: { cause, change, proof, alternative } };
   },
 };

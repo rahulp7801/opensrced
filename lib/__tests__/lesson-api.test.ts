@@ -152,7 +152,7 @@ test("steps: with an unverified key s7 is saved without a grade ('investigate to
 });
 
 test("steps: a grader's feedback that names the fix is replaced before it is returned", async () => {
-  const h = harness({ replies: ['{"cause":true,"change":true,"proof":false,"alternative":false,"feedback":"Yes: add is_redirect = 300 <= response.status_code < 400 in save_session."}'] });
+  const h = harness({ replies: ['{"cause":true,"change":true,"proof":true,"alternative":false,"feedback":"Yes: add is_redirect = 300 <= response.status_code < 400 in save_session."}'] });
   const id = await newLesson(h);
   await h.store.updateStage(id, "predict");
   const res = await (await submitStep(post({ answer: "The cookie is skipped for redirect responses because the save step only checks whether the session changed; I would also write it for 3xx and test a login redirect." }), id, "s8", h.deps)).json();

@@ -43,7 +43,8 @@ export async function POST(req: Request) {
     if (!graph) {
       // Only a build costs the sandbox: it counts against the account's day (lib/harness.ts DAILY_LIMITS).
       try { await assertUnderDailyLimit(db, userId, "graph_builds"); } catch (error) {
-        if (error instanceof DailyLimitError) return Response.json({ error: `${error.message} Or install graphify locally to map it on your machine.` }, { status: 429 });
+        // The plugin adds how to map it locally (the exact pip command), so the message stops here.
+        if (error instanceof DailyLimitError) return Response.json({ error: error.message }, { status: 429 });
         throw error;
       }
       // Counted before it runs: a build that fails or times out spent the sandbox too.

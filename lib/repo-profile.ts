@@ -28,6 +28,9 @@ import { changelogLocation, isBotAuthor, TEST_PATH, TITLE_PATTERNS, titleConvent
 export const PROFILE_SAMPLE = 100;
 /** A profile is read again after this long. */
 export const PROFILE_TTL_MS = 24 * 60 * 60_000;
+/** Bumped when what a profile says changes (2: AI co-author rules aren't bans; the owner's .github repo counts),
+ *  so a stored profile isn't served with the old verdict for up to a day. */
+export const PROFILE_RULES = 2;
 /** Fewest PRs (or measurements) a comparison or statistic needs before it is stated. */
 export const MIN_SAMPLE = 5;
 /** A review request is stated once it recurs on this many PRs: one reviewer's
@@ -95,6 +98,8 @@ export type RepoStatus = {
 /** Version 1 profiles (stored before the optional fields existed) lack them; readers tolerate that. */
 export type RepoProfile = {
   version: 1 | 2;
+  /** PROFILE_RULES when it was read: a stored profile read under older rules is read again. */
+  rules?: number;
   repo: string;
   computedAt: string;
   /** Creation dates of the PRs read, and how many. minDays–maxDays ago is the
@@ -437,6 +442,7 @@ export function summarizeProfile(repo: string, prs: ProfilePr[], now = new Date(
 
   return {
     version: 2,
+    rules: PROFILE_RULES,
     reviewAiStatements,
     repo,
     computedAt: now.toISOString(),
@@ -895,7 +901,7 @@ export async function repoProfile(db: Db, client: GitHubClient, repo: string, op
   const [owner, name] = splitRepo(repo);
   const [row] = await db.select({ profile: repos.profile, profiledAt: repos.profiledAt }).from(repos)
     .where(and(sql`lower(${repos.owner}) = ${owner.toLowerCase()}`, sql`lower(${repos.name}) = ${name.toLowerCase()}`)).limit(1);
-  if (!opts.refresh && row?.profile && row.profiledAt && now.getTime() - row.profiledAt.getTime() < PROFILE_TTL_MS) {
+  if (!opts.refresh && row?.profile && (row.profile as RepoProfile).rules === PROFILE_RULES && row.profiledAt && now.getTime() - row.profiledAt.getTime() < PROFILE_TTL_MS) {
     return row.profile as RepoProfile;
   }
   const profile = await fetchRepoProfile(client, repo, now);

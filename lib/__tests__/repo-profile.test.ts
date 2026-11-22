@@ -1,11 +1,13 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
+import { and, eq } from "drizzle-orm";
 import { openDb, type DbConnection } from "../db/client";
 import { migrateDb } from "../db/migrate";
+import { repos } from "../db/schema";
 import type { GitHubClient } from "../gh";
 import {
   askedFor, closeReason, quoteFor, requestIn, MAX_VOICES, cohortQueries, COHORT_SLICES, COHORT_WINDOWS, engagementAdvice, fetchRepoProfile, maintainersOf, MIN_SAMPLE, prType,
-  profileFindings, repoProfile, RepoNotFoundError, RepoProfileFetchError, storedProfile, summarizeProfile, windowText,
+  profileFindings, PROFILE_RULES, repoProfile, RepoNotFoundError, RepoProfileFetchError, storedProfile, summarizeProfile, windowText,
   type CloseReason, type PrType, type ProfilePr, type RepoProfile,
 } from "../repo-profile";
 
@@ -675,4 +677,10 @@ test("the profile is stored on the repo's row and reused for a day, whatever the
   const later = await repoProfile(db, again.client, "acme/app", { now: new Date("2026-11-02T01:00:00Z") });
   assert.equal(later.window.prs, 2, "a day later it is read again");
   assert.equal((await storedProfile(db, "Acme", "App"))?.window.prs, 2);
+
+  // A profile stored under older rules (no `rules`, or a lower number) is read again at once.
+  await db.update(repos).set({ profile: { ...later, rules: undefined } }).where(and(eq(repos.owner, "Acme"), eq(repos.name, "App")));
+  const reread = client([[pr(), pr(), pr()], [], []]);
+  assert.equal((await repoProfile(db, reread.client, "acme/app", { now: new Date("2026-11-02T02:00:00Z") })).window.prs, 3);
+  assert.equal((await storedProfile(db, "Acme", "App"))?.rules, PROFILE_RULES);
 });

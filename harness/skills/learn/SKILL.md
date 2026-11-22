@@ -9,7 +9,7 @@ The user wants to understand this project and this issue well enough to fix it a
 
 ## Start
 
-1. Call `repo_profile` for the repository, as the contribute skill says. An AI ban stops the lesson. Its other "before you start" steps (be assigned, agree the approach on the issue, or that only collaborators can open PRs there) are about opening a PR, not about learning: mention them now, run the lesson, and come back to them at the end. Call `read_issue` for the issue and its comments: it works without gh, so never send the student to `gh` or the browser for it; quote what they need.
+1. Call `repo_profile` for the repository, as the contribute skill says. An AI ban doesn't stop the lesson, only a pull request: tell the user now that this project doesn't accept AI-assisted contributions, so the lesson is for learning and they shouldn't open a PR from it. Its other "before you start" steps (be assigned, agree the approach on the issue, or that only collaborators can open PRs there) are about opening a PR, not about learning: mention them now, run the lesson, and come back to them at the end. Call `read_issue` for the issue and its comments: it works without gh, so never send the student to `gh` or the browser for it; quote what they need.
 2. If they haven't said which path they want, ask first (the path is fixed once the lesson starts):
    - **A** (default): you write the fix out of sight; they predict it, then you reveal it and they explain it.
    - **B**: they write the fix themselves in their editor.
@@ -40,4 +40,4 @@ Both paths need it: path A grades s7 and s8 against it, path B's reveal compares
 - Before explain-it, ask them two review questions a maintainer might ask about this fix and talk through their answers (the panel doesn't ask these).
 - For explain-it, `lesson_reveal` lists the files the fix changes: ask for one sentence on each, in their words, and send each sentence under its exact path. If they skipped a file, ask about that file rather than writing the sentence for them.
 - Path B: when they say their change is done, call `lesson_submit_own` with `done: true`; compare their change with the key at the reveal, and say what each does better.
-- After s10 the lesson is done. Their PR is theirs: follow the contribute skill (check_pr, their own description, AI disclosure), and never open, push or post anything unless they ask for that exact action.
+- After s10 the lesson is done. If the project bans AI-assisted contributions, there is no PR from this lesson: say so again and stop there. Otherwise their PR is theirs: follow the contribute skill (check_pr, their own description, AI disclosure), and never open, push or post anything unless they ask for that exact action.

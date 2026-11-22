@@ -273,17 +273,51 @@ export async function fetchAiPolicy(client: GitHubClient, repo: string): Promise
   }
 
   const files = [...found].map(([path, text]) => ({ path, text }));
+  const own = new Set([...roles].filter(([, role]) => role === "guide").map(([path]) => path.slice(path.lastIndexOf("/") + 1).toLowerCase()));
+  const org = await orgGuideFiles(client, owner, name);
   for (const t of listing.pullRequestTemplates ?? []) {
     // GitHub names a template by file name only; templates in a
     // PULL_REQUEST_TEMPLATE/ directory are not in the listing.
     if (t.body) files.push({ path: listed.get(t.filename) ?? `PULL_REQUEST_TEMPLATE/${t.filename}`, text: t.body });
   }
+  // The org's AI stance holds for all its repos (pallets/click's own docs/contributing.md
+  // says nothing, pallets/.github's CONTRIBUTING.md closes AI PRs on sight); its written
+  // steps only where the repo has no guide of that name (as GitHub shows them).
+  const orgSteps = org.filter((f) => !own.has(f.path.slice(f.path.lastIndexOf("/") + 1).toLowerCase()));
   return {
-    ...classifyRepoAiPolicy(files),
+    ...classifyRepoAiPolicy([...files, ...org]),
     agentFiles: files.filter((f) => roles.get(f.path) === "agent").map((f) => ({ path: f.path, bytes: new TextEncoder().encode(f.text).length })),
     agentDirectives: agentDirectivesIn(files),
-    procedures: procedureRulesIn(files.filter((f) => roles.get(f.path) !== "agent")),
+    procedures: procedureRulesIn([...files.filter((f) => roles.get(f.path) !== "agent"), ...orgSteps]),
   };
+}
+
+/** The guides and AI policies the owner's `.github` repository publishes for all its repos
+ *  (as GitHub does for community health files): marshmallow's AI_POLICY.md lives only in
+ *  marshmallow-code/.github. Quoted as "owner/.github/AI_POLICY.md". An owner without a
+ *  `.github` repo has none; agent files there are not the repo's. Throws
+ *  AiPolicyFetchError when GitHub can't be read. */
+async function orgGuideFiles(client: GitHubClient, owner: string, name: string): Promise<Array<{ path: string; text: string }>> {
+  if (name.toLowerCase() === ".github") return [];
+  const org = `${owner}/.github`;
+  let listing: Listing;
+  try {
+    listing = await queryRepo<Listing>(client, org, owner, ".github", AI_POLICY_DIRS.map((dir, i) => `d${i}: object(expression: ${JSON.stringify(`HEAD:${dir}`)}) { ... on Tree { entries { name type } } }`).join("\n"));
+  } catch (error) {
+    // No such repository: GitHub answers NOT_FOUND (or a null repository: no cause).
+    const errors = (error as { cause?: { errors?: Array<{ type?: string }> } }).cause?.errors;
+    if (error instanceof AiPolicyFetchError && (error.cause === undefined || (errors?.length && errors.every((e) => e.type === "NOT_FOUND")))) return [];
+    throw error;
+  }
+  const paths = new Map<string, string>(); // file name -> first path it is listed at
+  AI_POLICY_DIRS.forEach((dir, i) => {
+    for (const entry of listing[`d${i}`]?.entries ?? []) {
+      const path = dir ? `${dir}/${entry.name}` : entry.name;
+      if (entry.type === "blob" && policyFileRole(path) === "guide" && !paths.has(entry.name.toLowerCase())) paths.set(entry.name.toLowerCase(), path);
+    }
+  });
+  const read = await readFiles(client, org, owner, ".github", [...paths.values()]);
+  return [...read].map(([path, text]) => ({ path: `${org}/${path}`, text }));
 }
 
 // ponytail: per-instance cache; move to a repos.ai_policy column once the DB is configured everywhere.

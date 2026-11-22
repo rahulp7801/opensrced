@@ -88,15 +88,22 @@ type FakeRepo = {
   templates?: Array<{ filename: string; body: string | null }>;
   /** Answer this call (1-based) with a 401. */
   failCall?: number;
+  /** The owner's .github repository (lib/ai-policy.ts orgGuideFiles); none when absent. */
+  org?: FakeRepo;
 };
 
 /** GitHub GraphQL answering tree listings (dN), blob reads (fN) and
  *  pullRequestTemplates from an in-memory repository, recording calls. */
-function fakeGitHub(repo: FakeRepo | "missing" | "error") {
+function fakeGitHub(top: FakeRepo | "missing" | "error") {
   const calls: Array<{ query: string; variables: Record<string, unknown> }> = [];
+  const orgCalls: Array<{ query: string; variables: Record<string, unknown> }> = [];
   const fetch = (async (_url: string, init: RequestInit) => {
     const request = JSON.parse(String(init.body)) as { query: string; variables: Record<string, unknown> };
-    calls.push(request);
+    // The owner's .github repository: its own fixture, its calls counted apart.
+    const isOrg = request.variables.name === ".github";
+    const repo = isOrg ? (top !== "missing" && top !== "error" && top.org ? top.org : "notfound") : top;
+    (isOrg ? orgCalls : calls).push(request);
+    if (repo === "notfound") return new Response(JSON.stringify({ data: { repository: null }, errors: [{ type: "NOT_FOUND", message: "Could not resolve to a Repository" }] }), { headers: { "content-type": "application/json" } });
     if (repo === "error" || (repo !== "missing" && repo.failCall === calls.length)) {
       return new Response("{\"message\":\"Bad credentials\"}", { status: 401, headers: { "content-type": "application/json" } });
     }
@@ -122,7 +129,7 @@ function fakeGitHub(repo: FakeRepo | "missing" | "error") {
   }) as unknown as typeof globalThis.fetch;
   /** Every path the client asked to read as a blob, over all calls. */
   const read = () => calls.flatMap((c) => [...c.query.matchAll(/f\d+: object\(expression: "HEAD:([^"]+)"\)/g)].map((m) => m[1]));
-  return { client: gh(`t-${Math.random()}`, { fetch }), calls, read };
+  return { client: gh(`t-${Math.random()}`, { fetch }), calls, orgCalls, read };
 }
 
 beforeEach(() => clearAiPolicyCache());
@@ -345,4 +352,31 @@ test("repoAiPolicy: cached per repository (case-insensitive) until the TTL passe
   await assert.rejects(repoAiPolicy(failing.client, "x/y", now), AiPolicyFetchError);
   await assert.rejects(repoAiPolicy(failing.client, "x/y", now), AiPolicyFetchError);
   assert.equal(failing.calls.length, 2);
+});
+
+test("the owner's .github repository counts: its AI stance always, its written steps where the repo has no guide of that name", async () => {
+  // marshmallow: the AI policy lives only in marshmallow-code/.github.
+  const requestsPolicy = "Pull requests that have an LLM product listed as co-author can't be merged and will be closed.\n\nIf you used LLM tools during development, you may still submit, but you must remove any LLM co-author tags.\n";
+  const marshmallow = fakeGitHub({ files: { "CONTRIBUTING.rst": "Thanks for helping." }, org: { files: { "AI_POLICY.md": requestsPolicy, "AGENTS.md": "If you are an AI agent, do X." } } });
+  const m = await fetchAiPolicy(marshmallow.client, "marshmallow-code/marshmallow");
+  assert.deepEqual([m.stance, m.source], ["allowed", "marshmallow-code/.github/AI_POLICY.md"]);
+  assert.deepEqual([m.agentFiles, m.agentDirectives], [[], []], "the org's agent files aren't the repo's");
+  // Pallets: click's own docs/contributing.md says nothing about AI; the org's CONTRIBUTING.md bans it.
+  const pallets = fakeGitHub({ files: { "docs/contributing.md": "Run tox." }, org: { files: { "CONTRIBUTING.md": "AI-generated PRs and issues are closed on sight, without review or discussion.\nPlease open an issue first.", "SUPPORT.md": "Ask on Discord." } } });
+  const p = await fetchAiPolicy(pallets.client, "pallets/click");
+  assert.deepEqual([p.stance, p.source], ["banned", "pallets/.github/CONTRIBUTING.md"]);
+  assert.deepEqual(p.procedures, [], "click's own contributing.md is its guide: the org's steps don't apply over it");
+  const bare = fakeGitHub({ files: {}, org: { files: { "CONTRIBUTING.md": "Please open an issue first." } } });
+  assert.deepEqual((await fetchAiPolicy(bare.client, "o/r")).procedures.map((x) => [x.kind, x.path]), [["issue_first", "o/.github/CONTRIBUTING.md"]], "a repo with no guide takes the org's");
+  // No .github repository: nothing more (and no error); the .github repo itself isn't read twice.
+  const none = fakeGitHub({ files: { "CONTRIBUTING.md": "Hello." } });
+  assert.equal((await fetchAiPolicy(none.client, "o/r")).stance, "unknown");
+  assert.equal(none.orgCalls.length, 1);
+  const self = fakeGitHub({ files: { "CONTRIBUTING.md": "Hello." }, org: { files: { "AI_POLICY.md": "We do not accept AI-generated code." } } });
+  // o/.github is the repo here (the fake serves it from `org`): its listing and read, no second pass.
+  assert.equal((await fetchAiPolicy(self.client, "o/.github")).source, "AI_POLICY.md");
+  assert.equal(self.orgCalls.length, 2);
+  // GitHub failing on the org's repo is a failure, not "no policy".
+  const failing = fakeGitHub({ files: {}, org: { failCall: 1 } });
+  await assert.rejects(fetchAiPolicy(failing.client, "o/r"), AiPolicyFetchError);
 });

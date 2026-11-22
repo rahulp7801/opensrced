@@ -111,7 +111,12 @@ const WELCOME_PATTERNS = [
   // pyjanitor maintainer (#1714): "Totally ok to use your agents to do it". "agents"
   // only counts after "your"/"coding"/"AI", so "user agents" or "agent classes" do not.
   new RegExp(String.raw`\b(?:ok(?:ay)?|fine|welcome|free|allowed)\s+to\s+use\s+(?:(?:an?\s+|your\s+(?:own\s+)?)?${AI}|(?:your\s+(?:own\s+)?|coding\s+)+agents?)\b`, "i"),
+  // requests: "If you used LLM tools during development, you may still submit".
+  new RegExp(String.raw`\bif\s+you\s+(?:used?|employ(?:ed)?)\s+(?:an?\s+)?${AI}[^.\n]{0,60}?\byou\s+(?:may|can)\s+(?:still\s+)?(?:submit|contribute|open)\b`, "i"),
 ];
+
+/** A sentence about who is listed as an author (Co-authored-by trailers), not about AI help. */
+const CO_AUTHOR = /\bco-?author(?:ed|s)?\b|\btrailers?\b/i;
 
 /** Ban outranks a disclosure requirement, which outranks a welcome (several files may say different things). */
 const STANCE_RANK: Record<AiStance, number> = { unknown: 0, welcome: 1, disclose: 2, ban: 3 };
@@ -129,7 +134,9 @@ function sentenceAround(text: string, index: number): string {
  *  disclosure requirement found elsewhere in the same text. */
 export function classifyAiPolicy(text: string): { stance: AiStance; excerpt: string | null } {
   for (const re of BAN_PATTERNS) {
-    const m = re.exec(text);
+    // A rule about co-authorship is not a ban (requests: "Pull requests that have an LLM product
+    // listed as co-author can't be merged and will be closed": "you may still submit" after LLM help).
+    const m = [...text.matchAll(new RegExp(re.source, `${re.flags}g`))].find((x) => !CO_AUTHOR.test(sentenceAround(text, x.index)));
     if (m) return { stance: "ban", excerpt: sentenceAround(text, m.index) };
   }
   for (const re of DISCLOSE_PATTERNS) {

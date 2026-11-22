@@ -40,6 +40,22 @@ test("classifyAiPolicy: bans, disclosure requirements, and silence", () => {
   assert.match(classifyAiPolicy("Intro.\nWe do not accept AI-generated patches. Thanks.").excerpt!, /^We do not accept AI-generated patches\./);
 });
 
+test("classifyAiPolicy: a rule against AI co-author trailers is not a ban (requests' AI_POLICY.md)", () => {
+  const requests = [
+    "- Every contribution has to be backed by a human who unequivocally owns the copyright for all changes.",
+    "  No LLM bots in `Co-authored-by:`s.",
+    "",
+    "- Pull requests that have an LLM product listed as co-author can't be merged and will be closed without further discussion.",
+    "  We cannot risk the copyright status of this project.",
+    "",
+    "  If you used LLM tools during development, you may still submit – but you must remove any LLM co-author tags and take full ownership of every line.",
+  ].join("\n");
+  assert.deepEqual(classifyAiPolicy(requests), { stance: "welcome", excerpt: "If you used LLM tools during development, you may still submit – but you must remove any LLM co-author tags and take full ownership of every line." });
+  assert.equal(classifyAiPolicy("PRs listing an AI as co-author will be closed.").stance, "unknown", "about the trailer only");
+  // A real ban after a co-author rule is still found.
+  assert.equal(classifyAiPolicy("PRs listing an AI as co-author will be closed.\nWe do not accept AI-generated code.").stance, "ban");
+});
+
 test("DCO, CLA and trailer detection", () => {
   assert.ok(detectsDco("Commits must include a `Signed-off-by:` header"));
   assert.ok(detectsDco("we follow the Developer Certificate of Origin"));

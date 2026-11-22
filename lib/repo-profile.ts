@@ -598,7 +598,7 @@ export function profileFindings(p: RepoProfile): Finding[] {
   if (ai === null) out.push({ section: "start", text: "The project's AI policy could not be read: check its contributing guide before using AI.", examples: [] });
   else if (ai?.stance === "banned") out.push({ section: "start", text: `This project does not accept AI-generated contributions${quote(ai)}.`, examples: [] });
   else if (ai?.stance === "disclosure-required") out.push({ section: "start", text: `The project asks contributors to disclose AI assistance${quote(ai)}.`, examples: [] });
-  else if (ai?.stance === "allowed") out.push({ section: "start", text: `AI-assisted contributions are welcome${quote(ai)}.`, examples: [] });
+  else if (ai?.stance === "allowed") out.push({ section: "start", text: `AI-assisted contributions are accepted${quote(ai)}.`, examples: [] });
   else if (ai?.stance === "unknown") out.push({ section: "start", text: "No AI policy in its contributing guide or PR template: disclose AI assistance anyway.", examples: [] });
   // Written steps before a PR count however few PRs the project has (earthpy: approval first).
   for (const r of ai?.procedures ?? []) {

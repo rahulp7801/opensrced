@@ -93,6 +93,24 @@ test("a Class.method pick resolves through graphify's qualified ids, not as a fi
   assert.equal(pickNodes(graph, "serializer.py").length, 2, "a real extension is still a file");
 });
 
+test("a bare name is every function of that name, the closest counting; not the first label that contains it", async () => {
+  const { pickNodes } = await import("../lesson/steps/s7");
+  // tempfile #444: "persist" is the Windows persist() the fix changes, among others and a PersistError.
+  const node = (id: string, label: string, file: string, file_type = "code") => ({ id, label, community: 0, file_type, source_file: file });
+  const graph = {
+    nodes: [
+      node("mod_persisterror", "PersistError", "src/file/mod.rs"), node("mod_temppath_persist", ".persist()", "src/file/mod.rs"),
+      node("unix_persist", "persist()", "src/file/imp/unix.rs"), node("win_persist", "persist()", "src/file/imp/windows.rs"),
+      node("cfg_persist", "persist", "config.toml", "document"),
+    ],
+    links: [],
+  } as unknown as GraphData;
+  assert.deepEqual(pickNodes(graph, "persist").sort(), ["mod_temppath_persist", "unix_persist", "win_persist"], "functions only, not the error type or a data file's key");
+  assert.deepEqual(pickNodes(graph, "persisterr"), ["mod_persisterror"], "a partial name still finds the nearest label");
+  const diff = "--- a/src/file/imp/windows.rs\n+++ b/src/file/imp/windows.rs\n@@ -1,1 +1,1 @@\n-a\n+b\n";
+  assert.deepEqual(gradePicks(graph, diff, ["persist"]).map((r) => r.verdict), ["on_target"]);
+});
+
 test("a specific folder names the files in it (one folder per function, as date-fns); a broad one doesn't", async () => {
   const { pickNodes, FOLDER_PICK_MAX_FILES } = await import("../lesson/steps/s7");
   const node = (id: string, file: string) => ({ id, label: `${id}()`, community: 0, file_type: "code", source_file: file });

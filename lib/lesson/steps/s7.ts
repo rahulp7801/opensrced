@@ -79,6 +79,12 @@ export function pickNodes(graph: GraphData, pick: string): string[] {
     const loose = ids.filter(([, id]) => generic.test(id)).map(([id]) => id);
     if (loose.length) return loose;
   }
+  // A bare name ("persist") is every function or class of that name (graphify labels them
+  // "persist()" and ".persist()"): the closest one counts, not whichever label merely contains
+  // it first (PersistError). Only code: a data file's keys aren't functions.
+  const bare = pick.replace(/\(\)$/, "").toLowerCase();
+  const named = graph.nodes.filter((n) => n.file_type === "code" && n.label.toLowerCase().replace(/^\./, "").replace(/\(\)$/, "") === bare).map((n) => n.id);
+  if (named.length) return named;
   const node = pick.length >= 3 ? findNode(graph, pick) : null;
   return node ? [node.id] : [];
 }

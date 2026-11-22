@@ -680,7 +680,11 @@ async function lessonTool(name, id, args) {
     const explain = changed.length
       ? `The fix changes ${changed.length} file${changed.length === 1 ? "" : "s"}: ${changed.join(", ")}. Show the user the diff from your hidden worktree (git -C <worktree> diff HEAD) file by file and why its test proves it. Then ask explain-it: one sentence in their own words for each of those files, and why the test proves the fix. Send it as {"files": {"<exact path above>": "their sentence", ...}, "test": "their words"}: put each sentence under the path it's about, without rewording it; if they skip a file, ask them for that one.`
       : "Walk the user through the fix file by file and why its test proves it, then ask explain-it.";
-    return result(`Revealed. ${explain}\n${lessonText(s.lesson)}${file ? `\n${file}` : ""}`, s);
+    // Path B: their own change is what they'd contribute, so it gets checked and compared first.
+    const own = s.lesson.path === "B" && !args.give_up
+      ? `\nFirst, their change (git -C ${existsSync(lessonFile(id)) ? localLesson(id).dir : "<their checkout>"} diff): run their test without their fix and with it, and say whether it proves the fix. Then compare it with the key: what each does better, and anything theirs misses.`
+      : "";
+    return result(`Revealed. ${explain}${own}\n${lessonText(s.lesson)}${file ? `\n${file}` : ""}`, s);
   }
   if (name === "lesson_submit_own") {
     const local = localLesson(id);

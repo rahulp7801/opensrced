@@ -35,39 +35,67 @@ export function touchedNodeIds(graph: GraphData, diff: string): Set<string> {
 }
 
 /** Each changed file's changed lines, numbered as in the old file (a removed line where it was,
- *  an added one at the line it follows), and the names in its hunk headers (git puts the
- *  enclosing function there: "@@ -340,3 +340,4 @@ def save_session(…)"). Pure; exported for tests. */
-export function changedOldLines(diff: string): Map<string, { lines: number[]; headers: string[] }> {
-  const out = new Map<string, { lines: number[]; headers: string[] }>();
+ *  an added one at the line it follows), the names in its hunk headers (git puts the enclosing
+ *  function there: "@@ -340,3 +340,4 @@ def save_session(…)"), and whether it adds whole new
+ *  functions or types (a test appended after the last one). Pure; exported for tests. */
+export function changedOldLines(diff: string): Map<string, { lines: number[]; headers: string[]; adds: boolean }> {
+  const out = new Map<string, { lines: number[]; headers: string[]; adds: boolean }>();
   let file = "";
   let old = 0;
   let inHunk = false;
+  // Added lines wait for the end of their run: a run of only additions that defines a function
+  // or type is a new one, not a change to the one above it (which git names in the hunk header).
+  let run: number[] = [];
+  let pure = true;
+  let defines = false;
+  let hunkKept = 0;
+  let hunkAdds = false;
+  let hunkHeader = false;
+  const flush = () => {
+    if (file && run.length) {
+      if (pure && defines) { hunkAdds = true; out.get(file)!.adds = true; }
+      else { out.get(file)!.lines.push(...run); hunkKept += run.length; }
+    }
+    run = []; pure = true; defines = false;
+  };
+  // A hunk that only adds new definitions changes nothing its header names.
+  const endHunk = () => {
+    flush();
+    if (file && hunkHeader && hunkAdds && !hunkKept) out.get(file)!.headers.pop();
+    hunkKept = 0; hunkAdds = false; hunkHeader = false;
+  };
   const all = diff.split(/\r?\n/);
   for (let i = 0; i < all.length; i++) {
     const line = all[i];
-    if (line.startsWith("diff --git")) { inHunk = false; continue; }
+    if (line.startsWith("diff --git")) { endHunk(); inHunk = false; continue; }
     // A file's header: "--- a/…" right before "+++ b/…" (even inside a hunk with no "diff --git" between).
     if (line.startsWith("--- ") && all[i + 1]?.startsWith("+++ ")) {
+      endHunk();
       file = all[++i].slice(4).trim().replace(/^b\//, "").replace(/\\/g, "/").toLowerCase();
-      if (!out.has(file)) out.set(file, { lines: [], headers: [] });
+      if (!out.has(file)) out.set(file, { lines: [], headers: [], adds: false });
       inHunk = false;
       continue;
     }
     const hunk = /^@@ -(\d+)(?:,\d+)? \+\d+(?:,\d+)? @@\s*(.*)$/.exec(line);
     if (hunk) {
+      endHunk();
       old = Number(hunk[1]);
       inHunk = true;
       const name = /\b(?:def|function|fn|func|class|struct|async\s+def)\s+(\w+)/.exec(hunk[2])?.[1];
-      if (file && name) out.get(file)!.headers.push(name.toLowerCase());
+      if (file && name) { out.get(file)!.headers.push(name.toLowerCase()); hunkHeader = true; }
       continue;
     }
     if (!inHunk || !file) continue;
-    if (line.startsWith("-")) out.get(file)!.lines.push(old++);
-    else if (line.startsWith("+")) out.get(file)!.lines.push(Math.max(old - 1, 1));
-    else old++;
+    if (line.startsWith("-")) { out.get(file)!.lines.push(old++); hunkKept++; pure = false; }
+    else if (line.startsWith("+")) { run.push(Math.max(old - 1, 1)); defines ||= DEFINES.test(line.slice(1)); }
+    else { flush(); old++; }
   }
+  endHunk();
   return out;
 }
+
+/** A line that starts a function or type (as harness/graph.mjs DEFINES). */
+const DEFINES = /^\s*(?:(?:pub(?:\([^)]*\))?|async|export|default|static|unsafe|const|extern(?:\s+"[^"]*")?|public|private|protected)\s+)*(?:def|fn|function|func|class|struct|enum|trait|impl|interface)\b/;
 
 /**
  * The nodes the fix edits, not every node of a changed file (touchedNodeIds): in a project whose
@@ -90,13 +118,16 @@ export function editedNodeIds(graph: GraphData, diff: string): Set<string> {
   const defined = /^-\s*(?:def|function|fn|func|class|struct|pub\s+fn|async\s+def|const|let|var)\s+(\w+)/;
   const rewritten = diff.split("\n").flatMap((l) => { const m = defined.exec(l); return m ? [m[1].toLowerCase()] : []; });
   const out = new Set<string>();
-  for (const [file, { lines, headers }] of changedOldLines(diff)) {
+  for (const [file, { lines, headers, adds }] of changedOldLines(diff)) {
     const inFile = graph.nodes.filter((n) => inChanged(n, file));
     const symbols = inFile.filter((n) => n.file_type === "code" && !isFileNode(n) && Number.isFinite(lineOf(n))).sort((a, b) => lineOf(a) - lineOf(b));
     const enclosing = lines.map((at) => symbols.filter((n) => lineOf(n) <= at).at(-1)).filter((n): n is Node => Boolean(n));
     const names = new Set([...headers, ...rewritten]);
     const named = inFile.filter((n) => names.has(bare(n)));
-    for (const n of enclosing.length ? enclosing : named.length ? named : inFile) out.add(n.id);
+    // A file the fix only adds new functions to (a test appended) is edited as a file, not in
+    // every function already there; else nothing narrower is known: the whole file.
+    const fileNodes = !lines.length && !named.length && adds ? inFile.filter(isFileNode) : [];
+    for (const n of enclosing.length ? enclosing : named.length ? named : fileNodes.length ? fileNodes : inFile) out.add(n.id);
   }
   return out;
 }

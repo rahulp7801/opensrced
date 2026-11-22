@@ -80,6 +80,8 @@ before(async () => {
         return res.end(JSON.stringify({ error: "The hidden fix is still running. Keep going; it will be ready soon." }));
       }
       if (lessonRoute?.[1] === LESSON_B) return reply(res, { lesson: { ...lessonBase("reveal"), id: LESSON_B, path: "B" } });
+      // A path-B lesson with its key stored: the reveal goes through.
+      if (lessonRoute?.[1] === LESSON_B_KEYED) return reply(res, { lesson: { ...lessonBase("explain", "verified"), id: LESSON_B_KEYED, path: "B" }, key: { diff: "+++ b/app/fill.py\n", title: "Fill", diagnosis: "d" } });
       if (lessonRoute) return reply(res, lessonApi(req.method ?? "", lessonRoute[1], lessonRoute[2], body));
       res.writeHead(204);
       res.end();
@@ -99,6 +101,7 @@ function reply(res: import("node:http").ServerResponse, body: unknown) {
 // A stub of /api/harness/lessons (the real one: lib/__tests__/harness-lessons.test.ts).
 const LESSON_ID = "l_0b3a5c1e-0000-4000-8000-000000000001";
 const LESSON_B = "l_0b3a5c1e-0000-4000-8000-00000000000b";
+const LESSON_B_KEYED = "l_0b3a5c1e-0000-4000-8000-0000000000bb";
 const lessonBase = (stage: string, answerKey = "pending") => ({
   id: LESSON_ID, repo_url: "https://github.com/acme/app", issue_number: 12, path: "A", mode: "short", stage, answer_key: answerKey, revealed: stage === "explain",
   required: ["s1", "s4", "s7", "s8", "explain-it", "s10"],
@@ -363,6 +366,11 @@ test("path B: the agent is told to store the hidden fix, and a reveal without it
     assert.equal((revealed.result as ToolResult).isError, true);
     assert.match(text(revealed), /no answer key yet[\s\S]*lesson_key/);
     assert.doesNotMatch(text(revealed), /still running/);
+    // Path B's reveal: the user's own change is checked and compared first (it's what they'd contribute).
+    const keyed = text(await request("tools/call", { name: "lesson_reveal", arguments: { lesson: LESSON_B_KEYED } }));
+    assert.match(keyed, /The fix changes 1 file: app\/fill\.py[\s\S]*\nFirst, their change \(git -C <their checkout> diff\): run their test without their fix and with it[\s\S]*what each does better/);
+    const given = text(await request("tools/call", { name: "lesson_reveal", arguments: { lesson: LESSON_B_KEYED, give_up: true } }));
+    assert.doesNotMatch(given, /First, their change/, "after giving up there's no change of theirs to check");
   } finally {
     child.kill();
   }
@@ -440,7 +448,7 @@ test("without graphify, the lesson gets graphify's map from opensrcer; when that
       lines.once("line", resolve);
       child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "lesson_reveal", arguments: { lesson: LESSON_ID } } }) + "\n");
     });
-    assert.doesNotMatch(JSON.parse(revealed).result.content[0].text, /could not be updated/);
+    assert.doesNotMatch(JSON.parse(revealed).result.content[0].text, /could not be updated|First, their change/, "path A: no change of the user's to check");
     const afterReveal = JSON.parse(readFileSync(mapPath, "utf8"));
     assert.deepEqual([afterReveal.changed, afterReveal.communities[0].level], [["app/fill.py"], "changed"], "the reveal colours the fix");
 
@@ -756,6 +764,9 @@ test("the file map: a card per code file, the lesson's first; only the functions
   assert.deepEqual([...added.matchAll(/<section id="([^"]+)" class="card ([a-z]+)"/g)].map((m) => [m[1], m[2]]), [["f-pkg-a-py", "changed"], ["f-tests-test_new-py", "changed"], ["f-pkg-b-py", "explored"]]);
   assert.match(added, /tests\/<wbr><\/span>test_new\.py<span class="tag fixtag">fix<\/span><\/h2>\n<p class="rel">A new file the fix adds/);
   assert.doesNotMatch(added, /dev-null|gone\.py/);
+  // A function appended after a file's last one is new: the one above it isn't starred.
+  const appended = fileMapHtml(graph, levels, `${diff}--- a/pkg/b.py\n+++ b/pkg/b.py\n@@ -12,2 +12,5 @@ def helper():\n x\n y\n+\n+def added():\n+    pass\n`, "o/n #1");
+  assert.equal([...appended.matchAll(/class="star"/g)].length, 2, "still only the legend's star and S.loads");
 
   // A big project: the lesson's files and the most connected others, a card for 80 and a bubble
   // for 36; a file linked to nothing gets a card but no bubble; a file without a card isn't a link.

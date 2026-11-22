@@ -78,7 +78,25 @@ test("changedOldLines: removed lines where they were, added ones at the line the
     "@@ -10,4 +10,5 @@ class Option(Parameter):", " a", "-b", "+B", "+C", " d",
     "@@ -40,2 +41,2 @@ def get_error_hint(self, ctx):", " x", "--- a dashed line the fix removes",
   ].join("\n");
-  assert.deepEqual([...changedOldLines(diff)], [["pkg/core.py", { lines: [11, 11, 11, 41], headers: ["option", "get_error_hint"] }]]);
+  assert.deepEqual([...changedOldLines(diff)], [["pkg/core.py", { lines: [11, 11, 11, 41], headers: ["option", "get_error_hint"], adds: false }]]);
+});
+
+test("changedOldLines: a run of additions that defines a new function is new, not a change to the one above it (or its hunk header)", () => {
+  // tempfile #444: a test appended after the file's last one, whose name git puts in the header.
+  const appended = "--- a/tests/t.rs\n+++ b/tests/t.rs\n@@ -700,3 +700,9 @@ fn test_last() {\n     }\n }\n+\n+#[cfg(windows)]\n+#[test]\n+fn test_new() {\n+    keep();\n+}\n";
+  assert.deepEqual([...changedOldLines(appended)], [["tests/t.rs", { lines: [], headers: [], adds: true }]]);
+  // A guard added inside a function still counts, as does a new function that replaces old lines.
+  const guard = "--- a/src/a.rs\n+++ b/src/a.rs\n@@ -10,2 +10,3 @@ fn keep() {\n     let x = 1;\n+    if x == 0 { return; }\n }\n";
+  assert.deepEqual([...changedOldLines(guard)], [["src/a.rs", { lines: [10], headers: ["keep"], adds: false }]]);
+  const rewritten = "--- a/src/a.py\n+++ b/src/a.py\n@@ -5,2 +5,2 @@\n-def old():\n+def new():\n     pass\n";
+  assert.deepEqual(changedOldLines(rewritten).get("src/a.py")?.lines, [5, 5]);
+});
+
+test("editedNodeIds: a file the fix only appends a new function to is edited as a file, not in the function above", () => {
+  const node = (id: string, label: string, file: string, line: number) => ({ id, label, community: 0, file_type: "code", source_file: file, source_location: `L${line}` });
+  const graph = { nodes: [node("t_file", "t.rs", "tests/t.rs", 1), node("t_last", "test_last()", "tests/t.rs", 690)], links: [] } as unknown as GraphData;
+  const appended = "--- a/tests/t.rs\n+++ b/tests/t.rs\n@@ -700,3 +700,6 @@ fn test_last() {\n     }\n }\n+\n+fn test_new() {\n+}\n";
+  assert.deepEqual([...editedNodeIds(graph, appended)], ["t_file"]);
 });
 
 test("editedNodeIds: the function each changed line sits in, not every node of a big changed file", () => {

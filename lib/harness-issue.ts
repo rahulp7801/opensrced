@@ -10,7 +10,12 @@ export const COMMENT_TEXT_MAX = 1_200;
 export const COMMENTS_MAX = 20;
 
 export type IssueComment = { author: string; association: string; at: string; body: string };
-export type IssueThread = { repo: string; number: number; title: string; state: string; url: string; body: string; comments: IssueComment[]; more_comments: number };
+export type OpenPull = { number: number; title: string; author: string; url: string };
+export type IssueThread = {
+  repo: string; number: number; title: string; state: string; url: string; body: string; comments: IssueComment[]; more_comments: number;
+  /** Open PRs in this repository that reference the issue (someone may already be fixing it); null when the timeline couldn't be read. */
+  open_prs: OpenPull[] | null;
+};
 
 /** The site can't read it: no token here, no such issue, or a pull request. */
 export class IssueThreadError extends Error {
@@ -43,5 +48,28 @@ export async function readIssueThread(repoInput: string, numberInput: unknown, t
   const comments = (raw as Array<{ user?: { login?: string } | null; author_association?: string; created_at?: string; body?: string | null }>).map((c) => ({
     author: c.user?.login ?? "ghost", association: c.author_association ?? "NONE", at: String(c.created_at ?? "").slice(0, 10), body: clip(c.body ?? "", COMMENT_TEXT_MAX),
   }));
-  return { repo: `${owner}/${name}`, number, title: issue.title ?? "", state: issue.state ?? "open", url: issue.html_url ?? `https://github.com/${owner}/${name}/issues/${number}`, body: clip(issue.body ?? "", ISSUE_TEXT_MAX), comments, more_comments: Math.max(0, total - comments.length) };
+  const open_prs = await openPullsReferencing(client, owner, name, number);
+  return { repo: `${owner}/${name}`, number, title: issue.title ?? "", state: issue.state ?? "open", url: issue.html_url ?? `https://github.com/${owner}/${name}/issues/${number}`, body: clip(issue.body ?? "", ISSUE_TEXT_MAX), comments, more_comments: Math.max(0, total - comments.length), open_prs };
+}
+
+type TimelineEvent = { event?: string; source?: { issue?: { number?: number; title?: string; state?: string; html_url?: string; user?: { login?: string } | null; pull_request?: unknown; repository?: { full_name?: string } } } };
+
+/** Open pull requests in owner/name whose text references the issue (GitHub's cross-referenced
+ *  events), newest first. A PR in someone's fork isn't one: it can't be merged here.
+ *  ponytail: the first 100 timeline events; an issue with more misses later references. */
+async function openPullsReferencing(client: ReturnType<typeof gh>, owner: string, name: string, number: number): Promise<OpenPull[] | null> {
+  let events: TimelineEvent[];
+  try {
+    events = (await client.request("GET /repos/{owner}/{repo}/issues/{issue_number}/timeline", { owner, repo: name, issue_number: number, per_page: 100 })).data as TimelineEvent[];
+  } catch {
+    return null; // Shown as "couldn't check", never as "none".
+  }
+  const here = `${owner}/${name}`.toLowerCase();
+  const seen = new Set<number>();
+  return events.flatMap((e) => {
+    const pr = e.source?.issue;
+    if (e.event !== "cross-referenced" || !pr?.pull_request || pr.state !== "open" || pr.repository?.full_name?.toLowerCase() !== here || !pr.number || seen.has(pr.number)) return [];
+    seen.add(pr.number);
+    return [{ number: pr.number, title: pr.title ?? "", author: pr.user?.login ?? "ghost", url: pr.html_url ?? "" }];
+  }).reverse();
 }

@@ -59,3 +59,19 @@ test("an unknown issue and a pull request say so", async () => {
   await assert.rejects(readIssueThread("a/b", 1, "t", fake), (e: unknown) => e instanceof IssueThreadError && e.status === 404 && /no issue #1/.test(e.message));
   await assert.rejects(readIssueThread("a/b", 2, "t", fake), (e: unknown) => e instanceof IssueThreadError && e.status === 422 && /pull request/.test(e.message));
 });
+
+test("open pull requests in the repo that reference the issue come back (not a fork's, not closed ones, each once); an unreadable timeline says so", async () => {
+  const pr = (number: number, state: string, repo: string, login = "dev") => ({ event: "cross-referenced", source: { issue: { number, title: `PR ${number}`, state, html_url: `https://github.com/${repo}/pull/${number}`, user: { login }, pull_request: {}, repository: { full_name: repo } } } });
+  const { fake } = github({
+    "/repos/sindresorhus/p-queue/issues/177": { title: "t", body: "", state: "open", comments: 0 },
+    "/repos/sindresorhus/p-queue/issues/177/timeline": [
+      pr(224, "open", "sindresorhus/p-queue", "Richienb"), { event: "labeled" }, pr(252, "closed", "sindresorhus/p-queue"),
+      pr(2, "open", "someone/p-queue"), pr(233, "open", "Sindresorhus/P-Queue", "Richienb"), pr(224, "open", "sindresorhus/p-queue", "Richienb"),
+      { event: "cross-referenced", source: { issue: { number: 9, state: "open", repository: { full_name: "sindresorhus/p-queue" } } } },
+    ],
+  });
+  const t = await readIssueThread("sindresorhus/p-queue", 177, "ghp_test", fake);
+  assert.deepEqual(t.open_prs?.map((p) => [p.number, p.author]), [[233, "Richienb"], [224, "Richienb"]], "newest first; the fork's, the closed one, an issue mention and the repeat left out");
+  const { fake: noTimeline } = github({ "/repos/a/b/issues/7": { title: "t", body: "", state: "open", comments: 0 } });
+  assert.equal((await readIssueThread("a/b", 7, "ghp_test", noTimeline)).open_prs, null, "couldn't check: null, not an empty list");
+});

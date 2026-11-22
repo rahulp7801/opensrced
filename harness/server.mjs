@@ -30,7 +30,7 @@ import { promisify } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { graphify, GraphifyError, GraphifyMissing, GRAPHIFY_INSTALL, GRAPHIFY_VERSION, lessonMapData, localGraphifyVersion, overlayLevels, withOverlay, fileMapHtml } from "./graph.mjs";
 
-const VERSION = "0.3.20";
+const VERSION = "0.3.21";
 const BASE = (process.env.OPENSRCER_URL || "https://opensrced.vercel.app").replace(/\/+$/, "");
 // A host that doesn't fill in `${user_config.…}` (plugin .mcp.json) leaves the literal: that is no token.
 const TOKEN = /^\$\{/.test(process.env.OPENSRCER_TOKEN ?? "") ? "" : process.env.OPENSRCER_TOKEN || "";
@@ -547,6 +547,10 @@ async function callTool(name, args) {
       t.body || "(no description)", "",
       t.comments.length ? `## Newest comments${t.more_comments ? ` (${t.more_comments} older not shown)` : ""}` : "No comments yet.",
       ...t.comments.map((c) => `\n### ${who(c)}\n${c.body}`),
+      // Someone may already be fixing it: say so before the user starts (a duplicate PR gets closed).
+      ...(Array.isArray(t.open_prs) && t.open_prs.length
+        ? ["", "## Open pull requests that reference it", ...t.open_prs.map((p) => `- #${p.number} ${p.title} (@${p.author}) ${p.url}`), "Someone may already be fixing this: read them before starting, and don't open a duplicate."]
+        : t.open_prs === null ? ["", "(Couldn't check for open pull requests that reference it: look on GitHub before opening one.)"] : []),
     ].join("\n");
   }
   if (name === "check_pr") {

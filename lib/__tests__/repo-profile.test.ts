@@ -407,6 +407,12 @@ test("the profile surfaces agent files, text addressed to agents, AI remarks in 
   assert.ok(findings.some((f) => f.section === "community" && /discord/i.test(f.text)), JSON.stringify(findings));
   assert.equal(findings.at(-1)?.section, "community");
 
+  // A review that quotes the written policy isn't shown as something else (marshmallow pastes its AI_POLICY.md).
+  const quoted = p.reviewAiStatements?.[0]?.excerpt ?? "";
+  assert.ok(quoted, "the fixture has a review statement");
+  const written = { ...p, aiPolicy: { ...p.aiPolicy!, stance: "allowed" as const, source: "o/.github/AI_POLICY.md", evidence: quoted } };
+  assert.ok(!profileFindings(written).some((f) => f.text.startsWith("A maintainer said in review")));
+
   // A written ban outranks a remark in review.
   p.aiPolicy = { ...p.aiPolicy, stance: "banned", source: "CONTRIBUTING.md", evidence: "No AI." };
   assert.ok(!profileFindings(p).some((f) => f.text.startsWith("A maintainer said in review")));

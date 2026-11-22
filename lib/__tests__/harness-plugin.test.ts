@@ -749,6 +749,12 @@ test("the file map: a card per code file, the lesson's first; only the functions
   // A file name can't end the data's script early.
   const hostile = fileMapHtml({ nodes: [node("h", "f()", "x/</script><b>.py", 1)], links: [] }, new Map(), "", "t");
   assert.equal(hostile.split("</script>").length - 1, 2, "only the page's own two scripts close");
+  assert.match(page, /<h2><span class="dir">pkg\/<wbr><\/span>a\.py/, "a long path breaks at a slash, not inside the name");
+  // A file the fix adds isn't in the map drawn before it: its own card, after the fix's (a deleted file gets none).
+  const added = fileMapHtml(graph, levels, `${diff}--- /dev/null\n+++ b/tests/test_new.py\n@@ -0,0 +1,2 @@\n+def test_x():\n+    pass\n--- a/pkg/gone.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-x = 1\n`, "o/n #1");
+  assert.deepEqual([...added.matchAll(/<section id="([^"]+)" class="card ([a-z]+)"/g)].map((m) => [m[1], m[2]]), [["f-pkg-a-py", "changed"], ["f-tests-test_new-py", "changed"], ["f-pkg-b-py", "explored"]]);
+  assert.match(added, /tests\/<wbr><\/span>test_new\.py<span class="tag fixtag">fix<\/span><\/h2>\n<p class="rel">A new file the fix adds/);
+  assert.doesNotMatch(added, /dev-null|gone\.py/);
 
   // A big project: the lesson's files and the most connected others, a card for 80 and a bubble
   // for 36; a file linked to nothing gets a card but no bubble; a file without a card isn't a link.

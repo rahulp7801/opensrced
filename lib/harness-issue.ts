@@ -52,24 +52,22 @@ export async function readIssueThread(repoInput: string, numberInput: unknown, t
   return { repo: `${owner}/${name}`, number, title: issue.title ?? "", state: issue.state ?? "open", url: issue.html_url ?? `https://github.com/${owner}/${name}/issues/${number}`, body: clip(issue.body ?? "", ISSUE_TEXT_MAX), comments, more_comments: Math.max(0, total - comments.length), open_prs };
 }
 
-type TimelineEvent = { event?: string; source?: { issue?: { number?: number; title?: string; state?: string; html_url?: string; user?: { login?: string } | null; pull_request?: unknown; repository?: { full_name?: string } } } };
+type SearchItem = { number?: number; title?: string; body?: string | null; html_url?: string; user?: { login?: string } | null; pull_request?: unknown };
 
-/** Open pull requests in owner/name whose text references the issue (GitHub's cross-referenced
- *  events), newest first. A PR in someone's fork isn't one: it can't be merged here.
- *  ponytail: the first 100 timeline events; an issue with more misses later references. */
+/** Open pull requests in owner/name whose title or description references the issue
+ *  (#N or …/issues/N), newest first. Search, not the issue's timeline: the server's
+ *  fine-grained token gets a timeline with every cross-reference left out.
+ *  ponytail: the newest 30 hits for the number; a PR that names the issue only in a
+ *  comment or a commit is missed. */
 async function openPullsReferencing(client: ReturnType<typeof gh>, owner: string, name: string, number: number): Promise<OpenPull[] | null> {
-  let events: TimelineEvent[];
+  let items: SearchItem[];
   try {
-    events = (await client.request("GET /repos/{owner}/{repo}/issues/{issue_number}/timeline", { owner, repo: name, issue_number: number, per_page: 100 })).data as TimelineEvent[];
+    items = (await client.request("GET /search/issues", { q: `repo:${owner}/${name} is:pr is:open ${number}`, sort: "created", order: "desc", per_page: 30 })).data.items as SearchItem[];
   } catch {
     return null; // Shown as "couldn't check", never as "none".
   }
-  const here = `${owner}/${name}`.toLowerCase();
-  const seen = new Set<number>();
-  return events.flatMap((e) => {
-    const pr = e.source?.issue;
-    if (e.event !== "cross-referenced" || !pr?.pull_request || pr.state !== "open" || pr.repository?.full_name?.toLowerCase() !== here || !pr.number || seen.has(pr.number)) return [];
-    seen.add(pr.number);
-    return [{ number: pr.number, title: pr.title ?? "", author: pr.user?.login ?? "ghost", url: pr.html_url ?? "" }];
-  }).reverse();
+  const names = new RegExp(`(?:#|/issues/)${number}(?!\\d)`);
+  return items.flatMap((pr) => pr.pull_request && pr.number && names.test(`${pr.title ?? ""}\n${pr.body ?? ""}`)
+    ? [{ number: pr.number, title: pr.title ?? "", author: pr.user?.login ?? "ghost", url: pr.html_url ?? "" }]
+    : []);
 }

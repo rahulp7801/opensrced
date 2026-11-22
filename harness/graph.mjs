@@ -688,6 +688,11 @@ export function fileMapHtml(graph, levels, diff, title) {
     for (const n of symbols) counts.set(n.community, (counts.get(n.community) ?? 0) + 1);
     return GRAPHIFY_PALETTE[([...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 0) % GRAPHIFY_PALETTE.length];
   };
+  // A long path breaks at its slashes, not inside a name ("dependencies.t s").
+  const heading = (f, tag) => {
+    const dir = f.includes("/") ? f.slice(0, f.lastIndexOf("/") + 1) : "";
+    return `<h2><span class="dir">${xml(dir).replaceAll("/", "/<wbr>")}</span>${xml(base(f))}${tag}</h2>`;
+  };
   const card = ({ f, symbols }, i) => {
     const lv = level(f);
     // A file the user named as a whole marks all its nodes; a named function marks just that row.
@@ -709,14 +714,21 @@ export function fileMapHtml(graph, levels, diff, title) {
     const rest = rows.filter((r, i) => !(i < FILE_MAP_ROWS || r.keep));
     const out = [...(uses.get(f) ?? new Map())].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([g]) => link(g));
     const inn = (usedBy.get(f) ?? []).slice(0, 4).map(link);
-    const dir = f.includes("/") ? f.slice(0, f.lastIndexOf("/") + 1) : "";
     const tag = lv === "changed" ? '<span class="tag fixtag">fix</span>' : lv === "explored" ? '<span class="tag starttag">start</span>' : "";
     return `<section id="${anchor(f)}" class="card${lit ? " " + lv : ""}" style="--accent:${accentOf(symbols)};--i:${i}">
-<h2><span class="dir">${xml(dir)}</span>${xml(base(f))}${tag}</h2>
+${heading(f, tag)}
 ${rows.length ? `<ul>${shown.map((r) => r.html).join("")}</ul>` : '<p class="rel">No functions or classes mapped in this file.</p>'}${rest.length ? `<details><summary>${rest.length} more</summary><ul>${rest.map((r) => r.html).join("")}</ul></details>` : ""}
 ${out.length || inn.length ? `<p class="rel">${out.length ? `uses ${out.join(" ")}` : ""}${out.length && inn.length ? "<br>" : ""}${inn.length ? `used by ${inn.join(" ")}` : ""}</p>` : ""}
 </section>`;
   };
+  // A file the fix adds (often its test) isn't in a map drawn before it: a card of its own, after the fix's.
+  const added = [...changed.keys()].filter((f) => !byFile.has(f) && f !== "/dev/null");
+  const addedCard = (f, i) => `<section id="${anchor(f)}" class="card changed" style="--accent:var(--fix);--i:${i}">
+${heading(f, '<span class="tag fixtag">fix</span>')}
+<p class="rel">A new file the fix adds: the map was drawn before it existed.</p>
+</section>`;
+  const html = cards.map(card);
+  html.splice(cards.filter((x) => level(x.f) === "changed").length, 0, ...added.map((f, i) => addedCard(f, cards.length + i)));
   const legend = lit
     ? `<p class="legend"><span class="key starttag">start</span> your starting points <span class="key fixtag">fix</span> what the fix changes <span class="star">★</span> a changed function</p>`
     : `<p class="legend">Each bubble is a file, linked to the files it uses; each card lists a file's classes and functions. Your starting points and the fix light up as the lesson goes on. Drag a bubble, or click it to jump to its card.</p>`;
@@ -744,7 +756,7 @@ h1 { font-size: 15px; margin: 0 0 4px; }
 .card.explored { border-color: var(--start); border-top-color: var(--start); }
 .card.changed { border-color: var(--fix); border-top-color: var(--fix); box-shadow: 0 0 0 1px var(--fix); }
 .card:target { outline: 2px solid var(--fg); }
-h2 { font-size: 13px; margin: 0 0 6px; font-weight: 600; overflow-wrap: anywhere; }
+h2 { font-size: 13px; margin: 0 0 6px; font-weight: 600; overflow-wrap: break-word; }
 .dir { color: var(--muted); font-weight: 400; }
 ul { list-style: none; margin: 0; padding: 0; font-family: var(--vscode-editor-font-family, ui-monospace, monospace); font-size: 12px; line-height: 1.6; }
 li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -787,7 +799,7 @@ li.fix { background: linear-gradient(100deg, var(--fix) 40%, #fff6c4 50%, var(--
 ${legend}
 <svg id="osr-graph" style="height:${Math.min(560, Math.max(300, 120 + bubbles.length * 11))}px" role="img" aria-label="The files of ${xml(title)} and how they use each other"></svg>
 <script type="application/json" id="osr-data">${JSON.stringify(data).replace(/</g, "\\u003c")}</script>
-<main class="grid">${cards.map(card).join("\n")}</main>
+<main class="grid">${html.join("\n")}</main>
 ${files.length > cards.length ? `<p class="legend more">${files.length - cards.length} more files aren't shown: the map keeps the lesson's files and the most connected others. Ask about any of them in chat.</p>` : ""}
 <script>${FILE_MAP_SCRIPT}</script>
 </body></html>`;

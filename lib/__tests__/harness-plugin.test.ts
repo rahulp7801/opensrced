@@ -309,6 +309,9 @@ test("a lesson over stdio: graphify's map of the checkout goes up, rubrics come 
     assert.ok(post, "the lesson was created");
     const created = JSON.parse(post.body);
     assert.deepEqual([created.issue_title, created.readme.trim()], ["fill ignores value", "acme/app cleans data frames."]);
+    // The maintainers' replies go with the issue (pluggy #840's "no performance regression" was one), a drive-by's don't.
+    assert.equal(created.issue_body, "fill(df, 0) leaves NaN.\n\n## The maintainers' replies\n\n@maint, 2026-10-01:\nConfirmed, PR welcome.");
+    assert.doesNotMatch(text(started), /Couldn't read the issue's replies/);
     // graphify's graph.json, compacted and gzipped (the server unpacks it: lib/harness-lessons.ts).
     const graph = JSON.parse(gunzipSync(Buffer.from(created.graph_gz, "base64")).toString("utf8")) as { nodes: Array<{ id: string; label: string; source_file: string }>; links: Array<{ source: string; target: string; relation: string }> };
     assert.ok(graph.nodes.some((n) => n.label === "fill()" && n.source_file === "app/fill.py"), "functions are nodes");
@@ -764,6 +767,9 @@ test("the file map: a card per code file, the lesson's first; only the functions
   assert.deepEqual([...added.matchAll(/<section id="([^"]+)" class="card ([a-z]+)"/g)].map((m) => [m[1], m[2]]), [["f-pkg-a-py", "changed"], ["f-tests-test_new-py", "changed"], ["f-pkg-b-py", "explored"]]);
   assert.match(added, /tests\/<wbr><\/span>test_new\.py<span class="tag fixtag">fix<\/span><\/h2>\n<p class="rel">A new file the fix adds/);
   assert.doesNotMatch(added, /dev-null|gone\.py/);
+  // A test file comes after the code it tests, whatever its folder is called (pluggy's testing/).
+  const tested = fileMapHtml({ nodes: [node("t", "test_fill()", "testing/test_fill.py", 1), node("f", "fill()", "pkg/fill.py", 1)], links: [] }, new Map([["t", "changed"], ["f", "changed"]]), "", "t");
+  assert.deepEqual([...tested.matchAll(/<section id="([^"]+)"/g)].map((m) => m[1]), ["f-pkg-fill-py", "f-testing-test_fill-py"]);
   // A function appended after a file's last one is new: the one above it isn't starred.
   const appended = fileMapHtml(graph, levels, `${diff}--- a/pkg/b.py\n+++ b/pkg/b.py\n@@ -12,2 +12,5 @@ def helper():\n x\n y\n+\n+def added():\n+    pass\n`, "o/n #1");
   assert.equal([...appended.matchAll(/class="star"/g)].length, 2, "still only the legend's star and S.loads");

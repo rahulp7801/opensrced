@@ -22,6 +22,7 @@ test("s8's grader gets the answer key fenced, accepts other approaches, and must
   assert.match(p.user, /<answer-key>\n<diagnosis untrusted="true">[\s\S]*<cases untrusted="true">\n- login then redirect -> test_cookie_on_redirect[\s\S]*<diff untrusted="true">\n\+\s+is_redirect[\s\S]*<\/answer-key>/);
   assert.match(p.system, /Another approach that would also fix the issue is correct/);
   assert.match(p.system, /never name its files, functions or lines/);
+  assert.match(p.system, /- change: true if the described change would fix it and keeps to what the issue or its maintainers require/, "a fix that breaks a stated requirement (pluggy #840: no slowdown) isn't one");
   assert.equal(s8.grade({ ...ctx, answerKey: null }, PLAN), null);
   assert.equal(s8.grade(ctx, `${ctx.issue.body} ${ctx.issue.body} ${ctx.issue.body}`)?.passed, false, "a copy of the issue is turned back");
 });

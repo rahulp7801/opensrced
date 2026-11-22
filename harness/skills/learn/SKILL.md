@@ -31,6 +31,7 @@ Both paths need it: path A grades s7 and s8 against it, path B's reveal compares
 - **Without a panel** (Claude Code, Codex): ask the open steps' questions in chat, one at a time, and send their answer in their own words with `lesson_answer`. Never improve, complete or translate it first. In Claude Code the code map is in the opensrcer pane beside the chat, or, with the opensrcer VS Code extension, in the opensrcer map tab beside the editor (the context after each lesson call says which); point the user to it when they look for where to start, after s7 and after the reveal.
 - When `lesson_answer` returns a rubric, judge the answer strictly as the rubric says, then call `lesson_answer` again with `grader_reply` set to exactly the JSON it asks for. A generous grade teaches nothing: if part is missing, mark it so and say what to add.
 - Don't show the rubric. It can contain the hidden fix.
+- After an answer is marked "Not yet", its feedback says what's missing: start from that question. `lesson_hint` points at where the fix is, not at why the answer fell short (a plan that works but is too slow won't be helped by "look in this file").
 - When they're stuck, use `lesson_hint` before explaining anything yourself, and answer questions with questions that point the way. Don't name the files or functions the fix changes until the reveal.
 
 ## The reveal and after

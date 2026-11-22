@@ -660,7 +660,8 @@ export function fileMapHtml(graph, levels, diff, title) {
     return ls.includes("changed") ? "changed" : ls.includes("explored") ? "explored" : "unseen";
   };
   const rank = { changed: 0, explored: 1, unseen: 2 };
-  const isTest = (f) => Number(/(^|\/)tests?\//.test(f));
+  // tests/, testing/ (pluggy), spec/, __tests__/, test_x.py, x.test.ts: after the code they test.
+  const isTest = (f) => Number(/(^|\/)(tests?|testing|spec|__tests__)\/|(^|\/)test_[^/]+$|[._-](test|spec)\.\w+$/i.test(f));
   const DATA_FILE = /\.(?:json|jsonc|toml|ya?ml|lock|cfg|ini|txt|csv)$/i;
   const files = [...byFile.keys()]
     // The file's own node (label "serializer.py") is the card itself.

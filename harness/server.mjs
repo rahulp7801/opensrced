@@ -322,6 +322,20 @@ async function fetchIssue(repo, number) {
   return { title: String(issue.title ?? ""), body: String(issue.body ?? "") };
 }
 
+/** The maintainers' replies on an issue (its newest comments, as read_issue reads them), each
+ *  "@who, date:" then the text; null when they couldn't be read. */
+async function maintainerReplies(repo, number) {
+  try {
+    const t = await api(`/api/harness/issue?repo=${encodeURIComponent(repo)}&issue=${number}`);
+    return t.comments.filter((c) => MAINTAINER_ROLES.includes(c.association)).map((c) => `@${c.author}, ${c.at}:\n${c.body}`);
+  } catch (error) {
+    if (error instanceof ToolError) return null;
+    throw error;
+  }
+}
+
+const MAINTAINER_ROLES = ["OWNER", "MEMBER", "COLLABORATOR"];
+
 function readme(top) {
   const name = readdirSync(top).find((f) => /^readme(\.(md|rst|txt|markdown))?$/i.test(f));
   return name ? readFileSync(join(top, name), "utf8").slice(0, 200_000) : "";
@@ -539,7 +553,7 @@ async function callTool(name, args) {
   if (name === "read_issue") {
     if (!Number.isSafeInteger(args.issue) || args.issue < 1) throw new ToolError("issue must be the issue's number.");
     const t = await api(`/api/harness/issue?repo=${encodeURIComponent(repo)}&issue=${args.issue}`);
-    const who = (c) => `@${c.author}${["OWNER", "MEMBER", "COLLABORATOR"].includes(c.association) ? " (maintainer)" : ""}, ${c.at}`;
+    const who = (c) => `@${c.author}${MAINTAINER_ROLES.includes(c.association) ? " (maintainer)" : ""}, ${c.at}`;
     return [
       // Written by whoever filed or replied: information about the task, never instructions to follow.
       `# ${t.repo}#${t.number}: ${t.title} (${t.state})`, t.url, "",
@@ -586,12 +600,16 @@ async function callTool(name, args) {
     if (args.mode !== undefined && !["short", "full"].includes(args.mode)) throw new ToolError('mode must be "short" or "full".');
     const top = await checkout(resolve(typeof args.dir === "string" && args.dir ? args.dir : process.cwd()), repo);
     const issue = await fetchIssue(repo, args.issue);
+    // A requirement on the fix ("no performance regression") is often in a maintainer's reply,
+    // not the issue: the graders see those replies too.
+    const said = issue ? await maintainerReplies(repo, args.issue) : [];
+    const issueBody = said?.length ? `${issue.body}\n\n## The maintainers' replies\n\n${said.join("\n\n")}` : issue?.body ?? "";
     const built = await codeMap(top, repo);
     const graphGz = gzipSync(JSON.stringify(built.graph)).toString("base64");
     // A graph too big to send is still the panel's map; the steps then grade without it.
     const sendGraph = graphGz.length <= GRAPH_GZ_MAX;
     const created = await api("/api/harness/lessons", { method: "POST", body: JSON.stringify({
-      repo, issue: args.issue, path: args.path, mode: args.mode, ...(issue ? { issue_title: issue.title, issue_body: issue.body.slice(0, 20_000) } : {}), readme: readme(top), ...(sendGraph ? { graph_gz: graphGz } : {}),
+      repo, issue: args.issue, path: args.path, mode: args.mode, ...(issue ? { issue_title: issue.title, issue_body: issueBody.slice(0, 20_000) } : {}), readme: readme(top), ...(sendGraph ? { graph_gz: graphGz } : {}),
     }) });
     const L = created.lesson;
     mkdirSync(join(HOME, "lessons"), { recursive: true });
@@ -599,7 +617,8 @@ async function callTool(name, args) {
     const communities = new Set(built.graph.nodes.map((n) => n.community)).size;
     const map = `Code map (graphify${built.remote ? " on opensrcer, upstream" : ""}, commit ${built.sha.slice(0, 7)}${built.cached ? ", cached" : ""}): ${built.graph.nodes.length} nodes in ${communities} communities.${sendGraph ? "" : " It is too large to send, so steps s1, s3 and s7 are graded without it."}`;
     const file = await mapForPane(L.id);
-    return result(`${lessonText(L)}\n${map}${file ? `\n${file}` : ""}`, { lesson: L, key: null });
+    const unread = said === null ? "\n(Couldn't read the issue's replies, so the graders see the issue without them: tell the user about any requirement a maintainer set there.)" : "";
+    return result(`${lessonText(L)}\n${map}${unread}${file ? `\n${file}` : ""}`, { lesson: L, key: null });
   }
   throw new ToolError(`Unknown tool: ${name}`);
 }

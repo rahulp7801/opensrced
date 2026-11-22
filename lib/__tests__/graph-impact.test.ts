@@ -92,6 +92,15 @@ test("changedOldLines: a run of additions that defines a new function is new, no
   assert.deepEqual(changedOldLines(rewritten).get("src/a.py")?.lines, [5, 5]);
 });
 
+test("changedOldLines: new cases in a decorator belong to the function it decorates, not the one above (requests #7647)", () => {
+  // Lines 646-649 close test_get_encoding_from_headers' @pytest.mark.parametrize; its def is line 652.
+  const parametrize = "--- a/tests/test_utils.py\n+++ b/tests/test_utils.py\n@@ -647,6 +647,8 @@ def test__parse_content_type_header(value, expected):\n             \"ISO-8859-1\",\n         ),\n+        (CaseInsensitiveDict({\"content-type\": \"TEXT/PLAIN\"}), \"ISO-8859-1\"),\n+        (CaseInsensitiveDict({\"content-type\": \"APPLICATION/JSON\"}), \"utf-8\"),\n     ),\n )\n def test_get_encoding_from_headers(value, expected):\n";
+  assert.deepEqual(changedOldLines(parametrize).get("tests/test_utils.py")?.lines, [651, 651]);
+  // A change at the end of a function, then a blank line before the next: it stays where it is.
+  const tail = "--- a/src/a.py\n+++ b/src/a.py\n@@ -10,3 +10,4 @@\n     x = f(\n+        y,\n     )\n \n def g():\n";
+  assert.deepEqual(changedOldLines(tail).get("src/a.py")?.lines, [10]);
+});
+
 test("editedNodeIds: a file the fix only appends a new function to is edited as a file, not in the function above", () => {
   const node = (id: string, label: string, file: string, line: number) => ({ id, label, community: 0, file_type: "code", source_file: file, source_location: `L${line}` });
   const graph = { nodes: [node("t_file", "t.rs", "tests/t.rs", 1), node("t_last", "test_last()", "tests/t.rs", 690)], links: [] } as unknown as GraphData;

@@ -51,6 +51,10 @@ export function changedOldLines(diff: string): Map<string, { lines: number[]; he
   let hunkKept = 0;
   let hunkAdds = false;
   let hunkHeader = false;
+  // A change followed only by closing brackets and decorators, then a definition, is in that
+  // definition's decorator (new @pytest.mark.parametrize cases), not the function above it.
+  let group = -1; // where the latest change starts in `lines`, while it may be one
+  const open = () => { if (group < 0) group = out.get(file)!.lines.length; };
   const flush = () => {
     if (file && run.length) {
       if (pure && defines) { hunkAdds = true; out.get(file)!.adds = true; }
@@ -61,6 +65,7 @@ export function changedOldLines(diff: string): Map<string, { lines: number[]; he
   // A hunk that only adds new definitions changes nothing its header names.
   const endHunk = () => {
     flush();
+    group = -1;
     if (file && hunkHeader && hunkAdds && !hunkKept) out.get(file)!.headers.pop();
     hunkKept = 0; hunkAdds = false; hunkHeader = false;
   };
@@ -86,13 +91,22 @@ export function changedOldLines(diff: string): Map<string, { lines: number[]; he
       continue;
     }
     if (!inHunk || !file) continue;
-    if (line.startsWith("-")) { out.get(file)!.lines.push(old++); hunkKept++; pure = false; }
-    else if (line.startsWith("+")) { run.push(Math.max(old - 1, 1)); defines ||= DEFINES.test(line.slice(1)); }
-    else { flush(); old++; }
+    if (line.startsWith("-")) { open(); out.get(file)!.lines.push(old++); hunkKept++; pure = false; }
+    else if (line.startsWith("+")) { open(); run.push(Math.max(old - 1, 1)); defines ||= DEFINES.test(line.slice(1)); }
+    else {
+      flush();
+      const lines = out.get(file)!.lines;
+      if (group >= 0 && DEFINES.test(line.slice(1))) for (let k = group; k < lines.length; k++) lines[k] = old;
+      if (group >= 0 && !CLOSES_OR_DECORATES.test(line.slice(1))) group = -1;
+      old++;
+    }
   }
   endHunk();
   return out;
 }
+
+/** A line that only closes brackets, or a decorator / attribute line (as harness/graph.mjs). */
+const CLOSES_OR_DECORATES = /^\s*(?:[)\]}]+[,;]?\s*$|@|#\[)/;
 
 /** A line that starts a function or type (as harness/graph.mjs DEFINES). */
 const DEFINES = /^\s*(?:(?:pub(?:\([^)]*\))?|async|export|default|static|unsafe|const|extern(?:\s+"[^"]*")?|public|private|protected)\s+)*(?:def|fn|function|func|class|struct|enum|trait|impl|interface)\b/;

@@ -482,25 +482,37 @@ function changedLines(diff) {
   // Added lines wait for the end of their run: a run of only additions that defines a function
   // or type is a new one (a test appended after the last), not a change to the one above it.
   let run = [], pure = true, defines = false;
+  // A change followed only by closing brackets and decorators, then a definition, is in that
+  // definition's decorator (new @pytest.mark.parametrize cases), not the function above it.
+  let group = -1; // where the latest change starts in out's list for `file`, while it may be one
   const flush = () => {
     if (file && run.length && !(pure && defines)) out.set(file, [...(out.get(file) ?? []), ...run]);
     run = []; pure = true; defines = false;
   };
+  const open = () => { if (group < 0) group = out.get(file)?.length ?? 0; };
   const lines = String(diff ?? "").split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
     const text = lines[i];
     // A file's header is "--- a/…" right before "+++ b/…"; an added line can start "+++" too.
-    if (text.startsWith("--- ") && lines[i + 1]?.startsWith("+++ ")) { flush(); file = /^\+\+\+ (?:b\/)?(\S+)/.exec(lines[++i])?.[1] ?? null; continue; }
+    if (text.startsWith("--- ") && lines[i + 1]?.startsWith("+++ ")) { flush(); group = -1; file = /^\+\+\+ (?:b\/)?(\S+)/.exec(lines[++i])?.[1] ?? null; continue; }
     const h = /^@@ -(\d+)/.exec(text);
-    if (h) { flush(); old = Number(h[1]); continue; }
-    if (!file || text.startsWith("diff --git")) { flush(); continue; }
-    if (text.startsWith("-")) { out.set(file, [...(out.get(file) ?? []), old]); old++; pure = false; }
-    else if (text.startsWith("+")) { run.push(Math.max(old - 1, 1)); defines ||= DEFINES.test(text.slice(1)); }
-    else { flush(); old++; }
+    if (h) { flush(); group = -1; old = Number(h[1]); continue; }
+    if (!file || text.startsWith("diff --git")) { flush(); group = -1; continue; }
+    if (text.startsWith("-")) { open(); out.set(file, [...(out.get(file) ?? []), old]); old++; pure = false; }
+    else if (text.startsWith("+")) { open(); run.push(Math.max(old - 1, 1)); defines ||= DEFINES.test(text.slice(1)); }
+    else {
+      flush();
+      if (group >= 0 && DEFINES.test(text.slice(1))) { const list = out.get(file) ?? []; for (let k = group; k < list.length; k++) list[k] = old; }
+      if (group >= 0 && !CLOSES_OR_DECORATES.test(text.slice(1))) group = -1;
+      old++;
+    }
   }
   flush();
   return out;
 }
+
+/** A line that only closes brackets, or a decorator / attribute line (as lib/graph-impact.ts). */
+const CLOSES_OR_DECORATES = /^\s*(?:[)\]}]+[,;]?\s*$|@|#\[)/;
 
 /** A line that starts a function or type (as lib/graph-impact.ts DEFINES). */
 const DEFINES = /^\s*(?:(?:pub(?:\([^)]*\))?|async|export|default|static|unsafe|const|extern(?:\s+"[^"]*")?|public|private|protected)\s+)*(?:def|fn|function|func|class|struct|enum|trait|impl|interface)\b/;

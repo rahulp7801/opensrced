@@ -770,6 +770,10 @@ test("the file map: a card per code file, the lesson's first; only the functions
   // A test file comes after the code it tests, whatever its folder is called (pluggy's testing/).
   const tested = fileMapHtml({ nodes: [node("t", "test_fill()", "testing/test_fill.py", 1), node("f", "fill()", "pkg/fill.py", 1)], links: [] }, new Map([["t", "changed"], ["f", "changed"]]), "", "t");
   assert.deepEqual([...tested.matchAll(/<section id="([^"]+)"/g)].map((m) => m[1]), ["f-pkg-fill-py", "f-testing-test_fill-py"]);
+  // New cases in a decorator star the function it decorates (b_x at line 9), not the one above (helper()).
+  const decorated = fileMapHtml(graph, levels, `${diff}--- a/pkg/b.py\n+++ b/pkg/b.py\n@@ -7,3 +7,4 @@\n     (1, 2),\n+    (3, 4),\n )\n def x():\n`, "o/n #1");
+  assert.match(decorated, /<li class="fn fix" title="&lt;img src=x&gt;\(\)"><span class="star"/);
+  assert.doesNotMatch(decorated, /<li class="fn[^"]* fix[^"]*" title="helper\(\)"/);
   // A function appended after a file's last one is new: the one above it isn't starred.
   const appended = fileMapHtml(graph, levels, `${diff}--- a/pkg/b.py\n+++ b/pkg/b.py\n@@ -12,2 +12,5 @@ def helper():\n x\n y\n+\n+def added():\n+    pass\n`, "o/n #1");
   assert.equal([...appended.matchAll(/class="star"/g)].length, 2, "still only the legend's star and S.loads");

@@ -2,7 +2,7 @@
   "name": "opensrcer",
   "displayName": "opensrcer",
   "description": "Learn open source by fixing real issues: GitHub Copilot becomes your teacher, with each project's unwritten rules and a live code map.",
-  "version": "0.3.23",
+  "version": "0.3.24",
   "publisher": "opensrcer",
   "license": "MIT",
   "homepage": "https://opensrced.vercel.app",

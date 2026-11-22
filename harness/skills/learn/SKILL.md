@@ -13,7 +13,7 @@ The user wants to understand this project and this issue well enough to fix it a
 2. If they haven't said which path they want, ask first (the path is fixed once the lesson starts):
    - **A** (default): you write the fix out of sight; they predict it, then you reveal it and they explain it.
    - **B**: they write the fix themselves in their editor.
-3. Before starting, check the issue is a real bug you can fix here: look at the code it names and its tests. If an existing test or the docs say the behaviour is intended, the issue is already fixed on the main branch (a newer comment may say so), or someone has a PR open for it, tell the user what you found, quoting the test, doc line or comment, and suggest another issue. Telling a bug from a design choice is worth learning too.
+3. Before starting, check the issue is a real bug you can fix here: look at the code it names and its tests. If an existing test or the docs say the behaviour is intended, the issue is already fixed on the main branch (a newer comment may say so), or someone has a PR open for it (`read_issue` lists the PRs that name the issue and the repository's other open PRs: one may fix the same thing without naming it), tell the user what you found, quoting the test, doc line or comment, and suggest another issue. Telling a bug from a design choice is worth learning too.
 4. Then call `lesson_start` with the repository, the issue number, `dir` (the absolute path of their local clone) and `path`.
 
 ## Prepare the hidden fix right away

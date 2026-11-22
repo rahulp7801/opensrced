@@ -68,11 +68,15 @@ test("open pull requests in the repo that name the issue come back, newest first
       pr(233, "Fixes #177.", "Richienb"), pr(230, "Bumps x from 1.177 to 1.178"), pr(229, "Part of #1770"),
       pr(224, "See https://github.com/sindresorhus/p-queue/issues/177", "Richienb"), { number: 9, title: "issue #177", body: "" },
     ] },
+    "/repos/sindresorhus/p-queue/pulls": [pr(240, "Handles the timeout case", "quiet"), pr(233, "Fixes #177.", "Richienb")],
   });
   const t = await readIssueThread("sindresorhus/p-queue", 177, "ghp_test", fake);
   assert.deepEqual(t.open_prs?.map((p) => [p.number, p.author]), [[233, "Richienb"], [224, "Richienb"]]);
+  assert.deepEqual(t.other_prs?.map((p) => [p.number, p.author]), [[240, "quiet"]], "the other open PRs, less those already listed: one may fix it without naming it");
+  assert.ok(seen.some((s) => s.startsWith("/repos/sindresorhus/p-queue/pulls?") && s.includes("state=open") && s.includes("per_page=30")));
   const q = new URL(`https://x${seen.find((s) => s.startsWith("/search/issues"))}`).searchParams.get("q");
   assert.equal(q, "repo:sindresorhus/p-queue is:pr is:open 177", "only this repo's open PRs: a fork's can't be merged here");
   const { fake: noSearch } = github({ "/repos/a/b/issues/7": { title: "t", body: "", state: "open", comments: 0 } });
-  assert.equal((await readIssueThread("a/b", 7, "ghp_test", noSearch)).open_prs, null, "couldn't check: null, not an empty list");
+  const unread = await readIssueThread("a/b", 7, "ghp_test", noSearch);
+  assert.deepEqual([unread.open_prs, unread.other_prs], [null, null], "couldn't check: null, not an empty list");
 });

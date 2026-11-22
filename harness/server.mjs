@@ -30,7 +30,7 @@ import { promisify } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { graphify, GraphifyError, GraphifyMissing, GRAPHIFY_INSTALL, GRAPHIFY_VERSION, lessonMapData, localGraphifyVersion, overlayLevels, withOverlay, fileMapHtml } from "./graph.mjs";
 
-const VERSION = "0.3.22";
+const VERSION = "0.3.23";
 const BASE = (process.env.OPENSRCER_URL || "https://opensrced.vercel.app").replace(/\/+$/, "");
 // A host that doesn't fill in `${user_config.…}` (plugin .mcp.json) leaves the literal: that is no token.
 const TOKEN = /^\$\{/.test(process.env.OPENSRCER_TOKEN ?? "") ? "" : process.env.OPENSRCER_TOKEN || "";
@@ -551,6 +551,10 @@ async function callTool(name, args) {
       ...(Array.isArray(t.open_prs) && t.open_prs.length
         ? ["", "## Open pull requests that reference it", ...t.open_prs.map((p) => `- #${p.number} ${p.title} (@${p.author}) ${p.url}`), "Someone may already be fixing this: read them before starting, and don't open a duplicate."]
         : t.open_prs === null ? ["", "(Couldn't check for open pull requests that reference it: look on GitHub before opening one.)"] : []),
+      // A PR can fix the same thing without naming the issue (it may even be older than the issue).
+      ...(Array.isArray(t.other_prs) && t.other_prs.length
+        ? ["", `## The repository's other open pull requests (newest ${t.other_prs.length})`, ...t.other_prs.map((p) => `- #${p.number} ${p.title} (@${p.author})`), "If one of them fixes the same thing without naming the issue, it's taken just the same: read it before starting."]
+        : t.other_prs === null ? ["", "(Couldn't list the repository's other open pull requests: check on GitHub that none already fixes this.)"] : []),
     ].join("\n");
   }
   if (name === "check_pr") {

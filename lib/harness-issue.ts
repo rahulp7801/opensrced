@@ -13,9 +13,14 @@ export type IssueComment = { author: string; association: string; at: string; bo
 export type OpenPull = { number: number; title: string; author: string; url: string };
 export type IssueThread = {
   repo: string; number: number; title: string; state: string; url: string; body: string; comments: IssueComment[]; more_comments: number;
-  /** Open PRs in this repository that reference the issue (someone may already be fixing it); null when the timeline couldn't be read. */
+  /** Open PRs in this repository that reference the issue (someone may already be fixing it); null when the search failed. */
   open_prs: OpenPull[] | null;
+  /** The repository's other open PRs, newest first (OTHER_PRS_MAX): one can fix the same thing without naming the
+   *  issue (tempfile #446 fixes #444, opened before it). null when they couldn't be listed. */
+  other_prs: OpenPull[] | null;
 };
+
+export const OTHER_PRS_MAX = 30;
 
 /** The site can't read it: no token here, no such issue, or a pull request. */
 export class IssueThreadError extends Error {
@@ -49,7 +54,8 @@ export async function readIssueThread(repoInput: string, numberInput: unknown, t
     author: c.user?.login ?? "ghost", association: c.author_association ?? "NONE", at: String(c.created_at ?? "").slice(0, 10), body: clip(c.body ?? "", COMMENT_TEXT_MAX),
   }));
   const open_prs = await openPullsReferencing(client, owner, name, number);
-  return { repo: `${owner}/${name}`, number, title: issue.title ?? "", state: issue.state ?? "open", url: issue.html_url ?? `https://github.com/${owner}/${name}/issues/${number}`, body: clip(issue.body ?? "", ISSUE_TEXT_MAX), comments, more_comments: Math.max(0, total - comments.length), open_prs };
+  const other_prs = await otherOpenPulls(client, owner, name, new Set((open_prs ?? []).map((p) => p.number)));
+  return { repo: `${owner}/${name}`, number, title: issue.title ?? "", state: issue.state ?? "open", url: issue.html_url ?? `https://github.com/${owner}/${name}/issues/${number}`, body: clip(issue.body ?? "", ISSUE_TEXT_MAX), comments, more_comments: Math.max(0, total - comments.length), open_prs, other_prs };
 }
 
 type SearchItem = { number?: number; title?: string; body?: string | null; html_url?: string; user?: { login?: string } | null; pull_request?: unknown };
@@ -70,4 +76,15 @@ async function openPullsReferencing(client: ReturnType<typeof gh>, owner: string
   return items.flatMap((pr) => pr.pull_request && pr.number && names.test(`${pr.title ?? ""}\n${pr.body ?? ""}`)
     ? [{ number: pr.number, title: pr.title ?? "", author: pr.user?.login ?? "ghost", url: pr.html_url ?? "" }]
     : []);
+}
+
+/** The repository's newest open PRs, less those already listed as referencing the issue. */
+async function otherOpenPulls(client: ReturnType<typeof gh>, owner: string, name: string, listed: Set<number>): Promise<OpenPull[] | null> {
+  let pulls: Array<{ number: number; title?: string; html_url?: string; user?: { login?: string } | null }>;
+  try {
+    pulls = (await client.request("GET /repos/{owner}/{repo}/pulls", { owner, repo: name, state: "open", sort: "created", direction: "desc", per_page: OTHER_PRS_MAX })).data;
+  } catch {
+    return null;
+  }
+  return pulls.filter((p) => !listed.has(p.number)).map((p) => ({ number: p.number, title: p.title ?? "", author: p.user?.login ?? "ghost", url: p.html_url ?? "" }));
 }

@@ -76,6 +76,7 @@ export function checkDraft(p: RepoProfile, draft: PrDraft): Check[] {
   const ai = p.aiPolicy;
 
   // 1. Whether to open it at all, and how.
+  if (p.status?.collaboratorsOnly) add("pr-creation", "warn", "Only the project's collaborators can open pull requests here (a GitHub setting): GitHub won't let you open this one. Offer the branch on the issue instead, and ask how the maintainers would like it.");
   if (ai?.stance === "banned") add("ai-policy", "warn", `This project does not accept AI-generated contributions${ai.source ? ` (${ai.source})` : ""}. Don't open this PR with AI-written code.`);
   else if (ai?.stance === "disclosure-required") {
     add("ai-disclosure", DISCLOSES_AI.test(draft.body) ? "ok" : "warn", DISCLOSES_AI.test(draft.body)

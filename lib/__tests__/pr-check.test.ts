@@ -46,6 +46,13 @@ for (const [name, change, id, text] of MISSES) {
   });
 }
 
+test("a repository where only collaborators open PRs says so before anything else", () => {
+  const closed = checkDraft(profile((p) => { p.status = { pullRequestsEnabled: true, collaboratorsOnly: true, archived: false, mirror: false, elsewhere: null }; }), GOOD);
+  assert.deepEqual([closed[0].id, closed[0].status], ["pr-creation", "warn"]);
+  assert.match(closed[0].text, /GitHub won't let you open this one\. Offer the branch on the issue/);
+  assert.ok(!checkDraft(profile(), GOOD).some((c) => c.id === "pr-creation"));
+});
+
 test("the project's AI rules come first: a ban, a missing disclosure, assignment first", () => {
   const banned = checkDraft(profile((p) => { p.aiPolicy = { stance: "banned", source: "CONTRIBUTING.md", evidence: "No AI." }; }), GOOD);
   assert.equal(banned[0].id, "ai-policy");

@@ -28,9 +28,9 @@ import { changelogLocation, isBotAuthor, TEST_PATH, TITLE_PATTERNS, titleConvent
 export const PROFILE_SAMPLE = 100;
 /** A profile is read again after this long. */
 export const PROFILE_TTL_MS = 24 * 60 * 60_000;
-/** Bumped when what a profile says changes (2: AI co-author rules aren't bans; the owner's .github repo counts),
- *  so a stored profile isn't served with the old verdict for up to a day. */
-export const PROFILE_RULES = 2;
+/** Bumped when what a profile says changes (2: AI co-author rules aren't bans; the owner's .github repo counts;
+ *  3: who may open PRs), so a stored profile isn't served with the old verdict for up to a day. */
+export const PROFILE_RULES = 3;
 /** Fewest PRs (or measurements) a comparison or statistic needs before it is stated. */
 export const MIN_SAMPLE = 5;
 /** A review request is stated once it recurs on this many PRs: one reviewer's
@@ -89,6 +89,8 @@ export type Tally = { count: number; of: number; examples: string[] };
 /** Whether the repository takes pull requests on GitHub at all. */
 export type RepoStatus = {
   pullRequestsEnabled: boolean;
+  /** Only collaborators may open PRs (GitHub's pull request creation policy): requests, jsonschema, click. */
+  collaboratorsOnly?: boolean;
   archived: boolean;
   mirror: boolean;
   /** A Codeberg, GitLab or SourceHut address from the homepage (or the mirror's source), else null. */
@@ -595,6 +597,8 @@ export function profileFindings(p: RepoProfile): Finding[] {
     const what = [!s.pullRequestsEnabled && "doesn't accept pull requests on GitHub", s.archived && "is archived (read-only)", s.mirror && "is a mirror"]
       .filter(Boolean).join(" and ");
     out.push({ section: "start", text: `This repository ${what}${s.elsewhere ? `; it points to ${s.elsewhere} instead` : ""}.`, examples: [] });
+  } else if (s?.collaboratorsOnly) {
+    out.push({ section: "start", text: "Only the project's collaborators can open pull requests here (a GitHub setting), so you can't open one yourself: offer your fix on the issue as a branch a maintainer can pull, and ask how they'd like it.", examples: [] });
   }
   if (p.window.prs === 0) {
     out.push({ section: "start", text: `No pull requests opened ${when} were found, so nothing here is measured from this project's PRs.`, examples: [] });
@@ -728,7 +732,7 @@ export function cohortQueries(owner: string, name: string, now: Date, window: Pr
 }
 
 const QUERY = `query RepoProfile($owner: String!, $name: String!, $q: String!, $n: Int!, $cursor: String) {
-  repository(owner: $owner, name: $name) { nameWithOwner hasPullRequestsEnabled isArchived isMirror mirrorUrl homepageUrl }
+  repository(owner: $owner, name: $name) { nameWithOwner hasPullRequestsEnabled pullRequestCreationPolicy isArchived isMirror mirrorUrl homepageUrl }
   search(query: $q, type: ISSUE, first: $n, after: $cursor) {
     issueCount
     pageInfo { hasNextPage endCursor }
@@ -755,7 +759,7 @@ const MERGES_QUERY = `query RepoProfileMerges($q: String!, $n: Int!) {
   }
 }`;
 
-type RepoNode = { nameWithOwner: string; hasPullRequestsEnabled?: boolean; isArchived?: boolean; isMirror?: boolean; mirrorUrl?: string | null; homepageUrl?: string | null };
+type RepoNode = { nameWithOwner: string; hasPullRequestsEnabled?: boolean; pullRequestCreationPolicy?: string | null; isArchived?: boolean; isMirror?: boolean; mirrorUrl?: string | null; homepageUrl?: string | null };
 type Search = { issueCount?: number; nodes: ProfilePr[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } };
 type Data = { repository: RepoNode | null; search: Search };
 type MergeNode = Pick<ProfilePr, "url" | "mergedAt" | "authorAssociation" | "author" | "mergedBy">;
@@ -784,6 +788,7 @@ async function readmeElsewhere(client: GitHubClient, repo: string): Promise<stri
 function statusOf(r: RepoNode): RepoStatus {
   return {
     pullRequestsEnabled: r.hasPullRequestsEnabled !== false,
+    collaboratorsOnly: r.pullRequestCreationPolicy === "COLLABORATORS_ONLY",
     archived: r.isArchived === true,
     mirror: r.isMirror === true,
     elsewhere: (r.isMirror && r.mirrorUrl) || ELSEWHERE.exec(r.homepageUrl ?? "")?.[0] || null,

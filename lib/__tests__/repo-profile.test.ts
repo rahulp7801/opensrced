@@ -523,7 +523,7 @@ test("a busy slice gets the budget quiet slices left, a page at a time, and the 
 test("a repository that takes no PRs on GitHub says so (movingpandas), and isn't read further back", async () => {
   const fake = client([], undefined, { repository: { nameWithOwner: "movingpandas/movingpandas", hasPullRequestsEnabled: false, homepageUrl: "http://movingpandas.org" } });
   const p = await fetchRepoProfile(fake.client, "movingpandas/movingpandas", NOW);
-  assert.deepEqual(p.status, { pullRequestsEnabled: false, archived: false, mirror: false, elsewhere: null });
+  assert.deepEqual(p.status, { pullRequestsEnabled: false, collaboratorsOnly: false, archived: false, mirror: false, elsewhere: null });
   assert.equal(fake.calls.length, COHORT_SLICES);
   assert.equal(fake.mergeCalls.length, 0);
   assert.deepEqual(profileFindings(p).slice(0, 2).map((f) => f.text), [
@@ -537,13 +537,16 @@ const STATUS: Array<[string, Record<string, unknown>, string | null]> = [
   ["archived", { isArchived: true }, "This repository is archived (read-only)."],
   ["a mirror of SourceHut", { isMirror: true, mirrorUrl: "https://git.sr.ht/~acme/app" }, "This repository is a mirror; it points to https://git.sr.ht/~acme/app instead."],
   ["open for PRs, even with a GitLab homepage", { hasPullRequestsEnabled: true, homepageUrl: "https://gitlab.com/acme/app" }, null],
+  // requests, jsonschema and click: GitHub's pull request creation policy.
+  ["PRs from collaborators only", { hasPullRequestsEnabled: true, pullRequestCreationPolicy: "COLLABORATORS_ONLY" }, "Only the project's collaborators can open pull requests here (a GitHub setting), so you can't open one yourself: offer your fix on the issue as a branch a maintainer can pull, and ask how they'd like it."],
+  ["PRs from anyone", { hasPullRequestsEnabled: true, pullRequestCreationPolicy: "ALL" }, null],
 ];
 for (const [name, repository, expected] of STATUS) {
   test(`repository status: ${name}`, async () => {
     const p = await fetchRepoProfile(client([[pr()]], undefined, { repository }).client, "acme/app", NOW);
     const first = profileFindings(p)[0];
     if (expected) assert.deepEqual([first.section, first.text], ["start", expected]);
-    else assert.ok(!profileFindings(p).some((f) => f.text.startsWith("This repository")));
+    else assert.ok(!profileFindings(p).some((f) => f.text.startsWith("This repository") || f.text.startsWith("Only the project's collaborators")));
   });
 }
 

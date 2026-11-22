@@ -17,6 +17,7 @@ The person you are helping is the contributor. The pull request goes out in thei
    - The project bans AI-generated contributions: stop, and tell the user plainly. Do not work around it.
    - PRs get closed for being opened **without being assigned**: the user should ask to be assigned on the issue first. Draft that comment for them; they post it.
    - PRs get closed with **"discuss first"**: draft a short issue comment proposing the approach; they post it and wait.
+   - If the profile says **only collaborators can open pull requests**, GitHub won't let the user open one: say so before any work, and plan to offer the branch on the issue and ask how the maintainers want it.
    - Many PRs are closed as **duplicates**: search open PRs for the issue number first (`gh pr list --repo owner/name --search "N"`). A number search also matches unrelated PRs, so open the hits and check that each one actually works on this issue before calling it taken.
    - Outside PRs rarely get merged at all: tell the user, so they can choose a better project or issue.
 

@@ -442,6 +442,9 @@ for (const [name, params, message] of BAD_LESSON_CALLS) {
 
 test("without graphify, the lesson gets graphify's map from opensrcer; when that fails too, no lesson starts", async () => {
   const { dir } = fixture();
+  // A home of its own: the fixture's commit is the same in every test, so a map another test built
+  // for it would sit in the shared graph cache and be used instead (CI, 0.3.27).
+  const home = mkdtempSync(join(tmpdir(), "opensrcer-home-"));
   const child = spawn(process.execPath, [join(process.cwd(), "harness", "server.mjs")], {
     env: { ...process.env, OPENSRCER_URL: base, OPENSRCER_TOKEN: TOKEN, GITHUB_API_URL: base, OPENSRCER_HOME: home, OPENSRCER_GRAPH_PYTHON: "no-such-python-here" },
   });

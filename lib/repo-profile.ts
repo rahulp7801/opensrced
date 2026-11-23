@@ -589,6 +589,10 @@ export function windowText(minDays: number, maxDays: number): string {
 /** The profile as sentences, for the page and the harness's agent context.
  *  A comparison is stated only when both sides have MIN_SAMPLE PRs; an
  *  absence (no PRs, no replies, no outside merges) is stated at any size. */
+/** A pinned issue's title saying the project is winding down. ponytail: titles only; a notice
+ *  in the README alone isn't read. */
+const WINDING_DOWN = /\b(?:(?:soft[- ])?deprecat\w*|unmaintained|no longer (?:maintained|developed|supported)|end[- ]of[- ]life|winding down|maintenance mode|archiv\w*)\b/i;
+
 export function profileFindings(p: RepoProfile): Finding[] {
   const out: Finding[] = [];
   const when = windowText(p.window.minDays ?? COHORT_MIN_AGE_DAYS, p.window.maxDays ?? COHORT_MAX_AGE_DAYS);
@@ -599,6 +603,11 @@ export function profileFindings(p: RepoProfile): Finding[] {
     out.push({ section: "start", text: `This repository ${what}${s.elsewhere ? `; it points to ${s.elsewhere} instead` : ""}.`, examples: [] });
   } else if (s?.collaboratorsOnly) {
     out.push({ section: "start", text: "Only the project's collaborators can open pull requests here (a GitHub setting), so you can't open one yourself: offer your fix on the issue as a branch a maintainer can pull, and ask how they'd like it.", examples: [] });
+  }
+  // A pinned notice that the project is winding down comes first (chrono: "Soft-deprecating chrono and chrono-tz").
+  const windingDown = (p.wanted?.pinned ?? []).filter((x) => WINDING_DOWN.test(x.title));
+  for (const x of windingDown) {
+    out.push({ section: "start", text: `The maintainers have pinned "${x.title}": the project may be winding down. Read it, and check that fixes are still taken, before starting.`, examples: [x.url] });
   }
   if (p.window.prs === 0) {
     out.push({ section: "start", text: `No pull requests opened ${when} were found, so nothing here is measured from this project's PRs.`, examples: [] });
@@ -626,7 +635,7 @@ export function profileFindings(p: RepoProfile): Finding[] {
   if (said && ai?.stance !== "banned") {
     out.push({ section: "start", text: `A maintainer said in review, which is not the written policy: "${said.excerpt}"`, examples: [said.url] });
   }
-  if (p.wanted) out.push(...wantedFindings(p.wanted).map((f) => ({ section: "wanted" as const, ...f })));
+  if (p.wanted) out.push(...wantedFindings({ ...p.wanted, pinned: p.wanted.pinned.filter((x) => !windingDown.includes(x)) }).map((f) => ({ section: "wanted" as const, ...f })));
   const o = p.outside;
   if (p.window.prs > 0 && o.merged.of === 0) {
     out.push({ section: "outcomes", text: `${p.window.prs} of ${p.window.prs} PRs opened ${when} came from maintainers or bots; none from outside contributors.`, examples: [] });

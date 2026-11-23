@@ -412,6 +412,13 @@ test("the profile surfaces agent files, text addressed to agents, AI remarks in 
   assert.ok(findings.some((f) => f.section === "community" && /discord/i.test(f.text)), JSON.stringify(findings));
   assert.equal(findings.at(-1)?.section, "community");
 
+  // chrono pins "Soft-deprecating chrono and chrono-tz": that comes before anything else, and only once.
+  const pins = [{ title: "Soft-deprecating chrono and chrono-tz", url: "https://github.com/chronotope/chrono/issues/1768" }, { title: "Roadmap for 1.0", url: "u2" }];
+  const winding = profileFindings({ ...p, wanted: { ...(p.wanted as object), pinned: pins } as never });
+  assert.deepEqual(winding.filter((f) => f.text.includes("Soft-deprecating")).map((f) => [f.section, f.text, f.examples]),
+    [["start", 'The maintainers have pinned "Soft-deprecating chrono and chrono-tz": the project may be winding down. Read it, and check that fixes are still taken, before starting.', [pins[0]!.url]]]);
+  assert.ok(winding.some((f) => f.section === "wanted" && f.text === 'Pinned by the maintainers: "Roadmap for 1.0".'), "other pins stay where they were");
+
   // A review that quotes the written policy isn't shown as something else (marshmallow pastes its AI_POLICY.md).
   const quoted = p.reviewAiStatements?.[0]?.excerpt ?? "";
   assert.ok(quoted, "the fixture has a review statement");

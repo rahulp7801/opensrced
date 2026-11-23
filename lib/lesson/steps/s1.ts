@@ -3,7 +3,6 @@
 // it, what it is for, and at least two main parts. Copying the README is
 // turned back before any call.
 
-import { buildModuleMap } from "../../graph";
 import { jsonObject, looksCopied, replyBool, replyText, ReplyFormatError } from "../../understanding";
 import { fence, GRADER_UNTRUSTED, issueBlock, JSON_ONLY, StepInputError, textAnswer, wordsIn, type StepContext, type StepDef } from "./shared";
 
@@ -13,24 +12,32 @@ export const S1_COPIED = "This reads like the README. Say it the way you'd tell 
 /** The graph's largest modules, by node count: "the main parts" s1 looks for. */
 export function topModules(ctx: StepContext, limit = 8): string[] {
   if (!ctx.graph) return [];
-  const names = buildModuleMap(ctx.graph);
-  const sizes = new Map<number, number>();
   // Only the project's own code counts: external packages are not its parts.
-  // Tests, examples and docs aren't "main parts" either: a rubric listing test files pushed real modules off the list,
-  // and werkzeug's listed two of its example apps.
-  const isTest = (file: string) => /(^|\/)(tests?|testing|__tests__|spec|examples?|docs?)\//i.test(file.replace(/\\/g, "/")) || /(^|\/)test_[^/]*$|_test\.[a-z]+$/i.test(file);
-  for (const n of ctx.graph.nodes) if (n.source_file && !isTest(n.source_file)) sizes.set(n.community, (sizes.get(n.community) ?? 0) + 1);
-  const top = [...sizes.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([c]) => c);
+  // Tests, examples, docs and benchmarks aren't "main parts" either: a rubric listing test files pushed real
+  // modules off the list, werkzeug's listed two of its example apps and starlette's two benchmarks.
+  const isTest = (file: string) => /(^|\/)(tests?|testing|__tests__|spec|examples?|docs?|benchmarks?)\//i.test(file.replace(/\\/g, "/")) || /(^|\/)test_[^/]*$|_test\.[a-z]+$/i.test(file);
+  const files = new Map<number, Map<string, number>>();
+  for (const n of ctx.graph.nodes) {
+    if (!n.source_file || isTest(n.source_file)) continue;
+    const counts = files.get(n.community) ?? new Map<string, number>();
+    counts.set(n.source_file, (counts.get(n.source_file) ?? 0) + 1);
+    files.set(n.community, counts);
+  }
+  const size = (c: number) => [...files.get(c)!.values()].reduce((a, b) => a + b, 0);
+  const top = [...files.keys()].sort((a, b) => size(b) - size(a)).slice(0, limit);
+  // Named from those same files, so every name is a path: a community's external nodes (no file) once
+  // named starlette's after one of its labels, "_StopIteration".
+  const most = (counts: Map<string, number>) => [...counts.entries()].sort((a, b) => b[1] - a[1])[0]![0];
+  const folderOf = (c: number) => {
+    const dirs = new Map<string, number>();
+    for (const [f, k] of files.get(c)!) { const d = f.replace(/\\/g, "/").replace(/\/[^/]*$/, ""); dirs.set(d, (dirs.get(d) ?? 0) + k); }
+    return most(dirs);
+  };
   // Several modules in one folder would all read "src/pkg" (a real rubric listed it five
   // times): those are named by the file most of their code is in, so each part is checkable.
-  const folder = top.map((c) => names.get(c) ?? `module ${c}`);
+  const folder = top.map(folderOf);
   const shared = new Set(folder.filter((n, i) => folder.indexOf(n) !== i));
-  const mainFile = (c: number) => {
-    const files = new Map<string, number>();
-    for (const n of ctx.graph!.nodes) if (n.community === c && n.source_file && !isTest(n.source_file)) files.set(n.source_file, (files.get(n.source_file) ?? 0) + 1);
-    return [...files.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
-  };
-  return [...new Set(top.map((c, i) => (shared.has(folder[i]!) ? mainFile(c) ?? folder[i]! : folder[i]!)))];
+  return [...new Set(top.map((c, i) => (shared.has(folder[i]!) ? most(files.get(c)!) : folder[i]!)))];
 }
 
 export const s1: StepDef<string> = {

@@ -577,7 +577,7 @@ export function engagementAdvice(p: RepoProfile): EngagementAdvice | null {
 export type Finding = { section: "start" | "wanted" | "outcomes" | "closed" | "review" | "pace" | "community" | "conventions"; text: string; examples: string[] };
 
 const pct = (t: Tally) => `${Math.round((t.count / t.of) * 100)}%`;
-const hoursText = (h: number) => h < 1 ? "an hour" : h < 48 ? `about ${Math.round(h)} hours` : `about ${Math.round(h / 24)} days`;
+const hoursText = (h: number) => h < 1 ? "an hour" : h < 1.5 ? "about an hour" : h < 48 ? `about ${Math.round(h)} hours` : `about ${Math.round(h / 24)} days`;
 const dateText = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 
 /** "1–4 months ago": a window in days ago, in words. */
@@ -635,7 +635,7 @@ export function profileFindings(p: RepoProfile): Finding[] {
     const open = o.open.count === 0 ? "" : ` and ${o.open.count} ${o.open.count === 1 ? "is" : "are"} still open`;
     const opened = p.window.opened ?? p.window.prs;
     const sampled = opened > p.window.prs ? ` They come from the ${p.window.prs} PRs read of the ${opened} opened then.` : "";
-    out.push({ section: "outcomes", text: `Of ${o.merged.of} PRs outside contributors opened ${when}, ${o.merged.count} were merged (${pct(o.merged)}), ${o.closed} closed${open}.${sampled}`, examples: o.merged.examples });
+    out.push({ section: "outcomes", text: `Of ${o.merged.of} PRs outside contributors opened ${when}, ${o.merged.count} ${o.merged.count === 1 ? "was" : "were"} merged (${pct(o.merged)}), ${o.closed} closed${open}.${sampled}`, examples: o.merged.examples });
     if (o.open.count >= MIN_SAMPLE) {
       out.push({ section: "pace", text: `${pct(o.open)} of outside PRs are still open a month or more after they were opened.`, examples: o.open.examples });
     }

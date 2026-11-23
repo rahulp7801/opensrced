@@ -232,7 +232,7 @@ export function summarizeCommunity(
 // ---- Findings --------------------------------------------------------------
 
 const pct = (t: Tally) => `${Math.round((t.count / t.of) * 100)}%`;
-const hoursText = (h: number) => h < 1 ? "under an hour" : h < 48 ? `about ${Math.round(h)} hours` : `about ${Math.round(h / 24)} days`;
+const hoursText = (h: number) => h < 1 ? "under an hour" : h < 1.5 ? "about an hour" : h < 48 ? `about ${Math.round(h)} hours` : `about ${Math.round(h / 24)} days`;
 const month = (iso: string) => new Date(iso).toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
 const list = (items: string[]) => items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
 

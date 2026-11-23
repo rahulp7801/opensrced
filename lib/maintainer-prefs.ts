@@ -130,7 +130,7 @@ export function summarizePrefs(repo: string, prs: MergedPrNode[], prTemplate: bo
 }
 
 const pct = (share: number) => `${Math.round(share * 100)}%`;
-const hours = (h: number) => h < 1 ? "under an hour" : h < 48 ? `about ${Math.round(h)} hours` : `about ${Math.round(h / 24)} days`;
+const hours = (h: number) => h < 1 ? "under an hour" : h < 1.5 ? "about an hour" : h < 48 ? `about ${Math.round(h)} hours` : `about ${Math.round(h / 24)} days`;
 const CONVENTION_TEXT: Record<Exclude<TitleConvention, "none">, string> = {
   conventional: 'Titles follow Conventional Commits ("fix: …", "feat(scope): …").',
   prefix: 'Titles start with the area they touch ("area: what changed").',

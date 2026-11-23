@@ -285,6 +285,11 @@ test("response time: two values (nbQA: 7 minutes and 84 days) are not a median; 
   assert.deepEqual(busy.responseHours, { n: 5, q1: 2, median: 3, q3: 10 });
   assert.ok(profileFindings(busy).some((f) => f.text ===
     "A maintainer usually first responds within about 3 hours (half of the 5 outside PRs that got a response); a quarter waited longer than about 10 hours."));
+  // werkzeug: a median of ~1 hour, and one PR merged of many.
+  const quick = summarizeProfile("acme/app", [0.5, 1, 1.2, 1.4, 3].map(answeredAfter));
+  assert.ok(profileFindings(quick).some((f) => f.text.startsWith("A maintainer usually first responds within about an hour (")));
+  const oneMerged = summarizeProfile("acme/app", [pr(), ...Array.from({ length: 9 }, () => closedPr())]);
+  assert.ok(profileFindings(oneMerged).some((f) => f.text.includes(", 1 was merged (10%)")));
 });
 
 test("silence is stated at any sample size (earthpy: 3 outside PRs, none answered); one release PR is no changelog habit", () => {

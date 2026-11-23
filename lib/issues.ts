@@ -26,6 +26,8 @@ const RESOLVED_PATTERNS: RegExp[] = [
   // "Fixed in PR #123", "Resolved by #456", "Merged in #789"
   // A bare number is not a reference: "solved with 2 changes", "addressed in 2024".
   /\b(fixed|resolved|solved|addressed|merged|landed|shipped)\s+(?:in|by|via|with|through|as\s+of)\s+(?:(?:pr|pull\s*request|commit)\s*#?|#)(\d+)\b/i,
+  // "#1294 was merged and covers both" (more-itertools #1268, open after its fix merged)
+  /(?:\b(?:pr|pull\s*request)\s*)?#(\d+)\s+(?:was|has\s+been|got)\s+merged\b/i,
   // "#123 fixes this" / "PR #456 resolves it"
   /\b(?:pr|pull\s*request|commit)?\s*#(\d+)\s+(fixes|resolves|closes|addresses|solves)\s+(?:this|it|the\s+issue)\b/i,
   // "this was/is already fixed/resolved/merged/shipped"

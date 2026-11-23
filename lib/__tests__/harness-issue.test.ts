@@ -63,6 +63,10 @@ test("listOpenIssues: the newest open issues, each taken by an assignee or an op
       issue(4, "Free", "2019-01-01T00:00:00Z"),
       // cheerio #5368: open, but a comment says main has it.
       issue(5368, "fromURL base", "2026-07-25T00:00:00Z", { comments: [{ body: "Root cause, for the record: this is fixed on `main`, but only by accident.", login: "v", assoc: "CONTRIBUTOR" }] }),
+      // uvicorn (collaborators-only): a claim or a ready branch in the issue is all there is.
+      issue(3260, "Config.load swallows", "2026-11-22T00:00:00Z", { comments: [{ body: "I'll take this — opening a PR shortly.", login: "fs", assoc: "NONE" }] }),
+      issue(3255, "chunked to HTTP/1.0", "2026-11-15T00:00:00Z", { body: "**Ready fix branch** (one-line change): https://github.com/x/uvicorn/tree/fix" }),
+      issue(3793, "Allow order", "2026-11-15T00:00:00Z", { body: "Happy to open a PR if maintainers prefer." }),
     ] } } } },
     "/repos/markedjs/marked/pulls": [
       { number: 4274, title: "fix: avoid quadratic scan", body: "Fixes #4273" },
@@ -73,9 +77,10 @@ test("listOpenIssues: the newest open issues, each taken by an assignee or an op
   });
   const list = await listOpenIssues("markedjs/marked", "t", fake);
   assert.equal(list.repo, "markedjs/marked");
-  assert.deepEqual(list.issues.map((i) => [i.number, i.taken]), [[4273, "open PR #4274"], [4253, "open PR #4254, #4260"], [42, "assigned to @uzi"], [4, null], [5368, null]]);
+  assert.deepEqual(list.issues.map((i) => [i.number, i.taken]), [[4273, "open PR #4274"], [4253, "open PR #4254, #4260"], [42, "assigned to @uzi"], [4, null], [5368, null],
+    [3260, `claimed by @fs: "I'll take this"`], [3255, 'the issue says "Ready fix branch"'], [3793, null]]);
   assert.deepEqual([list.issues[0]!.labels, list.issues[0]!.opened, list.issues[1]!.labels, list.issues[1]!.comments, list.issues[3]!.url], [["perf"], "2026-11-22", ["bug"], 2, "https://github.com/markedjs/marked/issues/4"]);
-  assert.deepEqual(list.issues.map((i) => i.resolved), [null, null, null, null, 'comment by @v says "this is fixed"']);
+  assert.deepEqual(list.issues.map((i) => i.resolved), [null, null, null, null, 'comment by @v says "this is fixed"', null, null, null]);
   assert.ok(seen.some((s) => s.startsWith("/repos/markedjs/marked/pulls?") && s.includes("per_page=100")));
 });
 

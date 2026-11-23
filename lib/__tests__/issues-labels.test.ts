@@ -44,7 +44,8 @@ test("detectResolved: an open issue a comment says is fixed on the default branc
   for (const body of ["It looks fixed on master now.", "Seems to be fixed in main.", "This appears already fixed on the default branch."]) {
     assert.match(said(body) ?? "", /^comment by @m \(maintainer\) says "/, body);
   }
-  for (const body of ["It is not fixed on main yet.", "Should be fixed in main once #12 lands? No, still broken.", "Fixed in the docs only."]) {
+  assert.match(said("Yes — #1294 was merged and covers both `peek()` and truthiness.") ?? "", /says "#1294 was merged"/, "more-itertools #1268");
+  for (const body of ["#12 was merged but it's still broken here.", "It is not fixed on main yet.", "Should be fixed in main once #12 lands? No, still broken.", "Fixed in the docs only."]) {
     assert.equal(said(body), null, body);
   }
 });

@@ -122,6 +122,20 @@ export type ListedIssue = {
 };
 export type IssueList = { repo: string; issues: ListedIssue[] };
 
+/** Someone saying they're on it. Where only collaborators can open PRs (uvicorn, starlette), a claim or a
+ *  ready branch in the issue is all there is. ponytail: first-person phrases only; a claim gone stale still counts. */
+const CLAIM = /\b(?:(?:i'?ll|i\s+will|i'?d\s+like\s+to|let\s+me)\s+(?:take|work\s+on|pick\s+up|tackle|grab)\s+(?:this|it)\b|(?:i'?m|i\s+am|we'?re|we\s+are|our\s+team\s+is)\s+(?:already\s+)?working\s+on\s+(?:this|it|a\s+fix)\b|(?:ready|my)\s+fix\s+branch\b|(?:i'?ll|i\s+will)\s+open\s+a\s+(?:pr|pull\s+request)\b|opening\s+a\s+(?:pr|pull\s+request)\b)/i;
+
+function claimIn(i: IssueNode): string | null {
+  const m = CLAIM.exec(i.body ?? "");
+  if (m) return `the issue says "${m[0]}"`;
+  for (const c of [...i.comments.nodes].reverse()) {
+    const hit = CLAIM.exec(c.body);
+    if (hit) return `claimed by @${c.author?.login ?? "ghost"}: "${hit[0]}"`;
+  }
+  return null;
+}
+
 type IssueNode = {
   number: number; title: string; url: string; body: string | null; createdAt: string;
   labels: { nodes: Array<{ name: string }> }; assignees: { nodes: Array<{ login: string }> };
@@ -166,7 +180,8 @@ export async function listOpenIssues(repoInput: string, token = process.env.OPEN
   const issues = repo.issues.nodes.map((i) => {
     const assignees = i.assignees.nodes.map((a) => `@${a.login}`);
     const prs = naming.get(i.number) ?? [];
-    const taken = assignees.length ? `assigned to ${assignees.join(", ")}` : prs.length ? `open PR ${prs.map((n) => `#${n}`).join(", ")}` : null;
+    const claim = claimIn(i);
+    const taken = assignees.length ? `assigned to ${assignees.join(", ")}` : prs.length ? `open PR ${prs.map((n) => `#${n}`).join(", ")}` : claim;
     const labels = i.labels.nodes.map((l) => l.name);
     return {
       number: i.number, title: i.title, url: i.url, labels, comments: i.comments.totalCount, opened: i.createdAt.slice(0, 10), taken,

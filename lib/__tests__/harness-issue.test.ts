@@ -1,7 +1,7 @@
 // lib/harness-issue.ts: an issue and its newest comments for read_issue, against a fake GitHub.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { COMMENT_TEXT_MAX, IssueThreadError, readIssueThread } from "../harness-issue";
+import { COMMENT_TEXT_MAX, IssueThreadError, listOpenIssues, readIssueThread } from "../harness-issue";
 
 function github(routes: Record<string, unknown>) {
   const seen: string[] = [];
@@ -26,9 +26,58 @@ test("an issue with its newest comments, maintainers marked, long text clipped",
   });
   const t = await readIssueThread("pallets/itsdangerous", 429, "ghp_test", fake);
   assert.deepEqual([t.repo, t.number, t.title, t.state, t.more_comments], ["pallets/itsdangerous", 429, "loads ignores max_age", "open", 0]);
-  assert.deepEqual(t.comments.map((c) => [c.author, c.association, c.at]), [["davidism", "MEMBER", "2026-10-01"], ["ghost", "NONE", "2026-10-02"]]);
+  assert.deepEqual(t.comments.map((c) => [c.author, c.association, c.maintainer, c.at]), [["davidism", "MEMBER", true, "2026-10-01"], ["ghost", "NONE", false, "2026-10-02"]]);
   assert.match(t.comments[1]!.body, /… \[cut\]$/);
   assert.ok(seen.some((s) => s.includes("/comments?") && s.includes("per_page=20") && s.includes("page=1")));
+});
+
+test("someone who merges the repository's PRs is a maintainer, whatever GitHub's association says (pypa/packaging's henryiii)", async () => {
+  const issue = { "/repos/pypa/packaging/issues/934": { title: "t", body: "", state: "open", comments: 2 } };
+  const comments = { "/repos/pypa/packaging/issues/934/comments": [
+    { user: { login: "henryiii" }, author_association: "CONTRIBUTOR", created_at: "2026-04-27", body: "The real work is deciding which direction to go." },
+    { user: { login: "jsirois" }, author_association: "CONTRIBUTOR", created_at: "2026-04-22", body: "I in no way want this feature!" },
+  ] };
+  const mergers = { "/graphql": { data: { repository: { pullRequests: { nodes: [{ mergedBy: { login: "henryiii" } }, { mergedBy: null }] } } } } };
+  const t = await readIssueThread("pypa/packaging", 934, "t", github({ ...issue, ...comments, ...mergers }).fake);
+  assert.deepEqual(t.comments.map((c) => [c.author, c.association, c.maintainer]), [["henryiii", "CONTRIBUTOR", true], ["jsirois", "CONTRIBUTOR", false]]);
+  // GitHub won't say who merged: the association alone, never an error.
+  const failed = await readIssueThread("pypa/packaging", 934, "t", github({ ...issue, ...comments }).fake);
+  assert.deepEqual(failed.comments.map((c) => c.maintainer), [false, false]);
+  // Every commenter a maintainer by association already: no lookup.
+  const { fake, seen } = github({ ...issue, "/repos/pypa/packaging/issues/934/comments": [{ user: { login: "pradyunsg" }, author_association: "MEMBER", created_at: "2026-04-22", body: "x" }], ...mergers });
+  assert.equal((await readIssueThread("pypa/packaging", 934, "t", fake)).comments[0]!.maintainer, true);
+  assert.ok(!seen.includes("/graphql"));
+});
+
+test("listOpenIssues: the newest open issues, PRs dropped, each taken by an assignee or an open PR naming it", async () => {
+  const { fake, seen } = github({
+    "/repos/markedjs/marked/issues": [
+      { number: 4273, title: "Quadratic links", html_url: "https://github.com/markedjs/marked/issues/4273", labels: [{ name: "perf" }], comments: 0, created_at: "2026-11-22T01:00:00Z", assignees: [] },
+      { number: 4274, title: "a PR", pull_request: {}, assignees: [] },
+      { number: 4253, title: "Lazy line", labels: ["bug"], comments: 2, created_at: "2026-11-17T01:00:00Z", assignees: [] },
+      { number: 42, title: "Old", comments: 0, created_at: "2020-01-01", assignees: [{ login: "uzi" }] },
+      { number: 4, title: "Free", comments: 0, created_at: "2019-01-01", assignees: null },
+    ],
+    "/repos/markedjs/marked/pulls": [
+      { number: 4274, title: "fix: avoid quadratic scan", body: "Fixes #4273" },
+      { number: 4254, title: "fix: lazy lines", body: "See https://github.com/markedjs/marked/issues/4253 and #42" },
+      { number: 4260, title: "also lazy (#4253)", body: null },
+      { number: 9, title: "mentions #40 and #4253x", body: "" },
+    ],
+  });
+  const list = await listOpenIssues("markedjs/marked", "t", fake);
+  assert.equal(list.repo, "markedjs/marked");
+  assert.deepEqual(list.issues.map((i) => [i.number, i.taken]), [[4273, "open PR #4274"], [4253, "open PR #4254, #4260"], [42, "assigned to @uzi"], [4, null]]);
+  assert.deepEqual([list.issues[0]!.labels, list.issues[0]!.opened, list.issues[1]!.labels, list.issues[3]!.url], [["perf"], "2026-11-22", ["bug"], "https://github.com/markedjs/marked/issues/4"]);
+  assert.ok(seen.some((s) => s.startsWith("/repos/markedjs/marked/pulls?") && s.includes("per_page=100")));
+});
+
+test("listOpenIssues: a bad repo is refused before GitHub; a missing one says so", async () => {
+  const { fake, seen } = github({});
+  await assert.rejects(listOpenIssues("nope", "t", fake), (e: unknown) => e instanceof IssueThreadError && e.status === 422);
+  await assert.rejects(listOpenIssues("a/b", "", fake), (e: unknown) => e instanceof IssueThreadError && e.status === 503);
+  assert.equal(seen.length, 0);
+  await assert.rejects(listOpenIssues("a/b", "t", fake), (e: unknown) => e instanceof IssueThreadError && e.status === 404 && /wasn't found/.test(e.message));
 });
 
 test("with more comments than it shows, it reads the newest page and says how many are older", async () => {

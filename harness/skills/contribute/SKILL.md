@@ -12,13 +12,14 @@ The person you are helping is the contributor. The pull request goes out in thei
 ## 1. Learn the project before touching code
 
 1. Call the `repo_profile` tool (opensrcer MCP server) with the repository as `owner/name`. It reports what really gets merged there, why PRs get closed, what reviewers keep asking for, and the house conventions, each measured from the project's own recent PRs with links.
-2. Read the project's CONTRIBUTING file, its pull request template, and any AI policy (AGENTS.md, CONTRIBUTING, the README). Then read the issue and its comments with `read_issue` (it works without gh): issues often carry their own instructions ("comment with the lines you'll take", "link with *Part of #N*, not *Fixes*", because several people share one issue), and those beat the general guide.
+2. No issue chosen yet? `find_issues` lists the repository's newest open issues and which nobody has taken. Read the project's CONTRIBUTING file, its pull request template, and any AI policy (AGENTS.md, CONTRIBUTING, the README). Then read the issue and its comments with `read_issue` (it works without gh): issues often carry their own instructions ("comment with the lines you'll take", "link with *Part of #N*, not *Fixes*", because several people share one issue), and those beat the general guide.
 3. Act on what you found **before** writing code:
    - The project bans AI-generated contributions: no PR, so stop, and tell the user plainly. Do not work around it. They can still learn the code with a lesson (the learn skill), which opens no PR.
    - PRs get closed for being opened **without being assigned**: the user should ask to be assigned on the issue first. Draft that comment for them; they post it.
    - PRs get closed with **"discuss first"**: draft a short issue comment proposing the approach; they post it and wait.
    - If the profile says **only collaborators can open pull requests**, GitHub won't let the user open one: say so before any work, and plan to offer the branch on the issue and ask how the maintainers want it.
    - Many PRs are closed as **duplicates**: search open PRs for the issue number first (`gh pr list --repo owner/name --search "N"`). A number search also matches unrelated PRs, so open the hits and check that each one actually works on this issue before calling it taken.
+   - If a maintainer says the fix waits on a decision (which way to go, a change to a spec) or asks for no more PRs, don't write one: quote them to the user and suggest another issue (`find_issues` lists the ones nobody has taken). `read_issue` marks as maintainers the people who merge the project's PRs, even where GitHub shows them as contributors.
    - Outside PRs rarely get merged at all: tell the user, so they can choose a better project or issue.
 
    - The project's guide or PR template writes down a step before any PR (a maintainer's approval, being assigned, an issue or discussion first): that counts even when the project has few PRs to measure. Draft the comment; the user posts it and waits.

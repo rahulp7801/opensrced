@@ -16,8 +16,9 @@ export function topModules(ctx: StepContext, limit = 8): string[] {
   const names = buildModuleMap(ctx.graph);
   const sizes = new Map<number, number>();
   // Only the project's own code counts: external packages are not its parts.
-  // Tests aren't "main parts" either: a rubric listing test files pushed real modules off the list.
-  const isTest = (file: string) => /(^|\/)(tests?|testing|__tests__|spec)\//i.test(file.replace(/\\/g, "/")) || /(^|\/)test_[^/]*$|_test\.[a-z]+$/i.test(file);
+  // Tests, examples and docs aren't "main parts" either: a rubric listing test files pushed real modules off the list,
+  // and werkzeug's listed two of its example apps.
+  const isTest = (file: string) => /(^|\/)(tests?|testing|__tests__|spec|examples?|docs?)\//i.test(file.replace(/\\/g, "/")) || /(^|\/)test_[^/]*$|_test\.[a-z]+$/i.test(file);
   for (const n of ctx.graph.nodes) if (n.source_file && !isTest(n.source_file)) sizes.set(n.community, (sizes.get(n.community) ?? 0) + 1);
   const top = [...sizes.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([c]) => c);
   // Several modules in one folder would all read "src/pkg" (a real rubric listed it five

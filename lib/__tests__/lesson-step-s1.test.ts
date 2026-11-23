@@ -32,6 +32,10 @@ test("s1's prompt fences the README, the modules and the answer as untrusted", (
   assert.match(p.user, /<modules untrusted="true">\n- .+\n- .+\n<\/modules>/, "one line per main module, largest first");
   assert.deepEqual(topModules(ctx).length, 2);
   assert.deepEqual(topModules({ ...ctx, graph: null }), []);
+  // werkzeug: its example apps and docs were listed as main parts.
+  const extra = ["examples/couchy/views.py", "examples/couchy/models.py", "examples/couchy/utils.py", "docs/conf.py", "docs/conf.py"]
+    .map((source_file, i) => ({ id: `x${i}`, label: `x${i}`, community: 3 + (i >> 2), file_type: "code", source_file }));
+  assert.equal(topModules({ ...ctx, graph: { ...graph, nodes: [...graph.nodes, ...extra] } as GraphData }).length, 2);
 });
 
 test("s1's grade: users, purpose and two parts to pass; strict JSON", () => {

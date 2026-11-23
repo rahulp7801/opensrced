@@ -73,7 +73,12 @@ export function pickNodes(graph: GraphData, pick: string): string[] {
     const ids = graph.nodes.map((n) => [n.id, n.id.toLowerCase()] as const);
     const suffix = `_${parts.join("_")}`.toLowerCase();
     const qualified = ids.filter(([, id]) => id.endsWith(suffix)).map(([id]) => id);
-    if (qualified.length) return qualified;
+    // "Route.handle" is …_route_handle, but so is a test's nested handle() in …_custom_route (starlette):
+    // where some match sits in a node labelled as the named class, those are the ones meant.
+    const byId = new Map(graph.nodes.map((n) => [n.id.toLowerCase(), n]));
+    const owner = norm(parts.at(-2)!), method = parts.at(-1)!.length + 1;
+    const inClass = qualified.filter((id) => { const p = byId.get(id.toLowerCase().slice(0, -method)); return p !== undefined && norm(p.label).replace(/^\./, "") === owner; });
+    if (qualified.length) return inClass.length ? inClass : qualified;
     const escape = (s: string) => s.toLowerCase().replace(/[^a-z0-9_]/g, "");
     const generic = new RegExp(`_${parts.slice(0, -1).map(escape).join("_")}(?:_[a-z0-9]+){1,3}_${escape(parts.at(-1)!)}$`);
     const loose = ids.filter(([, id]) => generic.test(id)).map(([id]) => id);

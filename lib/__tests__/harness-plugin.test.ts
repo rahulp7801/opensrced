@@ -900,6 +900,9 @@ test("the map reads Rust-style picks (Type::method, through an impl's generics) 
   };
   const levels = overlayLevels(graph, ["UnitVariantAccess::tuple_variant", "Error::fix_position"], "");
   assert.deepEqual([...levels.keys()].sort(), ["src_de_unitvariantaccess_a_r_tuple_variant", "src_error_error_fix_position"]);
+  // starlette: "Route.handle" lights the class's method, not a test's nested handle() in …_custom_route.
+  const starlette = { nodes: [node("starlette_routing_route", "Route", "starlette/routing.py"), node("starlette_routing_route_handle", ".handle()", "starlette/routing.py"), node("tests_t_custom_route_handle", "handle()", "tests/t.py")], links: [] };
+  assert.deepEqual([...overlayLevels(starlette, ["Route.handle"], "").keys()], ["starlette_routing_route_handle"]);
   const data = JSON.parse(/id="osr-data">([\s\S]*?)<\/script>/.exec(fileMapHtml(graph, new Map(), "", "t"))![1]) as { nodes: Array<{ label: string }> };
   const labels = data.nodes.map((n) => n.label);
   assert.ok(labels.includes("src/lexical/math.rs") && labels.includes("tests/lexical/math.rs"), labels.join(", "));

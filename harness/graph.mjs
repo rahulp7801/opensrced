@@ -107,7 +107,12 @@ export function overlayLevels(graph, picks, keyDiff) {
     const clean = (s) => s.replace(/[^a-z0-9_]/g, "");
     // A Rust impl's generics sit between type and method (…_unitvariantaccess_a_r_tuple_variant).
     const generic = parts ? new RegExp(`_${parts.slice(0, -1).map(clean).join("_")}(?:_[a-z0-9]+){1,3}_${clean(parts.at(-1))}$`) : null;
-    const exact = suffix ? graph.nodes.some((n) => n.id.toLowerCase().endsWith(suffix)) : false;
+    const qualified = suffix ? graph.nodes.filter((n) => n.id.toLowerCase().endsWith(suffix)) : [];
+    const exact = qualified.length > 0;
+    // As s7: "Route.handle" also ends a test's nested handle() (…_custom_route_handle); keep the ones in the named class.
+    const byId = new Map(graph.nodes.map((n) => [n.id.toLowerCase(), n]));
+    const inClass = qualified.filter((n) => { const p = byId.get(n.id.toLowerCase().slice(0, -(parts.at(-1).length + 1))); return p !== undefined && norm(p.label).replace(/^\./, "") === parts.at(-2); });
+    const meant = new Set((inClass.length ? inClass : qualified).map((n) => n.id));
     const sameFile = (file) => file === pick || file.endsWith(`/${pick}`);
     // A folder names its files when it's specific (≤ 25 files, as s7 FOLDER_PICK_MAX_FILES):
     // date-fns keeps each function in a folder of its own.
@@ -121,7 +126,7 @@ export function overlayLevels(graph, picks, keyDiff) {
       const label = norm(n.label).replace(/^\./, "");
       const id = n.id.toLowerCase();
       // A name matches code, not a data file's keys (package.json's "./formatDistance" export).
-      const hit = isFile ? file && (fileHit ? fileHit.has(file) : sameFile(file)) : suffix ? (exact ? id.endsWith(suffix) : generic.test(id)) : label === pick && !DATA_EXT.test(file);
+      const hit = isFile ? file && (fileHit ? fileHit.has(file) : sameFile(file)) : suffix ? (exact ? meant.has(n.id) : generic.test(id)) : label === pick && !DATA_EXT.test(file);
       if (hit) levels.set(n.id, "explored");
     }
   }

@@ -91,6 +91,15 @@ test("a Class.method pick resolves through graphify's qualified ids, not as a fi
   assert.deepEqual(pickNodes(graph, "serializer.loads"), ["src_pkg_serializer_serializer_loads"], "not PDataSerializer.loads");
   assert.deepEqual(pickNodes(graph, "timedserializer.loads()"), ["src_pkg_timed_timedserializer_loads"]);
   assert.equal(pickNodes(graph, "serializer.py").length, 2, "a real extension is still a file");
+  // starlette: "Route.handle" also ends a test's nested handle() in test_..._custom_route; the class's is meant.
+  const starlette = { nodes: [
+    { id: "starlette_routing_route", label: "Route", community: 0, file_type: "code", source_file: "starlette/routing.py" },
+    { id: "starlette_routing_route_handle", label: ".handle()", community: 0, file_type: "code", source_file: "starlette/routing.py" },
+    { id: "tests_t_omits_route_for_custom_route_handle", label: "handle()", community: 1, file_type: "code", source_file: "tests/t.py" },
+  ], links: [] };
+  assert.deepEqual(pickNodes(starlette, "Route.handle"), ["starlette_routing_route_handle"]);
+  // With no class node to tell them apart, every match stays.
+  assert.equal(pickNodes({ nodes: starlette.nodes.slice(1), links: [] }, "Route.handle").length, 2);
 });
 
 test("a bare name is every function of that name, the closest counting; not the first label that contains it", async () => {

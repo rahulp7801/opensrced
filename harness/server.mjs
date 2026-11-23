@@ -30,7 +30,7 @@ import { promisify } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { graphify, GraphifyError, GraphifyMissing, GRAPHIFY_INSTALL, GRAPHIFY_VERSION, lessonMapData, localGraphifyVersion, overlayLevels, withOverlay, fileMapHtml } from "./graph.mjs";
 
-const VERSION = "0.3.24";
+const VERSION = "0.3.25";
 const BASE = (process.env.OPENSRCER_URL || "https://opensrced.vercel.app").replace(/\/+$/, "");
 // A host that doesn't fill in `${user_config.…}` (plugin .mcp.json) leaves the literal: that is no token.
 const TOKEN = /^\$\{/.test(process.env.OPENSRCER_TOKEN ?? "") ? "" : process.env.OPENSRCER_TOKEN || "";
@@ -703,7 +703,11 @@ async function lessonTool(name, id, args) {
     const own = s.lesson.path === "B" && !args.give_up
       ? `\nFirst, their change (git -C ${existsSync(lessonFile(id)) ? localLesson(id).dir : "<their checkout>"} diff): run their test without their fix and with it, and say whether it proves the fix. Then compare it with the key: what each does better, and anything theirs misses.`
       : "";
-    return result(`Revealed. ${explain}${own}\n${lessonText(s.lesson)}${file ? `\n${file}` : ""}`, s);
+    // Path A: a plan the s8 grader found would also work (werkzeug #3285) is worth setting beside the key.
+    const alt = s.lesson.path === "A" && s.lesson.steps.find((x) => x.id === "s8")?.grade?.detail?.alternative === true
+      ? "\nTheir s8 plan was a different fix that would also work: set it beside the key and say what each does better, so they know theirs was right too."
+      : "";
+    return result(`Revealed. ${explain}${own}${alt}\n${lessonText(s.lesson)}${file ? `\n${file}` : ""}`, s);
   }
   if (name === "lesson_submit_own") {
     const local = localLesson(id);

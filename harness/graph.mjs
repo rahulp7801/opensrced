@@ -745,11 +745,14 @@ ${rows.length ? `<ul>${shown.map((r) => r.html).join("")}</ul>` : '<p class="rel
 ${out.length || inn.length ? `<p class="rel">${out.length ? `uses ${out.join(" ")}` : ""}${out.length && inn.length ? "<br>" : ""}${inn.length ? `used by ${inn.join(" ")}` : ""}</p>` : ""}
 </section>`;
   };
-  // A file the fix adds (often its test) isn't in a map drawn before it: a card of its own, after the fix's.
-  const added = [...new Set([...String(diff ?? "").matchAll(/^\+\+\+ (?:b\/)?(\S+)/gm)].map((m) => m[1]))].filter((f) => !byFile.has(f) && f !== "/dev/null");
+  // A file the fix adds (often its test) isn't in a map drawn before it, nor is a changed file the map
+  // doesn't cover (werkzeug's CHANGES.rst): a card of its own each, after the fix's.
+  const headers = [...String(diff ?? "").matchAll(/^--- (\S+)\n\+\+\+ (?:b\/)?(\S+)/gm)];
+  const isNew = new Set(headers.filter((m) => m[1] === "/dev/null").map((m) => m[2]));
+  const added = [...new Set(headers.map((m) => m[2]))].filter((f) => !byFile.has(f) && f !== "/dev/null");
   const addedCard = (f, i) => `<section id="${anchor(f)}" class="card changed" style="--accent:var(--fix);--i:${i}">
 ${heading(f, '<span class="tag fixtag">fix</span>')}
-<p class="rel">A new file the fix adds: the map was drawn before it existed.</p>
+<p class="rel">${isNew.has(f) ? "A new file the fix adds: the map was drawn before it existed." : "The fix changes this file too: it isn't code the map covers."}</p>
 </section>`;
   const html = cards.map(card);
   html.splice(cards.filter((x) => level(x.f) === "changed").length, 0, ...added.map((f, i) => addedCard(f, cards.length + i)));

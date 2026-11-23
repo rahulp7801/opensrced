@@ -82,6 +82,12 @@ before(async () => {
       if (lessonRoute?.[1] === LESSON_B) return reply(res, { lesson: { ...lessonBase("reveal"), id: LESSON_B, path: "B" } });
       // A path-B lesson with its key stored: the reveal goes through.
       if (lessonRoute?.[1] === LESSON_B_KEYED) return reply(res, { lesson: { ...lessonBase("explain", "verified"), id: LESSON_B_KEYED, path: "B" }, key: { diff: "+++ b/app/fill.py\n", title: "Fill", diagnosis: "d" } });
+      // A path-A lesson whose s8 plan the grader found a working alternative (werkzeug #3285).
+      if (lessonRoute?.[1] === LESSON_A_ALT) {
+        const s8 = { id: "s8", title: "Predict", question: "q", done: true, grade: { passed: true, feedback: "f", detail: { cause: true, change: true, proof: true, alternative: true } }, hint_level: -1, max_hint_level: 2, answer: "a" };
+        const steps = [...lessonBase("explain", "verified").steps, s8];
+        return reply(res, { lesson: { ...lessonBase("explain", "verified"), id: LESSON_A_ALT, steps }, key: { diff: "+++ b/app/fill.py\n", title: "Fill", diagnosis: "d" } });
+      }
       if (lessonRoute) return reply(res, lessonApi(req.method ?? "", lessonRoute[1], lessonRoute[2], body));
       res.writeHead(204);
       res.end();
@@ -102,6 +108,7 @@ function reply(res: import("node:http").ServerResponse, body: unknown) {
 const LESSON_ID = "l_0b3a5c1e-0000-4000-8000-000000000001";
 const LESSON_B = "l_0b3a5c1e-0000-4000-8000-00000000000b";
 const LESSON_B_KEYED = "l_0b3a5c1e-0000-4000-8000-0000000000bb";
+const LESSON_A_ALT = "l_0b3a5c1e-0000-4000-8000-0000000000aa";
 const lessonBase = (stage: string, answerKey = "pending") => ({
   id: LESSON_ID, repo_url: "https://github.com/acme/app", issue_number: 12, path: "A", mode: "short", stage, answer_key: answerKey, revealed: stage === "explain",
   required: ["s1", "s4", "s7", "s8", "explain-it", "s10"],
@@ -374,6 +381,10 @@ test("path B: the agent is told to store the hidden fix, and a reveal without it
     assert.match(keyed, /The fix changes 1 file: app\/fill\.py[\s\S]*\nFirst, their change \(git -C <their checkout> diff\): run their test without their fix and with it[\s\S]*what each does better/);
     const given = text(await request("tools/call", { name: "lesson_reveal", arguments: { lesson: LESSON_B_KEYED, give_up: true } }));
     assert.doesNotMatch(given, /First, their change/, "after giving up there's no change of theirs to check");
+    assert.doesNotMatch(keyed, /different fix that would also work/, "path B's comparison already covers it");
+    // Path A: an s8 plan graded as a working alternative is set beside the key.
+    const alt = text(await request("tools/call", { name: "lesson_reveal", arguments: { lesson: LESSON_A_ALT } }));
+    assert.match(alt, /Their s8 plan was a different fix that would also work: set it beside the key/);
   } finally {
     child.kill();
   }
@@ -451,7 +462,7 @@ test("without graphify, the lesson gets graphify's map from opensrcer; when that
       lines.once("line", resolve);
       child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "lesson_reveal", arguments: { lesson: LESSON_ID } } }) + "\n");
     });
-    assert.doesNotMatch(JSON.parse(revealed).result.content[0].text, /could not be updated|First, their change/, "path A: no change of the user's to check");
+    assert.doesNotMatch(JSON.parse(revealed).result.content[0].text, /could not be updated|First, their change|different fix that would also work/, "path A: no change of the user's to check, and no alternative graded");
     const afterReveal = JSON.parse(readFileSync(mapPath, "utf8"));
     assert.deepEqual([afterReveal.changed, afterReveal.communities[0].level], [["app/fill.py"], "changed"], "the reveal colours the fix");
 
@@ -767,6 +778,10 @@ test("the file map: a card per code file, the lesson's first; only the functions
   assert.deepEqual([...added.matchAll(/<section id="([^"]+)" class="card ([a-z]+)"/g)].map((m) => [m[1], m[2]]), [["f-pkg-a-py", "changed"], ["f-tests-test_new-py", "changed"], ["f-pkg-b-py", "explored"]]);
   assert.match(added, /tests\/<wbr><\/span>test_new\.py<span class="tag fixtag">fix<\/span><\/h2>\n<p class="rel">A new file the fix adds/);
   assert.doesNotMatch(added, /dev-null|gone\.py/);
+  // A changed file that isn't code the map covers (werkzeug's CHANGES.rst) isn't new.
+  const changelog = fileMapHtml(graph, levels, `${diff}--- a/CHANGES.rst\n+++ b/CHANGES.rst\n@@ -5,0 +6,1 @@\n+- Fixed.\n`, "o/n #1");
+  assert.match(changelog, /CHANGES\.rst<span class="tag fixtag">fix<\/span><\/h2>\n<p class="rel">The fix changes this file too: it isn't code the map covers\./);
+  assert.doesNotMatch(changelog, /A new file the fix adds/);
   // A test file comes after the code it tests, whatever its folder is called (pluggy's testing/).
   const tested = fileMapHtml({ nodes: [node("t", "test_fill()", "testing/test_fill.py", 1), node("f", "fill()", "pkg/fill.py", 1)], links: [] }, new Map([["t", "changed"], ["f", "changed"]]), "", "t");
   assert.deepEqual([...tested.matchAll(/<section id="([^"]+)"/g)].map((m) => m[1]), ["f-pkg-fill-py", "f-testing-test_fill-py"]);

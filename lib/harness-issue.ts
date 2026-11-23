@@ -4,6 +4,7 @@
 
 import { gh } from "./gh";
 import { splitRepo } from "./ai-policy";
+import { detectResolved } from "./issues";
 
 export const ISSUE_TEXT_MAX = 8_000;
 export const COMMENT_TEXT_MAX = 1_200;
@@ -114,28 +115,46 @@ async function otherOpenPulls(client: ReturnType<typeof gh>, owner: string, name
 }
 
 export const LISTED_ISSUES_MAX = 30;
-export type ListedIssue = { number: number; title: string; url: string; labels: string[]; comments: number; opened: string; taken: string | null };
+export type ListedIssue = {
+  number: number; title: string; url: string; labels: string[]; comments: number; opened: string; taken: string | null;
+  /** Why it may already be fixed (a label, its text or a newest comment), or null (lib/issues.ts detectResolved). */
+  resolved: string | null;
+};
 export type IssueList = { repo: string; issues: ListedIssue[] };
+
+type IssueNode = {
+  number: number; title: string; url: string; body: string | null; createdAt: string;
+  labels: { nodes: Array<{ name: string }> }; assignees: { nodes: Array<{ login: string }> };
+  comments: { totalCount: number; nodes: Array<{ body: string; author: { login: string } | null; authorAssociation: string; createdAt: string }> };
+};
 
 /** The repository's newest open issues for find_issues, each with who has taken it: an assignee, or an open
  *  PR that names it (#N or …/issues/N in its title or description, read from the open PRs themselves since
  *  the site's token sees no cross-references). Every recent issue of markedjs/marked and pypa/packaging had a PR.
+ *  Its newest comments are read too: open issues are often fixed on main already (cheerio #5368).
  *  ponytail: the newest 100 open PRs; an older one that names an issue is missed (read_issue searches by number). */
 export async function listOpenIssues(repoInput: string, token = process.env.OPENSRCER_INGEST_GITHUB_TOKEN, fetchImpl?: typeof fetch): Promise<IssueList> {
   let owner: string, name: string;
   try { [owner, name] = splitRepo(repoInput); } catch { throw new IssueThreadError(422, "repo must be owner/name."); }
   if (!token) throw new IssueThreadError(503, "opensrcer can't read GitHub issues itself here. Sign in with gh (gh auth login) and list them with gh issue list.");
   const client = gh(token, fetchImpl ? { fetch: fetchImpl } : {});
-  type RawIssue = { number: number; title?: string; html_url?: string; labels?: Array<string | { name?: string }>; comments?: number; created_at?: string; assignees?: Array<{ login?: string }> | null; pull_request?: unknown };
-  let raw: RawIssue[];
+  const missing = new IssueThreadError(404, `${owner}/${name} wasn't found, or its issues are turned off.`);
+  let repo: { hasIssuesEnabled: boolean; issues: { nodes: IssueNode[] } } | null;
   try {
-    // /issues lists PRs too: a full page, trimmed after they're dropped.
-    raw = (await client.request("GET /repos/{owner}/{repo}/issues", { owner, repo: name, state: "open", sort: "created", direction: "desc", per_page: 100 })).data as RawIssue[];
+    repo = (await client.graphql<{ repository: typeof repo }>(
+      `query OpenIssues($owner: String!, $name: String!, $n: Int!) { repository(owner: $owner, name: $name) { hasIssuesEnabled
+        issues(first: $n, states: OPEN, orderBy: { field: CREATED_AT, direction: DESC }) { nodes { number title url body createdAt
+          labels(first: 20) { nodes { name } } assignees(first: 5) { nodes { login } }
+          comments(last: 5) { totalCount nodes { body author { login } authorAssociation createdAt } } } } } }`,
+      { owner, name, n: LISTED_ISSUES_MAX },
+    )).repository;
   } catch (error) {
-    const status = (error as { status?: number }).status;
-    if (status === 404 || status === 410) throw new IssueThreadError(404, `${owner}/${name} wasn't found, or its issues are turned off.`);
+    // A missing repository is a GraphQL error of type NOT_FOUND, not a 404.
+    const { errors, status } = error as { errors?: Array<{ type?: string }>; status?: number };
+    if (status === 404 || (errors?.length && errors.every((e) => e.type === "NOT_FOUND"))) throw missing;
     throw error;
   }
+  if (!repo || !repo.hasIssuesEnabled) throw missing;
   const pulls = (await client.request("GET /repos/{owner}/{repo}/pulls", { owner, repo: name, state: "open", sort: "created", direction: "desc", per_page: 100 })).data as Array<{ number: number; title?: string; body?: string | null }>;
   const naming = new Map<number, number[]>();
   for (const pr of pulls) {
@@ -144,14 +163,14 @@ export async function listOpenIssues(repoInput: string, token = process.env.OPEN
       if (!naming.get(n)?.includes(pr.number)) naming.set(n, [...(naming.get(n) ?? []), pr.number]);
     }
   }
-  const issues = raw.filter((i) => !i.pull_request).slice(0, LISTED_ISSUES_MAX).map((i) => {
-    const assignees = (i.assignees ?? []).flatMap((a) => (a.login ? [`@${a.login}`] : []));
+  const issues = repo.issues.nodes.map((i) => {
+    const assignees = i.assignees.nodes.map((a) => `@${a.login}`);
     const prs = naming.get(i.number) ?? [];
     const taken = assignees.length ? `assigned to ${assignees.join(", ")}` : prs.length ? `open PR ${prs.map((n) => `#${n}`).join(", ")}` : null;
+    const labels = i.labels.nodes.map((l) => l.name);
     return {
-      number: i.number, title: i.title ?? "", url: i.html_url ?? `https://github.com/${owner}/${name}/issues/${i.number}`,
-      labels: (i.labels ?? []).flatMap((l) => (typeof l === "string" ? [l] : l.name ? [l.name] : [])),
-      comments: i.comments ?? 0, opened: String(i.created_at ?? "").slice(0, 10), taken,
+      number: i.number, title: i.title, url: i.url, labels, comments: i.comments.totalCount, opened: i.createdAt.slice(0, 10), taken,
+      resolved: detectResolved(i.title, i.body ?? "", labels, i.comments.nodes)?.reason ?? null,
     };
   });
   return { repo: `${owner}/${name}`, issues };

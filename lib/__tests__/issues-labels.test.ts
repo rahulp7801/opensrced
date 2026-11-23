@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fromEstablishedRepos, notReadyLabel } from "../issues";
+import { detectResolved, fromEstablishedRepos, notReadyLabel } from "../issues";
 
 // Real label names from pandas, VS Code, React, numpy, Next.js, pydantic and CPython (lowercased, as scoreIssue sees them).
 const notReady: Array<[string, RegExp]> = [
@@ -37,4 +37,14 @@ for (const [repo, kept] of [["pandas-dev/pandas", true], ["edge/case", true], ["
 test("fromEstablishedRepos: empty input, and a custom minimum", () => {
   assert.deepEqual(fromEstablishedRepos([], stars), []);
   assert.equal(fromEstablishedRepos([{ repo: "me/homework", stars: 0 }], stars, 0).length, 1);
+});
+
+test("detectResolved: an open issue a comment says is fixed on the default branch (cheerio #5368, marked #4229)", () => {
+  const said = (body: string) => detectResolved("t", "", [], [{ body, author: { login: "m" }, authorAssociation: "MEMBER", createdAt: "" }])?.reason ?? null;
+  for (const body of ["It looks fixed on master now.", "Seems to be fixed in main.", "This appears already fixed on the default branch."]) {
+    assert.match(said(body) ?? "", /^comment by @m \(maintainer\) says "/, body);
+  }
+  for (const body of ["It is not fixed on main yet.", "Should be fixed in main once #12 lands? No, still broken.", "Fixed in the docs only."]) {
+    assert.equal(said(body), null, body);
+  }
 });

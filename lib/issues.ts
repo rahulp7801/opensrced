@@ -31,6 +31,8 @@ const RESOLVED_PATTERNS: RegExp[] = [
   // "this was/is already fixed/resolved/merged/shipped"
   // …but not "once/until/when this is fixed", which is a wish, not a status.
   /(?<!\b(?:once|until|till|when|after|if|unless|before)\s+)\bthis\s+(?:is|was|has\s+been)\s+(?:already\s+)?(fixed|resolved|solved|addressed|merged|shipped|released)\b/i,
+  // "this is fixed on main", "looks fixed in master" (cheerio #5368, marked #4229: open, fixed on the default branch)
+  /\b(?:is|looks|seems|appears)\s+(?:to\s+be\s+)?(?:already\s+)?fixed\s+(?:on|in)\s+(?:`?(?:main|master|trunk)`?|the\s+(?:main|default)\s+branch)\b/i,
   // "duplicate of #123" / "dup of #456"
   /\b(?:duplicate|dup)\s+of\s+#?(\d+)/i,
   // "closing as fixed/resolved/duplicate/obsolete"
@@ -139,7 +141,8 @@ function scanForResolved(corpus: string): string | null {
   return null;
 }
 
-function detectResolved(
+/** Why an issue looks already resolved (a label, its text or a comment), or null. Exported for find_issues. */
+export function detectResolved(
   title: string,
   body: string,
   labels: string[],

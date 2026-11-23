@@ -49,15 +49,21 @@ test("someone who merges the repository's PRs is a maintainer, whatever GitHub's
   assert.ok(!seen.includes("/graphql"));
 });
 
-test("listOpenIssues: the newest open issues, PRs dropped, each taken by an assignee or an open PR naming it", async () => {
+test("listOpenIssues: the newest open issues, each taken by an assignee or an open PR naming it, or maybe fixed already", async () => {
+  const issue = (number: number, title: string, createdAt: string, o: { labels?: string[]; assignees?: string[]; comments?: Array<{ body: string; login: string; assoc: string }>; body?: string } = {}) => ({
+    number, title, url: `https://github.com/markedjs/marked/issues/${number}`, body: o.body ?? "", createdAt,
+    labels: { nodes: (o.labels ?? []).map((name) => ({ name })) }, assignees: { nodes: (o.assignees ?? []).map((login) => ({ login })) },
+    comments: { totalCount: (o.comments ?? []).length, nodes: (o.comments ?? []).map((c) => ({ body: c.body, author: { login: c.login }, authorAssociation: c.assoc, createdAt })) },
+  });
   const { fake, seen } = github({
-    "/repos/markedjs/marked/issues": [
-      { number: 4273, title: "Quadratic links", html_url: "https://github.com/markedjs/marked/issues/4273", labels: [{ name: "perf" }], comments: 0, created_at: "2026-11-22T01:00:00Z", assignees: [] },
-      { number: 4274, title: "a PR", pull_request: {}, assignees: [] },
-      { number: 4253, title: "Lazy line", labels: ["bug"], comments: 2, created_at: "2026-11-17T01:00:00Z", assignees: [] },
-      { number: 42, title: "Old", comments: 0, created_at: "2020-01-01", assignees: [{ login: "uzi" }] },
-      { number: 4, title: "Free", comments: 0, created_at: "2019-01-01", assignees: null },
-    ],
+    "/graphql": { data: { repository: { hasIssuesEnabled: true, issues: { nodes: [
+      issue(4273, "Quadratic links", "2026-11-22T01:00:00Z", { labels: ["perf"] }),
+      issue(4253, "Lazy line", "2026-11-17T01:00:00Z", { labels: ["bug"], comments: [{ body: "a", login: "x", assoc: "NONE" }, { body: "b", login: "y", assoc: "NONE" }] }),
+      issue(42, "Old", "2020-01-01T00:00:00Z", { assignees: ["uzi"] }),
+      issue(4, "Free", "2019-01-01T00:00:00Z"),
+      // cheerio #5368: open, but a comment says main has it.
+      issue(5368, "fromURL base", "2026-07-25T00:00:00Z", { comments: [{ body: "Root cause, for the record: this is fixed on `main`, but only by accident.", login: "v", assoc: "CONTRIBUTOR" }] }),
+    ] } } } },
     "/repos/markedjs/marked/pulls": [
       { number: 4274, title: "fix: avoid quadratic scan", body: "Fixes #4273" },
       { number: 4254, title: "fix: lazy lines", body: "See https://github.com/markedjs/marked/issues/4253 and #42" },
@@ -67,8 +73,9 @@ test("listOpenIssues: the newest open issues, PRs dropped, each taken by an assi
   });
   const list = await listOpenIssues("markedjs/marked", "t", fake);
   assert.equal(list.repo, "markedjs/marked");
-  assert.deepEqual(list.issues.map((i) => [i.number, i.taken]), [[4273, "open PR #4274"], [4253, "open PR #4254, #4260"], [42, "assigned to @uzi"], [4, null]]);
-  assert.deepEqual([list.issues[0]!.labels, list.issues[0]!.opened, list.issues[1]!.labels, list.issues[3]!.url], [["perf"], "2026-11-22", ["bug"], "https://github.com/markedjs/marked/issues/4"]);
+  assert.deepEqual(list.issues.map((i) => [i.number, i.taken]), [[4273, "open PR #4274"], [4253, "open PR #4254, #4260"], [42, "assigned to @uzi"], [4, null], [5368, null]]);
+  assert.deepEqual([list.issues[0]!.labels, list.issues[0]!.opened, list.issues[1]!.labels, list.issues[1]!.comments, list.issues[3]!.url], [["perf"], "2026-11-22", ["bug"], 2, "https://github.com/markedjs/marked/issues/4"]);
+  assert.deepEqual(list.issues.map((i) => i.resolved), [null, null, null, null, 'comment by @v says "this is fixed"']);
   assert.ok(seen.some((s) => s.startsWith("/repos/markedjs/marked/pulls?") && s.includes("per_page=100")));
 });
 
@@ -78,6 +85,11 @@ test("listOpenIssues: a bad repo is refused before GitHub; a missing one says so
   await assert.rejects(listOpenIssues("a/b", "", fake), (e: unknown) => e instanceof IssueThreadError && e.status === 503);
   assert.equal(seen.length, 0);
   await assert.rejects(listOpenIssues("a/b", "t", fake), (e: unknown) => e instanceof IssueThreadError && e.status === 404 && /wasn't found/.test(e.message));
+  // GitHub's GraphQL answers a missing repository with NOT_FOUND errors; issues turned off says so too.
+  const notFound = github({ "/graphql": { data: { repository: null }, errors: [{ type: "NOT_FOUND", message: "Could not resolve" }] } }).fake;
+  await assert.rejects(listOpenIssues("a/b", "t", notFound), (e: unknown) => e instanceof IssueThreadError && e.status === 404);
+  const off = github({ "/graphql": { data: { repository: { hasIssuesEnabled: false, issues: { nodes: [] } } } } }).fake;
+  await assert.rejects(listOpenIssues("a/b", "t", off), (e: unknown) => e instanceof IssueThreadError && e.status === 404);
 });
 
 test("with more comments than it shows, it reads the newest page and says how many are older", async () => {

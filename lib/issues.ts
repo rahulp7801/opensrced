@@ -55,12 +55,12 @@ const RESOLVED_LABELS = [
  *  React "Status: Unconfirmed", clap "S-triage" and "S-waiting-on-design", Express "require-triage" and "awaiting more info"); labels arrive lowercased. "triaged", "needs tests" and
  *  "needs backport" mean the opposite or are about PRs, so they don't match. */
 const NOT_READY_LABELS: Array<[RegExp, string]> = [
-  [/\b((needs?|requires?)[\s_-]*triage|triage[\s_-]*needed|untriaged|unconfirmed|pending|needs[\s_-]*investigation)\b|^(s-)?triage$|^investigate$/, "Maintainers haven't confirmed this yet (it's waiting for triage). Pick it once they do."],
+  [/\b((needs?|requires?)[\s_-]*triage|triage[\s_-]*needed|untriaged|unconfirmed|pending|needs[\s_-]*investigation)\b|^(s-|status[\s/:_-]*)?triage$|^investigate$/, "Maintainers haven't confirmed this yet (it's waiting for triage). Pick it once they do."],
   [/\b(needs?[\s_-]*(more[\s_-]*)?info(rmation)?|info[\s_-]*needed|repro(duction)?[\s_-]*steps[\s_-]*needed|needs?[\s_-]*repro(duction)?|add a complete reproduction|simplify reproduction|not[\s_-]*reproducible|awaiting[\s_-]*(author[\s_-]*response|(more[\s_-]*)?info(rmation)?))\b/, "Waiting on more information from whoever reported it."],
   [/\b(needs?[\s_-]*(discussion|decision|design)|under[\s_-]*discussion|discussion|waiting[\s_-]*on[\s_-]*(design|decision))\b|^discuss$/, "Still being discussed: the fix isn't agreed yet."],
   [/\bblocked\b/, "Blocked on other work."],
-  [/\b(wontfix|won't fix|duplicate|invalid)\b/, "Labeled as non-actionable."],
-  [/^(type:\s*)?question$/, "Labeled a question: there may be nothing to fix."],
+  [/\b(wontfix|won't fix|duplicate|invalid|not[\s_-]*a[\s_-]*bug|wrong[\s_-]*project|needs[\s_-]*(standard|pep))\b/, "Labeled as non-actionable."],
+  [/^((type|kind)[\s/:_-]*)?(question|support)$/, "Labeled a question: there may be nothing to fix."],
 ];
 
 /** Why an issue's labels say it isn't ready, or null. Exported for tests. */

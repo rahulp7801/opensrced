@@ -849,9 +849,23 @@ function statusOf(r: RepoNode): RepoStatus {
   };
 }
 
+/** RepoNotFoundError only when GitHub's REST API agrees the repository is gone; otherwise `fetchError()`.
+ *  GraphQL has answered "no repository" for a moment for nodejs/node, and "not found" tells a user the
+ *  repository doesn't exist where "try again" was true. */
+export async function confirmMissing(client: GitHubClient, repo: string, fetchError: () => Error): Promise<Error> {
+  const [owner, name] = repo.split("/");
+  try {
+    await client.request("GET /repos/{owner}/{repo}", { owner: owner!, repo: name! });
+  } catch (error) {
+    if ((error as { status?: number }).status === 404) return new RepoNotFoundError(repo);
+  }
+  return fetchError();
+}
+
 /** Read and summarize, no cache. Throws RepoNotFoundError or RepoProfileFetchError. */
 export async function fetchRepoProfile(client: GitHubClient, repo: string, now = new Date()): Promise<RepoProfile> {
   const [owner, name] = splitRepo(repo);
+  const missing = (cause?: unknown) => confirmMissing(client, repo, () => new RepoProfileFetchError(repo, cause));
   const perSlice = Math.ceil(PROFILE_SAMPLE / COHORT_SLICES);
   // Search doesn't follow a moved repository (facebook/react is react/react
   // now), so the first search runs under the name given, and if GitHub knows
@@ -866,10 +880,10 @@ export async function fetchRepoProfile(client: GitHubClient, repo: string, now =
         data = await client.graphql<Data>(QUERY, { owner: o, name: nm, q: cohortQueries(o, nm, now, window)[slice], n, cursor });
       } catch (error) {
         // GitHub answers a repository that doesn't exist with a NOT_FOUND error, not empty data.
-        if ((error as { errors?: Array<{ type?: string; path?: unknown[] }> }).errors?.some((e) => e.type === "NOT_FOUND" && e.path?.[0] === "repository")) throw new RepoNotFoundError(repo);
+        if ((error as { errors?: Array<{ type?: string; path?: unknown[] }> }).errors?.some((e) => e.type === "NOT_FOUND" && e.path?.[0] === "repository")) throw await missing(error);
         throw new RepoProfileFetchError(repo, error);
       }
-      if (!data?.repository) throw new RepoNotFoundError(repo);
+      if (!data?.repository) throw await missing();
       if (data.repository.nameWithOwner.toLowerCase() !== canonical.toLowerCase()) {
         if (canonical.toLowerCase() !== `${owner}/${name}`.toLowerCase()) throw new RepoProfileFetchError(repo); // moved twice: stop
         canonical = data.repository.nameWithOwner;

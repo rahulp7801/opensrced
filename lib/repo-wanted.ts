@@ -12,7 +12,7 @@ import type { GitHubClient } from "./gh";
 import { splitRepo } from "./ai-policy";
 import { isMaintainer } from "./recs/health";
 import { isBotAuthor } from "./maintainer-prefs";
-import { COHORT_MAX_AGE_DAYS, COHORT_MIN_AGE_DAYS, EXAMPLES, MIN_SAMPLE, RepoNotFoundError, windowText, type Tally } from "./repo-profile";
+import { COHORT_MAX_AGE_DAYS, COHORT_MIN_AGE_DAYS, confirmMissing, EXAMPLES, MIN_SAMPLE, windowText, type Tally } from "./repo-profile";
 
 /** Labels that invite contributions, matched case-insensitively against each
  *  label's whole name. Fixed on purpose: "hacktoberfest-accepted" marks a PR
@@ -275,7 +275,7 @@ export async function fetchWanted(client: GitHubClient, owner: string, name: str
   };
 
   const first = await ask<RepoData>(REPO_QUERY, { owner: o, name: n, cursor: null });
-  if (!first.repository) throw new RepoNotFoundError(repo);
+  if (!first.repository) throw await confirmMissing(client, repo, () => new RepoWantedFetchError(repo));
   // repository() follows a move; search doesn't, so everything after runs under GitHub's name.
   const canonical = first.repository.nameWithOwner;
   const [co, cn] = canonical.split("/");

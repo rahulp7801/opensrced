@@ -131,6 +131,8 @@ function fake(o: Fake = {}) {
   const calls: Array<[string, Record<string, unknown>]> = [];
   const pages = o.labels ?? [["bug", "help wanted"]];
   const client = {
+    // REST's GET /repos/{owner}/{repo}: a repository GraphQL can't find is gone (confirmMissing asks it).
+    async request() { throw Object.assign(new Error("Not Found"), { status: 404 }); },
     async graphql(query: string, variables: Record<string, unknown>) {
       if (o.error) throw o.error;
       const op = /query (\w+)/.exec(query)![1];

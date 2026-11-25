@@ -517,7 +517,7 @@ type Merge = Pick<ProfilePr, "url" | "mergedAt" | "authorAssociation" | "author"
 /** A fake client answering the i-th PR search with `pages[i]` (or pages(i, n)),
  *  the last-merge search with `merges`, and the AI policy query with `policy`
  *  as the contributing guide. `calls` holds the PR searches, `mergeCalls` the other. */
-function client(pages: Page[] | ((i: number, n: number) => Page) | null | Error, policy?: string | Error, opts: { repository?: Record<string, unknown>; merges?: Merge[]; readme?: string } = {}) {
+function client(pages: Page[] | ((i: number, n: number) => Page) | null | Error, policy?: string | Error, opts: { repository?: Record<string, unknown>; merges?: Merge[]; readme?: string; restStatus?: number } = {}) {
   const calls: Array<Record<string, unknown>> = [];
   const mergeCalls: Array<Record<string, unknown>> = [];
   return {
@@ -545,6 +545,11 @@ function client(pages: Page[] | ((i: number, n: number) => Page) | null | Error,
           repository: { nameWithOwner: "Acme/App", ...opts.repository },
           search: { issueCount, nodes: [...nodes, {} as ProfilePr], pageInfo: { hasNextPage, endCursor: hasNextPage ? `c${calls.length}` : null } },
         };
+      },
+      // REST's GET /repos/{owner}/{repo}: there unless opts.repository says gone (confirmMissing asks it).
+      async request() {
+        if (opts.restStatus === 200) return { data: {} };
+        throw Object.assign(new Error("Not Found"), { status: opts.restStatus ?? 404 });
       },
     } as unknown as GitHubClient,
   };
@@ -704,6 +709,10 @@ test("a missing repository and a GitHub failure are named errors", async () => {
   await assert.rejects(fetchRepoProfile(client(notFound).client, "acme/never"), RepoNotFoundError);
   const otherNotFound = Object.assign(new Error("Could not resolve a node"), { errors: [{ type: "NOT_FOUND", path: ["search", "nodes", 0] }] });
   await assert.rejects(fetchRepoProfile(client(otherNotFound).client, "acme/app"), RepoProfileFetchError);
+  // GraphQL said no repository for a moment, but REST has it (nodejs/node): a fetch error, never "not found".
+  await assert.rejects(fetchRepoProfile(client(null, undefined, { restStatus: 200 }).client, "nodejs/node"), RepoProfileFetchError);
+  await assert.rejects(fetchRepoProfile(client(notFound, undefined, { restStatus: 200 }).client, "nodejs/node"), RepoProfileFetchError);
+  await assert.rejects(fetchRepoProfile(client(null, undefined, { restStatus: 502 }).client, "nodejs/node"), RepoProfileFetchError, "REST unsure too");
 });
 
 test("a failed last-merge search is a named error, not a silent gap", async () => {

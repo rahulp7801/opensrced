@@ -128,7 +128,7 @@ export type IssueList = { repo: string; issues: ListedIssue[] };
 
 /** Someone saying they're on it. Where only collaborators can open PRs (uvicorn, starlette), a claim or a
  *  ready branch in the issue is all there is. ponytail: first-person phrases only; a claim gone stale still counts. */
-const CLAIM = /\b(?:(?:i'?ll|i\s+will|i'?d\s+like\s+to|let\s+me)\s+(?:take|work\s+on|pick\s+up|tackle|grab)\s+(?:this|it)\b|(?:i'?m|i\s+am|we'?re|we\s+are|our\s+team\s+is)\s+(?:already\s+)?working\s+on\s+(?:this|it|a\s+fix)\b|(?:ready|my)\s+fix\s+branch\b|(?:i'?ll|i\s+will)\s+open\s+a\s+(?:pr|pull\s+request)\b|opening\s+a\s+(?:pr|pull\s+request)\b)/i;
+const CLAIM = /\b(?:(?:i'?ll|i\s+will|i'?d\s+like\s+to|let\s+me)\s+(?:take|work\s+on|pick\s+up|tackle|grab)\s+(?:this|it)\b|(?:i'?m|i\s+am|we'?re|we\s+are|our\s+team\s+is)\s+(?:already\s+)?working\s+on\s+(?:this|it|a\s+fix)\b|(?:ready|my)\s+fix\s+branch\b|(?:i'?ll|i\s+will)\s+open\s+a\s+(?:pr|pull\s+request)\b|opening\s+a\s+(?:pr|pull\s+request)\b|(?:i\s+have|i'?ve\s+got)\s+(?:a\s+)?(?:fix|patch|branch)\b(?!\s+(?:idea|suggestion|proposal|in\s+mind))|(?:i\s+have|i'?ve\s+got)\s+a\s+draft\b(?:\s+\w+){0,2}\s+ready\b)/i;
 
 function claimIn(i: IssueNode): string | null {
   const m = CLAIM.exec(i.body ?? "");
@@ -186,12 +186,17 @@ export async function listOpenIssues(repoInput: string, token = process.env.OPEN
   for (const pr of pulls) {
     for (const m of `${pr.title ?? ""}\n${pr.body ?? ""}`.matchAll(/(?:#|\/issues\/)(\d+)(?!\w)/g)) add(Number(m[1]), pr.number);
   }
-  // The issue or a newest comment linking one of this repository's open PRs (a closed one isn't taking it).
+  // The issue or a newest comment naming one of this repository's open PRs, by link or as "#N" (fastify #7038:
+  // "#6957 (approved, not yet merged) fixes this"). A closed PR, or an issue number, isn't taking it.
+  // ponytail: an open PR named in passing ("unlike #6957") counts too; read_issue shows the comment.
   const open = new Set(pulls.map((p) => p.number));
-  const prLink = new RegExp(`github\\.com/${`${owner}/${name}`.replace(/\./g, "\\.")}/pull/(\\d+)(?!\\d)`, "gi");
+  const prLink = new RegExp(`github\\.com/${`${owner}/${name}`.replace(/\./g, "\\.")}/pull/(\\d+)(?!\\d)|(?<![\\w/&])#(\\d+)(?!\\w)`, "gi");
   for (const i of repo.issues.nodes) {
     for (const text of [i.body ?? "", ...i.comments.nodes.map((c) => c.body)]) {
-      for (const m of text.matchAll(prLink)) if (open.has(Number(m[1]))) add(i.number, Number(m[1]));
+      for (const m of text.matchAll(prLink)) {
+        const n = Number(m[1] ?? m[2]);
+        if (open.has(n) && n !== i.number) add(i.number, n);
+      }
     }
   }
   const issues = repo.issues.nodes.map((i) => {

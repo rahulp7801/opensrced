@@ -94,6 +94,12 @@ test("listOpenIssues: reads open PRs past the newest 100, and a comment linking 
     issue(3738, "", "PR: https://github.com/sharkdp/bat/pull/3745"), // #3745 is closed: not taking it
     issue(3700, "", "Submitted PR https://GitHub.com/sharkdp/bat/pull/3746 with a test."),
     issue(3600, "", "See https://github.com/other/bat/pull/3746 and https://github.com/sharkdp/bat/pull/37461"),
+    // fastify #7038: an open PR named as #N; an issue number, another repo's #N and an HTML entity aren't.
+    issue(7038, "", "#3746 (approved, not yet merged) fixes this."),
+    issue(7039, "Duplicate of #3738? See other/bat#3746 and &#3746;", "nothing"),
+    // ky #888: the issue's author has a fix ready; an idea for one isn't a claim.
+    issue(888, "I'm willing to submit a small PR for this if aligned. I have a draft ready to go", "ok"),
+    issue(889, "I have a fix idea but no time.", "ok"),
   ] } } } };
   // 100 unrelated PRs on page 1; page 2 has one naming #3738, and is short, so page 3 isn't read.
   const pages: Record<string, unknown> = {
@@ -108,7 +114,8 @@ test("listOpenIssues: reads open PRs past the newest 100, and a comment linking 
     return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
   }) as typeof fetch;
   const list = await listOpenIssues("sharkdp/bat", "t", fake);
-  assert.deepEqual(list.issues.map((i) => [i.number, i.taken]), [[3738, "open PR #3746"], [3700, "open PR #3746"], [3600, null]]);
+  assert.deepEqual(list.issues.map((i) => [i.number, i.taken]), [[3738, "open PR #3746"], [3700, "open PR #3746"], [3600, null],
+    [7038, "open PR #3746"], [7039, null], [888, 'the issue says "I have a draft ready"'], [889, null]]);
   assert.deepEqual(seen.filter((s) => s.includes("/pulls?")).map((s) => new URL(`https://x${s}`).searchParams.get("page")), ["1", "2"]);
 });
 

@@ -623,7 +623,8 @@ export function profileFindings(p: RepoProfile): Finding[] {
   for (const x of paused) {
     out.push({ section: "start", text: `The maintainers have pinned "${x.title}": pull requests may not be taken right now. Read it before starting.`, examples: [x.url] });
   }
-  if (p.window.prs === 0) {
+  // Said already for a repository that takes no PRs (the Linux and Postgres mirrors).
+  if (p.window.prs === 0 && s?.pullRequestsEnabled !== false) {
     out.push({ section: "start", text: `No pull requests opened ${when} were found, so nothing here is measured from this project's PRs.`, examples: [] });
   }
   const ai = p.aiPolicy;

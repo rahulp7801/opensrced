@@ -574,10 +574,8 @@ test("a repository that takes no PRs on GitHub says so (movingpandas), and isn't
   assert.deepEqual(p.status, { pullRequestsEnabled: false, collaboratorsOnly: false, archived: false, mirror: false, elsewhere: null });
   assert.equal(fake.calls.length, COHORT_SLICES);
   assert.equal(fake.mergeCalls.length, 0);
-  assert.deepEqual(profileFindings(p).slice(0, 2).map((f) => f.text), [
-    "This repository doesn't accept pull requests on GitHub.",
-    "No pull requests opened 1–4 months ago were found, so nothing here is measured from this project's PRs.",
-  ]);
+  assert.equal(profileFindings(p)[0]!.text, "This repository doesn't accept pull requests on GitHub.");
+  assert.ok(!profileFindings(p).some((f) => f.text.startsWith("No pull requests opened")), "no PRs to measure goes without saying");
 });
 
 const STATUS: Array<[string, Record<string, unknown>, string | null]> = [

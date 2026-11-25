@@ -111,6 +111,8 @@ const WELCOME_PATTERNS = [
   // Home Assistant: "We support using AI (i.e., LLMs) as tools when contributing".
   new RegExp(String.raw`\bwe\s+(?:welcome|accept|allow|encourage|support)\s+(?:the\s+use\s+of\s+|using\s+)?${AI}`, "i"),
   new RegExp(String.raw`\b${AI}[- ]?(?:assisted|generated)?\s+(?:contributions?|pull requests?|PRs?|code)\s+(?:are|is)\s+(?:welcome|allowed|accepted|fine|ok(?:ay)?)\b`, "i"),
+  // ripgrep and uv: "Using AI (i.e., LLMs) as tools for coding is welcome."
+  new RegExp(String.raw`\b(?:using|use\s+of)\s+${AI}\b[^\n]{0,60}?\b(?:is|are)\s+(?:welcome|allowed|fine|ok(?:ay)?|encouraged)\b`, "i"),
   // yargs: "AI assistance is ok, but there must be a human involved and contributing."
   new RegExp(String.raw`\b${AI}[- ]?(?:assistance|use|usage|tools?)\s+(?:are|is)\s+(?:welcome|allowed|accepted|fine|ok(?:ay)?)\b`, "i"),
   new RegExp(String.raw`\b(?:you|contributors?)\s+(?:may|can|are\s+(?:welcome|free)\s+to)\s+use\s+${AI}`, "i"),
@@ -125,7 +127,7 @@ const WELCOME_PATTERNS = [
 const CO_AUTHOR = /\bco-?author(?:ed|s)?\b|\btrailers?\b/i;
 /** A rule against AI working with no human involved, which leaves a human's AI-assisted work welcome
  *  (fastify: "Pure-AI contributions with no human in the loop are not welcome"). */
-const UNSUPERVISED = /\b(?:pure|purely|fully|entirely|wholly)[- ]?(?:AI|LLM)\b|\bno\s+human\b|\bwithout\s+(?:\w+\s+){0,2}human\b|\bhuman\s+(?:in\s+the\s+loop|oversight)\b|\bautonomous(?:ly)?\b|\bun(?:reviewed|supervised)\b/i;
+const UNSUPERVISED = /\b(?:pure|purely|fully|entirely|wholly)[- ]?(?:AI|LLM)\b|\bno\s+human\b|\bwithout\s+(?:\w+\s+){0,2}human\b|\bhuman\s+(?:in\s+the\s+loop|oversight)\b|\bautonomous(?:ly)?\b|\bun(?:reviewed|supervised)\b|\blow[- ]quality\b|\bslop\b/i;
 
 /** Ban outranks a disclosure requirement, which outranks a welcome (several files may say different things). */
 const STANCE_RANK: Record<AiStance, number> = { unknown: 0, welcome: 1, disclose: 2, ban: 3 };
@@ -155,7 +157,8 @@ export function classifyAiPolicy(text: string): { stance: AiStance; excerpt: str
     // nor is one against AI with no human involved (fastify), which is kept as the welcome's condition.
     const m = [...text.matchAll(new RegExp(re.source, `${re.flags}g`))].find((x) => {
       // A link to the policy isn't the policy (neovim: "read [AI-assisted work](#ai-assisted-work), otherwise your PR will be closed").
-      if (x[0].includes("](")) return false;
+      // Nor is naming it (ripgrep: "Contributions not following the AI Policy will be closed").
+      if (x[0].includes("](") || new RegExp(String.raw`${AI}[- ]polic(?:y|ies)\b`, "i").test(x[0])) return false;
       const sentence = sentenceAround(text, x.index);
       if (UNSUPERVISED.test(sentence)) unsupervised ??= sentence;
       return !CO_AUTHOR.test(sentence) && !UNSUPERVISED.test(sentence);

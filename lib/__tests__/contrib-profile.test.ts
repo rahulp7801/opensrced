@@ -77,6 +77,11 @@ test("classifyAiPolicy: hard-wrapped policies are read a sentence at a time (Nod
   assert.equal(classifyAiPolicy("Please note in the PR whether you used AI.").stance, "disclose");
   // neovim points at its policy section; the pointer isn't a ban.
   assert.notEqual(classifyAiPolicy("Before sending a PR, read [AI-assisted work](#ai-assisted-work), otherwise your PR will be closed and you may be blocked from the org.").stance, "ban");
+  // ripgrep names its AI Policy in CONTRIBUTING.md; the policy itself welcomes AI.
+  assert.equal(classifyAiPolicy("All use of AI in contributions must follow the\n[AI Policy](https://example.com/AI_POLICY.md).\n\nContributions not following the AI Policy will be closed.").stance, "unknown");
+  assert.equal(classifyAiPolicy("Using AI (i.e., LLMs) as tools for coding is welcome. A high bar is held.").stance, "welcome");
+  // prettier: closing low-quality AI content is a condition, not a ban.
+  assert.equal(classifyAiPolicy("- Only submit code you fully understand and have tested.\n- Low-quality AI content will be closed immediately.").stance, "welcome");
   // A list item ends a sentence; a ban in one item isn't softened by the next.
   assert.equal(classifyAiPolicy("- AI-generated code is not accepted\n- Changes without human review are rejected").stance, "ban");
 });

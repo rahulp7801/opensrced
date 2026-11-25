@@ -33,9 +33,10 @@ export const PROFILE_TTL_MS = 24 * 60 * 60_000;
  *  5: hard-wrapped policies read a sentence at a time, Node and Home Assistant no longer read as bans;
  *  6: links to or names of an AI policy aren't bans, low-quality rules are conditions: neovim, ripgrep, prettier;
  *  7: sqlalchemy isn't a ban, LangChain's disclaimer is a disclosure rule;
- *  8: Django's "AI Assistance Disclosure (REQUIRED)" and "pull requests without Trac tickets will be closed"),
+ *  8: Django's "AI Assistance Disclosure (REQUIRED)" and "pull requests without Trac tickets will be closed";
+ *  9: PRs a bot closes as merged in Gerrit count as merged, Go read 0% merged),
  *  so a stored profile isn't served with the old verdict for up to a day. */
-export const PROFILE_RULES = 8;
+export const PROFILE_RULES = 9;
 /** Fewest PRs (or measurements) a comparison or statistic needs before it is stated. */
 export const MIN_SAMPLE = 5;
 /** A review request is stated once it recurs on this many PRs: one reviewer's
@@ -155,6 +156,8 @@ export type RepoProfile = {
   aiPolicy?: (RepoAiPolicy & Partial<Pick<RepoAiReading, "agentFiles" | "agentDirectives" | "procedures">>) | null;
   /** What maintainers said about AI in review, which is not the written policy. */
   reviewAiStatements?: Array<{ stance: RepoAiPolicy["stance"]; excerpt: string; url: string }>;
+  /** Where PRs are reviewed when a bot closes them as merged in another system (Go: go-review.googlesource.com). */
+  reviewedAt?: string | null;
   /** lib/repo-wanted.ts and lib/repo-community.ts; null when they could not be read. */
   wanted?: RepoWanted | null;
   community?: RepoCommunity | null;
@@ -383,9 +386,25 @@ export function closeReason(pr: ProfilePr, team: Set<string>): CloseReason {
 /** The window the PRs were read from, in days ago, and how many PRs GitHub counted in it. */
 export type ProfileWindow = { minDays: number; maxDays: number; opened?: number };
 
+/** A PR closed here because its change was merged in another review system counts as merged (Go reviews in
+ *  Gerrit; gopherbot: "This PR is being closed because golang.org/cl/867362 has been merged"). */
+const MERGED_ELSEWHERE = /\bthis (?:pr|pull request) is being closed because\b[^\n]{0,200}\bhas been merged\b/i;
+const closingNote = (pr: ProfilePr) => (pr.comments?.nodes ?? []).find((c) => MERGED_ELSEWHERE.test(c.body ?? ""))?.body ?? null;
+const mergedElsewhere = (pr: ProfilePr): ProfilePr =>
+  pr.state === "CLOSED" && closingNote(pr) ? { ...pr, state: "MERGED", mergedAt: pr.closedAt } : pr;
+/** Where those PRs were reviewed: the host the closing note links to (go-review.googlesource.com), or null. */
+function reviewedElsewhere(prs: ProfilePr[]): string | null {
+  for (const pr of prs) {
+    const host = /https?:\/\/([\w.-]+)\//.exec(closingNote(pr) ?? "")?.[1];
+    if (host) return host;
+  }
+  return null;
+}
+
 /** The profile from the PRs (pure): every PR opened in the window, newest
  *  first, open ones included so slow outcomes count too. */
-export function summarizeProfile(repo: string, prs: ProfilePr[], now = new Date(), window: ProfileWindow = COHORT_WINDOWS[0]): RepoProfile {
+export function summarizeProfile(repo: string, read: ProfilePr[], now = new Date(), window: ProfileWindow = COHORT_WINDOWS[0]): RepoProfile {
+  const prs = read.map(mergedElsewhere);
   const team = maintainersOf(prs);
   const human = prs.filter((pr) => !isBotAuthor(pr.author));
   const outside = human.filter((pr) => !pr.author?.login || !team.has(pr.author.login));
@@ -453,6 +472,7 @@ export function summarizeProfile(repo: string, prs: ProfilePr[], now = new Date(
     version: 2,
     rules: PROFILE_RULES,
     reviewAiStatements,
+    reviewedAt: reviewedElsewhere(read),
     repo,
     computedAt: now.toISOString(),
     window: { from: created[0] ?? null, to: created.at(-1) ?? null, prs: prs.length, minDays: window.minDays, maxDays: window.maxDays, opened: Math.max(window.opened ?? 0, prs.length) },
@@ -613,6 +633,9 @@ export function profileFindings(p: RepoProfile): Finding[] {
     out.push({ section: "start", text: `This repository ${what}${s.elsewhere ? `; it points to ${s.elsewhere} instead` : ""}.`, examples: [] });
   } else if (s?.collaboratorsOnly) {
     out.push({ section: "start", text: "Only the project's collaborators can open pull requests here (a GitHub setting), so you can't open one yourself: offer your fix on the issue as a branch a maintainer can pull, and ask how they'd like it.", examples: [] });
+  }
+  if (p.reviewedAt) {
+    out.push({ section: "start", text: `Pull requests here are reviewed in ${p.reviewedAt}: a bot closes the PR once its change is merged there. Read how the project uses it before opening one.`, examples: [] });
   }
   // A pinned notice that the project is winding down comes first (chrono: "Soft-deprecating chrono and chrono-tz").
   const windingDown = (p.wanted?.pinned ?? []).filter((x) => WINDING_DOWN.test(x.title));

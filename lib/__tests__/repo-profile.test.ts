@@ -295,6 +295,18 @@ test("a Rust project's tests can sit in the file they test: a low share of PRs t
   assert.ok(profileFindings(py).some((f) => f.text === "100% of merged outside PRs touched tests, against 0% of closed ones."));
 });
 
+test("a PR a bot closes because its change merged in Gerrit counts as merged, and the profile says where review happens (Go)", () => {
+  const bot = { login: "gopherbot", __typename: "Bot" };
+  const gerrit = (n: number) => closedPr({ comments: { nodes: [say(`This PR is being closed because [golang.org/cl/86${n}](https://go-review.googlesource.com/c/go/+/86${n}) has been merged.`, bot)] } });
+  const abandoned = closedPr({ comments: { nodes: [say("This PR is being closed because [golang.org/cl/1](https://go-review.googlesource.com/c/go/+/1) has been abandoned.", bot)] } });
+  const p = summarizeProfile("golang/go", [...Array.from({ length: 5 }, (_, i) => gerrit(i)), abandoned, ...Array.from({ length: 4 }, () => closedPr())]);
+  assert.deepEqual([p.outside.merged.count, p.outside.closed], [5, 5]);
+  assert.equal(p.reviewedAt, "go-review.googlesource.com");
+  assert.ok(profileFindings(p).some((f) => f.section === "start" && f.text.startsWith("Pull requests here are reviewed in go-review.googlesource.com")));
+  // Anywhere else, no such line.
+  assert.equal(summarizeProfile("acme/app", [pr(), closedPr()]).reviewedAt, null);
+});
+
 test("response time: two values (nbQA: 7 minutes and 84 days) are not a median; enough values give the spread", () => {
   const answeredAfter = (hours: number) => pr({ comments: { nodes: [say("Thanks!", MAINT, "MEMBER", hoursAfter(hours))] } });
   const nbqa = summarizeProfile("nbQA-dev/nbQA", [answeredAfter(7 / 60), answeredAfter(84 * 24)]);

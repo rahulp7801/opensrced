@@ -121,6 +121,8 @@ export type RepoProfile = {
     medianLinesClosed: number | null;
     testsMerged: Tally;
     testsClosed: Tally;
+    /** Most PRs change Rust files, whose tests can sit in the file they test: the tallies are a lower bound. */
+    testsInline?: boolean;
     linkedMerged: Tally;
     linkedClosed: Tally;
     medianDaysToMerge: number | null;
@@ -442,7 +444,6 @@ export function summarizeProfile(repo: string, prs: ProfilePr[], now = new Date(
     return found && found.stance !== "unknown" ? [{ stance: found.stance, excerpt: found.excerpt.slice(0, 200), url: pr.url }] : [];
   })).slice(0, EXAMPLES);
 
-  const inlineTests = testsInline([...merged, ...closed].map(paths));
   return {
     version: 2,
     rules: PROFILE_RULES,
@@ -457,9 +458,9 @@ export function summarizeProfile(repo: string, prs: ProfilePr[], now = new Date(
       open: tally(outside, (pr) => pr.state === "OPEN"),
       medianLinesMerged: round(median(merged.map(lines))),
       medianLinesClosed: round(median(closed.map(lines))),
-      // Rust's tests sit in the file they test: tallied over no PRs (of 0), so nothing is said or checked.
-      testsMerged: tally(inlineTests ? [] : merged, touchesTests),
-      testsClosed: tally(inlineTests ? [] : closed, touchesTests),
+      testsMerged: tally(merged, touchesTests),
+      testsClosed: tally(closed, touchesTests),
+      testsInline: testsInline([...merged, ...closed].map(paths)),
       linkedMerged: tally(merged, linked),
       linkedClosed: tally(closed, linked),
       medianDaysToMerge: round(median(days), 1),
@@ -594,6 +595,8 @@ export function windowText(minDays: number, maxDays: number): string {
 /** A pinned issue's title saying the project is winding down. ponytail: titles only; a notice
  *  in the README alone isn't read. */
 const WINDING_DOWN = /\b(?:(?:soft[- ])?deprecat\w*|unmaintained|no longer (?:maintained|developed|supported)|end[- ]of[- ]life|winding down|maintenance mode|archiv\w*)\b/i;
+/** A pinned issue's title saying pull requests are closed or paused (fzf: "Temporarily closing the repository to new pull requests"). */
+const PRS_PAUSED = /\b(?:clos\w*|paus\w*|freez\w*|not\s+accepting|no\s+longer\s+accept\w*|stop\w*\s+accepting)\b.{0,40}\b(?:pull\s+requests?|PRs?|contributions?)\b/i;
 
 export function profileFindings(p: RepoProfile): Finding[] {
   const out: Finding[] = [];
@@ -610,6 +613,10 @@ export function profileFindings(p: RepoProfile): Finding[] {
   const windingDown = (p.wanted?.pinned ?? []).filter((x) => WINDING_DOWN.test(x.title));
   for (const x of windingDown) {
     out.push({ section: "start", text: `The maintainers have pinned "${x.title}": the project may be winding down. Read it, and check that fixes are still taken, before starting.`, examples: [x.url] });
+  }
+  const paused = (p.wanted?.pinned ?? []).filter((x) => !windingDown.includes(x) && PRS_PAUSED.test(x.title));
+  for (const x of paused) {
+    out.push({ section: "start", text: `The maintainers have pinned "${x.title}": pull requests may not be taken right now. Read it before starting.`, examples: [x.url] });
   }
   if (p.window.prs === 0) {
     out.push({ section: "start", text: `No pull requests opened ${when} were found, so nothing here is measured from this project's PRs.`, examples: [] });
@@ -637,7 +644,7 @@ export function profileFindings(p: RepoProfile): Finding[] {
   if (said && ai?.stance !== "banned") {
     out.push({ section: "start", text: `A maintainer said in review, which is not the written policy: "${said.excerpt}"`, examples: [said.url] });
   }
-  if (p.wanted) out.push(...wantedFindings({ ...p.wanted, pinned: p.wanted.pinned.filter((x) => !windingDown.includes(x)) }).map((f) => ({ section: "wanted" as const, ...f })));
+  if (p.wanted) out.push(...wantedFindings({ ...p.wanted, pinned: p.wanted.pinned.filter((x) => !windingDown.includes(x) && !paused.includes(x)) }).map((f) => ({ section: "wanted" as const, ...f })));
   const o = p.outside;
   if (p.window.prs > 0 && o.merged.of === 0) {
     out.push({ section: "outcomes", text: `${p.window.prs} of ${p.window.prs} PRs opened ${when} came from maintainers or bots; none from outside contributors.`, examples: [] });
@@ -668,8 +675,11 @@ export function profileFindings(p: RepoProfile): Finding[] {
   if (both && o.medianLinesMerged !== null && o.medianLinesClosed !== null) {
     out.push({ section: "outcomes", text: `Merged outside PRs changed a median of ${o.medianLinesMerged} lines; closed ones, ${o.medianLinesClosed}.`, examples: [] });
   }
-  if (both && o.testsMerged.of > 0) {
+  // Rust: a low share may be tests inside the changed files (ratatui's 0%), so only a high one is said.
+  if (both && !o.testsInline) {
     out.push({ section: "outcomes", text: `${pct(o.testsMerged)} of merged outside PRs touched tests, against ${pct(o.testsClosed)} of closed ones.`, examples: o.testsMerged.examples });
+  } else if (both && o.testsMerged.count * 2 >= o.testsMerged.of) {
+    out.push({ section: "outcomes", text: `${pct(o.testsMerged)} of merged outside PRs changed a test file, against ${pct(o.testsClosed)} of closed ones (Rust tests inside a changed source file aren't counted).`, examples: o.testsMerged.examples });
   }
   if (both) {
     out.push({ section: "outcomes", text: `${pct(o.linkedMerged)} of merged outside PRs were linked to an issue, against ${pct(o.linkedClosed)} of closed ones.`, examples: o.linkedMerged.examples });

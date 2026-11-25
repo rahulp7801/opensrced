@@ -274,19 +274,25 @@ test("findings need enough PRs, and a review request must recur before it is a n
   assert.ok(!findings.some((f) => f.text.includes("of reviewed PRs")), "asked on 2 PRs: not a norm yet (quoted, never counted)");
 });
 
-test("a Rust project's tests sit in the file they test, so the share of PRs touching tests isn't stated (ratatui: \"0% of merged\")", () => {
+test("a Rust project's tests can sit in the file they test: a low share of PRs touching tests isn't stated (ratatui: \"0% of merged\"), a high one is (uutils)", () => {
   const prs = [
     ...Array.from({ length: 5 }, () => pr({ paths: ["ratatui-core/src/buffer/buffer.rs"], issue: true })),
     ...Array.from({ length: 5 }, () => closedPr({ paths: ["src/lib.rs", "tests/widgets.rs"] })),
   ];
   const p = summarizeProfile("ratatui/ratatui", prs);
-  assert.deepEqual([p.outside.testsMerged.of, p.outside.testsClosed.of], [0, 0]);
+  assert.deepEqual([p.outside.testsMerged.count, p.outside.testsClosed.count, p.outside.testsInline], [0, 5, true]);
   const texts = profileFindings(p).map((f) => f.text);
   assert.ok(!texts.some((t) => t.includes("touched tests")));
   assert.ok(texts.includes("100% of merged outside PRs were linked to an issue, against 0% of closed ones."), "the link comparison stays");
-  // A Python project with one Rust extension PR still counts.
+  const uutils = summarizeProfile("uutils/coreutils", [
+    ...Array.from({ length: 5 }, () => pr({ paths: ["src/uu/date/src/date.rs", "tests/by-util/test_date.rs"] })),
+    ...Array.from({ length: 5 }, () => closedPr({ paths: ["src/uu/ls/src/ls.rs"] })),
+  ]);
+  assert.ok(profileFindings(uutils).some((f) => f.text === "100% of merged outside PRs changed a test file, against 0% of closed ones (Rust tests inside a changed source file aren't counted)."));
+  // A Python project with one Rust extension PR is not a Rust project.
   const py = summarizeProfile("acme/app", [...Array.from({ length: 5 }, () => pr({ tests: true })), closedPr({ paths: ["ext/a.rs"] }), ...Array.from({ length: 4 }, () => closedPr())]);
-  assert.deepEqual([py.outside.testsMerged.count, py.outside.testsMerged.of], [5, 5]);
+  assert.equal(py.outside.testsInline, false);
+  assert.ok(profileFindings(py).some((f) => f.text === "100% of merged outside PRs touched tests, against 0% of closed ones."));
 });
 
 test("response time: two values (nbQA: 7 minutes and 84 days) are not a median; enough values give the spread", () => {
@@ -433,6 +439,15 @@ test("the profile surfaces agent files, text addressed to agents, AI remarks in 
   assert.deepEqual(winding.filter((f) => f.text.includes("Soft-deprecating")).map((f) => [f.section, f.text, f.examples]),
     [["start", 'The maintainers have pinned "Soft-deprecating chrono and chrono-tz": the project may be winding down. Read it, and check that fixes are still taken, before starting.', [pins[0]!.url]]]);
   assert.ok(winding.some((f) => f.section === "wanted" && f.text === 'Pinned by the maintainers: "Roadmap for 1.0".'), "other pins stay where they were");
+  // fzf pins that it isn't taking PRs for now: a start finding too, not "winding down".
+  const fzf = { title: "Temporarily closing the repository to new pull requests", url: "https://github.com/junegunn/fzf/issues/4400" };
+  const closed = profileFindings({ ...p, wanted: { ...(p.wanted as object), pinned: [fzf, pins[1]!] } as never });
+  assert.deepEqual(closed.filter((f) => f.text.includes(fzf.title)).map((f) => [f.section, f.text]),
+    [["start", `The maintainers have pinned "${fzf.title}": pull requests may not be taken right now. Read it before starting.`]]);
+  for (const title of ["Closing issues that are not bugs", "Labels, Milestones, Triaging ⚡", "PRs welcome!"]) {
+    const other = profileFindings({ ...p, wanted: { ...(p.wanted as object), pinned: [{ title, url: "u" }] } as never });
+    assert.ok(!other.some((f) => f.section === "start" && f.text.includes(title)), title);
+  }
 
   // A review that quotes the written policy isn't shown as something else (marshmallow pastes its AI_POLICY.md).
   const quoted = p.reviewAiStatements?.[0]?.excerpt ?? "";

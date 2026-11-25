@@ -100,9 +100,10 @@ export function checkDraft(p: RepoProfile, draft: PrDraft): Check[] {
   // A docs or translation change has no tests to add (pyjanitor's docs PRs merge without them).
   const kind = prType({ files: { nodes: draft.files.map((path) => ({ path })) }, title: draft.title });
   if (testsShare !== null && testsShare >= HABIT && kind !== "docs" && kind !== "translation") {
-    add("tests", touchesTests ? "ok" : "warn", touchesTests
+    const rust = draft.files.some((f) => INLINE_TEST_FILE.test(f));
+    add("tests", touchesTests ? "ok" : rust ? "note" : "warn", touchesTests
       ? "The draft changes tests, like most merged PRs here."
-      : `${pct(testsShare)} of merged outside PRs here change tests; this draft changes none.`, o.testsMerged.examples);
+      : `${pct(testsShare)} of merged outside PRs here change tests; this draft changes ${rust ? "no test file (if its test sits in a changed .rs file, that's fine)" : "none"}.`, o.testsMerged.examples);
   }
   const c = p.conventions;
   const changelogShare = share(c.changelogTally);

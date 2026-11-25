@@ -109,6 +109,11 @@ test("with no history to go on, a code draft without a test or an issue link sti
   // Where the project's own habit already judged tests or the link, no second, softer note.
   const judged = checkDraft(profile(), { ...GOOD, files: ["janitor/functions/fill.py"], linkedIssue: false });
   assert.equal(judged.find((c) => c.id === "no-tests" || c.id === "no-issue-link"), undefined);
+  assert.equal(judged.find((c) => c.id === "tests")?.status, "warn");
+  // Where tests are the habit, a Rust draft may carry its test inside the changed file: a note, not a warning.
+  const rustJudged = checkDraft(profile(), { ...GOOD, files: ["src/uu/date/src/date.rs"], linkedIssue: true }).find((c) => c.id === "tests");
+  assert.equal(rustJudged?.status, "note");
+  assert.match(rustJudged?.text ?? "", /this draft changes no test file \(if its test sits in a changed \.rs file, that's fine\)\.$/);
 });
 
 test("a written procedure warns even without PR history (earthpy: approval before a PR)", () => {

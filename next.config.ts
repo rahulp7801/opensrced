@@ -20,6 +20,9 @@ const config: NextConfig = {
   // The app never uses next/image, so the optimizer endpoint (/_next/image) is
   // pure attack surface (GHSA-2464-fhr4-w9xw): unoptimized turns it off (404).
   images: { unoptimized: true },
+  // CI lints every push (npm run lint). Linting again inside next build, beside the type check,
+  // pushed Vercel's production build out of memory (SIGKILL, 0.3.28 and 0.3.29). Types are still checked here.
+  eslint: { ignoreDuringBuilds: true },
   // PGlite (lib/db/client.ts, local dev only) loads its WASM and extension
   // bundles from its own package directory; bundling it breaks those paths.
   serverExternalPackages: ["@electric-sql/pglite", "@electric-sql/pglite-pgvector"],

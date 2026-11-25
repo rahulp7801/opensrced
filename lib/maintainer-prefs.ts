@@ -69,7 +69,8 @@ export const isBotAuthor = (a: Author) => !a || a.__typename === "Bot" || BOT_LO
 export const TEST_PATH = /(^|\/)(tests?|__tests__|spec|specs|testing)\/|(^|\/)test_[^/]+$|[._-](test|spec)\.[a-z]+$|_test\.go$/i;
 /** Rust keeps unit tests in the file they test (#[cfg(test)] mod tests): its path can't say whether a change has tests. */
 export const INLINE_TEST_FILE = /\.rs$/i;
-/** Most of these PRs (their paths) change Rust files, so a share that touch TEST_PATH misleads (ratatui: "0% of merged"). */
+/** Most of these PRs (their paths) change Rust files, so a share that touch TEST_PATH is only a lower bound: uutils's
+ *  76% (tests/by-util/) says something, ratatui's 0% (tests inline) doesn't. A low share is then left unsaid. */
 export const testsInline = (lists: string[][]) => lists.filter((l) => l.some((p) => INLINE_TEST_FILE.test(p))).length * 2 > lists.length;
 /** A changelog file, or a fragment directory (towncrier, changesets, reno,
  *  CPython's Misc/NEWS.d), at the root or under docs/: a code folder that
@@ -104,6 +105,11 @@ export function titleConvention(titles: string[]): TitleConvention {
 const round = (value: number | null, places = 0) => value === null ? null : Math.round(value * 10 ** places) / 10 ** places;
 const shareOf = (count: number, total: number) => total ? round(count / total, 2) : null;
 
+function testsShare(paths: string[][], total: number): number | null {
+  const s = shareOf(paths.filter((list) => list.some((p) => TEST_PATH.test(p))).length, total);
+  return s !== null && s < 0.5 && testsInline(paths) ? null : s;
+}
+
 /** The figures from the PRs (pure). */
 export function summarizePrefs(repo: string, prs: MergedPrNode[], prTemplate: boolean): MaintainerPrefs {
   const human = prs.filter((pr) => !isBotAuthor(pr.author));
@@ -123,7 +129,7 @@ export function summarizePrefs(repo: string, prs: MergedPrNode[], prTemplate: bo
     sample: human.length,
     medianFiles: round(median(human.map((pr) => pr.changedFiles))),
     medianLines: round(median(human.map((pr) => pr.additions + pr.deletions))),
-    testsShare: testsInline(paths) ? null : shareOf(paths.filter((list) => list.some((p) => TEST_PATH.test(p))).length, human.length),
+    testsShare: testsShare(paths, human.length),
     changelogShare: shareOf(changelog, human.length),
     changelogPath: [...locations.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null,
     titleConvention: titleConvention(human.map((pr) => pr.title)),

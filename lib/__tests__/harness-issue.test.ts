@@ -85,6 +85,33 @@ test("listOpenIssues: the newest open issues, each taken by an assignee or an op
   assert.ok(seen.some((s) => s.startsWith("/repos/markedjs/marked/pulls?") && s.includes("per_page=100")));
 });
 
+test("listOpenIssues: reads open PRs past the newest 100, and a comment linking an open PR takes the issue (bat #3738)", async () => {
+  const issue = (number: number, body: string, comment: string) => ({
+    number, title: "t", url: `https://github.com/sharkdp/bat/issues/${number}`, body, createdAt: "2026-05-12T00:00:00Z",
+    labels: { nodes: [] }, assignees: { nodes: [] }, comments: { totalCount: 1, nodes: [{ body: comment, author: { login: "w" }, authorAssociation: "NONE", createdAt: "2026-05-16T00:00:00Z" }] },
+  });
+  const graph = { data: { repository: { hasIssuesEnabled: true, issues: { nodes: [
+    issue(3738, "", "PR: https://github.com/sharkdp/bat/pull/3745"), // #3745 is closed: not taking it
+    issue(3700, "", "Submitted PR https://GitHub.com/sharkdp/bat/pull/3746 with a test."),
+    issue(3600, "", "See https://github.com/other/bat/pull/3746 and https://github.com/sharkdp/bat/pull/37461"),
+  ] } } } };
+  // 100 unrelated PRs on page 1; page 2 has one naming #3738, and is short, so page 3 isn't read.
+  const pages: Record<string, unknown> = {
+    "1": Array.from({ length: 100 }, (_, k) => ({ number: 5000 + k, title: "other", body: "" })),
+    "2": [{ number: 3746, title: "fix: --wrap=never (#3738)", body: "" }],
+  };
+  const seen: string[] = [];
+  const fake = (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    seen.push(url.pathname + url.search);
+    const body = url.pathname === "/graphql" ? graph : pages[url.searchParams.get("page") ?? ""] ?? [];
+    return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+  }) as typeof fetch;
+  const list = await listOpenIssues("sharkdp/bat", "t", fake);
+  assert.deepEqual(list.issues.map((i) => [i.number, i.taken]), [[3738, "open PR #3746"], [3700, "open PR #3746"], [3600, null]]);
+  assert.deepEqual(seen.filter((s) => s.includes("/pulls?")).map((s) => new URL(`https://x${s}`).searchParams.get("page")), ["1", "2"]);
+});
+
 test("listOpenIssues: a bad repo is refused before GitHub; a missing one says so", async () => {
   const { fake, seen } = github({});
   await assert.rejects(listOpenIssues("nope", "t", fake), (e: unknown) => e instanceof IssueThreadError && e.status === 422);

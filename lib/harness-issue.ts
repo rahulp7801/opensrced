@@ -115,6 +115,8 @@ async function otherOpenPulls(client: ReturnType<typeof gh>, owner: string, name
 }
 
 export const LISTED_ISSUES_MAX = 30;
+/** Pages of 100 open PRs find_issues reads for ones naming an issue. */
+export const OPEN_PULLS_PAGES = 5;
 export type ListedIssue = {
   number: number; title: string; url: string; labels: string[]; comments: number; opened: string; taken: string | null;
   /** Why it may already be fixed (a label, its text or a newest comment), or null (lib/issues.ts detectResolved). */
@@ -147,8 +149,10 @@ type IssueNode = {
 /** The repository's newest open issues for find_issues, each with who has taken it: an assignee, or an open
  *  PR that names it (#N or …/issues/N in its title or description, read from the open PRs themselves since
  *  the site's token sees no cross-references). Every recent issue of markedjs/marked and pypa/packaging had a PR.
- *  Its newest comments are read too: open issues are often fixed on main already (cheerio #5368).
- *  ponytail: the newest 100 open PRs; an older one that names an issue is missed (read_issue searches by number). */
+ *  Its newest comments are read too: open issues are often fixed on main already (cheerio #5368), and a
+ *  comment linking an open PR takes the issue as surely as the PR naming it (bat #3738: "PR: …/pull/3746").
+ *  ponytail: the newest OPEN_PULLS_PAGES × 100 open PRs (bat and tqdm have ~240); past that a PR naming an
+ *  issue is missed (read_issue searches by number). */
 export async function listOpenIssues(repoInput: string, token = process.env.OPENSRCER_INGEST_GITHUB_TOKEN, fetchImpl?: typeof fetch): Promise<IssueList> {
   let owner: string, name: string;
   try { [owner, name] = splitRepo(repoInput); } catch { throw new IssueThreadError(422, "repo must be owner/name."); }
@@ -171,12 +175,23 @@ export async function listOpenIssues(repoInput: string, token = process.env.OPEN
     throw error;
   }
   if (!repo || !repo.hasIssuesEnabled) throw missing;
-  const pulls = (await client.request("GET /repos/{owner}/{repo}/pulls", { owner, repo: name, state: "open", sort: "created", direction: "desc", per_page: 100 })).data as Array<{ number: number; title?: string; body?: string | null }>;
+  const pulls: Array<{ number: number; title?: string; body?: string | null }> = [];
+  for (let page = 1; page <= OPEN_PULLS_PAGES; page++) {
+    const batch = (await client.request("GET /repos/{owner}/{repo}/pulls", { owner, repo: name, state: "open", sort: "created", direction: "desc", per_page: 100, page })).data as typeof pulls;
+    pulls.push(...batch);
+    if (batch.length < 100) break;
+  }
   const naming = new Map<number, number[]>();
+  const add = (issue: number, pr: number) => { if (!naming.get(issue)?.includes(pr)) naming.set(issue, [...(naming.get(issue) ?? []), pr]); };
   for (const pr of pulls) {
-    for (const m of `${pr.title ?? ""}\n${pr.body ?? ""}`.matchAll(/(?:#|\/issues\/)(\d+)(?!\w)/g)) {
-      const n = Number(m[1]);
-      if (!naming.get(n)?.includes(pr.number)) naming.set(n, [...(naming.get(n) ?? []), pr.number]);
+    for (const m of `${pr.title ?? ""}\n${pr.body ?? ""}`.matchAll(/(?:#|\/issues\/)(\d+)(?!\w)/g)) add(Number(m[1]), pr.number);
+  }
+  // The issue or a newest comment linking one of this repository's open PRs (a closed one isn't taking it).
+  const open = new Set(pulls.map((p) => p.number));
+  const prLink = new RegExp(`github\\.com/${`${owner}/${name}`.replace(/\./g, "\\.")}/pull/(\\d+)(?!\\d)`, "gi");
+  for (const i of repo.issues.nodes) {
+    for (const text of [i.body ?? "", ...i.comments.nodes.map((c) => c.body)]) {
+      for (const m of text.matchAll(prLink)) if (open.has(Number(m[1]))) add(i.number, Number(m[1]));
     }
   }
   const issues = repo.issues.nodes.map((i) => {

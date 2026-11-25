@@ -30,7 +30,7 @@ import { promisify } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { graphify, GraphifyError, GraphifyMissing, GRAPHIFY_INSTALL, GRAPHIFY_VERSION, lessonMapData, localGraphifyVersion, overlayLevels, withOverlay, fileMapHtml } from "./graph.mjs";
 
-const VERSION = "0.3.29";
+const VERSION = "0.3.30";
 const BASE = (process.env.OPENSRCER_URL || "https://opensrced.vercel.app").replace(/\/+$/, "");
 // A host that doesn't fill in `${user_config.…}` (plugin .mcp.json) leaves the literal: that is no token.
 const TOKEN = /^\$\{/.test(process.env.OPENSRCER_TOKEN ?? "") ? "" : process.env.OPENSRCER_TOKEN || "";
@@ -594,7 +594,7 @@ async function callTool(name, args) {
       ...(waiting.length ? [`## Free, but its labels say it isn't ready (${waiting.length})`, ...waiting.map((i) => line(i, i.notReady)), ""] : []),
       ...(done.length ? [`## Open, but may be fixed already (${done.length})`, ...done.map((i) => line(i, i.resolved)), ""] : []),
       ...(taken.length ? [`## Taken (${taken.length})`, ...taken.map((i) => line(i, i.taken)), ""] : []),
-      "\"Nobody has taken\" means no assignee, none of the newest 100 open PRs names it, and nobody claims it in the issue or its newest comments. Before work starts, read_issue the one the user picks: its comments may claim it, say it's already fixed, or say it's not wanted.",
+      "\"Nobody has taken\" means no assignee, none of the newest 500 open PRs names it, no open PR is linked from it, and nobody claims it in the issue or its newest comments. Before work starts, read_issue the one the user picks: its comments may claim it, say it's already fixed, or say it's not wanted.",
     ].join("\n");
   }
   if (name === "check_pr") {

@@ -93,11 +93,14 @@ const BAN_PATTERNS = [
 ];
 
 const DISCLOSE_PATTERNS = [
-  new RegExp(String.raw`\b(?:disclose|disclosure|mention|state|indicate|declare|note|label)\b[^.\n]{0,80}?\b${AI}`, "i"),
+  // "note" the verb, not a "**Note:**" heading (ansible's AGENTS.md: "**Note:** This file is for AI assistant use only.").
+  new RegExp(String.raw`\b(?:disclose|disclosure|mention|state|indicate|declare|note(?!\**\s*:)|label)\b[^.\n]{0,80}?\b${AI}`, "i"),
   // Ghostty: "All AI usage in any form must be disclosed."
   new RegExp(String.raw`\b${AI}[- ]?(?:assistance|assisted|generated|tools?|usage|use)\b[^.\n]{0,80}?\b(?:must|should|need to)\s+be\s+(?:disclosed|mentioned|stated|declared|noted)`, "i"),
   new RegExp(String.raw`\b(?:if|when)\s+you\s+(?:used?|rel(?:y|ied) on)\s+(?:an?\s+)?${AI}[^.\n]{0,80}?\b(?:disclose|mention|state|declare|note|say)\b`, "i"),
   /\bAI assistance was used\b/i,
+  // Node's AGENTS.md: "A single `Assisted-by: <agent-name>` annotation is required disclosure".
+  /\b(?:is\s+)?(?:required|mandatory)\s+disclosure\b|\bdisclosure\s+is\s+(?:required|mandatory)\b/i,
   // pandas AGENTS.md: "The user is required to disclose your agent information (harness, model, reasoning level)".
   /\b(?:disclose|disclosure)\b[^.\n]{0,40}?\bagent\b/i,
 ];
@@ -105,7 +108,8 @@ const DISCLOSE_PATTERNS = [
 // A project that says AI help is welcome (Pydantic: "We welcome the use of AI when
 // contributing to Pydantic. However, users should certify that they fully understand...").
 const WELCOME_PATTERNS = [
-  new RegExp(String.raw`\bwe\s+(?:welcome|accept|allow|encourage)\s+(?:the\s+use\s+of\s+)?${AI}`, "i"),
+  // Home Assistant: "We support using AI (i.e., LLMs) as tools when contributing".
+  new RegExp(String.raw`\bwe\s+(?:welcome|accept|allow|encourage|support)\s+(?:the\s+use\s+of\s+|using\s+)?${AI}`, "i"),
   new RegExp(String.raw`\b${AI}[- ]?(?:assisted|generated)?\s+(?:contributions?|pull requests?|PRs?|code)\s+(?:are|is)\s+(?:welcome|allowed|accepted|fine|ok(?:ay)?)\b`, "i"),
   // yargs: "AI assistance is ok, but there must be a human involved and contributing."
   new RegExp(String.raw`\b${AI}[- ]?(?:assistance|use|usage|tools?)\s+(?:are|is)\s+(?:welcome|allowed|accepted|fine|ok(?:ay)?)\b`, "i"),
@@ -121,17 +125,23 @@ const WELCOME_PATTERNS = [
 const CO_AUTHOR = /\bco-?author(?:ed|s)?\b|\btrailers?\b/i;
 /** A rule against AI working with no human involved, which leaves a human's AI-assisted work welcome
  *  (fastify: "Pure-AI contributions with no human in the loop are not welcome"). */
-const UNSUPERVISED = /\b(?:pure|purely|fully|entirely|wholly)[- ]?(?:AI|LLM)\b|\bno\s+human\b|\bwithout\s+(?:a\s+|any\s+)?human\b|\bhuman\s+in\s+the\s+loop\b|\bautonomous\b/i;
+const UNSUPERVISED = /\b(?:pure|purely|fully|entirely|wholly)[- ]?(?:AI|LLM)\b|\bno\s+human\b|\bwithout\s+(?:\w+\s+){0,2}human\b|\bhuman\s+(?:in\s+the\s+loop|oversight)\b|\bautonomous(?:ly)?\b|\bun(?:reviewed|supervised)\b/i;
 
 /** Ban outranks a disclosure requirement, which outranks a welcome (several files may say different things). */
 const STANCE_RANK: Record<AiStance, number> = { unknown: 0, welcome: 1, disclose: 2, ban: 3 };
 
+/** Where a sentence ends: ". ", a blank line, or a new list item or heading. A single line break inside a
+ *  paragraph is a hard wrap (Node's AGENTS.md: "...not permitted to create pull\n requests ... without ongoing
+ *  human oversight."), so it doesn't end one. */
+const SENTENCE_END = /\.\s|\n[ \t]*\n|\n[ \t]*(?:[-*+]|\d+[.)]|#+)\s/g;
+
 function sentenceAround(text: string, index: number): string {
-  const start = Math.max(text.lastIndexOf("\n", index), text.lastIndexOf(". ", index)) + 1;
-  const endNl = text.indexOf("\n", index);
-  const endDot = text.indexOf(". ", index);
-  const ends = [endNl, endDot].filter((n) => n >= 0);
-  const end = ends.length ? Math.min(...ends) + 1 : text.length;
+  let start = 0;
+  let end = text.length;
+  for (const m of text.matchAll(SENTENCE_END)) {
+    if (m.index < index) start = m.index + 1;
+    else { end = m[0].startsWith(".") ? m.index + 1 : m.index; break; }
+  }
   return text.slice(start, end).replace(/\s+/g, " ").trim().slice(0, 300);
 }
 

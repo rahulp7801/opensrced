@@ -66,6 +66,19 @@ test("classifyAiPolicy: a rule against AI with no human involved welcomes a huma
   assert.equal(classifyAiPolicy(`${fastify}\nAll AI usage must be disclosed.`).stance, "disclose");
 });
 
+test("classifyAiPolicy: hard-wrapped policies are read a sentence at a time (Node, Home Assistant, ansible)", () => {
+  // Node's AGENTS.md wraps its rule over three lines; the condition is on the last one.
+  const node = "* **No unreviewed automation**: Automated pull requests must not be created without\n  ongoing human oversight. The AI agent is not permitted to create pull\n  requests, open issues, post comments, respond to reviews, or push commits without\n  ongoing human oversight.\n\n* A single `Assisted-by: <agent-name>` annotation is required disclosure, not promotion, and is\n  permitted.";
+  assert.equal(classifyAiPolicy(node).stance, "disclose");
+  assert.equal(classifyAiPolicy(node.split("\n\n")[0]!).stance, "welcome", "the rule alone is about oversight, not a ban");
+  const ha = "We support using AI (i.e., LLMs) as tools when contributing to Open Home Foundation projects.\n\nPull requests that appear to be unreviewed AI output will be closed without review.";
+  assert.deepEqual(classifyAiPolicy(ha), { stance: "welcome", excerpt: "We support using AI (i.e., LLMs) as tools when contributing to Open Home Foundation projects." });
+  assert.equal(classifyAiPolicy("**Note:** This file is for AI assistant use only.").stance, "unknown", "a Note: heading isn't a disclosure rule");
+  assert.equal(classifyAiPolicy("Please note in the PR whether you used AI.").stance, "disclose");
+  // A list item ends a sentence; a ban in one item isn't softened by the next.
+  assert.equal(classifyAiPolicy("- AI-generated code is not accepted\n- Changes without human review are rejected").stance, "ban");
+});
+
 test("DCO, CLA and trailer detection", () => {
   assert.ok(detectsDco("Commits must include a `Signed-off-by:` header"));
   assert.ok(detectsDco("we follow the Developer Certificate of Origin"));

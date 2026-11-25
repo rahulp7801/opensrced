@@ -136,9 +136,13 @@ function claimIn(i: IssueNode): string | null {
   for (const c of [...i.comments.nodes].reverse()) {
     const hit = CLAIM.exec(c.body);
     if (hit) return `claimed by @${c.author?.login ?? "ghost"}: "${hit[0]}"`;
+    if (PATCH.test(c.body)) return `a patch is posted in a comment by @${c.author?.login ?? "ghost"}`;
   }
   return null;
 }
+
+/** A diff in a comment: the fix exists already (scrapy #8427), and a lesson's answer is in the thread. */
+const PATCH = /^```(?:diff|patch)\b|^--- a\/.*\n\+\+\+ b\//m;
 
 type IssueNode = {
   number: number; title: string; url: string; body: string | null; createdAt: string;

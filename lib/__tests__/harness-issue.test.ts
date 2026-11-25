@@ -100,6 +100,9 @@ test("listOpenIssues: reads open PRs past the newest 100, and a comment linking 
     // ky #888: the issue's author has a fix ready; an idea for one isn't a claim.
     issue(888, "I'm willing to submit a small PR for this if aligned. I have a draft ready to go", "ok"),
     issue(889, "I have a fix idea but no time.", "ok"),
+    // scrapy #8427: a comment carries the whole patch.
+    issue(8427, "from_curl swallows the URL", "Below is a patch.\n\n```diff\n--- a/scrapy/utils/curl.py\n+++ b/scrapy/utils/curl.py\n```"),
+    issue(8428, "t", "Run it with `python -m x` and ```py\nprint(1)\n```"),
   ] } } } };
   // 100 unrelated PRs on page 1; page 2 has one naming #3738, and is short, so page 3 isn't read.
   const pages: Record<string, unknown> = {
@@ -115,7 +118,8 @@ test("listOpenIssues: reads open PRs past the newest 100, and a comment linking 
   }) as typeof fetch;
   const list = await listOpenIssues("sharkdp/bat", "t", fake);
   assert.deepEqual(list.issues.map((i) => [i.number, i.taken]), [[3738, "open PR #3746"], [3700, "open PR #3746"], [3600, null],
-    [7038, "open PR #3746"], [7039, null], [888, 'the issue says "I have a draft ready"'], [889, null]]);
+    [7038, "open PR #3746"], [7039, null], [888, 'the issue says "I have a draft ready"'], [889, null],
+    [8427, "a patch is posted in a comment by @w"], [8428, null]]);
   assert.deepEqual(seen.filter((s) => s.includes("/pulls?")).map((s) => new URL(`https://x${s}`).searchParams.get("page")), ["1", "2"]);
 });
 

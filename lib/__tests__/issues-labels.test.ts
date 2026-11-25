@@ -7,7 +7,7 @@ const notReady: Array<[string, RegExp]> = [
   ["needs triage", /triage/], ["needs-triage", /triage/], ["pending", /triage/], ["triage-needed", /triage/], ["status: unconfirmed", /triage/], ["type: needs investigation", /triage/], ["s-triage", /triage/], ["triage", /triage/], ["require-triage", /triage/], ["investigate", /triage/], ["awaiting more info", /information/], ["question", /question/], ["type: question", /question/],
   ["needs info", /information/], ["~info-needed", /information/], ["resolution: needs more information", /information/], ["repro-steps-needed", /information/],
   ["please add a complete reproduction", /information/], ["*not-reproducible", /information/], ["awaiting author response", /information/],
-  ["needs discussion", /discussed/], ["54 - needs decision", /discussed/], ["under-discussion", /discussed/], ["type: discussion", /discussed/], ["s-waiting-on-design", /discussed/], ["needs design", /discussed/],
+  ["needs discussion", /discussed/], ["54 - needs decision", /discussed/], ["under-discussion", /discussed/], ["type: discussion", /discussed/], ["s-waiting-on-design", /discussed/], ["discuss", /discussed/], ["needs design", /discussed/],
   ["blocked", /Blocked/], ["wontfix", /non-actionable/], ["duplicate", /non-actionable/], ["invalid", /non-actionable/],
 ];
 for (const [label, reason] of notReady) {

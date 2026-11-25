@@ -58,7 +58,7 @@ test("listOpenIssues: the newest open issues, each taken by an assignee or an op
   const { fake, seen } = github({
     "/graphql": { data: { repository: { hasIssuesEnabled: true, issues: { nodes: [
       issue(4273, "Quadratic links", "2026-11-22T01:00:00Z", { labels: ["perf"] }),
-      issue(4253, "Lazy line", "2026-11-17T01:00:00Z", { labels: ["bug"], comments: [{ body: "a", login: "x", assoc: "NONE" }, { body: "b", login: "y", assoc: "NONE" }] }),
+      issue(4253, "Lazy line", "2026-11-17T01:00:00Z", { labels: ["bug", "Pending Triage"], comments: [{ body: "a", login: "x", assoc: "NONE" }, { body: "b", login: "y", assoc: "NONE" }] }),
       issue(42, "Old", "2020-01-01T00:00:00Z", { assignees: ["uzi"] }),
       issue(4, "Free", "2019-01-01T00:00:00Z"),
       // cheerio #5368: open, but a comment says main has it.
@@ -79,8 +79,9 @@ test("listOpenIssues: the newest open issues, each taken by an assignee or an op
   assert.equal(list.repo, "markedjs/marked");
   assert.deepEqual(list.issues.map((i) => [i.number, i.taken]), [[4273, "open PR #4274"], [4253, "open PR #4254, #4260"], [42, "assigned to @uzi"], [4, null], [5368, null],
     [3260, `claimed by @fs: "I'll take this"`], [3255, 'the issue says "Ready fix branch"'], [3793, null]]);
-  assert.deepEqual([list.issues[0]!.labels, list.issues[0]!.opened, list.issues[1]!.labels, list.issues[1]!.comments, list.issues[3]!.url], [["perf"], "2026-11-22", ["bug"], 2, "https://github.com/markedjs/marked/issues/4"]);
+  assert.deepEqual([list.issues[0]!.labels, list.issues[0]!.opened, list.issues[1]!.labels, list.issues[1]!.comments, list.issues[3]!.url], [["perf"], "2026-11-22", ["bug", "Pending Triage"], 2, "https://github.com/markedjs/marked/issues/4"]);
   assert.deepEqual(list.issues.map((i) => i.resolved), [null, null, null, null, 'comment by @v says "this is fixed"', null, null, null]);
+  assert.deepEqual(list.issues.map((i) => i.notReady === null), [true, false, true, true, true, true, true, true], "vitest's \"pending triage\" (any case) is not ready");
   assert.ok(seen.some((s) => s.startsWith("/repos/markedjs/marked/pulls?") && s.includes("per_page=100")));
 });
 

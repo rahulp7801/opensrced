@@ -50,6 +50,7 @@ before(async () => {
       if (req.url === "/api/harness/issue?repo=acme%2Fapp") {
         return reply(res, { repo: "acme/app", issues: [
           { number: 14, title: "fill drops dtype", url: "u", labels: ["bug"], comments: 1, opened: "2026-11-02", taken: null },
+          { number: 16, title: "fill CLI flag", url: "u", labels: ["pending triage"], comments: 0, opened: "2026-11-06", taken: null, resolved: null, notReady: "Maintainers haven't confirmed this yet (it's waiting for triage). Pick it once they do." },
           { number: 15, title: "fill on empty frame", url: "u", labels: [], comments: 2, opened: "2026-11-05", taken: null, resolved: 'comment by @m (maintainer) says "this is fixed"' },
           { number: 12, title: "fill ignores value", url: "u", labels: [], comments: 5, opened: "2026-10-01", taken: "open PR #13" },
         ] });
@@ -668,8 +669,8 @@ test("find_issues: the ones nobody has taken first, then the taken ones and by w
   const { child, request } = start(TOKEN);
   try {
     const out = text(await request("tools/call", { name: "find_issues", arguments: { repo: "acme/app" } }));
-    assert.match(out, /^# acme\/app: its 3 newest open issues\n/);
-    assert.match(out, /## Nobody has taken these \(1\)\n- #14 fill drops dtype \[bug\] \(1 comment, opened 2026-11-02\)\n\n## Open, but may be fixed already \(1\)\n- #15 fill on empty frame \(2 comments, opened 2026-11-05\): comment by @m \(maintainer\) says "this is fixed"\n\n## Taken \(1\)\n- #12 fill ignores value \(5 comments, opened 2026-10-01\): open PR #13\n/);
+    assert.match(out, /^# acme\/app: its 4 newest open issues\n/);
+    assert.match(out, /## Nobody has taken these \(1\)\n- #14 fill drops dtype \[bug\] \(1 comment, opened 2026-11-02\)\n\n## Free, but its labels say it isn't ready \(1\)\n- #16 fill CLI flag \[pending triage\] \(0 comments, opened 2026-11-06\): Maintainers haven't confirmed this yet \(it's waiting for triage\)\. Pick it once they do\.\n\n## Open, but may be fixed already \(1\)\n- #15 fill on empty frame \(2 comments, opened 2026-11-05\): comment by @m \(maintainer\) says "this is fixed"\n\n## Taken \(1\)\n- #12 fill ignores value \(5 comments, opened 2026-10-01\): open PR #13\n/);
     assert.match(out, /read_issue the one the user picks/);
   } finally {
     child.kill();

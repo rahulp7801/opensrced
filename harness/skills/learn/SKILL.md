@@ -21,7 +21,7 @@ The user wants to understand this project and this issue well enough to fix it a
 Both paths need it: path A grades s7 and s8 against it, path B's reveal compares the user's change with it. Right after `lesson_start`, while the user answers the first questions:
 
 1. Create a separate worktree **outside** their checkout, detached (their branch is already checked out there): `git -C <their clone> worktree add --detach <their clone>-opensrcer-key`. Never change their checkout, and never show them this worktree, its diff, or the names of the files it touches before the reveal.
-2. In that worktree, find the root cause, write a test that fails, fix it, and run the test again to see it pass.
+2. In that worktree, find the root cause, write a test that fails, fix it, and run the test again to see it pass. If the project's tests can't run here (a toolchain you can't install from a source you trust, or a runtime newer than this machine's), say so before the lesson starts and suggest another issue: an unverified key grades nothing reliably.
 3. Call `lesson_key` with `key_dir` (that worktree), a title, a short diagnosis and `verified` (true only if the new test failed before the fix and passes after). In path A, s7 and s8 are graded against this key, so store it before s7.
 4. Run the project's whole test suite with your fix. If your fix breaks a test that expects today's behaviour, it isn't a plain bug fix: tell the user, show them that test, and treat it as part of the lesson (a contributor would have to agree the change with the maintainers first). If you find the issue isn't a bug at all, don't force a fix: stop, say so with the evidence, and suggest another issue.
 

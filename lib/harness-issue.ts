@@ -4,7 +4,7 @@
 
 import { gh } from "./gh";
 import { splitRepo } from "./ai-policy";
-import { detectResolved } from "./issues";
+import { detectResolved, notReadyLabel } from "./issues";
 
 export const ISSUE_TEXT_MAX = 8_000;
 export const COMMENT_TEXT_MAX = 1_200;
@@ -119,6 +119,8 @@ export type ListedIssue = {
   number: number; title: string; url: string; labels: string[]; comments: number; opened: string; taken: string | null;
   /** Why it may already be fixed (a label, its text or a newest comment), or null (lib/issues.ts detectResolved). */
   resolved: string | null;
+  /** Why its labels say it isn't ready to work on (waiting for triage, for information, a decision), or null. */
+  notReady: string | null;
 };
 export type IssueList = { repo: string; issues: ListedIssue[] };
 
@@ -186,6 +188,8 @@ export async function listOpenIssues(repoInput: string, token = process.env.OPEN
     return {
       number: i.number, title: i.title, url: i.url, labels, comments: i.comments.totalCount, opened: i.createdAt.slice(0, 10), taken,
       resolved: detectResolved(i.title, i.body ?? "", labels, i.comments.nodes)?.reason ?? null,
+      // notReadyLabel expects lowercase labels, as lib/issues.ts scoreIssue passes them.
+      notReady: notReadyLabel(labels.map((l) => l.toLowerCase())),
     };
   });
   return { repo: `${owner}/${name}`, issues };

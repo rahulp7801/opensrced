@@ -34,9 +34,10 @@ export const PROFILE_TTL_MS = 24 * 60 * 60_000;
  *  6: links to or names of an AI policy aren't bans, low-quality rules are conditions: neovim, ripgrep, prettier;
  *  7: sqlalchemy isn't a ban, LangChain's disclaimer is a disclosure rule;
  *  8: Django's "AI Assistance Disclosure (REQUIRED)" and "pull requests without Trac tickets will be closed";
- *  9: PRs a bot closes as merged in Gerrit count as merged, Go read 0% merged),
+ *  9: PRs a bot closes as merged in Gerrit count as merged, Go read 0% merged;
+ *  10: invited issues closed by a commit are counted apart from those closed with no fix),
  *  so a stored profile isn't served with the old verdict for up to a day. */
-export const PROFILE_RULES = 9;
+export const PROFILE_RULES = 10;
 /** Fewest PRs (or measurements) a comparison or statistic needs before it is stated. */
 export const MIN_SAMPLE = 5;
 /** A review request is stated once it recurs on this many PRs: one reviewer's

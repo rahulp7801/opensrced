@@ -76,8 +76,10 @@ export type RepoWanted = {
     outside: Tally;
     /** Closed by a merged PR from a maintainer or a bot. */
     team: Tally;
-    /** Closed with no merged PR: by hand, as not planned, as a duplicate, or by a commit. */
+    /** Closed with no merged PR: by hand, as not planned, as a duplicate. */
     unmerged: Tally;
+    /** Closed by a commit, not a PR: merged outside GitHub's PRs (Go's Gerrit) or pushed directly. */
+    byCommit?: Tally;
   };
   /** The issues pinned to the repository's Issues tab (GitHub allows three). */
   pinned: Array<{ title: string; url: string }>;
@@ -131,10 +133,11 @@ function teamOf(issues: WantedIssue[]): Set<string> {
 /** The signal from what GitHub returned (pure). */
 export function summarizeWanted(repo: string, input: WantedInput, now = new Date()): RepoWanted {
   const team = teamOf(input.closed);
-  const outside: string[] = [], mine: string[] = [], unmerged: string[] = [];
+  const outside: string[] = [], mine: string[] = [], unmerged: string[] = [], byCommit: string[] = [];
   for (const issue of input.closed) {
     const pr = closingPr(issue);
-    if (!pr) unmerged.push(issue.url);
+    if (!pr && issue.timelineItems?.nodes.at(-1)?.closer?.__typename === "Commit") byCommit.push(issue.url);
+    else if (!pr) unmerged.push(issue.url);
     else if (isBotAuthor(pr.author) || team.has(pr.author!.login)) mine.push(pr.url);
     else outside.push(pr.url);
   }
@@ -161,7 +164,7 @@ export function summarizeWanted(repo: string, input: WantedInput, now = new Date
         };
       })
       .sort((a, b) => b.count - a.count),
-    closed: { total: Math.max(input.closedTotal ?? 0, of), from: day(now, COHORT_MAX_AGE_DAYS), to: day(now, COHORT_MIN_AGE_DAYS), outside: tally(outside), team: tally(mine), unmerged: tally(unmerged) },
+    closed: { total: Math.max(input.closedTotal ?? 0, of), from: day(now, COHORT_MAX_AGE_DAYS), to: day(now, COHORT_MIN_AGE_DAYS), outside: tally(outside), team: tally(mine), unmerged: tally(unmerged), byCommit: tally(byCommit) },
     pinned: input.pinned,
   };
 }
@@ -195,7 +198,7 @@ export function wantedFindings(w: RepoWanted): Array<{ text: string; examples: s
   const c = w.closed;
   if (c.outside.of >= MIN_SAMPLE) {
     out.push({
-      text: `Of ${c.outside.of} issues labelled ${quoted(w.labels.map((l) => l.name))} that were closed ${windowText(COHORT_MIN_AGE_DAYS, COHORT_MAX_AGE_DAYS)}${c.total > c.outside.of ? ` (the ${c.outside.of} most recently opened of ${c.total})` : ""}, ${c.outside.count} (${pct(c.outside)}) were fixed by an outside contributor's merged PR, ${c.team.count} by a maintainer's own PR, and ${c.unmerged.count} closed without a merged PR.`,
+      text: `Of ${c.outside.of} issues labelled ${quoted(w.labels.map((l) => l.name))} that were closed ${windowText(COHORT_MIN_AGE_DAYS, COHORT_MAX_AGE_DAYS)}${c.total > c.outside.of ? ` (the ${c.outside.of} most recently opened of ${c.total})` : ""}, ${c.outside.count} (${pct(c.outside)}) were fixed by an outside contributor's merged PR, ${c.team.count} by a maintainer's own PR, ${c.byCommit?.count ? `${c.byCommit.count} by a commit outside a GitHub PR, ` : ""}and ${c.unmerged.count} closed without a merged PR.`,
       examples: c.outside.examples,
     });
   }

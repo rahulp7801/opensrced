@@ -69,11 +69,12 @@ test("closed invited issues are sorted by who fixed them: outsiders, the team, o
     issue({ closer: prBy("member", { authorAssociation: "MEMBER" }) }),
     issue({ closer: prBy("renovate[bot]", { author: { login: "renovate[bot]", __typename: "Bot" } }) }),
     issue({ closer: prBy("open-pr", { merged: false }) }), // linked PR never merged
-    issue({ closer: { __typename: "Commit" } }), // a maintainer's commit
+    issue({ closer: { __typename: "Commit" } }), // a commit: pushed directly, or merged in Gerrit (Go)
     issue({ actor: "reporter-self" }), // closed by hand, no PR
   ];
   const w = summarizeWanted("acme/app", input({ closed }), NOW);
-  assert.deepEqual([w.closed.outside.count, w.closed.team.count, w.closed.unmerged.count, w.closed.outside.of], [5, 3, 3, 11]);
+  assert.deepEqual([w.closed.outside.count, w.closed.team.count, w.closed.unmerged.count, w.closed.byCommit?.count, w.closed.outside.of], [5, 3, 2, 1, 11]);
+  assert.match(wantedFindings(w).find((f) => f.text.startsWith("Of 11"))?.text ?? "", /, 1 by a commit outside a GitHub PR, and 2 closed without a merged PR\.$/);
   assert.equal(w.closed.outside.examples.length, 3);
   assert.ok(w.closed.outside.examples.every((u) => u.includes("/pull/")), "examples are the outside PRs");
   assert.deepEqual([w.closed.from, w.closed.to], ["2026-07-08", "2026-10-06"]);

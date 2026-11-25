@@ -141,6 +141,9 @@ test("listOpenIssues: a bad repo is refused before GitHub; a missing one says so
   await assert.rejects(listOpenIssues("a/b", "t", notFound), (e: unknown) => e instanceof IssueThreadError && e.status === 404);
   const off = github({ "/graphql": { data: { repository: { hasIssuesEnabled: false, issues: { nodes: [] } } } } }).fake;
   await assert.rejects(listOpenIssues("a/b", "t", off), (e: unknown) => e instanceof IssueThreadError && e.status === 404);
+  // GraphQL said no repository for a moment, but REST has it (nodejs/node): an error to retry, not "wasn't found".
+  const blip = github({ "/graphql": { data: { repository: null }, errors: [{ type: "NOT_FOUND", message: "Could not resolve" }] }, "/repos/a/b": { full_name: "a/b", has_issues: true } }).fake;
+  await assert.rejects(listOpenIssues("a/b", "t", blip), (e: unknown) => !(e instanceof IssueThreadError));
 });
 
 test("with more comments than it shows, it reads the newest page and says how many are older", async () => {

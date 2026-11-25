@@ -163,6 +163,16 @@ export async function listOpenIssues(repoInput: string, token = process.env.OPEN
   if (!token) throw new IssueThreadError(503, "opensrcer can't read GitHub issues itself here. Sign in with gh (gh auth login) and list them with gh issue list.");
   const client = gh(token, fetchImpl ? { fetch: fetchImpl } : {});
   const missing = new IssueThreadError(404, `${owner}/${name} wasn't found, or its issues are turned off.`);
+  // "Not found" only when REST agrees (GraphQL has answered no repository for a moment: nodejs/node).
+  const confirmMissing = async (cause: unknown): Promise<Error> => {
+    try {
+      const { data } = await client.request("GET /repos/{owner}/{repo}", { owner, repo: name });
+      if ((data as { has_issues?: boolean }).has_issues === false) return missing;
+    } catch (error) {
+      if ((error as { status?: number }).status === 404) return missing;
+    }
+    return cause instanceof Error ? cause : new Error(String(cause));
+  };
   let repo: { hasIssuesEnabled: boolean; issues: { nodes: IssueNode[] } } | null;
   try {
     repo = (await client.graphql<{ repository: typeof repo }>(
@@ -175,10 +185,11 @@ export async function listOpenIssues(repoInput: string, token = process.env.OPEN
   } catch (error) {
     // A missing repository is a GraphQL error of type NOT_FOUND, not a 404.
     const { errors, status } = error as { errors?: Array<{ type?: string }>; status?: number };
-    if (status === 404 || (errors?.length && errors.every((e) => e.type === "NOT_FOUND"))) throw missing;
+    if (status === 404 || (errors?.length && errors.every((e) => e.type === "NOT_FOUND"))) throw await confirmMissing(error);
     throw error;
   }
-  if (!repo || !repo.hasIssuesEnabled) throw missing;
+  if (!repo) throw await confirmMissing(new Error(`GitHub didn't return ${owner}/${name}'s issues.`));
+  if (!repo.hasIssuesEnabled) throw missing;
   const pulls: Array<{ number: number; title?: string; body?: string | null }> = [];
   for (let page = 1; page <= OPEN_PULLS_PAGES; page++) {
     const batch = (await client.request("GET /repos/{owner}/{repo}/pulls", { owner, repo: name, state: "open", sort: "created", direction: "desc", per_page: 100, page })).data as typeof pulls;

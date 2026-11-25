@@ -84,6 +84,7 @@ test("classifyAiPolicy: hard-wrapped policies are read a sentence at a time (Nod
   assert.equal(classifyAiPolicy("- Only submit code you fully understand and have tested.\n- Low-quality AI content will be closed immediately.").stance, "welcome");
   assert.equal(classifyAiPolicy("## Note on use of AI, agents and bots ##\n\nGetting help is fine.").stance, "unknown", "a heading isn't a disclosure rule");
   assert.equal(classifyAiPolicy("- Add a brief disclaimer noting AI-agent involvement in the contribution.").stance, "disclose", "LangChain");
+  assert.equal(classifyAiPolicy("#### AI Assistance Disclosure (REQUIRED)\n<!-- Select exactly ONE of the following: -->").stance, "disclose", "Django");
   // sqlalchemy bans trolls, AI or not.
   assert.notEqual(classifyAiPolicy("In particular, **users who post content that appears to be trolling for karma /\nupvotes / vanity commits / positive responses, whether or not this content is\nmachine generated, will be banned**.").stance, "ban");
   // A list item ends a sentence; a ban in one item isn't softened by the next.

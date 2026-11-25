@@ -32,9 +32,10 @@ export const PROFILE_TTL_MS = 24 * 60 * 60_000;
  *  3: who may open PRs; 4: a rule against AI with no human involved isn't a ban, Rust test shares, PR-pause pins;
  *  5: hard-wrapped policies read a sentence at a time, Node and Home Assistant no longer read as bans;
  *  6: links to or names of an AI policy aren't bans, low-quality rules are conditions: neovim, ripgrep, prettier;
- *  7: sqlalchemy isn't a ban, LangChain's disclaimer is a disclosure rule),
+ *  7: sqlalchemy isn't a ban, LangChain's disclaimer is a disclosure rule;
+ *  8: Django's "AI Assistance Disclosure (REQUIRED)" and "pull requests without Trac tickets will be closed"),
  *  so a stored profile isn't served with the old verdict for up to a day. */
-export const PROFILE_RULES = 7;
+export const PROFILE_RULES = 8;
 /** Fewest PRs (or measurements) a comparison or statistic needs before it is stated. */
 export const MIN_SAMPLE = 5;
 /** A review request is stated once it recurs on this many PRs: one reviewer's

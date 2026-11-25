@@ -99,6 +99,8 @@ const DISCLOSE_PATTERNS = [
   new RegExp(String.raw`\b${AI}[- ]?(?:assistance|assisted|generated|tools?|usage|use)\b[^.\n]{0,80}?\b(?:must|should|need to)\s+be\s+(?:disclosed|mentioned|stated|declared|noted)`, "i"),
   new RegExp(String.raw`\b(?:if|when)\s+you\s+(?:used?|rel(?:y|ied) on)\s+(?:an?\s+)?${AI}[^.\n]{0,80}?\b(?:disclose|mention|state|declare|note|say)\b`, "i"),
   /\bAI assistance was used\b/i,
+  // Django's PR template: "#### AI Assistance Disclosure (REQUIRED)".
+  new RegExp(String.raw`\b${AI}[- ]?(?:assistance|usage|use|tools?)\s+disclosure\b`, "i"),
   // LangChain's AGENTS.md: "Add a brief disclaimer noting AI-agent involvement in the contribution."
   new RegExp(String.raw`\bdisclaimer\b[^.\n]{0,60}?\b(?:${AI}|agents?)\b`, "i"),
   // Node's AGENTS.md: "A single `Assisted-by: <agent-name>` annotation is required disclosure".

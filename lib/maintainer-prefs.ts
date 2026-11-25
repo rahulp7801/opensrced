@@ -33,7 +33,7 @@ export type MergedPrNode = {
   comments: { nodes: Event[] } | null;
 };
 
-export type TitleConvention = "conventional" | "prefix" | "bracket" | "none";
+export type TitleConvention = "issue" | "conventional" | "prefix" | "bracket" | "none";
 
 export type MaintainerPrefs = {
   repo: string;
@@ -87,6 +87,8 @@ export function changelogLocation(path: string): string | null {
 
 /** What a title in each style looks like; checked in this order. */
 export const TITLE_PATTERNS: Record<Exclude<TitleConvention, "none">, RegExp> = {
+  // First: the issue it fixes, after any backport tag (CPython "[3.14] gh-154923: Fix …", Django "Fixed #37529 -- Added …").
+  issue: /^(\[[^\]]{1,30}\]\s*)?(?:(?:fixed|fixes|refs|closes?)\s+(?:#\d+|CVE-\d{4}-\d+)(?:,\s*#\d+)*\s+--\s+|(?:gh|GH)-\d+:\s+|#\d+:\s+)\S/i,
   conventional: /^(feat|fix|docs?|chore|refactor|test|tests|ci|build|perf|style|revert|deps)(\([^)]{1,40}\))?!?: \S/i,
   prefix: /^[\w./-]{1,30}: \S/,
   bracket: /^\[[^\]]{1,30}\] ?\S/,
@@ -142,6 +144,7 @@ export function summarizePrefs(repo: string, prs: MergedPrNode[], prTemplate: bo
 const pct = (share: number) => `${Math.round(share * 100)}%`;
 const hours = (h: number) => h < 1 ? "under an hour" : h < 1.5 ? "about an hour" : h < 48 ? `about ${Math.round(h)} hours` : `about ${Math.round(h / 24)} days`;
 const CONVENTION_TEXT: Record<Exclude<TitleConvention, "none">, string> = {
+  issue: 'Titles start with the issue they fix ("gh-123: …", "Fixed #123 -- …").',
   conventional: 'Titles follow Conventional Commits ("fix: …", "feat(scope): …").',
   prefix: 'Titles start with the area they touch ("area: what changed").',
   bracket: 'Titles start with a tag in brackets ("[area] what changed").',

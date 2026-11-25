@@ -39,6 +39,9 @@ test("titleConvention: the style most titles share, or none below the norm", () 
   assert.equal(titleConvention(["fix: a", "feat(api): b", "docs: c", "Bump x"]), "conventional");
   assert.equal(titleConvention(["gh-123: a", "asyncio: b", "typing: c"]), "prefix");
   assert.equal(titleConvention(["[docs] a", "[core] b", "Fix c"]), "bracket");
+  // The issue first, after any backport tag: CPython and Django, as written.
+  assert.equal(titleConvention(["[3.14] gh-154923: Fix a crash (GH-156342)", "gh-162388: Use animated SVGs", "[3.15] gh-140488: Do not poll"]), "issue");
+  assert.equal(titleConvention(["Fixed #37529 -- Added compatibility with pylibmc 1.8.0.", "[6.0.x] Refs #37529 -- Doc'd it.", "Refs CVE-2026-15830 -- Fixed GEOSLimitTest.", "Fixed #37530, #37518 -- Fixed raw blocks."]), "issue");
   assert.equal(titleConvention(["Fix a", "Add b", "fix: c"]), "none");
   assert.equal(titleConvention([]), "none");
 });

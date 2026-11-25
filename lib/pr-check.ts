@@ -115,7 +115,7 @@ export function checkDraft(p: RepoProfile, draft: PrDraft): Check[] {
   }
   if (c.title !== "none") {
     const fits = TITLE_PATTERNS[c.title].test(draft.title);
-    const style = { conventional: 'Conventional Commits ("fix: …")', prefix: 'the area first ("area: …")', bracket: 'a tag in brackets ("[DOC] …")' }[c.title];
+    const style = { issue: 'the issue it fixes first ("gh-123: …" or "Fixed #123 -- …")', conventional: 'Conventional Commits ("fix: …")', prefix: 'the area first ("area: …")', bracket: 'a tag in brackets ("[DOC] …")' }[c.title];
     add("title", fits ? "ok" : "warn", fits ? `The title follows the project's style: ${style}.` : `PR titles here use ${style}; "${draft.title}" doesn't.`, c.titleTally?.examples ?? []);
   }
   if (c.signOffShare !== null && c.signOffShare >= 0.6 && draft.signedOff !== undefined) {

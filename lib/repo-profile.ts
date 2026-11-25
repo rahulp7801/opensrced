@@ -35,9 +35,10 @@ export const PROFILE_TTL_MS = 24 * 60 * 60_000;
  *  7: sqlalchemy isn't a ban, LangChain's disclaimer is a disclosure rule;
  *  8: Django's "AI Assistance Disclosure (REQUIRED)" and "pull requests without Trac tickets will be closed";
  *  9: PRs a bot closes as merged in Gerrit count as merged, Go read 0% merged;
- *  10: invited issues closed by a commit are counted apart from those closed with no fix),
+ *  10: invited issues closed by a commit are counted apart from those closed with no fix;
+ *  11: the "issue first" title style, CPython "gh-123: …" and Django "Fixed #123 -- …"),
  *  so a stored profile isn't served with the old verdict for up to a day. */
-export const PROFILE_RULES = 10;
+export const PROFILE_RULES = 11;
 /** Fewest PRs (or measurements) a comparison or statistic needs before it is stated. */
 export const MIN_SAMPLE = 5;
 /** A review request is stated once it recurs on this many PRs: one reviewer's
@@ -741,6 +742,7 @@ export function profileFindings(p: RepoProfile): Finding[] {
   const c = p.conventions;
   const titled = c.titleTally ? ` (${c.titleTally.count} of ${c.titleTally.of} merged ${c.titleFrom === "outside" ? "outside " : ""}PRs)` : "";
   const titleExamples = c.titleTally?.examples ?? [];
+  if (c.title === "issue") out.push({ section: "conventions", text: `PR titles start with the issue they fix ("gh-123: …", "Fixed #123 -- …")${titled}.`, examples: titleExamples });
   if (c.title === "conventional") out.push({ section: "conventions", text: `PR titles follow Conventional Commits ("fix: …", "feat(scope): …")${titled}.`, examples: titleExamples });
   if (c.title === "prefix") out.push({ section: "conventions", text: `PR titles start with the area they touch ("area: what changed")${titled}.`, examples: titleExamples });
   if (c.title === "bracket") out.push({ section: "conventions", text: `PR titles start with a tag in brackets ("[area] what changed")${titled}.`, examples: titleExamples });

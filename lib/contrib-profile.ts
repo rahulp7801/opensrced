@@ -93,8 +93,8 @@ const BAN_PATTERNS = [
 ];
 
 const DISCLOSE_PATTERNS = [
-  // "note" the verb, not a "**Note:**" heading (ansible's AGENTS.md: "**Note:** This file is for AI assistant use only.").
-  new RegExp(String.raw`\b(?:disclose|disclosure|mention|state|indicate|declare|note(?!\**\s*:)|label)\b[^.\n]{0,80}?\b${AI}`, "i"),
+  // "note" the verb, not a heading (ansible: "**Note:** This file is for AI assistant use only."; sqlalchemy: "## Note on use of AI").
+  new RegExp(String.raw`\b(?:disclose|disclosure|mention|state|indicate|declare|(?<=\b(?:please|must|should|to|and)\s+)note|label)\b[^.\n]{0,80}?\b${AI}`, "i"),
   // Ghostty: "All AI usage in any form must be disclosed."
   new RegExp(String.raw`\b${AI}[- ]?(?:assistance|assisted|generated|tools?|usage|use)\b[^.\n]{0,80}?\b(?:must|should|need to)\s+be\s+(?:disclosed|mentioned|stated|declared|noted)`, "i"),
   new RegExp(String.raw`\b(?:if|when)\s+you\s+(?:used?|rel(?:y|ied) on)\s+(?:an?\s+)?${AI}[^.\n]{0,80}?\b(?:disclose|mention|state|declare|note|say)\b`, "i"),
@@ -161,7 +161,9 @@ export function classifyAiPolicy(text: string): { stance: AiStance; excerpt: str
       if (x[0].includes("](") || new RegExp(String.raw`${AI}[- ]polic(?:y|ies)\b`, "i").test(x[0])) return false;
       const sentence = sentenceAround(text, x.index);
       if (UNSUPERVISED.test(sentence)) unsupervised ??= sentence;
-      return !CO_AUTHOR.test(sentence) && !UNSUPERVISED.test(sentence);
+      // A rule that holds whether or not AI was used isn't about AI (sqlalchemy: "users who post content that
+      // appears to be trolling ..., whether or not this content is machine generated, will be banned").
+      return !CO_AUTHOR.test(sentence) && !UNSUPERVISED.test(sentence) && !/\bwhether\s+or\s+not\b|\bregardless\s+of\s+whether\b/i.test(sentence);
     });
     if (m) return { stance: "ban", excerpt: sentenceAround(text, m.index) };
   }

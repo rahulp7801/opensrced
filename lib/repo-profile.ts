@@ -22,7 +22,7 @@ import { aiStatementIn, fetchAiPolicy, splitRepo, type ProcedureKind, type RepoA
 import { fetchWanted, wantedFindings, type RepoWanted } from "./repo-wanted";
 import { communityFindings, fetchCommunity, type RepoCommunity } from "./repo-community";
 import { isMaintainer, median } from "./recs/health";
-import { changelogLocation, isBotAuthor, TEST_PATH, TITLE_PATTERNS, titleConvention, type TitleConvention } from "./maintainer-prefs";
+import { changelogLocation, isBotAuthor, TEST_PATH, testsInline, TITLE_PATTERNS, titleConvention, type TitleConvention } from "./maintainer-prefs";
 
 /** PRs read per repository: the newest opened in each slice of the cohort window. */
 export const PROFILE_SAMPLE = 100;
@@ -442,6 +442,7 @@ export function summarizeProfile(repo: string, prs: ProfilePr[], now = new Date(
     return found && found.stance !== "unknown" ? [{ stance: found.stance, excerpt: found.excerpt.slice(0, 200), url: pr.url }] : [];
   })).slice(0, EXAMPLES);
 
+  const inlineTests = testsInline([...merged, ...closed].map(paths));
   return {
     version: 2,
     rules: PROFILE_RULES,
@@ -456,8 +457,9 @@ export function summarizeProfile(repo: string, prs: ProfilePr[], now = new Date(
       open: tally(outside, (pr) => pr.state === "OPEN"),
       medianLinesMerged: round(median(merged.map(lines))),
       medianLinesClosed: round(median(closed.map(lines))),
-      testsMerged: tally(merged, touchesTests),
-      testsClosed: tally(closed, touchesTests),
+      // Rust's tests sit in the file they test: tallied over no PRs (of 0), so nothing is said or checked.
+      testsMerged: tally(inlineTests ? [] : merged, touchesTests),
+      testsClosed: tally(inlineTests ? [] : closed, touchesTests),
       linkedMerged: tally(merged, linked),
       linkedClosed: tally(closed, linked),
       medianDaysToMerge: round(median(days), 1),
@@ -666,8 +668,10 @@ export function profileFindings(p: RepoProfile): Finding[] {
   if (both && o.medianLinesMerged !== null && o.medianLinesClosed !== null) {
     out.push({ section: "outcomes", text: `Merged outside PRs changed a median of ${o.medianLinesMerged} lines; closed ones, ${o.medianLinesClosed}.`, examples: [] });
   }
-  if (both) {
+  if (both && o.testsMerged.of > 0) {
     out.push({ section: "outcomes", text: `${pct(o.testsMerged)} of merged outside PRs touched tests, against ${pct(o.testsClosed)} of closed ones.`, examples: o.testsMerged.examples });
+  }
+  if (both) {
     out.push({ section: "outcomes", text: `${pct(o.linkedMerged)} of merged outside PRs were linked to an issue, against ${pct(o.linkedClosed)} of closed ones.`, examples: o.linkedMerged.examples });
   }
   if (o.closed >= MIN_SAMPLE) {

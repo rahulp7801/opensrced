@@ -7,7 +7,7 @@
 // enforced (status "warn") only when most merged PRs follow it (HABIT); below
 // that it is at most a note.
 
-import { changelogLocation, TEST_PATH, TITLE_PATTERNS } from "./maintainer-prefs";
+import { changelogLocation, INLINE_TEST_FILE, TEST_PATH, TITLE_PATTERNS } from "./maintainer-prefs";
 import { engagementAdvice, MIN_SAMPLE, prType, type RepoProfile, type Tally } from "./repo-profile";
 
 /** A norm counts as a habit at this share of merged PRs. */
@@ -128,7 +128,9 @@ export function checkDraft(p: RepoProfile, draft: PrDraft): Check[] {
   }
   // Whatever this project's history: a code change should carry the test that proves it, and say which issue it fixes.
   if (!checks.some((x) => x.id === "tests") && !touchesTests && kind !== "docs" && kind !== "translation") {
-    add("no-tests", "note", "The draft changes no tests. A fix normally comes with the test that proves it: it fails without the change and passes with it.");
+    add("no-tests", "note", draft.files.some((f) => INLINE_TEST_FILE.test(f))
+      ? "The draft changes no test files. Rust tests can sit in the changed file itself (#[cfg(test)]): a fix normally comes with one that fails without the change and passes with it."
+      : "The draft changes no tests. A fix normally comes with the test that proves it: it fails without the change and passes with it.");
   }
   if (!checks.some((x) => x.id === "linked-issue") && !draft.linkedIssue) {
     add("no-issue-link", "note", 'The description doesn\'t link the issue it fixes ("Fixes #123", or "Part of #123" on a shared issue).');

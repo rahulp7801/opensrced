@@ -67,6 +67,10 @@ const BOT_LOGINS = /(\[bot\]|[-_]bot)$|^(dependabot|renovate|pre-commit-ci|githu
 export const isBotAuthor = (a: Author) => !a || a.__typename === "Bot" || BOT_LOGINS.test(a.login);
 
 export const TEST_PATH = /(^|\/)(tests?|__tests__|spec|specs|testing)\/|(^|\/)test_[^/]+$|[._-](test|spec)\.[a-z]+$|_test\.go$/i;
+/** Rust keeps unit tests in the file they test (#[cfg(test)] mod tests): its path can't say whether a change has tests. */
+export const INLINE_TEST_FILE = /\.rs$/i;
+/** Most of these PRs (their paths) change Rust files, so a share that touch TEST_PATH misleads (ratatui: "0% of merged"). */
+export const testsInline = (lists: string[][]) => lists.filter((l) => l.some((p) => INLINE_TEST_FILE.test(p))).length * 2 > lists.length;
 /** A changelog file, or a fragment directory (towncrier, changesets, reno,
  *  CPython's Misc/NEWS.d), at the root or under docs/: a code folder that
  *  happens to be called news/ deeper down is not one. */
@@ -119,7 +123,7 @@ export function summarizePrefs(repo: string, prs: MergedPrNode[], prTemplate: bo
     sample: human.length,
     medianFiles: round(median(human.map((pr) => pr.changedFiles))),
     medianLines: round(median(human.map((pr) => pr.additions + pr.deletions))),
-    testsShare: shareOf(paths.filter((list) => list.some((p) => TEST_PATH.test(p))).length, human.length),
+    testsShare: testsInline(paths) ? null : shareOf(paths.filter((list) => list.some((p) => TEST_PATH.test(p))).length, human.length),
     changelogShare: shareOf(changelog, human.length),
     changelogPath: [...locations.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null,
     titleConvention: titleConvention(human.map((pr) => pr.title)),

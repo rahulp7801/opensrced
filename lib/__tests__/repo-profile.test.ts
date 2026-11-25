@@ -274,6 +274,21 @@ test("findings need enough PRs, and a review request must recur before it is a n
   assert.ok(!findings.some((f) => f.text.includes("of reviewed PRs")), "asked on 2 PRs: not a norm yet (quoted, never counted)");
 });
 
+test("a Rust project's tests sit in the file they test, so the share of PRs touching tests isn't stated (ratatui: \"0% of merged\")", () => {
+  const prs = [
+    ...Array.from({ length: 5 }, () => pr({ paths: ["ratatui-core/src/buffer/buffer.rs"], issue: true })),
+    ...Array.from({ length: 5 }, () => closedPr({ paths: ["src/lib.rs", "tests/widgets.rs"] })),
+  ];
+  const p = summarizeProfile("ratatui/ratatui", prs);
+  assert.deepEqual([p.outside.testsMerged.of, p.outside.testsClosed.of], [0, 0]);
+  const texts = profileFindings(p).map((f) => f.text);
+  assert.ok(!texts.some((t) => t.includes("touched tests")));
+  assert.ok(texts.includes("100% of merged outside PRs were linked to an issue, against 0% of closed ones."), "the link comparison stays");
+  // A Python project with one Rust extension PR still counts.
+  const py = summarizeProfile("acme/app", [...Array.from({ length: 5 }, () => pr({ tests: true })), closedPr({ paths: ["ext/a.rs"] }), ...Array.from({ length: 4 }, () => closedPr())]);
+  assert.deepEqual([py.outside.testsMerged.count, py.outside.testsMerged.of], [5, 5]);
+});
+
 test("response time: two values (nbQA: 7 minutes and 84 days) are not a median; enough values give the spread", () => {
   const answeredAfter = (hours: number) => pr({ comments: { nodes: [say("Thanks!", MAINT, "MEMBER", hoursAfter(hours))] } });
   const nbqa = summarizeProfile("nbQA-dev/nbQA", [answeredAfter(7 / 60), answeredAfter(84 * 24)]);

@@ -74,6 +74,8 @@ test("summarizePrefs: medians, shares, the commonest changelog location; bots ar
   assert.equal(p.medianFiles, 2);
   assert.equal(p.medianLines, 12);
   assert.equal(p.testsShare, 0.5);
+  // Mostly Rust: its tests sit in the changed file, so no share is given.
+  assert.equal(summarizePrefs("ratatui/ratatui", [pr({ paths: ["src/a.rs"] }), pr({ paths: ["src/b.rs", "tests/b.rs"] }), pr({ paths: ["README.md"] })], false).testsShare, null);
   assert.equal(p.changelogShare, 0.75);
   assert.equal(p.changelogPath, "changes/");
   assert.equal(p.titleConvention, "conventional");

@@ -101,6 +101,9 @@ test("with no history to go on, a code draft without a test or an issue link sti
   assert.deepEqual(["no-tests", "no-issue-link", "too-little-history"].map((id) => bare.find((c) => c.id === id)?.status), ["note", "note", "note"]);
   const tidy = checkDraft(quiet, { ...GOOD, files: ["src/acme/serializer.py", "tests/test_serializer.py"], linkedIssue: true });
   assert.equal(tidy.find((c) => c.id === "no-tests" || c.id === "no-issue-link"), undefined, "a draft with both gets neither");
+  // Rust: the test may be in the changed file itself.
+  const rust = checkDraft(quiet, { ...GOOD, files: ["ratatui-core/src/buffer/buffer.rs"], linkedIssue: true });
+  assert.match(rust.find((c) => c.id === "no-tests")?.text ?? "", /^The draft changes no test files\. Rust tests can sit in the changed file itself/);
   const docs = checkDraft(quiet, { ...GOOD, title: "[DOC] fix a typo", files: ["docs/index.rst"], linkedIssue: true });
   assert.equal(docs.find((c) => c.id === "no-tests"), undefined, "docs have no test to add");
   // Where the project's own habit already judged tests or the link, no second, softer note.

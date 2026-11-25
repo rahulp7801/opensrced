@@ -75,6 +75,8 @@ test("classifyAiPolicy: hard-wrapped policies are read a sentence at a time (Nod
   assert.deepEqual(classifyAiPolicy(ha), { stance: "welcome", excerpt: "We support using AI (i.e., LLMs) as tools when contributing to Open Home Foundation projects." });
   assert.equal(classifyAiPolicy("**Note:** This file is for AI assistant use only.").stance, "unknown", "a Note: heading isn't a disclosure rule");
   assert.equal(classifyAiPolicy("Please note in the PR whether you used AI.").stance, "disclose");
+  // neovim points at its policy section; the pointer isn't a ban.
+  assert.notEqual(classifyAiPolicy("Before sending a PR, read [AI-assisted work](#ai-assisted-work), otherwise your PR will be closed and you may be blocked from the org.").stance, "ban");
   // A list item ends a sentence; a ban in one item isn't softened by the next.
   assert.equal(classifyAiPolicy("- AI-generated code is not accepted\n- Changes without human review are rejected").stance, "ban");
 });

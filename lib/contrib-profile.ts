@@ -154,6 +154,8 @@ export function classifyAiPolicy(text: string): { stance: AiStance; excerpt: str
     // listed as co-author can't be merged and will be closed": "you may still submit" after LLM help),
     // nor is one against AI with no human involved (fastify), which is kept as the welcome's condition.
     const m = [...text.matchAll(new RegExp(re.source, `${re.flags}g`))].find((x) => {
+      // A link to the policy isn't the policy (neovim: "read [AI-assisted work](#ai-assisted-work), otherwise your PR will be closed").
+      if (x[0].includes("](")) return false;
       const sentence = sentenceAround(text, x.index);
       if (UNSUPERVISED.test(sentence)) unsupervised ??= sentence;
       return !CO_AUTHOR.test(sentence) && !UNSUPERVISED.test(sentence);

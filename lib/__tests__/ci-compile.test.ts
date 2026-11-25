@@ -112,7 +112,10 @@ test("stepCommand isolates each step and runs under the right shell (executed)",
     execFileSync("bash", ["-c", "mkdir -p sub"], { cwd: dir });
     assert.equal(stepCommand("echo hi", {}), "echo hi");
     assert.equal(stepCommand("cd sub && pwd", {}), "(cd sub && pwd)", "a cd does not leak into later steps");
-    assert.match(sh(`${stepCommand("pwd", { workingDirectory: "sub" })}\npwd`), /\/sub\n.*[^b]\n$/);
+    // The step runs in sub/, and the next command is back in the top directory. (Was /\/sub\n.*[^b]\n$/,
+    // which failed whenever mkdtemp's random suffix ended in "b": CI, 6fb27b5.)
+    const [inStep, after] = sh(`${stepCommand("pwd", { workingDirectory: "sub" })}\npwd`).split("\n");
+    assert.ok(inStep!.endsWith("/sub") && !after!.endsWith("/sub") && inStep === `${after}/sub`, `${inStep} then ${after}`);
     assert.equal(sh(stepCommand("echo \"$A-$B\"", { env: { A: "it's", B: "x y" } })), "it's-x y\n");
     const multi = stepCommand("        x=1\n        echo $((x + 1))\n        false || echo recovered\n", { shell: "bash" });
     assert.match(multi, /^bash --noprofile --norc -eo pipefail -c /);

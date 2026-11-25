@@ -305,6 +305,9 @@ const PROCEDURES: Array<[string, string, ProcedureKind[]]> = [
   ["assign yourself", "When you decide to work on such\nan issue, please assign yourself to it and add a comment that you'll be working on that,\ntoo.", ["assignment"]],
   ["discussion", "Larger changes should be discussed in an issue before you open a pull request.", ["discussion"]],
   ["issue first", "Please open an issue first so we can agree on the design.", ["issue_first"]],
+  // yargs's AI_POLICY.md, as written.
+  ["invited", "- Don't open a Pull Request unless invited to do so by a maintainer.", ["approval"]],
+  ["unless asked", "Do not open a PR unless you were asked to.", ["approval"]],
   // Review rules and plain prose are not pre-PR steps.
   ["merge approval", "Every PR needs approval from two maintainers to merge.", []],
   ["reviewers assigned", "A reviewer will be assigned automatically.", []],

@@ -29,8 +29,8 @@ export const PROFILE_SAMPLE = 100;
 /** A profile is read again after this long. */
 export const PROFILE_TTL_MS = 24 * 60 * 60_000;
 /** Bumped when what a profile says changes (2: AI co-author rules aren't bans; the owner's .github repo counts;
- *  3: who may open PRs), so a stored profile isn't served with the old verdict for up to a day. */
-export const PROFILE_RULES = 3;
+ *  3: who may open PRs; 4: a rule against AI with no human involved isn't a ban, Rust test shares, PR-pause pins), so a stored profile isn't served with the old verdict for up to a day. */
+export const PROFILE_RULES = 4;
 /** Fewest PRs (or measurements) a comparison or statistic needs before it is stated. */
 export const MIN_SAMPLE = 5;
 /** A review request is stated once it recurs on this many PRs: one reviewer's

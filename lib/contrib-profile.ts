@@ -107,6 +107,8 @@ const DISCLOSE_PATTERNS = [
 const WELCOME_PATTERNS = [
   new RegExp(String.raw`\bwe\s+(?:welcome|accept|allow|encourage)\s+(?:the\s+use\s+of\s+)?${AI}`, "i"),
   new RegExp(String.raw`\b${AI}[- ]?(?:assisted|generated)?\s+(?:contributions?|pull requests?|PRs?|code)\s+(?:are|is)\s+(?:welcome|allowed|accepted|fine|ok(?:ay)?)\b`, "i"),
+  // yargs: "AI assistance is ok, but there must be a human involved and contributing."
+  new RegExp(String.raw`\b${AI}[- ]?(?:assistance|use|usage|tools?)\s+(?:are|is)\s+(?:welcome|allowed|accepted|fine|ok(?:ay)?)\b`, "i"),
   new RegExp(String.raw`\b(?:you|contributors?)\s+(?:may|can|are\s+(?:welcome|free)\s+to)\s+use\s+${AI}`, "i"),
   // pyjanitor maintainer (#1714): "Totally ok to use your agents to do it". "agents"
   // only counts after "your"/"coding"/"AI", so "user agents" or "agent classes" do not.
@@ -117,6 +119,9 @@ const WELCOME_PATTERNS = [
 
 /** A sentence about who is listed as an author (Co-authored-by trailers), not about AI help. */
 const CO_AUTHOR = /\bco-?author(?:ed|s)?\b|\btrailers?\b/i;
+/** A rule against AI working with no human involved, which leaves a human's AI-assisted work welcome
+ *  (fastify: "Pure-AI contributions with no human in the loop are not welcome"). */
+const UNSUPERVISED = /\b(?:pure|purely|fully|entirely|wholly)[- ]?(?:AI|LLM)\b|\bno\s+human\b|\bwithout\s+(?:a\s+|any\s+)?human\b|\bhuman\s+in\s+the\s+loop\b|\bautonomous\b/i;
 
 /** Ban outranks a disclosure requirement, which outranks a welcome (several files may say different things). */
 const STANCE_RANK: Record<AiStance, number> = { unknown: 0, welcome: 1, disclose: 2, ban: 3 };
@@ -133,10 +138,16 @@ function sentenceAround(text: string, index: number): string {
 /** Classify one document's stance on AI contributions. A ban wins over a
  *  disclosure requirement found elsewhere in the same text. */
 export function classifyAiPolicy(text: string): { stance: AiStance; excerpt: string | null } {
+  let unsupervised: string | null = null;
   for (const re of BAN_PATTERNS) {
     // A rule about co-authorship is not a ban (requests: "Pull requests that have an LLM product
-    // listed as co-author can't be merged and will be closed": "you may still submit" after LLM help).
-    const m = [...text.matchAll(new RegExp(re.source, `${re.flags}g`))].find((x) => !CO_AUTHOR.test(sentenceAround(text, x.index)));
+    // listed as co-author can't be merged and will be closed": "you may still submit" after LLM help),
+    // nor is one against AI with no human involved (fastify), which is kept as the welcome's condition.
+    const m = [...text.matchAll(new RegExp(re.source, `${re.flags}g`))].find((x) => {
+      const sentence = sentenceAround(text, x.index);
+      if (UNSUPERVISED.test(sentence)) unsupervised ??= sentence;
+      return !CO_AUTHOR.test(sentence) && !UNSUPERVISED.test(sentence);
+    });
     if (m) return { stance: "ban", excerpt: sentenceAround(text, m.index) };
   }
   for (const re of DISCLOSE_PATTERNS) {
@@ -147,6 +158,7 @@ export function classifyAiPolicy(text: string): { stance: AiStance; excerpt: str
     const m = re.exec(text);
     if (m) return { stance: "welcome", excerpt: sentenceAround(text, m.index) };
   }
+  if (unsupervised) return { stance: "welcome", excerpt: unsupervised };
   return { stance: "unknown", excerpt: null };
 }
 

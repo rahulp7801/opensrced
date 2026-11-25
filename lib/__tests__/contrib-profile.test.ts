@@ -56,6 +56,16 @@ test("classifyAiPolicy: a rule against AI co-author trailers is not a ban (reque
   assert.equal(classifyAiPolicy("PRs listing an AI as co-author will be closed.\nWe do not accept AI-generated code.").stance, "ban");
 });
 
+test("classifyAiPolicy: a rule against AI with no human involved welcomes a human's AI-assisted work (fastify, yargs)", () => {
+  const fastify = "1. Pure-AI contributions with no human in the loop are not welcome. Pull\nrequests ***MUST*** be opened by a human.";
+  assert.deepEqual(classifyAiPolicy(fastify), { stance: "welcome", excerpt: "Pure-AI contributions with no human in the loop are not welcome." });
+  assert.deepEqual(classifyAiPolicy("# AI Policy\n\nAI assistance is ok, but there must be a human involved and contributing.\n"),
+    { stance: "welcome", excerpt: "AI assistance is ok, but there must be a human involved and contributing." });
+  // A real ban beside it still wins, and a stated disclosure rule outranks the welcome.
+  assert.equal(classifyAiPolicy(`${fastify}\nWe do not accept AI-generated code.`).stance, "ban");
+  assert.equal(classifyAiPolicy(`${fastify}\nAll AI usage must be disclosed.`).stance, "disclose");
+});
+
 test("DCO, CLA and trailer detection", () => {
   assert.ok(detectsDco("Commits must include a `Signed-off-by:` header"));
   assert.ok(detectsDco("we follow the Developer Certificate of Origin"));

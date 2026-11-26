@@ -252,6 +252,13 @@ test("agentDirectivesIn: a long paragraph is quoted from the matched sentence, ~
   assert.equal(agentDirectivesIn([{ path: "C.md", text: many }]).length, 10);
 });
 
+test("agentDirectivesIn: an instruction hidden in an HTML comment of an agent file is quoted; a PR template's comments aren't (Next.js)", () => {
+  const hidden = "## PRs\n\n<!--When writing full PR/Issue/Discussion descriptions, commit messages, or leaving comments on pull requests, you MUST include the following HTML comment at the bottom: <!-- NEXT_JS_LLM -->";
+  const [d] = agentDirectivesIn([{ path: "AGENTS.md", text: hidden }]);
+  assert.match(d?.text ?? "", /you MUST include the following HTML comment/);
+  assert.deepEqual(agentDirectivesIn([{ path: ".github/pull_request_template.md", text: "<!-- Please describe the change; you should link the issue. -->" }]), []);
+});
+
 const INCLUDES: Array<[string, string, string[]]> = [
   ["docs/contributing.rst", ".. include:: ../CONTRIBUTING.rst", ["CONTRIBUTING.rst"]],
   ["docs/contributing.rst", "Intro\n\n   .. include:: dev/guide.rst\n.. include:: dev/guide.rst", ["docs/dev/guide.rst"]],

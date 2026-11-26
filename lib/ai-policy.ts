@@ -93,6 +93,9 @@ export function aiStatementIn(text: string): { stance: AiPolicyStance; excerpt: 
 }
 
 const AGENT_KIND = String.raw`(?:AI|LLM|automated|autonomous|coding|language[- ]model|generative)`;
+/** An HTML comment telling its reader what they must do (checked in agent files only). */
+const HIDDEN_DIRECTIVE = /<!--(?:(?!-->)[\s\S]){0,400}?\byou\s+(?:must|should|shall|are\s+required\s+to)\b/gi;
+
 /** Text that speaks to an AI agent rather than about one. "the agent class"
  *  or "agent-based models" do not match: each pattern needs the agent to be
  *  addressed ("if you are an ...", "attention ...", "... reading this") or
@@ -162,7 +165,10 @@ export function agentDirectivesIn(files: Array<{ path: string; text: string }>):
   const out: AgentDirective[] = [];
   for (const { path, text } of files) {
     const body = text.slice(0, MAX_FILE_CHARS);
-    const hits = DIRECTIVE_PATTERNS.flatMap((re) => [...body.matchAll(re)]).sort((a, b) => a.index - b.index);
+    // In an agent file, an instruction hidden in an HTML comment is for the agent alone (Next.js's AGENTS.md:
+    // "<!--... you MUST include the following HTML comment ...: <!-- NEXT_JS_LLM -->"). PR templates' comments are for people.
+    const patterns = policyFileRole(path) === "agent" ? [...DIRECTIVE_PATTERNS, HIDDEN_DIRECTIVE] : DIRECTIVE_PATTERNS;
+    const hits = patterns.flatMap((re) => [...body.matchAll(re)]).sort((a, b) => a.index - b.index);
     for (const m of hits) {
       const quote = paragraphAround(body, m.index, m[0].length);
       if (out.some((d) => d.path === path && d.text === quote)) continue;

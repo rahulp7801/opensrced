@@ -36,9 +36,10 @@ export const PROFILE_TTL_MS = 24 * 60 * 60_000;
  *  8: Django's "AI Assistance Disclosure (REQUIRED)" and "pull requests without Trac tickets will be closed";
  *  9: PRs a bot closes as merged in Gerrit count as merged, Go read 0% merged;
  *  10: invited issues closed by a commit are counted apart from those closed with no fix;
- *  11: the "issue first" title style, CPython "gh-123: …" and Django "Fixed #123 -- …"),
+ *  11: the "issue first" title style, CPython "gh-123: …" and Django "Fixed #123 -- …";
+ *  12: Sphinx developer docs are read for the AI policy: numpy, matplotlib),
  *  so a stored profile isn't served with the old verdict for up to a day. */
-export const PROFILE_RULES = 11;
+export const PROFILE_RULES = 12;
 /** Fewest PRs (or measurements) a comparison or statistic needs before it is stated. */
 export const MIN_SAMPLE = 5;
 /** A review request is stated once it recurs on this many PRs: one reviewer's

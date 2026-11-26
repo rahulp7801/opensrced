@@ -36,8 +36,9 @@ const STANCE: Record<AiStance, AiPolicyStance> = { ban: "banned", disclose: "dis
 /** A ban anywhere outranks a disclosure rule, which outranks a welcome. */
 const RANK: Record<AiPolicyStance, number> = { unknown: 0, allowed: 1, "disclosure-required": 2, banned: 3 };
 
-/** The directories listed for policy files ("" is the root). */
-export const AI_POLICY_DIRS = ["", ".github", "docs"] as const;
+/** The directories listed for policy files ("" is the root). Sphinx projects keep theirs under doc/
+ *  (numpy's doc/source/dev/ai_policy.rst, pandas' doc/source/development/, matplotlib's doc/devel/). */
+export const AI_POLICY_DIRS = ["", ".github", "docs", "doc", "doc/source/dev", "doc/source/development", "doc/devel", "docs/source/development", "docs/development"] as const;
 
 /** Whether a listed file is a contribution guide / AI policy, an agent
  *  instruction file, or neither. Case-insensitive; CONTRIBUTORS.* is a list
@@ -45,7 +46,8 @@ export const AI_POLICY_DIRS = ["", ".github", "docs"] as const;
 export function policyFileRole(path: string): "guide" | "agent" | null {
   const name = path.slice(path.lastIndexOf("/") + 1);
   if (/^(?:agents|claude)\.md$/i.test(name) || /^\.github\/copilot-instructions\.md$/i.test(path)) return "agent";
-  if (/^(?:contributing|ai(?:[-_ ]?(?:policy|contributions?))?)(?:\.(?:md|rst|txt))?$/i.test(name)) return "guide";
+  // matplotlib's guide is doc/devel/contribute.rst.
+  if (/^(?:contribut(?:ing|e)|ai(?:[-_ ]?(?:policy|contributions?))?)(?:\.(?:md|rst|txt))?$/i.test(name)) return "guide";
   return null;
 }
 

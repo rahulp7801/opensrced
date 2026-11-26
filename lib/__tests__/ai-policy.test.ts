@@ -71,7 +71,10 @@ const ROLES: Array<[string, "guide" | "agent" | null]> = [
 for (const [path, role] of ROLES) {
   test(`policyFileRole(${JSON.stringify(path)}) → ${role}`, () => assert.equal(policyFileRole(path), role));
 }
-test("AI_POLICY_DIRS lists the root, .github and docs", () => assert.deepEqual([...AI_POLICY_DIRS], ["", ".github", "docs"]));
+test("AI_POLICY_DIRS lists the root, .github, docs and Sphinx's developer docs (numpy's doc/source/dev/ai_policy.rst)", () => {
+  assert.deepEqual([...AI_POLICY_DIRS].slice(0, 3), ["", ".github", "docs"]);
+  assert.ok(AI_POLICY_DIRS.includes("doc/source/dev"));
+});
 
 test("aiPolicyBanReason quotes the policy for a ban only", () => {
   const reason = aiPolicyBanReason({ stance: "banned", source: "AI.md", evidence: "No LLMs for pull requests." });

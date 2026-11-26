@@ -40,9 +40,10 @@ export const PROFILE_TTL_MS = 24 * 60 * 60_000;
  *  12: Sphinx developer docs are read for the AI policy: numpy, matplotlib;
  *  13: git's Documentation/SubmittingPatches; "AI slop" is a quality bar, "looks AI generated" a ban;
  *  14: a rule about AI code review isn't a ban: conda;
- *  15: instructions hidden in an agent file's HTML comments are shown: Next.js),
+ *  15: instructions hidden in an agent file's HTML comments are shown: Next.js;
+ *  16: a ban scoped to a list, and unedited-copy-paste rules, aren't bans: clap, toml, starship),
  *  so a stored profile isn't served with the old verdict for up to a day. */
-export const PROFILE_RULES = 15;
+export const PROFILE_RULES = 16;
 /** Fewest PRs (or measurements) a comparison or statistic needs before it is stated. */
 export const MIN_SAMPLE = 5;
 /** A review request is stated once it recurs on this many PRs: one reviewer's

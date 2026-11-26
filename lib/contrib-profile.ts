@@ -131,7 +131,7 @@ const WELCOME_PATTERNS = [
 const CO_AUTHOR = /\bco-?author(?:ed|s)?\b|\btrailers?\b/i;
 /** A rule against AI working with no human involved, which leaves a human's AI-assisted work welcome
  *  (fastify: "Pure-AI contributions with no human in the loop are not welcome"). */
-const UNSUPERVISED = /\b(?:pure|purely|fully|entirely|wholly)[- ]?(?:AI|LLM)\b|\bno\s+human\b|\bwithout\s+(?:\w+\s+){0,2}human\b|\bhuman\s+(?:in\s+the\s+loop|oversight)\b|\bautonomous(?:ly)?\b|\bun(?:reviewed|supervised)\b|\blow[- ]quality\b/i;
+const UNSUPERVISED = /\b(?:pure|purely|fully|entirely|wholly)[- ]?(?:AI|LLM)\b|\bno\s+human\b|\bwithout\s+(?:\w+\s+){0,2}human\b|\bhuman\s+(?:in\s+the\s+loop|oversight)\b|\bautonomous(?:ly)?\b|\bun(?:reviewed|supervised|edited)\b|\blow[- ]quality\b/i;
 
 /** Ban outranks a disclosure requirement, which outranks a welcome (several files may say different things). */
 const STANCE_RANK: Record<AiStance, number> = { unknown: 0, welcome: 1, disclose: 2, ban: 3 };
@@ -169,6 +169,9 @@ export function classifyAiPolicy(text: string): { stance: AiStance; excerpt: str
       // "AI slop" is a quality bar, not AI as such (numpy: 'We will reject pull requests that we deem to be "`AI slop`_"');
       // git's "reject anything that looks AI generated, ..., that looks like AI slop" still matches on "AI generated".
       if (/^\W{0,4}slop\b/i.test(text.slice(x.index + x[0].length, x.index + x[0].length + 12))) { unsupervised ??= sentence; return false; }
+      // A ban scoped to the list that follows (clap: "AI generated code, even with human review, is prohibited for:\n
+      // - generated shell scripts for completions") covers those areas, not contributions as such.
+      if (/\bfor:\s*$/.test(sentence)) { unsupervised ??= sentence; return false; }
       if (UNSUPERVISED.test(sentence)) unsupervised ??= sentence;
       // A rule that holds whether or not AI was used isn't about AI (sqlalchemy: "users who post content that
       // appears to be trolling ..., whether or not this content is machine generated, will be banned").

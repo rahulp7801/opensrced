@@ -320,6 +320,8 @@ const PROCEDURES: Array<[string, string, ProcedureKind[]]> = [
   // yargs's AI_POLICY.md, as written.
   ["invited", "- Don't open a Pull Request unless invited to do so by a maintainer.", ["approval"]],
   ["unless asked", "Do not open a PR unless you were asked to.", ["approval"]],
+  // clap's AI_POLICY.md, as written.
+  ["permission first", "Using AI as tools for coding requires receiving permission on the relevant issue before a PR is posted.", ["approval"]],
   // Django's CONTRIBUTING.rst, wrapped as written.
   ["ticket first", "**Warning: non-trivial pull requests (anything more than fixing a typo) without\nTrac tickets will be closed!**", ["issue_first"]],
   // Review rules and plain prose are not pre-PR steps.

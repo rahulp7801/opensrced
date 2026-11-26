@@ -30,7 +30,7 @@ import { promisify } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { graphify, GraphifyError, GraphifyMissing, GRAPHIFY_INSTALL, GRAPHIFY_VERSION, lessonMapData, localGraphifyVersion, overlayLevels, withOverlay, fileMapHtml, TEST_FILE } from "./graph.mjs";
 
-const VERSION = "0.3.31";
+const VERSION = "0.3.32";
 const BASE = (process.env.OPENSRCER_URL || "https://opensrced.vercel.app").replace(/\/+$/, "");
 // A host that doesn't fill in `${user_config.…}` (plugin .mcp.json) leaves the literal: that is no token.
 const TOKEN = /^\$\{/.test(process.env.OPENSRCER_TOKEN ?? "") ? "" : process.env.OPENSRCER_TOKEN || "";
@@ -479,7 +479,7 @@ function lessonText(L) {
   if (L.answer_key === "pending" && !L.revealed) lines.push(L.path === "A"
     ? "Prepare the hidden fix now (lesson_key), before s7: steps s7 and s8 are graded against it."
     : "Prepare the hidden fix now (lesson_key) while they work, without showing it: the reveal compares their change with it.");
-  if (L.stage === "ide") lines.push("The user writes the fix in their checkout. When they say it's done, call lesson_submit_own with done: true.");
+  if (L.stage === "ide") lines.push("The user writes the fix in their checkout, with the test that proves it (fails without the fix, passes with it). When they say it's done, call lesson_submit_own with done: true.");
   if (L.stage === "reveal") lines.push("Call lesson_reveal, then walk the user through the fix.");
   if (L.stage === "done") lines.push(L.path === "A"
     ? "The lesson is done. The fix you wrote stays in your hidden worktree: if the user wants to contribute it, they make the change in their own checkout themselves (they understand it now), and the PR discloses AI assistance as the project asks. Before any PR, go back to repo_profile's \"Before you start\" (e.g. agree the approach on the issue first) and check_pr. Help them open it only when they ask."

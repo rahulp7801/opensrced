@@ -646,6 +646,9 @@ const FILE_MAP_SCRIPT = String.raw`
 })();
 `;
 
+/** A test file by its path: tests/, testing/ (pluggy), spec/, __tests__/, test_x.py, x.test.ts. */
+export const TEST_FILE = /(^|\/)(tests?|testing|spec|__tests__)\/|(^|\/)test_[^/]+$|[._-](test|spec)\.\w+$/i;
+
 /**
  * The code map as a page of file cards: each code file a card listing its classes and
  * functions in source order (methods under their class), the files it uses and is used by
@@ -678,7 +681,7 @@ export function fileMapHtml(graph, levels, diff, title) {
   };
   const rank = { changed: 0, explored: 1, unseen: 2 };
   // tests/, testing/ (pluggy), spec/, __tests__/, test_x.py, x.test.ts: after the code they test.
-  const isTest = (f) => Number(/(^|\/)(tests?|testing|spec|__tests__)\/|(^|\/)test_[^/]+$|[._-](test|spec)\.\w+$/i.test(f));
+  const isTest = (f) => Number(TEST_FILE.test(f));
   const DATA_FILE = /\.(?:json|jsonc|toml|ya?ml|lock|cfg|ini|txt|csv)$/i;
   const files = [...byFile.keys()]
     // The file's own node (label "serializer.py") is the card itself.

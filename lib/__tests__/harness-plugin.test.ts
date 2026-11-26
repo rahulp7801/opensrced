@@ -387,6 +387,18 @@ test("path B: the agent is told to store the hidden fix, and a reveal without it
     // Path B's reveal: the user's own change is checked and compared first (it's what they'd contribute).
     const keyed = text(await request("tools/call", { name: "lesson_reveal", arguments: { lesson: LESSON_B_KEYED } }));
     assert.match(keyed, /The fix changes 1 file: app\/fill\.py[\s\S]*\nFirst, their change \(git -C <their checkout> diff\): run their test without their fix and with it[\s\S]*what each does better/);
+    // yargs #2356: the user's change works but has no test; the reveal says so instead of "run their test".
+    const { dir } = fixture();
+    mkdirSync(join(home, "lessons"), { recursive: true });
+    writeFileSync(join(home, "lessons", `${LESSON_B_KEYED}.json`), JSON.stringify({ id: LESSON_B_KEYED, repo: "acme/app", dir }));
+    writeFileSync(join(dir, "app", "fill.py"), "import pandas as pd\n\ndef fill(df, value):\n    return df.fillna(value)\n");
+    const untested = text(await request("tools/call", { name: "lesson_reveal", arguments: { lesson: LESSON_B_KEYED } }));
+    assert.match(untested, /it changes app\/fill\.py and no test\. Say so plainly: a fix needs the test that proves it/);
+    assert.doesNotMatch(untested, /run their test without their fix/);
+    mkdirSync(join(dir, "tests"));
+    writeFileSync(join(dir, "tests", "test_fill.py"), "def test_fill(): pass\n");
+    assert.match(text(await request("tools/call", { name: "lesson_reveal", arguments: { lesson: LESSON_B_KEYED } })), /run their test without their fix and with it/, "a new test file counts");
+    rmSync(join(home, "lessons", `${LESSON_B_KEYED}.json`));
     const given = text(await request("tools/call", { name: "lesson_reveal", arguments: { lesson: LESSON_B_KEYED, give_up: true } }));
     assert.doesNotMatch(given, /First, their change/, "after giving up there's no change of theirs to check");
     assert.doesNotMatch(keyed, /different fix that would also work/, "path B's comparison already covers it");

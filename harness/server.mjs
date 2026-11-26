@@ -28,9 +28,9 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
-import { graphify, GraphifyError, GraphifyMissing, GRAPHIFY_INSTALL, GRAPHIFY_VERSION, lessonMapData, localGraphifyVersion, overlayLevels, withOverlay, fileMapHtml } from "./graph.mjs";
+import { graphify, GraphifyError, GraphifyMissing, GRAPHIFY_INSTALL, GRAPHIFY_VERSION, lessonMapData, localGraphifyVersion, overlayLevels, withOverlay, fileMapHtml, TEST_FILE } from "./graph.mjs";
 
-const VERSION = "0.3.30";
+const VERSION = "0.3.31";
 const BASE = (process.env.OPENSRCER_URL || "https://opensrced.vercel.app").replace(/\/+$/, "");
 // A host that doesn't fill in `${user_config.…}` (plugin .mcp.json) leaves the literal: that is no token.
 const TOKEN = /^\$\{/.test(process.env.OPENSRCER_TOKEN ?? "") ? "" : process.env.OPENSRCER_TOKEN || "";
@@ -726,9 +726,16 @@ async function lessonTool(name, id, args) {
       ? `The fix changes ${changed.length} file${changed.length === 1 ? "" : "s"}: ${changed.join(", ")}. Show the user the diff from your hidden worktree (git -C <worktree> diff HEAD) file by file and why its test proves it. Then ask explain-it: one sentence in their own words for each of those files, and why the test proves the fix. Send it as {"files": {"<exact path above>": "their sentence", ...}, "test": "their words"}: put each sentence under the path it's about, without rewording it; if they skip a file, ask them for that one.`
       : "Walk the user through the fix file by file and why its test proves it, then ask explain-it.";
     // Path B: their own change is what they'd contribute, so it gets checked and compared first.
-    const own = s.lesson.path === "B" && !args.give_up
-      ? `\nFirst, their change (git -C ${existsSync(lessonFile(id)) ? localLesson(id).dir : "<their checkout>"} diff): run their test without their fix and with it, and say whether it proves the fix. Then compare it with the key: what each does better, and anything theirs misses.`
-      : "";
+    let own = "";
+    if (s.lesson.path === "B" && !args.give_up) {
+      const dir = existsSync(lessonFile(id)) ? localLesson(id).dir : null;
+      const theirs = dir ? [...(await diffOf(dir, { stage: false }).catch(() => "")).matchAll(/^\+\+\+ b\/(\S+)/gm)].map((m) => m[1]) : [];
+      // yargs #2356: a working fix with no test. "Run their test" would send the agent looking for one.
+      const tested = !dir || theirs.some((f) => TEST_FILE.test(f));
+      own = tested
+        ? `\nFirst, their change (git -C ${dir ?? "<their checkout>"} diff): run their test without their fix and with it, and say whether it proves the fix. Then compare it with the key: what each does better, and anything theirs misses.`
+        : `\nFirst, their change (git -C ${dir} diff): it changes ${theirs.join(", ") || "no files"} and no test. Say so plainly: a fix needs the test that proves it (fails without the fix, passes with it), and a PR without one is usually sent back. Show how the key's test does that, ask them to add one to their change, and run it both ways. Then compare their fix with the key: what each does better, and anything theirs misses.`;
+    }
     // Path A: a plan the s8 grader found would also work (werkzeug #3285) is worth setting beside the key.
     const alt = s.lesson.path === "A" && s.lesson.steps.find((x) => x.id === "s8")?.grade?.detail?.alternative === true
       ? "\nTheir s8 plan was a different fix that would also work: set it beside the key and say what each does better, so they know theirs was right too."

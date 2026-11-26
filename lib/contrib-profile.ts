@@ -163,6 +163,8 @@ export function classifyAiPolicy(text: string): { stance: AiStance; excerpt: str
       // A link to the policy isn't the policy (neovim: "read [AI-assisted work](#ai-assisted-work), otherwise your PR will be closed").
       // Nor is naming it (ripgrep: "Contributions not following the AI Policy will be closed").
       if (x[0].includes("](") || new RegExp(String.raw`${AI}[- ]polic(?:y|ies)\b`, "i").test(x[0])) return false;
+      // Nor is a rule about AI reviewing code (conda: "Automated AI code review is not permitted").
+      if (new RegExp(String.raw`${AI}[- ](?:code[- ])?reviews?\b`, "i").test(x[0])) return false;
       const sentence = sentenceAround(text, x.index);
       // "AI slop" is a quality bar, not AI as such (numpy: 'We will reject pull requests that we deem to be "`AI slop`_"');
       // git's "reject anything that looks AI generated, ..., that looks like AI slop" still matches on "AI generated".

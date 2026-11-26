@@ -30,7 +30,7 @@ import { promisify } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { graphify, GraphifyError, GraphifyMissing, GRAPHIFY_INSTALL, GRAPHIFY_VERSION, lessonMapData, localGraphifyVersion, overlayLevels, withOverlay, fileMapHtml, TEST_FILE } from "./graph.mjs";
 
-const VERSION = "0.3.32";
+const VERSION = "0.3.33";
 const BASE = (process.env.OPENSRCER_URL || "https://opensrced.vercel.app").replace(/\/+$/, "");
 // A host that doesn't fill in `${user_config.…}` (plugin .mcp.json) leaves the literal: that is no token.
 const TOKEN = /^\$\{/.test(process.env.OPENSRCER_TOKEN ?? "") ? "" : process.env.OPENSRCER_TOKEN || "";
@@ -581,7 +581,10 @@ async function callTool(name, args) {
   }
   if (name === "find_issues") {
     const t = await api(`/api/harness/issue?repo=${encodeURIComponent(repo)}`);
-    const line = (i, why) => `- #${i.number} ${i.title}${i.labels.length ? ` [${i.labels.join(", ")}]` : ""} (${i.comments} comment${i.comments === 1 ? "" : "s"}, opened ${i.opened})${why ? `: ${why}` : ""}`;
+    // atom/atom: archived, so read-only; its open issues aren't free for anyone.
+    if (t.archived) return `# ${t.repo} is archived (read-only)\nNobody can change it on GitHub, so none of its ${t.issues.length} newest open issues can be fixed there. repo_profile says whether the project moved; otherwise pick another project.`;
+    if (!t.issues.length) return `# ${t.repo} has no open issues.`;
+    const line =(i, why) => `- #${i.number} ${i.title}${i.labels.length ? ` [${i.labels.join(", ")}]` : ""} (${i.comments} comment${i.comments === 1 ? "" : "s"}, opened ${i.opened})${why ? `: ${why}` : ""}`;
     // Open but maybe fixed already (cheerio #5368: "fixed on main"); an older site sends no `resolved`.
     const done = t.issues.filter((i) => !i.taken && i.resolved);
     // Labelled not ready (vitest's "pending triage"): free, but not confirmed or agreed yet.

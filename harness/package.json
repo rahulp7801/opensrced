@@ -1,6 +1,6 @@
 {
   "name": "opensrcer-mcp",
-  "version": "0.3.32",
+  "version": "0.3.33",
   "description": "opensrcer's contribution harness as an MCP server: each open-source project's unwritten rules in your agent's context, and lessons that teach you the issue.",
   "license": "MIT",
   "homepage": "https://opensrced.vercel.app",

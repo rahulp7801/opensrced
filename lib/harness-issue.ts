@@ -124,7 +124,8 @@ export type ListedIssue = {
   /** Why its labels say it isn't ready to work on (waiting for triage, for information, a decision), or null. */
   notReady: string | null;
 };
-export type IssueList = { repo: string; issues: ListedIssue[] };
+/** `archived`: read-only on GitHub, so none of its issues can be fixed there (atom/atom). */
+export type IssueList = { repo: string; issues: ListedIssue[]; archived?: boolean };
 
 /** Someone saying they're on it. Where only collaborators can open PRs (uvicorn, starlette), a claim or a
  *  ready branch in the issue is all there is. ponytail: first-person phrases only; a claim gone stale still counts. */
@@ -177,10 +178,10 @@ export async function listOpenIssues(repoInput: string, token = process.env.OPEN
     }
     return cause instanceof Error ? cause : new Error(String(cause));
   };
-  let repo: { hasIssuesEnabled: boolean; issues: { nodes: IssueNode[] } } | null;
+  let repo: { hasIssuesEnabled: boolean; isArchived?: boolean; issues: { nodes: IssueNode[] } } | null;
   try {
     repo = (await client.graphql<{ repository: typeof repo }>(
-      `query OpenIssues($owner: String!, $name: String!, $n: Int!) { repository(owner: $owner, name: $name) { hasIssuesEnabled
+      `query OpenIssues($owner: String!, $name: String!, $n: Int!) { repository(owner: $owner, name: $name) { hasIssuesEnabled isArchived
         issues(first: $n, states: OPEN, orderBy: { field: CREATED_AT, direction: DESC }) { nodes { number title url body createdAt
           labels(first: 20) { nodes { name } } assignees(first: 5) { nodes { login } }
           comments(last: 5) { totalCount nodes { body author { login } authorAssociation createdAt } } } } } }`,
@@ -231,5 +232,5 @@ export async function listOpenIssues(repoInput: string, token = process.env.OPEN
       notReady: notReadyLabel(labels.map((l) => l.toLowerCase())),
     };
   });
-  return { repo: `${owner}/${name}`, issues };
+  return { repo: `${owner}/${name}`, issues, archived: repo.isArchived === true };
 }

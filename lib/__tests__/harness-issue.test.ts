@@ -77,6 +77,7 @@ test("listOpenIssues: the newest open issues, each taken by an assignee or an op
   });
   const list = await listOpenIssues("markedjs/marked", "t", fake);
   assert.equal(list.repo, "markedjs/marked");
+  assert.equal(list.archived, false);
   assert.deepEqual(list.issues.map((i) => [i.number, i.taken]), [[4273, "open PR #4274"], [4253, "open PR #4254, #4260"], [42, "assigned to @uzi"], [4, null], [5368, null],
     [3260, `claimed by @fs: "I'll take this"`], [3255, 'the issue says "Ready fix branch"'], [3793, null]]);
   assert.deepEqual([list.issues[0]!.labels, list.issues[0]!.opened, list.issues[1]!.labels, list.issues[1]!.comments, list.issues[3]!.url], [["perf"], "2026-11-22", ["bug", "Pending Triage"], 2, "https://github.com/markedjs/marked/issues/4"]);

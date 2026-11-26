@@ -50,7 +50,7 @@ export type CommunityDiscussion = Post & {
   comments: { nodes: Array<Post & { replies: { nodes: Post[] } | null }> } | null;
 };
 
-export const COMMUNITY_KINDS = ["discord", "slack", "zulip", "gitter", "matrix", "discourse", "mailing-list"] as const;
+export const COMMUNITY_KINDS = ["discord", "slack", "zulip", "gitter", "matrix", "discourse", "mailing-list", "chat"] as const;
 export type CommunityKind = (typeof COMMUNITY_KINDS)[number];
 export type CommunityLink = { kind: CommunityKind; url: string; source: string };
 
@@ -118,6 +118,8 @@ function linkKind(url: URL, context: string): CommunityKind | null {
   if (host === "groups.io" && /^\/g\/[\w-]+/.test(path)) return "mailing-list";
   if (labels[0] === "lists" && labels.length >= 3) return "mailing-list";
   if (/^\/(mailman3?|pipermail|archives\/list)\//i.test(`${path}/`)) return "mailing-list";
+  // A self-hosted chat (Godot's "Godot Contributors Chat", chat.godotengine.org, a Rocket.Chat).
+  if (labels[0] === "chat" && labels.length >= 3) return "chat";
   return null;
 }
 
@@ -125,6 +127,8 @@ function linkKind(url: URL, context: string): CommunityKind | null {
 function linkKey(kind: CommunityKind, url: URL): string {
   const path = url.pathname.replace(/\/+$/, "");
   if (kind === "discord") return `discord:${path.split("/").at(-1)}`;
+  // One self-hosted chat, whichever channel is linked (Godot: the server and its #devel channel).
+  if (kind === "chat") return `chat:${url.hostname.toLowerCase()}`;
   const hash = kind === "matrix" || kind === "gitter" ? url.hash.toLowerCase() : "";
   return `${url.hostname.toLowerCase().replace(/^www\./, "")}${path.toLowerCase()}${hash}`;
 }
@@ -244,6 +248,7 @@ export const KIND_TEXT: Record<CommunityKind, string> = {
   matrix: "Matrix room",
   discourse: "Discourse forum",
   "mailing-list": "mailing list",
+  chat: "chat server",
 };
 
 /** The signal as sentences. Rates are stated only over MIN_SAMPLE discussions,

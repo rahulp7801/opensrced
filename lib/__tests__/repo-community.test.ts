@@ -14,6 +14,10 @@ const LINKS: Array<[string, string, CommunityKind | null, string?]> = [
   ["reST discord.com/invite", "`Discord <https://discord.com/invite/abc123>`_", "discord", "https://discord.com/invite/abc123"],
   ["discordapp.com/invite", "https://discordapp.com/invite/xyz", "discord"],
   ["HTML href", '<a href="https://discord.gg/q1">chat</a>', "discord", "https://discord.gg/q1"],
+  // Godot's README, as written: a self-hosted Rocket.Chat.
+  ["self-hosted chat", "[Godot Contributors Chat](https://chat.godotengine.org).", "chat", "https://chat.godotengine.org"],
+  ["a word, not a chat host", "https://chatgpt.com/share/x", null],
+  ["one chat, two channels", "https://chat.godotengine.org and https://chat.godotengine.org/channel/devel", "chat", "https://chat.godotengine.org"],
   ["bold, then a full stop", "Join **https://discord.gg/abc**.", "discord", "https://discord.gg/abc"],
   ["Slack invite", "[Slack](https://join.slack.com/t/proj/shared_invite/zt-1abc)", "slack"],
   ["a Slack workspace", "on https://myproject.slack.com, say hi", "slack", "https://myproject.slack.com"],

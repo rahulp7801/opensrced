@@ -133,6 +133,8 @@ const CLAIM = /\b(?:(?:i'?ll|i\s+will|i'?d\s+like\s+to|let\s+me)\s+(?:take|work\
 function claimIn(i: IssueNode): string | null {
   const m = CLAIM.exec(i.body ?? "");
   if (m) return `the issue says "${m[0]}"`;
+  // yargs #2628: the report brings its own diff (and test results).
+  if (PATCH.test(i.body ?? "")) return "the issue includes a patch";
   for (const c of [...i.comments.nodes].reverse()) {
     const hit = CLAIM.exec(c.body);
     if (hit) return `claimed by @${c.author?.login ?? "ghost"}: "${hit[0]}"`;

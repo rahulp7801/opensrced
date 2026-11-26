@@ -63,6 +63,8 @@ const ROLES: Array<[string, "guide" | "agent" | null]> = [
   ["docs/contributing.rst", "guide"], ["docs/contributing.md", "guide"], ["Contributing.txt", "guide"], ["CONTRIBUTING", "guide"],
   ["AI_POLICY.md", "guide"], ["AI-POLICY.md", "guide"], ["ai policy.md", "guide"], ["AI.md", "guide"], [".github/AI_POLICY.md", "guide"],
   ["AI_CONTRIBUTIONS.md", "guide"],
+  ["doc/devel/contribute.rst", "guide"], ["Documentation/SubmittingPatches", "guide"], ["llvm/docs/AIToolPolicy.md", "guide"], ["docs/ai-usage.md", "guide"],
+  ["Documentation/SubmittingPatches.html", null], ["MyFirstContribution.adoc", null],
   ["AGENTS.md", "agent"], ["agents.md", "agent"], ["CLAUDE.md", "agent"], ["docs/Claude.md", "agent"],
   [".github/copilot-instructions.md", "agent"], [".github/Copilot-Instructions.md", "agent"],
   ["copilot-instructions.md", null], ["CONTRIBUTORS.rst", null], ["docs/contributors.rst", null], ["README.md", null],

@@ -146,9 +146,12 @@ test("listOpenIssues: a bad repo is refused before GitHub; a missing one says so
   await assert.rejects(listOpenIssues("a/b", "t", fake), (e: unknown) => e instanceof IssueThreadError && e.status === 404 && /wasn't found/.test(e.message));
   // GitHub's GraphQL answers a missing repository with NOT_FOUND errors; issues turned off says so too.
   const notFound = github({ "/graphql": { data: { repository: null }, errors: [{ type: "NOT_FOUND", message: "Could not resolve" }] } }).fake;
-  await assert.rejects(listOpenIssues("a/b", "t", notFound), (e: unknown) => e instanceof IssueThreadError && e.status === 404);
+  await assert.rejects(listOpenIssues("a/b", "t", notFound), (e: unknown) => e instanceof IssueThreadError && e.status === 404 && /wasn't found on GitHub/.test(e.message));
+  // Django keeps its issues in Trac: the repository is there, its issues are turned off.
   const off = github({ "/graphql": { data: { repository: { hasIssuesEnabled: false, issues: { nodes: [] } } } } }).fake;
-  await assert.rejects(listOpenIssues("a/b", "t", off), (e: unknown) => e instanceof IssueThreadError && e.status === 404);
+  await assert.rejects(listOpenIssues("a/b", "t", off), (e: unknown) => e instanceof IssueThreadError && e.status === 404 && /has its GitHub issues turned off: the project tracks them elsewhere/.test(e.message));
+  const offRest = github({ "/graphql": { data: { repository: null }, errors: [{ type: "NOT_FOUND", message: "x" }] }, "/repos/a/b": { has_issues: false } }).fake;
+  await assert.rejects(listOpenIssues("a/b", "t", offRest), (e: unknown) => e instanceof IssueThreadError && /turned off/.test(e.message));
   // GraphQL said no repository for a moment, but REST has it (nodejs/node): an error to retry, not "wasn't found".
   const blip = github({ "/graphql": { data: { repository: null }, errors: [{ type: "NOT_FOUND", message: "Could not resolve" }] }, "/repos/a/b": { full_name: "a/b", has_issues: true } }).fake;
   await assert.rejects(listOpenIssues("a/b", "t", blip), (e: unknown) => !(e instanceof IssueThreadError));

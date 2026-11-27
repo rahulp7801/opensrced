@@ -167,12 +167,14 @@ export async function listOpenIssues(repoInput: string, token = process.env.OPEN
   try { [owner, name] = splitRepo(repoInput); } catch { throw new IssueThreadError(422, "repo must be owner/name."); }
   if (!token) throw new IssueThreadError(503, "opensrcer can't read GitHub issues itself here. Sign in with gh (gh auth login) and list them with gh issue list.");
   const client = gh(token, fetchImpl ? { fetch: fetchImpl } : {});
-  const missing = new IssueThreadError(404, `${owner}/${name} wasn't found, or its issues are turned off.`);
+  const missing = new IssueThreadError(404, `${owner}/${name} wasn't found on GitHub.`);
+  // Django (Trac), git (a mailing list): the project is there, its issues are kept elsewhere.
+  const issuesOff = new IssueThreadError(404, `${owner}/${name} has its GitHub issues turned off: the project tracks them elsewhere (its README or contributing guide says where).`);
   // "Not found" only when REST agrees (GraphQL has answered no repository for a moment: nodejs/node).
   const confirmMissing = async (cause: unknown): Promise<Error> => {
     try {
       const { data } = await client.request("GET /repos/{owner}/{repo}", { owner, repo: name });
-      if ((data as { has_issues?: boolean }).has_issues === false) return missing;
+      if ((data as { has_issues?: boolean }).has_issues === false) return issuesOff;
     } catch (error) {
       if ((error as { status?: number }).status === 404) return missing;
     }
@@ -194,7 +196,7 @@ export async function listOpenIssues(repoInput: string, token = process.env.OPEN
     throw error;
   }
   if (!repo) throw await confirmMissing(new Error(`GitHub didn't return ${owner}/${name}'s issues.`));
-  if (!repo.hasIssuesEnabled) throw missing;
+  if (!repo.hasIssuesEnabled) throw issuesOff;
   const pulls: Array<{ number: number; title?: string; body?: string | null }> = [];
   for (let page = 1; page <= OPEN_PULLS_PAGES; page++) {
     const batch = (await client.request("GET /repos/{owner}/{repo}/pulls", { owner, repo: name, state: "open", sort: "created", direction: "desc", per_page: 100, page })).data as typeof pulls;

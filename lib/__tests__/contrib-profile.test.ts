@@ -93,6 +93,8 @@ test("classifyAiPolicy: hard-wrapped policies are read a sentence at a time (Nod
   assert.equal(classifyAiPolicy("Some areas require specific expertise or care when touching.\nAI generated code, even with human review, is prohibited for:\n- generated shell scripts for completions\n\nThe involvement of AI assistance must be disclosed in PRs.").stance, "disclose");
   // starship: closing PRs whose answers are unedited LLM copy-paste is a condition.
   assert.notEqual(classifyAiPolicy("- If your response to a maintainer's question is an unedited copy-paste from an LLM, or if you cannot explain the mechanics of your PR, the PR will be closed.").stance, "ban");
+  // Curly apostrophes, as phones and some editors type them.
+  assert.equal(classifyAiPolicy("We don’t accept AI-generated contributions.").stance, "ban");
   // sqlalchemy bans trolls, AI or not.
   assert.notEqual(classifyAiPolicy("In particular, **users who post content that appears to be trolling for karma /\nupvotes / vanity commits / positive responses, whether or not this content is\nmachine generated, will be banned**.").stance, "ban");
   // A list item ends a sentence; a ban in one item isn't softened by the next.

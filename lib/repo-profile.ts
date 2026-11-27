@@ -48,9 +48,10 @@ export const PROFILE_TTL_MS = 24 * 60 * 60_000;
  *  20: a review request not to do something isn't a request: scikit-learn, networkx;
  *  21: a close reason negated just before it ("isn't a duplicate") isn't the reason;
  *  22: a "Why …?" question in review isn't a request: pandas;
- *  23: curly apostrophes in negations (express), review keywords inside links (eslint, node)),
+ *  23: curly apostrophes in negations (express), review keywords inside links (eslint, node);
+ *  24: curly apostrophes in AI policies ("We don’t accept AI-generated code" read as no policy)),
  *  so a stored profile isn't served with the old verdict for up to a day. */
-export const PROFILE_RULES = 23;
+export const PROFILE_RULES = 24;
 /** Fewest PRs (or measurements) a comparison or statistic needs before it is stated. */
 export const MIN_SAMPLE = 5;
 /** A review request is stated once it recurs on this many PRs: one reviewer's

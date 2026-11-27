@@ -113,6 +113,8 @@ test("listOpenIssues: reads open PRs past the newest 100, and a comment linking 
     issue(1589, "The tested patch is available at https://github.com/someone/jsonschema/commit/06208f1c7a671f5f2e10384e252932e81e951ed7.", "ok"),
     issue(1590, "t", "Hi! I looked into this and have a small fix ready."),
     issue(1591, "t", "I have a question about the fix in #12."),
+    // A curly apostrophe, as a phone types it.
+    issue(1592, "t", "I’ll take this one."),
     // uutils #15983: asking for it is a claim, not yet granted.
     issue(15983, "t", "Hi, I'm interested in working on this issue as my first Rust contribution."),
   ] } } } };
@@ -133,7 +135,7 @@ test("listOpenIssues: reads open PRs past the newest 100, and a comment linking 
     [7038, "open PR #3746"], [7039, null], [888, 'the issue says "I have a draft ready"'], [889, null],
     [8427, "a patch is posted in a comment by @w"], [8428, null], [2628, "the issue includes a patch"],
     [11215, 'claimed by @w: "I opened python-poetry/poetry-core#999"'], [11216, null],
-    [1589, "the issue includes a patch"], [1590, 'claimed by @w: "and have a small fix"'], [1591, null],
+    [1589, "the issue includes a patch"], [1590, 'claimed by @w: "and have a small fix"'], [1591, null], [1592, `claimed by @w: "I'll take this"`],
     [15983, `claimed by @w: "I'm interested in working on this"`]]);
   assert.deepEqual(seen.filter((s) => s.includes("/pulls?")).map((s) => new URL(`https://x${s}`).searchParams.get("page")), ["1", "2"]);
 });

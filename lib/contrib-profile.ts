@@ -153,7 +153,9 @@ function sentenceAround(text: string, index: number): string {
 
 /** Classify one document's stance on AI contributions. A ban wins over a
  *  disclosure requirement found elsewhere in the same text. */
-export function classifyAiPolicy(text: string): { stance: AiStance; excerpt: string | null } {
+export function classifyAiPolicy(raw: string): { stance: AiStance; excerpt: string | null } {
+  // Curly apostrophes ("We don’t accept AI-generated code") read as straight ones.
+  const text = raw.replace(/[’‘]/g, "'");
   let unsupervised: string | null = null;
   for (const re of BAN_PATTERNS) {
     // A rule about co-authorship is not a ban (requests: "Pull requests that have an LLM product

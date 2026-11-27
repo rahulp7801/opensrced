@@ -131,13 +131,16 @@ export type IssueList = { repo: string; issues: ListedIssue[]; archived?: boolea
  *  ready branch in the issue is all there is. ponytail: first-person phrases only; a claim gone stale still counts. */
 const CLAIM = /\b(?:(?:i'?ll|i\s+will|i'?d\s+like\s+to|let\s+me)\s+(?:take|work\s+on|pick\s+up|tackle|grab)\s+(?:this|it)\b|(?:i'?m|i\s+am)\s+interested\s+in\s+(?:working\s+on|taking|picking\s+up|fixing)\s+(?:this|it)\b|(?:i'?m|i\s+am|we'?re|we\s+are|our\s+team\s+is)\s+(?:already\s+)?working\s+on\s+(?:this|it|a\s+fix)\b|(?:ready|my)\s+fix\s+branch\b|(?:i'?ll|i\s+will)\s+open\s+a\s+(?:pr|pull\s+request)\b|opening\s+a\s+(?:pr|pull\s+request)\b|(?:(?:i|and)\s+have|i'?ve\s+got)\s+(?:a\s+)?(?:(?:small|simple|quick|working|tested|local)\s+)?(?:fix|patch|branch)\b(?!\s+(?:idea|suggestion|proposal|in\s+mind))|(?:i\s+have|i'?ve\s+got)\s+a\s+draft\b(?:\s+\w+){0,2}\s+ready\b|i(?:'ve|\s+have)?\s+(?:just\s+)?(?:opened|submitted|created|raised|sent)\s+(?:a\s+(?:pr|pull\s+request|fix)\b|[\w.-]+\/[\w.-]+#\d+|https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+))/i;
 
+/** Curly apostrophes ("I’ll take this", typed on a phone) read as straight ones. */
+const straight = (s: string) => s.replace(/[’‘]/g, "'");
+
 function claimIn(i: IssueNode): string | null {
-  const m = CLAIM.exec(i.body ?? "");
+  const m = CLAIM.exec(straight(i.body ?? ""));
   if (m) return `the issue says "${m[0]}"`;
   // yargs #2628: the report brings its own diff (and test results).
   if (PATCH.test(i.body ?? "")) return "the issue includes a patch";
   for (const c of [...i.comments.nodes].reverse()) {
-    const hit = CLAIM.exec(c.body);
+    const hit = CLAIM.exec(straight(c.body));
     if (hit) return `claimed by @${c.author?.login ?? "ghost"}: "${hit[0]}"`;
     if (PATCH.test(c.body)) return `a patch is posted in a comment by @${c.author?.login ?? "ghost"}`;
   }

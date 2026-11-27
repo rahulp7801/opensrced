@@ -135,7 +135,9 @@ function hasNearbyNegation(text: string, hitIndex: number, hitLen: number): bool
 
 type ResolvedHint = { reason: string };
 
-function scanForResolved(corpus: string): string | null {
+function scanForResolved(raw: string): string | null {
+  // Curly apostrophes ("isn’t fixed", "it’s fixed") read as straight ones, for the patterns and the negation check.
+  const corpus = raw.replace(/[’‘]/g, "'");
   for (const re of RESOLVED_PATTERNS) {
     const m = re.exec(corpus);
     if (!m) continue;

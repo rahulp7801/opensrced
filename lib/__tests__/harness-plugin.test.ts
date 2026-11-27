@@ -443,7 +443,16 @@ test("the panel's map is graphify's viewer, with the user's picks and the reveal
   }
 });
 
+// A folder far inside an unrelated repository (a home directory kept in git): git answers with the repository, not the folder.
+const nested = (() => {
+  const top = mkdtempSync(join(tmpdir(), "opensrcer-home-repo-"));
+  execFileSync("git", ["init", "-q", top]);
+  mkdirSync(join(top, "projects", "x"), { recursive: true });
+  return join(top, "projects", "x");
+})();
+
 const BAD_LESSON_CALLS: Array<[string, Record<string, unknown>, RegExp]> = [
+  ["a folder inside an unrelated repository", { name: "lesson_start", arguments: { repo: "other/thing", issue: 1, dir: nested } }, /x isn't a clone itself: it's inside the git repository .+, which doesn't look like a clone of other\/thing/],
   ["a malformed lesson id", { name: "lesson_show", arguments: { lesson: "../../x" } }, /lesson must be a lesson id/],
   ["an unknown step", { name: "lesson_hint", arguments: { lesson: LESSON_ID, step: "s99" } }, /step must be one of/],
   ["a checkout of another project", { name: "lesson_start", arguments: { repo: "other/thing", issue: 1, dir: process.cwd() } }, /doesn't look like a clone of other\/thing|not a git checkout/],

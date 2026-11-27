@@ -30,7 +30,7 @@ import { promisify } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { graphify, GraphifyError, GraphifyMissing, GRAPHIFY_INSTALL, GRAPHIFY_VERSION, lessonMapData, localGraphifyVersion, overlayLevels, withOverlay, fileMapHtml, TEST_FILE } from "./graph.mjs";
 
-const VERSION = "0.3.34";
+const VERSION = "0.3.35";
 const BASE = (process.env.OPENSRCER_URL || "https://opensrced.vercel.app").replace(/\/+$/, "");
 // A host that doesn't fill in `${user_config.…}` (plugin .mcp.json) leaves the literal: that is no token.
 const TOKEN = /^\$\{/.test(process.env.OPENSRCER_TOKEN ?? "") ? "" : process.env.OPENSRCER_TOKEN || "";
@@ -294,7 +294,9 @@ async function checkout(dir, repo) {
   const name = repo.split("/")[1].toLowerCase();
   const urls = remotes.toLowerCase().split("\n").map((l) => l.split(/\s+/)[1] ?? "").filter(Boolean);
   if (!urls.some((u) => u.replace(/\.git$/, "").replace(/\/+$/, "").endsWith(`/${name}`) || u.replace(/\.git$/, "").endsWith(`:${repo.toLowerCase()}`))) {
-    throw new ToolError(`${top} doesn't look like a clone of ${repo} (no remote named like it). Pass dir: your clone of ${repo}.`);
+    // git finds the repository a folder is inside, which can be far above it (a home directory kept in git).
+    const inside = resolve(dir).toLowerCase() !== resolve(top).toLowerCase() ? `${dir} isn't a clone itself: it's inside the git repository ${top}, which` : top;
+    throw new ToolError(`${inside} doesn't look like a clone of ${repo} (no remote named like it). Pass dir: your clone of ${repo}.`);
   }
   return top;
 }

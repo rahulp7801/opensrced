@@ -50,9 +50,10 @@ export const PROFILE_TTL_MS = 24 * 60 * 60_000;
  *  22: a "Why …?" question in review isn't a request: pandas;
  *  23: curly apostrophes in negations (express), review keywords inside links (eslint, node);
  *  24: curly apostrophes in AI policies ("We don’t accept AI-generated code" read as no policy);
- *  25: and in written steps, agent directives and CLAs, quoted as written),
+ *  25: and in written steps, agent directives and CLAs, quoted as written;
+ *  26: and in close notes ("we won’t fix this")),
  *  so a stored profile isn't served with the old verdict for up to a day. */
-export const PROFILE_RULES = 25;
+export const PROFILE_RULES = 26;
 /** Fewest PRs (or measurements) a comparison or statistic needs before it is stated. */
 export const MIN_SAMPLE = 5;
 /** A review request is stated once it recurs on this many PRs: one reviewer's
@@ -393,7 +394,9 @@ function saidPlainly(text: string, re: RegExp): boolean {
 export function closeReason(pr: ProfilePr, team: Set<string>): CloseReason {
   for (const [reason, re] of CLOSE_LABELS) if ((pr.labels?.nodes ?? []).some((l) => re.test(l.name))) return reason;
   const comments = pr.comments?.nodes ?? [];
-  const notes = comments.filter((c) => byTeam(team, pr)(c) || isBotAuthor(c.author)).map((c) => ownWords(c.body));
+  // Curly apostrophes ("won’t fix") read as straight ones; nothing here is quoted back.
+  const plain = (body: string) => ownWords(body).replace(/[’‘]/g, "'");
+  const notes = comments.filter((c) => byTeam(team, pr)(c) || isBotAuthor(c.author)).map((c) => plain(c.body));
   for (const note of notes.reverse()) {
     for (const [reason, re] of CLOSE_PATTERNS) if (saidPlainly(note, re)) return reason;
   }
@@ -405,7 +408,7 @@ export function closeReason(pr: ProfilePr, team: Set<string>): CloseReason {
   // the AI pattern: an author mentioning ChatGPT is not being called out.
   const last = comments.filter((c) => c.author?.login === author).at(-1);
   if (last) {
-    for (const [reason, re] of CLOSE_PATTERNS) if (reason !== "ai_generated" && saidPlainly(ownWords(last.body), re)) return reason;
+    for (const [reason, re] of CLOSE_PATTERNS) if (reason !== "ai_generated" && saidPlainly(plain(last.body), re)) return reason;
   }
   const closedAt = Date.parse(pr.closedAt ?? "");
   const feedback = [...(pr.reviews?.nodes ?? []), ...comments].filter(byTeam(team, pr))

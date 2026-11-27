@@ -53,6 +53,7 @@ const REASONS: Array<[string, ProfilePr | Opts, CloseReason]> = [
   ["a duplicate", { maintainerSays: ["Thanks! This is a duplicate of #12."] }, "duplicate"],
   // Negated just before: not the reason given.
   ["not a duplicate, but not wanted", { maintainerSays: ["This isn't a duplicate of #12, but we won't fix it."] }, "out_of_scope"],
+  ["won’t fix, curly apostrophe", { maintainerSays: ["Thanks, but we won’t fix this."] }, "out_of_scope"],
   ["superseded", { maintainerSays: ["Closing in favour of #40."] }, "duplicate"],
   ["discuss first", { maintainerSays: ["Please open an issue first so we can discuss the design."] }, "discuss_first"],
   ["out of scope", { maintainerSays: ["This is out of scope for the project."] }, "out_of_scope"],

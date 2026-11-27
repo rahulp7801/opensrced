@@ -153,11 +153,13 @@ const PROCEDURE_PATTERNS: Array<[ProcedureKind, RegExp]> = [
 export function procedureRulesIn(files: Array<{ path: string; text: string }>): ProcedureRule[] {
   const out: ProcedureRule[] = [];
   for (const { path, text } of files) {
-    const body = text.slice(0, MAX_FILE_CHARS);
+    // Matched with curly apostrophes made straight (one character for one, so indexes hold), quoted as written.
+    const raw = text.slice(0, MAX_FILE_CHARS);
+    const body = raw.replace(/[’‘]/g, "'");
     for (const [kind, re] of PROCEDURE_PATTERNS) {
       if (out.some((r) => r.kind === kind)) continue;
       const m = re.exec(body);
-      if (m) out.push({ kind, path, text: paragraphAround(body, m.index, m[0].length) });
+      if (m) out.push({ kind, path, text: paragraphAround(raw, m.index, m[0].length) });
     }
   }
   return out;
@@ -168,13 +170,15 @@ export function procedureRulesIn(files: Array<{ path: string; text: string }>): 
 export function agentDirectivesIn(files: Array<{ path: string; text: string }>): AgentDirective[] {
   const out: AgentDirective[] = [];
   for (const { path, text } of files) {
-    const body = text.slice(0, MAX_FILE_CHARS);
+    // Matched with curly apostrophes made straight (one character for one, so indexes hold), quoted as written.
+    const raw = text.slice(0, MAX_FILE_CHARS);
+    const body = raw.replace(/[’‘]/g, "'");
     // In an agent file, an instruction hidden in an HTML comment is for the agent alone (Next.js's AGENTS.md:
     // "<!--... you MUST include the following HTML comment ...: <!-- NEXT_JS_LLM -->"). PR templates' comments are for people.
     const patterns = policyFileRole(path) === "agent" ? [...DIRECTIVE_PATTERNS, HIDDEN_DIRECTIVE] : DIRECTIVE_PATTERNS;
     const hits = patterns.flatMap((re) => [...body.matchAll(re)]).sort((a, b) => a.index - b.index);
     for (const m of hits) {
-      const quote = paragraphAround(body, m.index, m[0].length);
+      const quote = paragraphAround(raw, m.index, m[0].length);
       if (out.some((d) => d.path === path && d.text === quote)) continue;
       out.push({ path, text: quote });
       if (out.length >= MAX_DIRECTIVES) return out;
@@ -314,11 +318,13 @@ const CLA = /\b(?:contributor\s+license\s+agreement|sign(?:ed|ing)?\s+(?:the\s+|
  *  and Contributor License Agreement may be accepted"), quoted, or null. Pure. */
 export function claRuleIn(files: Array<{ path: string; text: string }>): { path: string; text: string } | null {
   for (const { path, text } of files) {
-    const body = text.slice(0, MAX_FILE_CHARS);
+    // Matched with curly apostrophes made straight (one character for one, so indexes hold), quoted as written.
+    const raw = text.slice(0, MAX_FILE_CHARS);
+    const body = raw.replace(/[’‘]/g, "'");
     // A table of contents' "[Signing the CLA](#cla)" points at the section, and a heading names it; quote the section (Angular).
     const m = [...body.matchAll(new RegExp(CLA.source, "gi"))].find((x) =>
       !body.startsWith("](", x.index + x[0].length) && body[body.lastIndexOf("\n", x.index) + 1] !== "#");
-    if (m) return { path, text: paragraphAround(body, m.index, m[0].length) };
+    if (m) return { path, text: paragraphAround(raw, m.index, m[0].length) };
   }
   return null;
 }

@@ -44,9 +44,10 @@ export const PROFILE_TTL_MS = 24 * 60 * 60_000;
  *  16: a ban scoped to a list, and unedited-copy-paste rules, aren't bans: clap, toml, starship;
  *  17: a self-hosted chat (chat.<domain>) is a community link: Godot;
  *  18: a Contributor License Agreement to sign is a start finding: redis, Angular;
- *  19: fragment folders at any depth: Twisted's src/twisted/newsfragments/),
+ *  19: fragment folders at any depth: Twisted's src/twisted/newsfragments/;
+ *  20: a review request not to do something isn't a request: scikit-learn, networkx),
  *  so a stored profile isn't served with the old verdict for up to a day. */
-export const PROFILE_RULES = 19;
+export const PROFILE_RULES = 20;
 /** Fewest PRs (or measurements) a comparison or statistic needs before it is stated. */
 export const MIN_SAMPLE = 5;
 /** A review request is stated once it recurs on this many PRs: one reviewer's
@@ -238,6 +239,9 @@ const REVIEW_PATTERNS: Array<[ReviewAsk, RegExp]> = [
 const REQUEST = /\b(please|pls|could you|can you|would you|kindly|needs? to|should(?! have)|must|add|update|missing|don'?t forget)\b/i;
 /** How far either side of the keyword the request may be, within its sentence. */
 const REQUEST_REACH = 60;
+/** A request not to (scikit-learn: "We don't usually add a changelog entry for the removal"; networkx: "no need to
+ *  split this", "I'd just as soon skip the release notes"; "please don't push changes to our CI workflows in a documentation PR"). */
+const NEGATED = /\b((don'?t|do not)(?!\s+forget)|doesn'?t|does not|no need to|not (usually|necessary|needed|required)|skip|rather not|without)\b/i;
 const SENTENCE_END = /[.!?](?:\s|$)|\n/;
 
 /** True when `re` matches somewhere in `text` that is framed as a request. Exported for tests. */
@@ -246,7 +250,7 @@ export function askedFor(text: string, re: RegExp): boolean {
     const start = m.index ?? 0;
     const before = text.slice(Math.max(0, start - REQUEST_REACH), start).split(SENTENCE_END).at(-1) ?? "";
     const after = text.slice(start + m[0].length, start + m[0].length + REQUEST_REACH).split(SENTENCE_END)[0];
-    if (REQUEST.test(before + m[0] + after)) return true;
+    if (REQUEST.test(before + m[0] + after) && !NEGATED.test(before)) return true;
   }
   return false;
 }

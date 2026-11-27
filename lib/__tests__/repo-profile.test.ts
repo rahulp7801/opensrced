@@ -105,6 +105,11 @@ const ASKS: Array<[string, RegExp, boolean]> = [
   ["I probably should have spent more time on the documentation back when I wrote the code, so thanks for this.", /documentation/i, false],
   // The request is in another sentence.
   ["Great docstring. Could you fix the typo in the title?", /docstring/i, false],
+  // Requests not to (scikit-learn, networkx, as written).
+  ["One small thing: We don't usually add a changelog entry for the removal, this is only added for the deprecation.", /changelog/i, false],
+  ["Thanks @larsoner - no need to split this into multiple PRs, these are all nice cleanups.", /split this/i, false],
+  ["I'd just as soon skip the release notes w.r.t link nitpicking, but a one-time update is fine too.", /release notes?/i, false],
+  ["Also, please don't push changes to our CI workflows in a documentation PR.", /documentation/i, false],
   ["", /changelog/i, false],
 ];
 for (const [text, re, expected] of ASKS) {

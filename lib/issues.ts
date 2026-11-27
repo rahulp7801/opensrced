@@ -57,11 +57,11 @@ const RESOLVED_LABELS = [
 const NOT_READY_LABELS: Array<[RegExp, string]> = [
   [/\b((needs?|requires?)[\s_-]*triage|triage[\s_-]*needed|untriaged|unconfirmed|pending|needs[\s_-]*investigation)\b|^(s-|status[\s/:_-]*)?triage$|^investigate$/, "Maintainers haven't confirmed this yet (it's waiting for triage). Pick it once they do."],
   [/\b(needs?[\s_-]*(more[\s_-]*)?info(rmation)?|info[\s_-]*needed|repro(duction)?[\s_-]*steps[\s_-]*needed|needs?[\s_-]*repro(duction)?|add a complete reproduction|simplify reproduction|not[\s_-]*reproducible|awaiting[\s_-]*(author[\s_-]*response|(more[\s_-]*)?info(rmation)?)|(waiting|awaiting)[\s_-]*(for|on)[\s_-]*(feedback|info(rmation)?|response|reporter|author|op))\b/, "Waiting on more information from whoever reported it."],
-  [/\b(needs?[\s_-]*(discussion|decision|design)|under[\s_-]*discussion|discussion|waiting[\s_-]*on[\s_-]*(design|decision))\b|^discuss$|^(type:\s*)?proposal$/, "Still being discussed: the fix isn't agreed yet."],
+  [/\b(needs?[\s_-]*(discussion|decision|design|thought)|under[\s_-]*discussion|discussion|waiting[\s_-]*on[\s_-]*(design|decision))\b|^discuss$|^(type:\s*)?proposal$/, "Still being discussed: the fix isn't agreed yet."],
   [/\bblocked\b/, "Blocked on other work."],
   [/\b(wontfix|won't fix|duplicate|invalid|spam|not[\s_-]*a[\s_-]*bug|wrong[\s_-]*project|needs[\s_-]*(standard|pep))\b/, "Labeled as non-actionable."],
   [/\btracking[\s_-]*issue\b|^tracker$/, "A tracking issue: the work is split into other issues."],
-  [/^((type|kind)[\s/:_-]*)?(question|support)$/, "Labeled a question: there may be nothing to fix."],
+  [/^((type|kind|issue)[\s/:_-]*)?(question|support|troubleshooting)$/, "Labeled a question: there may be nothing to fix."],
 ];
 
 /** Why an issue's labels say it isn't ready, or null. Exported for tests. */

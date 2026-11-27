@@ -45,9 +45,10 @@ export const PROFILE_TTL_MS = 24 * 60 * 60_000;
  *  17: a self-hosted chat (chat.<domain>) is a community link: Godot;
  *  18: a Contributor License Agreement to sign is a start finding: redis, Angular;
  *  19: fragment folders at any depth: Twisted's src/twisted/newsfragments/;
- *  20: a review request not to do something isn't a request: scikit-learn, networkx),
+ *  20: a review request not to do something isn't a request: scikit-learn, networkx;
+ *  21: a close reason negated just before it ("isn't a duplicate") isn't the reason),
  *  so a stored profile isn't served with the old verdict for up to a day. */
-export const PROFILE_RULES = 20;
+export const PROFILE_RULES = 21;
 /** Fewest PRs (or measurements) a comparison or statistic needs before it is stated. */
 export const MIN_SAMPLE = 5;
 /** A review request is stated once it recurs on this many PRs: one reviewer's
@@ -371,6 +372,13 @@ function unanswered(pr: ProfilePr, team: Set<string>): boolean {
   return true;
 }
 
+/** `re` matches somewhere `text` doesn't negate just before it ("This isn't a duplicate of #12, but…",
+ *  "no need to open an issue first"). ponytail: a few words back, not a parse of the sentence. */
+function saidPlainly(text: string, re: RegExp): boolean {
+  return [...text.matchAll(new RegExp(re.source, `${re.flags.replace("g", "")}g`))].some((m) =>
+    !/\b(not|isn'?t|aren'?t|wasn'?t|no need to|don'?t need to|doesn'?t need to)\s+(\w+\s+){0,2}$/i.test(text.slice(Math.max(0, m.index - 40), m.index)));
+}
+
 /** Why a closed PR was closed: its labels, then the last maintainer or bot
  *  comments; if its author closed it, their own last comment, then whether a
  *  maintainer had commented before they did. Exported for tests. */
@@ -379,7 +387,7 @@ export function closeReason(pr: ProfilePr, team: Set<string>): CloseReason {
   const comments = pr.comments?.nodes ?? [];
   const notes = comments.filter((c) => byTeam(team, pr)(c) || isBotAuthor(c.author)).map((c) => ownWords(c.body));
   for (const note of notes.reverse()) {
-    for (const [reason, re] of CLOSE_PATTERNS) if (re.test(note)) return reason;
+    for (const [reason, re] of CLOSE_PATTERNS) if (saidPlainly(note, re)) return reason;
   }
   const author = pr.author?.login;
   const closer = pr.timelineItems?.nodes.at(-1)?.actor?.login;
@@ -389,7 +397,7 @@ export function closeReason(pr: ProfilePr, team: Set<string>): CloseReason {
   // the AI pattern: an author mentioning ChatGPT is not being called out.
   const last = comments.filter((c) => c.author?.login === author).at(-1);
   if (last) {
-    for (const [reason, re] of CLOSE_PATTERNS) if (reason !== "ai_generated" && re.test(ownWords(last.body))) return reason;
+    for (const [reason, re] of CLOSE_PATTERNS) if (reason !== "ai_generated" && saidPlainly(ownWords(last.body), re)) return reason;
   }
   const closedAt = Date.parse(pr.closedAt ?? "");
   const feedback = [...(pr.reviews?.nodes ?? []), ...comments].filter(byTeam(team, pr))

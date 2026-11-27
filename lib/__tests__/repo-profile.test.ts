@@ -51,6 +51,8 @@ const REASONS: Array<[string, ProfilePr | Opts, CloseReason]> = [
   ["not assigned (pydantic's bot)", { comments: { nodes: [say("@x You do not have permission to open a PR without being assigned to the issue.", BOT)] } }, "not_assigned"],
   ["bypassing assignment", { maintainerSays: ["Please don't bypass issue assignment."] }, "not_assigned"],
   ["a duplicate", { maintainerSays: ["Thanks! This is a duplicate of #12."] }, "duplicate"],
+  // Negated just before: not the reason given.
+  ["not a duplicate, but not wanted", { maintainerSays: ["This isn't a duplicate of #12, but we won't fix it."] }, "out_of_scope"],
   ["superseded", { maintainerSays: ["Closing in favour of #40."] }, "duplicate"],
   ["discuss first", { maintainerSays: ["Please open an issue first so we can discuss the design."] }, "discuss_first"],
   ["out of scope", { maintainerSays: ["This is out of scope for the project."] }, "out_of_scope"],

@@ -42,9 +42,10 @@ export const PROFILE_TTL_MS = 24 * 60 * 60_000;
  *  14: a rule about AI code review isn't a ban: conda;
  *  15: instructions hidden in an agent file's HTML comments are shown: Next.js;
  *  16: a ban scoped to a list, and unedited-copy-paste rules, aren't bans: clap, toml, starship;
- *  17: a self-hosted chat (chat.<domain>) is a community link: Godot),
+ *  17: a self-hosted chat (chat.<domain>) is a community link: Godot;
+ *  18: a Contributor License Agreement to sign is a start finding: redis, Angular),
  *  so a stored profile isn't served with the old verdict for up to a day. */
-export const PROFILE_RULES = 17;
+export const PROFILE_RULES = 18;
 /** Fewest PRs (or measurements) a comparison or statistic needs before it is stated. */
 export const MIN_SAMPLE = 5;
 /** A review request is stated once it recurs on this many PRs: one reviewer's
@@ -161,7 +162,7 @@ export type RepoProfile = {
   responseHours?: { n: number; q1: number | null; median: number | null; q3: number | null };
   /** From the contributing guides, AI policy files, PR templates and agent
    *  instruction files (lib/ai-policy.ts); null when they could not be read. */
-  aiPolicy?: (RepoAiPolicy & Partial<Pick<RepoAiReading, "agentFiles" | "agentDirectives" | "procedures">>) | null;
+  aiPolicy?: (RepoAiPolicy & Partial<Pick<RepoAiReading, "agentFiles" | "agentDirectives" | "procedures" | "cla">>) | null;
   /** What maintainers said about AI in review, which is not the written policy. */
   reviewAiStatements?: Array<{ stance: RepoAiPolicy["stance"]; excerpt: string; url: string }>;
   /** Where PRs are reviewed when a bot closes them as merged in another system (Go: go-review.googlesource.com). */
@@ -669,6 +670,8 @@ export function profileFindings(p: RepoProfile): Finding[] {
   for (const r of ai?.procedures ?? []) {
     out.push({ section: "start", text: `The project's ${r.path} asks for ${PROCEDURE_TEXT[r.kind]} before a pull request: "${r.text}"`, examples: [] });
   }
+  // redis: no PR is merged until its CLA is signed.
+  if (ai?.cla) out.push({ section: "start", text: `The project's ${ai.cla.path} asks contributors to sign a Contributor License Agreement before a PR can be merged: "${ai.cla.text}"`, examples: [] });
   for (const f of (ai?.agentFiles ?? []).slice(0, 3)) {
     out.push({ section: "start", text: `The project has instructions for AI agents in ${f.path}: read and follow them before changing code.`, examples: [] });
   }

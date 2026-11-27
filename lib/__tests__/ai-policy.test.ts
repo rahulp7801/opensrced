@@ -4,7 +4,7 @@ import { beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { gh } from "../gh";
 import {
-  AI_POLICY_DIRS, AI_POLICY_TTL_MS, AiPolicyFetchError, agentDirectivesIn, aiPolicyBanReason, aiStatementIn, classifyRepoAiPolicy, clearAiPolicyCache,
+  AI_POLICY_DIRS, AI_POLICY_TTL_MS, AiPolicyFetchError, agentDirectivesIn, aiPolicyBanReason, aiStatementIn, claRuleIn, classifyRepoAiPolicy, clearAiPolicyCache,
   fetchAiPolicy, includeTargets, InvalidRepoNameError, policyFileRole, procedureRulesIn, repoAiPolicy, symlinkTarget, type AiPolicyStance, type ProcedureKind,
 } from "../ai-policy";
 
@@ -329,6 +329,17 @@ const PROCEDURES: Array<[string, string, ProcedureKind[]]> = [
   ["reviewers assigned", "A reviewer will be assigned automatically.", []],
   ["plain", "Thanks for contributing! Run the tests with pytest.", []],
 ];
+test("claRuleIn: a Contributor License Agreement to sign is quoted; a word inside another isn't one (redis)", () => {
+  const redis = "By contributing code to the Redis project in any form you agree to the Redis Software Grant and\nContributor License Agreement attached below.";
+  assert.deepEqual(claRuleIn([{ path: "CONTRIBUTING.md", text: "Run the tests." }, { path: "CONTRIBUTING.md", text: redis }]),
+    { path: "CONTRIBUTING.md", text: redis.replace(/\s+/g, " ") });
+  assert.ok(claRuleIn([{ path: "CONTRIBUTING.md", text: "Before we can merge, please sign our CLA." }]));
+  // Angular: the table of contents links "Signing the CLA"; the section is what's quoted.
+  assert.match(claRuleIn([{ path: "CONTRIBUTING.md", text: "- [Signing the CLA](#cla)\n\n## <a name=\"cla\"></a> Signing the CLA\n\nPlease sign our Contributor License Agreement (CLA) before sending pull requests." }])?.text ?? "", /^Please sign our Contributor License Agreement/);
+  assert.ok(claRuleIn([{ path: ".github/pull_request_template.md", text: "[![CLA assistant](https://cla-assistant.io/readme/badge/x/y)]" }]));
+  for (const text of ["Use the CLAUDE.md file.", "Run `make clang` first.", "Please declare all changes.", ""]) assert.equal(claRuleIn([{ path: "C.md", text }]), null, text);
+});
+
 for (const [name, text, kinds] of PROCEDURES) {
   test(`procedureRulesIn: ${name} → ${kinds.join(", ") || "none"}`, () => {
     const rules = procedureRulesIn([{ path: "CONTRIBUTING.md", text }]);

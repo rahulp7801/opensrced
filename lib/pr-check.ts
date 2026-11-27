@@ -85,6 +85,8 @@ export function checkDraft(p: RepoProfile, draft: PrDraft): Check[] {
   } else if (!DISCLOSES_AI.test(draft.body)) add("ai-disclosure", "note", "The description doesn't mention AI assistance. Say so if AI helped, even where the project doesn't ask.");
   const advice = engagementAdvice(p);
   if (advice) add(advice.reason === "not_assigned" ? "assigned" : "discussed", "warn", `${advice.headline} Make sure that happened before opening this PR.`);
+  // A note, not a warning: the user signs it themselves, often when a bot asks on the PR.
+  if (ai?.cla) add("cla", "note", `The project's ${ai.cla.path} asks contributors to sign a Contributor License Agreement: the PR can't be merged until the user has signed it, and only they can sign.`);
   for (const f of (ai?.agentFiles ?? []).slice(0, 2)) add("agent-file", "note", `The project's ${f.path} has instructions for this kind of change: check the draft follows them.`);
 
   // 2. What merged PRs here have.

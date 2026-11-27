@@ -30,7 +30,11 @@ export type AgentFile = { path: string; bytes: number };
 /** A passage addressed to AI agents, quoted (trimmed to ~300 chars) from `path`. */
 export type AgentDirective = { path: string; text: string };
 /** What fetchAiPolicy reads: the stance plus what the project says to agents. */
-export type RepoAiReading = RepoAiPolicy & { agentFiles: AgentFile[]; agentDirectives: AgentDirective[]; procedures: ProcedureRule[] };
+export type RepoAiReading = RepoAiPolicy & {
+  agentFiles: AgentFile[]; agentDirectives: AgentDirective[]; procedures: ProcedureRule[];
+  /** A Contributor License Agreement the guide asks contributors to sign (redis), quoted; null when none. */
+  cla?: { path: string; text: string } | null;
+};
 
 const STANCE: Record<AiStance, AiPolicyStance> = { ban: "banned", disclose: "disclosure-required", welcome: "allowed", unknown: "unknown" };
 /** A ban anywhere outranks a disclosure rule, which outranks a welcome. */
@@ -299,7 +303,24 @@ export async function fetchAiPolicy(client: GitHubClient, repo: string): Promise
     agentFiles: files.filter((f) => roles.get(f.path) === "agent").map((f) => ({ path: f.path, bytes: new TextEncoder().encode(f.text).length })),
     agentDirectives: agentDirectivesIn(files),
     procedures: procedureRulesIn([...files.filter((f) => roles.get(f.path) !== "agent"), ...orgSteps]),
+    cla: claRuleIn([...files.filter((f) => roles.get(f.path) !== "agent"), ...orgSteps]),
   };
+}
+
+/** A CLA to sign: named in full, or by its signing services (CLA assistant, EasyCLA, Google's and Meta's). */
+const CLA = /\b(?:contributor\s+license\s+agreement|sign(?:ed|ing)?\s+(?:the\s+|our\s+|a\s+)?cla|cla[- ]assistant|easycla)\b|cla\.developers\.google\.com|code\.facebook\.com\/cla/i;
+
+/** The first passage asking for a signed CLA (redis: "Only contributions made under the Redis Software Grant
+ *  and Contributor License Agreement may be accepted"), quoted, or null. Pure. */
+export function claRuleIn(files: Array<{ path: string; text: string }>): { path: string; text: string } | null {
+  for (const { path, text } of files) {
+    const body = text.slice(0, MAX_FILE_CHARS);
+    // A table of contents' "[Signing the CLA](#cla)" points at the section, and a heading names it; quote the section (Angular).
+    const m = [...body.matchAll(new RegExp(CLA.source, "gi"))].find((x) =>
+      !body.startsWith("](", x.index + x[0].length) && body[body.lastIndexOf("\n", x.index) + 1] !== "#");
+    if (m) return { path, text: paragraphAround(body, m.index, m[0].length) };
+  }
+  return null;
 }
 
 /** The guides and AI policies the owner's `.github` repository publishes for all its repos

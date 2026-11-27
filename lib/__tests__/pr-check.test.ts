@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { checkDraft, InvalidDraftError, parseDraft, type PrDraft } from "../pr-check";
-import { summarizeProfile, type RepoProfile } from "../repo-profile";
+import { profileFindings, summarizeProfile, type RepoProfile } from "../repo-profile";
 
 const tally = (count: number, of: number) => ({ count, of, examples: [`https://github.com/acme/app/pull/${count}`] });
 
@@ -113,6 +113,16 @@ test("with no history to go on, a code draft without a test or an issue link sti
   // Where test files are the habit, a Rust draft without one is still warned (uutils: "No tests, no merge").
   const rustJudged = checkDraft(profile(), { ...GOOD, files: ["src/uu/date/src/date.rs"], linkedIssue: true }).find((c) => c.id === "tests");
   assert.equal(rustJudged?.status, "warn");
+});
+
+test("a CLA the project asks for is a note in check_pr and a start finding in the profile (redis)", () => {
+  const base = profile();
+  const p = { ...base, aiPolicy: { stance: "unknown" as const, source: null, evidence: null, cla: { path: "CONTRIBUTING.md", text: "Only contributions made under the Redis CLA may be accepted." } } };
+  const cla = checkDraft(p, GOOD).find((c) => c.id === "cla");
+  assert.equal(cla?.status, "note");
+  assert.match(cla?.text ?? "", /^The project's CONTRIBUTING\.md asks contributors to sign a Contributor License Agreement: the PR can't be merged until the user has signed it/);
+  assert.ok(profileFindings(p).some((f) => f.section === "start" && f.text.startsWith("The project's CONTRIBUTING.md asks contributors to sign a Contributor License Agreement before a PR can be merged")));
+  assert.equal(checkDraft(base, GOOD).find((c) => c.id === "cla"), undefined, "no CLA, no note");
 });
 
 test("a written procedure warns even without PR history (earthpy: approval before a PR)", () => {

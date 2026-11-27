@@ -30,7 +30,9 @@ test("changelogLocation: root and docs changelogs and fragment directories; not 
     ["CHANGELOG.md", "CHANGELOG.md"], ["docs/changelog.rst", "docs/changelog.rst"], ["HISTORY.md", "HISTORY.md"],
     ["changes/1234.bugfix.md", "changes/"], ["newsfragments/99.feature", "newsfragments/"], [".changeset/blue-cats.md", ".changeset/"],
     ["Misc/NEWS.d/next/Library/2026-10-01.gh-1.rst", "Misc/NEWS.d/"], ["docs/changes/1.md", "docs/changes/"],
-    ["src/news/models.py", null], ["src/history.py", null], ["app/changelog_view.py", null], ["README.md", null], ["", null],
+    // Twisted: fragment folders whose names mean nothing else count at any depth.
+    ["src/twisted/newsfragments/12345.bugfix", "src/twisted/newsfragments/"], ["packages/core/changelog.d/1.md", "packages/core/changelog.d/"],
+    ["src/news/models.py", null], ["src/history.py", null], ["app/changelog_view.py", null], ["src/changes/diff.py", null], ["README.md", null], ["", null],
   ];
   for (const [path, want] of cases) assert.equal(changelogLocation(path), want, path);
 });

@@ -77,10 +77,12 @@ export const testsInline = (lists: string[][]) => lists.filter((l) => l.some((p)
  *  happens to be called news/ deeper down is not one. */
 const CHANGELOG_FILE = /^(?:docs?\/)?(changelog|changes|history|news|release[-_ ]?notes)(\.(md|rst|txt|adoc))?$/i;
 const CHANGELOG_DIR = /^((?:docs?\/|misc\/)?(?:changelog\.d|changes|newsfragments|news\.d|news|\.changeset|changelog|releasenotes\/notes)\/)/i;
+/** Fragment folders whose names mean nothing else, at any depth (Twisted's src/twisted/newsfragments/). */
+const FRAGMENT_DIR = /^((?:[\w.-]+\/)+?(?:newsfragments|changelog\.d|news\.d)\/)/i;
 
 /** The changelog location a path is an entry in, or null. */
 export function changelogLocation(path: string): string | null {
-  const dir = CHANGELOG_DIR.exec(path);
+  const dir = CHANGELOG_DIR.exec(path) ?? FRAGMENT_DIR.exec(path);
   if (dir) return dir[1];
   return CHANGELOG_FILE.test(path) ? path : null;
 }

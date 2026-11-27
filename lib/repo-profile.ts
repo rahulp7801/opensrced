@@ -43,9 +43,10 @@ export const PROFILE_TTL_MS = 24 * 60 * 60_000;
  *  15: instructions hidden in an agent file's HTML comments are shown: Next.js;
  *  16: a ban scoped to a list, and unedited-copy-paste rules, aren't bans: clap, toml, starship;
  *  17: a self-hosted chat (chat.<domain>) is a community link: Godot;
- *  18: a Contributor License Agreement to sign is a start finding: redis, Angular),
+ *  18: a Contributor License Agreement to sign is a start finding: redis, Angular;
+ *  19: fragment folders at any depth: Twisted's src/twisted/newsfragments/),
  *  so a stored profile isn't served with the old verdict for up to a day. */
-export const PROFILE_RULES = 18;
+export const PROFILE_RULES = 19;
 /** Fewest PRs (or measurements) a comparison or statistic needs before it is stated. */
 export const MIN_SAMPLE = 5;
 /** A review request is stated once it recurs on this many PRs: one reviewer's

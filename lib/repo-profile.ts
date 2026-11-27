@@ -545,7 +545,8 @@ export const CLOSE_REASON_TEXT: Record<CloseReason, string> = {
 
 export const REVIEW_ASK_TEXT: Record<ReviewAsk, string> = {
   tests: "add or fix tests",
-  changelog: "add a changelog entry",
+  // Also "trim the release note" (numpy): an entry to add or to fix.
+  changelog: "add or fix a changelog entry",
   docs: "update the documentation or docstrings",
   style: "fix formatting or linting (run pre-commit)",
   typing: "add or fix type annotations",

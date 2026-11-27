@@ -30,7 +30,7 @@ import { promisify } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { graphify, GraphifyError, GraphifyMissing, GRAPHIFY_INSTALL, GRAPHIFY_VERSION, lessonMapData, localGraphifyVersion, overlayLevels, withOverlay, fileMapHtml, TEST_FILE } from "./graph.mjs";
 
-const VERSION = "0.3.33";
+const VERSION = "0.3.34";
 const BASE = (process.env.OPENSRCER_URL || "https://opensrced.vercel.app").replace(/\/+$/, "");
 // A host that doesn't fill in `${user_config.…}` (plugin .mcp.json) leaves the literal: that is no token.
 const TOKEN = /^\$\{/.test(process.env.OPENSRCER_TOKEN ?? "") ? "" : process.env.OPENSRCER_TOKEN || "";
@@ -325,7 +325,7 @@ async function fetchIssue(repo, number) {
   }
   if (!issue) return null;
   if (issue.pull_request) throw new ToolError(`#${number} is a pull request, not an issue.`);
-  return { title: String(issue.title ?? ""), body: String(issue.body ?? "") };
+  return { title: String(issue.title ?? ""), body: String(issue.body ?? ""), state: issue.state, stateReason: issue.state_reason ?? null };
 }
 
 /** The maintainers' replies on an issue (its newest comments, as read_issue reads them), each
@@ -647,7 +647,12 @@ async function callTool(name, args) {
     const map = `Code map (graphify${built.remote ? " on opensrcer, upstream" : ""}, commit ${built.sha.slice(0, 7)}${built.cached ? ", cached" : ""}): ${built.graph.nodes.length} nodes in ${communities} communities.${sendGraph ? "" : " It is too large to send, so steps s1, s3 and s7 are graded without it."}`;
     const file = await mapForPane(L.id);
     const unread = said === null ? "\n(Couldn't read the issue's replies, so the graders see the issue without them: tell the user about any requirement a maintainer set there.)" : "";
-    return result(`${lessonText(L)}\n${map}${unread}${file ? `\n${file}` : ""}`, { lesson: L, key: null });
+    // A closed issue still teaches (its fix is known), but there's nothing to contribute from it: say so up front.
+    const closed = issue?.state !== "closed" ? ""
+      : issue.stateReason === "not_planned"
+        ? `\nThis issue is closed as not planned: the maintainers decided against changing it. Tell the user before going on: a lesson here is practice only, and find_issues lists open ones to contribute to.`
+        : `\nThis issue is closed, so it's fixed already. Tell the user before going on: a lesson here is practice (afterwards, compare with the PR that closed it), and there's nothing to contribute from it; find_issues lists open ones.`;
+    return result(`${lessonText(L)}\n${map}${unread}${closed}${file ? `\n${file}` : ""}`, { lesson: L, key: null });
   }
   throw new ToolError(`Unknown tool: ${name}`);
 }

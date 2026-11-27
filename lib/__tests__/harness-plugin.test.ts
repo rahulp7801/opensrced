@@ -81,6 +81,8 @@ before(async () => {
       }
       const lessonRoute = /^\/api\/harness\/lessons(?:\/(l_[0-9a-f-]+)(?:\/(\w+))?)?/.exec(req.url ?? "");
       if (req.url === "/repos/acme/app/issues/12") return reply(res, { title: "fill ignores value", body: "fill(df, 0) leaves NaN." });
+      if (req.url === "/repos/acme/app/issues/99") return reply(res, { title: "old bug", body: "b", state: "closed", state_reason: "completed" });
+      if (req.url === "/repos/acme/app/issues/98") return reply(res, { title: "won't change", body: "b", state: "closed", state_reason: "not_planned" });
       if (lessonRoute?.[2] === "answer" && JSON.parse(body).grader_reply === "looks fine") {
         // As lib/lesson/api.ts answers a verdict the step's parseGrade can't read.
         res.writeHead(502, { "content-type": "application/json" });
@@ -339,6 +341,12 @@ test("a lesson over stdio: graphify's map of the checkout goes up, rubrics come 
     assert.match(text(started), /Code map \(graphify, commit [0-9a-f]{7}\): \d+ nodes in \d+ communities\./);
     assert.match(text(started), /Ask the user, one at a time/, "without a panel, the agent asks in chat");
     assert.match(text(started), /Prepare the hidden fix now \(lesson_key\)/);
+    assert.doesNotMatch(text(started), /This issue is closed/, "an open issue says nothing about it");
+    // A closed issue still makes a lesson, but the user hears there's nothing to contribute from it.
+    const fixed = text(await request("tools/call", { name: "lesson_start", arguments: { repo: "acme/app", issue: 99, dir } }));
+    assert.match(fixed, /This issue is closed, so it's fixed already\. Tell the user before going on: a lesson here is practice/);
+    const declined = text(await request("tools/call", { name: "lesson_start", arguments: { repo: "acme/app", issue: 98, dir } }));
+    assert.match(declined, /closed as not planned: the maintainers decided against changing it/);
 
     // A step the model judges: the rubric goes to the model; the answer is kept for the verdict.
     const rubric = await request("tools/call", { name: "lesson_answer", arguments: { lesson: LESSON_ID, step: "s1", answer: "It cleans data." } });

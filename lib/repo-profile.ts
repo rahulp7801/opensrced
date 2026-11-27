@@ -46,9 +46,10 @@ export const PROFILE_TTL_MS = 24 * 60 * 60_000;
  *  18: a Contributor License Agreement to sign is a start finding: redis, Angular;
  *  19: fragment folders at any depth: Twisted's src/twisted/newsfragments/;
  *  20: a review request not to do something isn't a request: scikit-learn, networkx;
- *  21: a close reason negated just before it ("isn't a duplicate") isn't the reason),
+ *  21: a close reason negated just before it ("isn't a duplicate") isn't the reason;
+ *  22: a "Why …?" question in review isn't a request: pandas),
  *  so a stored profile isn't served with the old verdict for up to a day. */
-export const PROFILE_RULES = 21;
+export const PROFILE_RULES = 22;
 /** Fewest PRs (or measurements) a comparison or statistic needs before it is stated. */
 export const MIN_SAMPLE = 5;
 /** A review request is stated once it recurs on this many PRs: one reviewer's
@@ -251,7 +252,8 @@ export function askedFor(text: string, re: RegExp): boolean {
     const start = m.index ?? 0;
     const before = text.slice(Math.max(0, start - REQUEST_REACH), start).split(SENTENCE_END).at(-1) ?? "";
     const after = text.slice(start + m[0].length, start + m[0].length + REQUEST_REACH).split(SENTENCE_END)[0];
-    if (REQUEST.test(before + m[0] + after) && !NEGATED.test(before)) return true;
+    // "Why do we *care* about the behavior of the non-public API that no one should ever reach?" (pandas) questions it.
+    if (REQUEST.test(before + m[0] + after) && !NEGATED.test(before) && !/^\s*(why|how come)\b/i.test(before)) return true;
   }
   return false;
 }

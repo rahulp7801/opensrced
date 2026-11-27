@@ -112,6 +112,9 @@ const ASKS: Array<[string, RegExp, boolean]> = [
   ["Thanks @larsoner - no need to split this into multiple PRs, these are all nice cleanups.", /split this/i, false],
   ["I'd just as soon skip the release notes w.r.t link nitpicking, but a one-time update is fine too.", /release notes?/i, false],
   ["Also, please don't push changes to our CI workflows in a documentation PR.", /documentation/i, false],
+  // A question about it, not a request (pandas).
+  ["Why do we *care* about the behavior of the non-public API that no one should ever reach?", /public api/i, false],
+  ["Should this keep the public API as it is?", /public api/i, true],
   ["", /changelog/i, false],
 ];
 for (const [text, re, expected] of ASKS) {

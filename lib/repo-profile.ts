@@ -47,9 +47,10 @@ export const PROFILE_TTL_MS = 24 * 60 * 60_000;
  *  19: fragment folders at any depth: Twisted's src/twisted/newsfragments/;
  *  20: a review request not to do something isn't a request: scikit-learn, networkx;
  *  21: a close reason negated just before it ("isn't a duplicate") isn't the reason;
- *  22: a "Why …?" question in review isn't a request: pandas),
+ *  22: a "Why …?" question in review isn't a request: pandas;
+ *  23: curly apostrophes in negations (express), review keywords inside links (eslint, node)),
  *  so a stored profile isn't served with the old verdict for up to a day. */
-export const PROFILE_RULES = 22;
+export const PROFILE_RULES = 23;
 /** Fewest PRs (or measurements) a comparison or statistic needs before it is stated. */
 export const MIN_SAMPLE = 5;
 /** A review request is stated once it recurs on this many PRs: one reviewer's
@@ -243,13 +244,16 @@ const REQUEST = /\b(please|pls|could you|can you|would you|kindly|needs? to|shou
 const REQUEST_REACH = 60;
 /** A request not to (scikit-learn: "We don't usually add a changelog entry for the removal"; networkx: "no need to
  *  split this", "I'd just as soon skip the release notes"; "please don't push changes to our CI workflows in a documentation PR"). */
-const NEGATED = /\b((don'?t|do not)(?!\s+forget)|doesn'?t|does not|no need to|not (usually|necessary|needed|required)|skip|rather not|without)\b/i;
+const NEGATED = /\b((don['’]?t|do not)(?!\s+forget)|doesn['’]?t|does not|no need to|not (usually|necessary|needed|required)|skip|rather not|without)\b/i;
 const SENTENCE_END = /[.!?](?:\s|$)|\n/;
 
 /** True when `re` matches somewhere in `text` that is framed as a request. Exported for tests. */
 export function askedFor(text: string, re: RegExp): boolean {
   for (const m of text.matchAll(new RegExp(re.source, "gi"))) {
     const start = m.index ?? 0;
+    // Inside a link isn't a request for it (eslint: "sign the CLA [above](https://github.com/eslint/...)";
+    // node: "Could you check https://github.blog/changelog/...").
+    if (/(https?:\/\/|www\.)\S*$/i.test(text.slice(Math.max(0, start - 200), start))) continue;
     const before = text.slice(Math.max(0, start - REQUEST_REACH), start).split(SENTENCE_END).at(-1) ?? "";
     const after = text.slice(start + m[0].length, start + m[0].length + REQUEST_REACH).split(SENTENCE_END)[0];
     // "Why do we *care* about the behavior of the non-public API that no one should ever reach?" (pandas) questions it.
@@ -378,7 +382,7 @@ function unanswered(pr: ProfilePr, team: Set<string>): boolean {
  *  "no need to open an issue first"). ponytail: a few words back, not a parse of the sentence. */
 function saidPlainly(text: string, re: RegExp): boolean {
   return [...text.matchAll(new RegExp(re.source, `${re.flags.replace("g", "")}g`))].some((m) =>
-    !/\b(not|isn'?t|aren'?t|wasn'?t|no need to|don'?t need to|doesn'?t need to)\s+(\w+\s+){0,2}$/i.test(text.slice(Math.max(0, m.index - 40), m.index)));
+    !/\b(not|isn['’]?t|aren['’]?t|wasn['’]?t|no need to|don['’]?t need to|doesn['’]?t need to)\s+(\w+\s+){0,2}$/i.test(text.slice(Math.max(0, m.index - 40), m.index)));
 }
 
 /** Why a closed PR was closed: its labels, then the last maintainer or bot

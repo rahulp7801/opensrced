@@ -112,6 +112,11 @@ const ASKS: Array<[string, RegExp, boolean]> = [
   ["Thanks @larsoner - no need to split this into multiple PRs, these are all nice cleanups.", /split this/i, false],
   ["I'd just as soon skip the release notes w.r.t link nitpicking, but a one-time update is fine too.", /release notes?/i, false],
   ["Also, please don't push changes to our CI workflows in a documentation PR.", /documentation/i, false],
+  // A curly apostrophe (express), and a keyword inside a link (eslint, node), as written.
+  ["Please don’t open PRs to address that deprecation.", /deprecat(e|ion)/i, false],
+  ["Can you please sign the CLA [above](https://github.com/eslint/eslint/pull/21448) as otherwise we can't merge?", /lint(ing)?/i, false],
+  ["Could you check https://github.blog/changelog/2025-08-08-upcoming-changes/ regarding it?", /changelog/i, false],
+  ["Please fix the lint errors (see https://example.com/ci).", /lint/i, true],
   // A question about it, not a request (pandas).
   ["Why do we *care* about the behavior of the non-public API that no one should ever reach?", /public api/i, false],
   ["Should this keep the public API as it is?", /public api/i, true],
